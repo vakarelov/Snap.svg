@@ -15,3 +15,5 @@
         factory(glob, glob.eve);
     }
 }(window || this, function (window, eve) {
+
+    "use strict";

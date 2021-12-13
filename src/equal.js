@@ -11,7 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob) {
+
+
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var names = {},
         reUnit = /[%a-z]+$/i,
         Str = String;
@@ -45,7 +47,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             to = [],
             i = 0, j, jj,
             tt1, tt2;
-        for (; i < maxlength; i++) {
+        for (; i < maxlength; ++i) {
             tt1 = t1[i] || getEmpty(t2[i]);
             tt2 = t2[i] || getEmpty(tt1);
             if (tt1[0] != tt2[0] ||
@@ -87,7 +89,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
     }
     function getPath(path) {
         var k = 0, i, ii, j, jj, out, a, b = [];
-        for (i = 0, ii = path.length; i < ii; i++) {
+        for (i = 0, ii = path.length; i < ii; ++i) {
             out = "[";
             a = ['"' + path[i][0] + '"'];
             for (j = 1, jj = path[i].length; j < jj; j++) {
@@ -96,11 +98,11 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             out += a + "]";
             b[i] = out;
         }
-        return Function("val", "return Snap.path.toString.call([" + b + "])");
+        return Function("val", "return IA_Designer.Snap.path.toString.call([" + b + "])");
     }
     function path2array(path) {
         var out = [];
-        for (var i = 0, ii = path.length; i < ii; i++) {
+        for (var i = 0, ii = path.length; i < ii; ++i) {
             for (var j = 1, jj = path[i].length; j < jj; j++) {
                 out.push(path[i][j]);
             }
@@ -117,7 +119,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
         return arr1.toString() == arr2.toString();
     }
     Element.prototype.equal = function (name, b) {
-        return eve("snap.util.equal", this, name, b).firstDefined();
+        return eve(["snap","util","equal"], this, name, b).firstDefined();
     };
     eve.on("snap.util.equal", function (name, b) {
         var A, B, a = Str(this.attr(name) || ""),
@@ -132,7 +134,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             };
         }
         if (name == "viewBox") {
-            A = this.attr(name).vb.split(" ").map(Number);
+            A = this.attr(name).vb().split(" ").map(Number);
             B = b.split(" ").map(Number);
             return {
                 from: A,
@@ -146,12 +148,12 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             }
             a = this.matrix;
             if (!Snap._.rgTransform.test(b)) {
-                b = Snap._.transform2matrix(Snap._.svgTransform2string(b), this.getBBox());
+                b = Snap._.transform2matrix(Snap._.svgTransform2string(b), this);
             } else {
-                b = Snap._.transform2matrix(b, this.getBBox());
+                b = Snap._.transform2matrix(b, this);
             }
             return equaliseTransform(a, b, function () {
-                return el.getBBox(1);
+                return el.getBBox(true);
             });
         }
         if (name == "d" || name == "path") {

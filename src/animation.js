@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var elproto = Element.prototype,
         is = Snap.is,
         Str = String,
@@ -123,7 +123,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         }
         var now = mina.time(),
             anim = mina(from, to, now, now + ms, mina.time, setter, easing);
-        callback && eve.once("mina.finish." + anim.id, callback);
+        callback && eve.once("snap.mina.finish." + anim.id, callback);
         return anim;
     };
     /*\
@@ -136,7 +136,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
     \*/
     elproto.stop = function () {
         var anims = this.inAnim();
-        for (var i = 0, ii = anims.length; i < ii; i++) {
+        for (var i = 0, ii = anims.length; i < ii; ++i) {
             anims[i].stop();
         }
         return this;
@@ -192,16 +192,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         el.anims[anim.id] = anim;
         anim._attrs = attrs;
         anim._callback = callback;
-        eve("snap.animcreated." + el.id, anim);
-        eve.once("mina.finish." + anim.id, function () {
-            eve.off("mina.*." + anim.id);
+        eve.once("snap.mina.finish." + anim.id, function () {
+            eve.off("snap.mina.*." + anim.id);
             delete el.anims[anim.id];
             callback && callback.call(el);
         });
-        eve.once("mina.stop." + anim.id, function () {
-            eve.off("mina.*." + anim.id);
+        eve.once("snap.mina.stop." + anim.id, function () {
+            eve.off("snap.mina.*." + anim.id);
             delete el.anims[anim.id];
         });
+        eve(["snap","animcreated",el.id], anim);
         return el;
     };
 });

@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var has = "hasOwnProperty",
         make = Snap._.make,
         wrap = Snap._.wrap,
@@ -88,22 +88,24 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             $(this.node, {
                 "clip-path": URL(clip.node.id || clip.id)
             });
+            this.c_hull = undefined;
         }
     }));
+
     function fillStroke(name) {
         return function (value) {
             eve.stop();
             if (value instanceof Fragment && value.node.childNodes.length == 1 &&
                 (value.node.firstChild.tagName == "radialGradient" ||
-                value.node.firstChild.tagName == "linearGradient" ||
-                value.node.firstChild.tagName == "pattern")) {
+                    value.node.firstChild.tagName == "linearGradient" ||
+                    value.node.firstChild.tagName == "pattern")) {
                 value = value.node.firstChild;
                 getSomeDefs(this).appendChild(value);
                 value = wrap(value);
             }
             if (value instanceof Element) {
                 if (value.type == "radialGradient" || value.type == "linearGradient"
-                   || value.type == "pattern") {
+                    || value.type == "pattern") {
                     if (!value.node.id) {
                         $(value.node, {
                             id: value.id
@@ -137,6 +139,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             this.node.style[name] = E;
         };
     }
+
     eve.on("snap.util.attr.fill", fillStroke("fill"));
     eve.on("snap.util.attr.stroke", fillStroke("stroke"));
     var gradrg = /^([lr])(?:\(([^)]*)\))?(.*)$/i;
@@ -169,6 +172,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         var len = stops.length,
             start = 0,
             j = 0;
+
         function seed(i, end) {
             var step = (end - start) / (i - j);
             for (var k = j; k < i; k++) {
@@ -177,8 +181,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             j = i;
             start = end;
         }
+
         len--;
-        for (var i = 0; i < len; i++) if ("offset" in stops[i]) {
+        for (var i = 0; i < len; ++i) if ("offset" in stops[i]) {
             seed(i, stops[i].offset);
         }
         stops[len].offset = stops[len].offset || 100;
@@ -199,7 +204,30 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         if (value.match(/[ruo]/i)) {
             value = Snap.path.toAbsolute(value);
         }
+        this.c_hull = undefined;
         $(this.node, {d: value});
+    })(-1);
+    eve.on("snap.util.attr.points", function (value) {
+        if (Array.isArray(value)){
+            if (Array.isArray(value[0])){
+                eve.stop();
+                let points =[];
+                value.forEach((p)=>{
+                    points.push(p[0]);
+                    points.push(p[1]);
+                });
+                this.attr("points", points);
+            } else if (typeof value[0] === "object" && value[0].hasOwnProperty("x")){
+                eve.stop();
+                let points =[];
+                value.forEach((p)=>{
+                    points.push(p.x);
+                    points.push(p.y);
+                });
+                this.attr("points", points);
+            }
+        }
+        this.c_hull = undefined;
     })(-1);
     eve.on("snap.util.attr.#text", function (value) {
         eve.stop();
@@ -209,6 +237,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             this.node.removeChild(this.node.firstChild);
         }
         this.node.appendChild(txt);
+        this.c_hull = undefined;
     })(-1);
     eve.on("snap.util.attr.path", function (value) {
         eve.stop();
@@ -243,6 +272,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
                 rx: value,
                 ry: value
             });
+            this.c_hull = undefined;
         }
     })(-1);
     eve.on("snap.util.attr.textpath", function (value) {
@@ -260,7 +290,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             }
             if (is(value, "string")) {
                 var defs = getSomeDefs(this),
-                    path = wrap(defs.parentNode).path(value);
+                    path = wrap(defs.parentNode).path(value),
+                    textpath_group = defs.querySelector("#text-paths");
+                defs = textpath_group || defs;
                 defs.appendChild(path.node);
                 id = path.id;
                 path.attr({id: id});
@@ -290,6 +322,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
                     this.textPath = wrap(tp);
                 }
             }
+            this.c_hull = undefined;
         }
     })(-1);
     eve.on("snap.util.attr.text", function (value) {
@@ -299,8 +332,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
                 tuner = function (chunk) {
                     var out = $("tspan");
                     if (is(chunk, "array")) {
-                        for (var i = 0; i < chunk.length; i++) {
-                            out.appendChild(tuner(chunk[i]));
+                        for (var i = 0; i < chunk.length; ++i) {
+                            const newChild = tuner(chunk[i]);
+                            out.appendChild(newChild);
                         }
                     } else {
                         out.appendChild(glob.doc.createTextNode(chunk));
@@ -318,6 +352,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         }
         eve.stop();
     })(-1);
+
+    eve.on("snap.util.attr.href", function () {
+       if (this.type === "use" && this.use_target) this.use_target = undefined;
+    });
+
     function setFontSize(value) {
         eve.stop();
         if (value == +value) {
@@ -325,6 +364,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         }
         this.node.style.fontSize = value;
     }
+
     eve.on("snap.util.attr.fontSize", setFontSize)(-1);
     eve.on("snap.util.attr.font-size", setFontSize)(-1);
 
@@ -350,6 +390,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
                 }
             };
         }
+
         function setter(end) {
             return function (value) {
                 eve.stop();
@@ -368,6 +409,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
                 }
             };
         }
+
         eve.on("snap.util.getattr.marker-end", getter("end"))(-1);
         eve.on("snap.util.getattr.markerEnd", getter("end"))(-1);
         eve.on("snap.util.getattr.marker-start", getter("start"))(-1);
@@ -387,10 +429,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             return $(this.node, "rx");
         }
     })(-1);
+
     function textExtract(node) {
         var out = [];
         var children = node.childNodes;
-        for (var i = 0, ii = children.length; i < ii; i++) {
+        for (var i = 0, ii = children.length; i < ii; ++i) {
             var chi = children[i];
             if (chi.nodeType == 3) {
                 out.push(chi.nodeValue);
@@ -405,6 +448,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         }
         return out;
     }
+
     eve.on("snap.util.getattr.text", function () {
         if (this.type == "text" || this.type == "tspan") {
             eve.stop();
@@ -420,7 +464,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             return;
         }
         eve.stop();
-        var value = eve("snap.util.getattr.fill", this, true).firstDefined();
+        var value = eve(["snap", "util", "getattr", "fill"], this, true).firstDefined();
         return Snap(Snap.deurl(value)) || value;
     })(-1);
     eve.on("snap.util.getattr.stroke", function (internal) {
@@ -428,40 +472,43 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             return;
         }
         eve.stop();
-        var value = eve("snap.util.getattr.stroke", this, true).firstDefined();
+        var value = eve(["snap", "util", "getattr", "stroke"], this, true).firstDefined();
         return Snap(Snap.deurl(value)) || value;
     })(-1);
     eve.on("snap.util.getattr.viewBox", function () {
         eve.stop();
-        var vb = $(this.node, "viewBox");
+        var vb = $(this.node, "viewBox").trim();
         if (vb) {
             vb = vb.split(separator);
-            return Snap._.box(+vb[0], +vb[1], +vb[2], +vb[3]);
+            return Snap.box(+vb[0], +vb[1], +vb[2], +vb[3]);
         } else {
             return;
         }
     })(-1);
     eve.on("snap.util.getattr.points", function () {
-        var p = $(this.node, "points");
+        var p = $(this.node, "points").trim();
         eve.stop();
         if (p) {
+
             return p.split(separator);
         } else {
             return;
         }
     })(-1);
     eve.on("snap.util.getattr.path", function () {
-        var p = $(this.node, "d");
+        var p = $(this.node, "d").trim();
         eve.stop();
         return p;
     })(-1);
     eve.on("snap.util.getattr.class", function () {
         return this.node.className.baseVal;
     })(-1);
+
     function getFontSize() {
         eve.stop();
         return this.node.style.fontSize;
     }
+
     eve.on("snap.util.getattr.fontSize", getFontSize)(-1);
     eve.on("snap.util.getattr.font-size", getFontSize)(-1);
 });

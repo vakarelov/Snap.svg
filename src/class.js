@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var rgNotSpace = /\S+/g,
         rgBadSpace = /[\t\r\n\f]/g,
         rgTrim = /(^\s+|\s+$)/g,
@@ -27,7 +27,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      = (Element) original element.
     \*/
     elproto.addClass = function (value) {
-        var classes = Str(value || "").match(rgNotSpace) || [],
+        var classes = (Array.isArray(value)) ? value : Str(value || "").match(rgNotSpace) || [],
             elem = this.node,
             className = elem.className.baseVal,
             curClasses = className.match(rgNotSpace) || [],
@@ -48,6 +48,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             finalValue = curClasses.join(" ");
             if (className != finalValue) {
                 elem.className.baseVal = finalValue;
+                if (this.div){
+                    this.div.node.className.baseVal = finalValue;
+                }
             }
         }
         return this;

@@ -10,18 +10,19 @@
     "author": "Dmitry Baranovskiy",
     "license": "Apache-2.0",
     "dependencies": {
-        "eve": "~0.5.1"
+        "eve": "~0.5.1",
+        "grunt-contrib-uglify-es": "^3.3.0"
     },
     "devDependencies": {
-        "grunt": "~0.4.1",
-        "grunt-contrib-uglify": "~0.2.0",
-        "grunt-contrib-concat": "~0.3.0",
-        "grunt-exec": "~0.4.2",
-        "grunt-prettify": "0.4.0",
-        "mocha": "*",
+        "dr.js": "~0.1.0",
+        "eslint": "^8.4.1",
         "expect.js": "*",
-        "eslint": "*",
-        "dr.js": "~0.1.0"
+        "grunt": "~0.4.1",
+        "grunt-contrib-concat": "^0.3.0",
+        "grunt-contrib-uglify": "^0.2.7",
+        "grunt-exec": "^0.4.7",
+        "grunt-prettify": "^0.4.0",
+        "mocha": "*"
     },
     "eslintConfig": {
         "globals": {

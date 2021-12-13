@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob) {
+Snap_ia.plugin(function (Snap, Element, Paper, glob,Fragment, eve) {
     var mmax = Math.max,
         mmin = Math.min;
 
@@ -22,7 +22,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
         this.length = 0;
         this.type = "set";
         if (items) {
-            for (var i = 0, ii = items.length; i < ii; i++) {
+            for (var i = 0, ii = items.length; i < ii; ++i) {
                 if (items[i]) {
                     this[this.items.length] = this.items[this.items.length] = items[i];
                     this.length++;
@@ -41,7 +41,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
     setproto.push = function () {
         var item,
             len;
-        for (var i = 0, ii = arguments.length; i < ii; i++) {
+        for (var i = 0, ii = arguments.length; i < ii; ++i) {
             item = arguments[i];
             if (item) {
                 len = this.items.length;
@@ -75,7 +75,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
      = (object) Set object
     \*/
     setproto.forEach = function (callback, thisArg) {
-        for (var i = 0, ii = this.items.length; i < ii; i++) {
+        for (var i = 0, ii = this.items.length; i < ii; ++i) {
             if (callback.call(thisArg, this.items[i], i) === false) {
                 return this;
             }
@@ -204,7 +204,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
                 unbound[k] = value[k];
             }
         }
-        for (var i = 0, ii = this.items.length; i < ii; i++) {
+        for (var i = 0, ii = this.items.length; i < ii; ++i) {
             this.items[i].attr(unbound);
         }
         return this;
@@ -238,17 +238,17 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             todel = [],
             args = [],
             i;
-        for (i = 2; i < arguments.length; i++) {
+        for (i = 2; i < arguments.length; ++i) {
             args.push(arguments[i]);
         }
-        for (i = 0; i < count; i++) {
+        for (i = 0; i < count; ++i) {
             todel.push(this[index + i]);
         }
-        for (; i < this.length - index; i++) {
+        for (; i < this.length - index; ++i) {
             tail.push(this[index + i]);
         }
         var arglen = args.length;
-        for (i = 0; i < arglen + tail.length; i++) {
+        for (i = 0; i < arglen + tail.length; ++i) {
             this.items[index + i] = this[index + i] = i < arglen ? args[i] : tail[i - arglen];
         }
         i = this.items.length = this.length -= count - arglen;
@@ -267,7 +267,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
      = (boolean) `true` if object was found and removed from the set
     \*/
     setproto.exclude = function (el) {
-        for (var i = 0, ii = this.length; i < ii; i++) if (this[i] == el) {
+        for (var i = 0, ii = this.length; i < ii; ++i) if (this[i] == el) {
             this.splice(i, 1);
             return true;
         }
@@ -323,6 +323,23 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             cy: y + (y2 - y) / 2
         };
     };
+
+    setproto.filter = function(callback, thisArg){
+      return this.items.filter(callback, thisArg)
+    };
+
+    setproto.map = function(callback, thisArg){
+        return this.items.map(callback, thisArg)
+    };
+
+    setproto.values = function(){
+        return this.items.filter(values)
+    };
+
+    setproto.includes = function(valueToFind, fromIndex){
+        return this.items.includes(valueToFind, fromIndex);
+    };
+
     /*\
      * Set.insertAfter
      [ method ]
@@ -333,7 +350,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
     \*/
     setproto.clone = function (s) {
         s = new Set;
-        for (var i = 0, ii = this.items.length; i < ii; i++) {
+        for (var i = 0, ii = this.items.length; i < ii; ++i) {
             s.push(this.items[i].clone());
         }
         return s;

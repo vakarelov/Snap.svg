@@ -13,201 +13,202 @@
 // limitations under the License.
 var mina = (function (eve) {
     var animations = {},
-    requestAnimFrame = window.requestAnimationFrame       ||
-                       window.webkitRequestAnimationFrame ||
-                       window.mozRequestAnimationFrame    ||
-                       window.oRequestAnimationFrame      ||
-                       window.msRequestAnimationFrame     ||
-                       function (callback) {
-                           setTimeout(callback, 16, new Date().getTime());
-                           return true;
-                       },
-    requestID,
-    isArray = Array.isArray || function (a) {
-        return a instanceof Array ||
-            Object.prototype.toString.call(a) == "[object Array]";
-    },
-    idgen = 0,
-    idprefix = "M" + (+new Date).toString(36),
-    ID = function () {
-        return idprefix + (idgen++).toString(36);
-    },
-    diff = function (a, b, A, B) {
-        if (isArray(a)) {
-            res = [];
-            for (var i = 0, ii = a.length; i < ii; i++) {
-                res[i] = diff(a[i], b, A[i], B);
+        requestAnimFrame = window.requestAnimationFrame ||
+            window.webkitRequestAnimationFrame ||
+            window.mozRequestAnimationFrame ||
+            window.oRequestAnimationFrame ||
+            window.msRequestAnimationFrame ||
+            function (callback) {
+                setTimeout(callback, 16, new Date().getTime());
+                return true;
+            },
+        requestID,
+        isArray = Array.isArray || function (a) {
+            return a instanceof Array ||
+                Object.prototype.toString.call(a) == "[object Array]";
+        },
+        idgen = 0,
+        idprefix = "M" + (+new Date).toString(36),
+        _2PI = Math.PI * 2,
+        ID = function () {
+            return idprefix + (idgen++).toString(36);
+        },
+        diff = function (a, b, A, B) {
+            if (isArray(a)) {
+                res = [];
+                for (var i = 0, ii = a.length; i < ii; ++i) {
+                    res[i] = diff(a[i], b, A[i], B);
+                }
+                return res;
             }
-            return res;
-        }
-        var dif = (A - a) / (B - b);
-        return function (bb) {
-            return a + dif * (bb - b);
-        };
-    },
-    timer = Date.now || function () {
-        return +new Date;
-    },
-    sta = function (val) {
-        var a = this;
-        if (val == null) {
-            return a.s;
-        }
-        var ds = a.s - val;
-        a.b += a.dur * ds;
-        a.B += a.dur * ds;
-        a.s = val;
-    },
-    speed = function (val) {
-        var a = this;
-        if (val == null) {
-            return a.spd;
-        }
-        a.spd = val;
-    },
-    duration = function (val) {
-        var a = this;
-        if (val == null) {
-            return a.dur;
-        }
-        a.s = a.s * val / a.dur;
-        a.dur = val;
-    },
-    stopit = function () {
-        var a = this;
-        delete animations[a.id];
-        a.update();
-        eve("mina.stop." + a.id, a);
-    },
-    pause = function () {
-        var a = this;
-        if (a.pdif) {
-            return;
-        }
-        delete animations[a.id];
-        a.update();
-        a.pdif = a.get() - a.b;
-    },
-    resume = function () {
-        var a = this;
-        if (!a.pdif) {
-            return;
-        }
-        a.b = a.get() - a.pdif;
-        delete a.pdif;
-        animations[a.id] = a;
-        frame();
-    },
-    update = function () {
-        var a = this,
-            res;
-        if (isArray(a.start)) {
-            res = [];
-            for (var j = 0, jj = a.start.length; j < jj; j++) {
-                res[j] = +a.start[j] +
-                    (a.end[j] - a.start[j]) * a.easing(a.s);
+            var dif = (A - a) / (B - b);
+            return function (bb) {
+                return a + dif * (bb - b);
+            };
+        },
+        timer = Date.now || function () {
+            return +new Date;
+        },
+        sta = function (val) {
+            var a = this;
+            if (val == null) {
+                return a.s;
             }
-        } else {
-            res = +a.start + (a.end - a.start) * a.easing(a.s);
-        }
-        a.set(res);
-    },
-    frame = function (timeStamp) {
-        // Manual invokation?
-        if (!timeStamp) {
-            // Frame loop stopped?
-            if (!requestID) {
-                // Start frame loop...
-                requestID = requestAnimFrame(frame);
+            var ds = a.s - val;
+            a.b += a.dur * ds;
+            a.B += a.dur * ds;
+            a.s = val;
+        },
+        speed = function (val) {
+            var a = this;
+            if (val == null) {
+                return a.spd;
             }
-            return;
-        }
-        var len = 0;
-        for (var i in animations) if (animations.hasOwnProperty(i)) {
-            var a = animations[i],
-                b = a.get(),
-                res;
-            len++;
-            a.s = (b - a.b) / (a.dur / a.spd);
-            if (a.s >= 1) {
-                delete animations[i];
-                a.s = 1;
-                len--;
-                (function (a) {
-                    setTimeout(function () {
-                        eve("mina.finish." + a.id, a);
-                    });
-                }(a));
+            a.spd = val;
+        },
+        duration = function (val) {
+            var a = this;
+            if (val == null) {
+                return a.dur;
             }
+            a.s = a.s * val / a.dur;
+            a.dur = val;
+        },
+        stopit = function () {
+            var a = this;
+            delete animations[a.id];
             a.update();
-        }
-        requestID = len ? requestAnimFrame(frame) : false;
-    },
-    /*\
-     * mina
-     [ method ]
-     **
-     * Generic animation of numbers
-     **
-     - a (number) start _slave_ number
-     - A (number) end _slave_ number
-     - b (number) start _master_ number (start time in general case)
-     - B (number) end _master_ number (end time in general case)
-     - get (function) getter of _master_ number (see @mina.time)
-     - set (function) setter of _slave_ number
-     - easing (function) #optional easing function, default is @mina.linear
-     = (object) animation descriptor
-     o {
-     o         id (string) animation id,
-     o         start (number) start _slave_ number,
-     o         end (number) end _slave_ number,
-     o         b (number) start _master_ number,
-     o         s (number) animation status (0..1),
-     o         dur (number) animation duration,
-     o         spd (number) animation speed,
-     o         get (function) getter of _master_ number (see @mina.time),
-     o         set (function) setter of _slave_ number,
-     o         easing (function) easing function, default is @mina.linear,
-     o         status (function) status getter/setter,
-     o         speed (function) speed getter/setter,
-     o         duration (function) duration getter/setter,
-     o         stop (function) animation stopper
-     o         pause (function) pauses the animation
-     o         resume (function) resumes the animation
-     o         update (function) calles setter with the right value of the animation
-     o }
-    \*/
-    mina = function (a, A, b, B, get, set, easing) {
-        var anim = {
-            id: ID(),
-            start: a,
-            end: A,
-            b: b,
-            s: 0,
-            dur: B - b,
-            spd: 1,
-            get: get,
-            set: set,
-            easing: easing || mina.linear,
-            status: sta,
-            speed: speed,
-            duration: duration,
-            stop: stopit,
-            pause: pause,
-            resume: resume,
-            update: update
-        };
-        animations[anim.id] = anim;
-        var len = 0, i;
-        for (i in animations) if (animations.hasOwnProperty(i)) {
-            len++;
-            if (len == 2) {
-                break;
+            eve(["snap", "mina", "stop", a.id], a);
+        },
+        pause = function () {
+            var a = this;
+            if (a.pdif) {
+                return;
             }
-        }
-        len == 1 && frame();
-        return anim;
-    };
+            delete animations[a.id];
+            a.update();
+            a.pdif = a.get() - a.b;
+        },
+        resume = function () {
+            var a = this;
+            if (!a.pdif) {
+                return;
+            }
+            a.b = a.get() - a.pdif;
+            delete a.pdif;
+            animations[a.id] = a;
+            frame();
+        },
+        update = function () {
+            var a = this,
+                res;
+            if (isArray(a.start)) {
+                res = [];
+                for (var j = 0, jj = a.start.length; j < jj; j++) {
+                    res[j] = +a.start[j] +
+                        (a.end[j] - a.start[j]) * a.easing(a.s);
+                }
+            } else {
+                res = +a.start + (a.end - a.start) * a.easing(a.s);
+            }
+            a.set(res);
+        },
+        frame = function (timeStamp) {
+            // Manual invokation?
+            if (!timeStamp) {
+                // Frame loop stopped?
+                if (!requestID) {
+                    // Start frame loop...
+                    requestID = requestAnimFrame(frame);
+                }
+                return;
+            }
+            var len = 0;
+            for (var i in animations) if (animations.hasOwnProperty(i)) {
+                var a = animations[i],
+                    b = a.get(),
+                    res;
+                len++;
+                a.s = (b - a.b) / (a.dur / a.spd);
+                if (a.s >= 1) {
+                    delete animations[i];
+                    a.s = 1;
+                    len--;
+                    (function (a) {
+                        setTimeout(function () {
+                            eve(["snap", "mina", "finish", a.id], a);
+                        });
+                    }(a));
+                }
+                a.update();
+            }
+            requestID = len ? requestAnimFrame(frame) : false;
+        },
+        /*\
+         * mina
+         [ method ]
+         **
+         * Generic animation of numbers
+         **
+         - a (number) start _slave_ number
+         - A (number) end _slave_ number
+         - b (number) start _master_ number (start time in general case)
+         - B (number) end _master_ number (end time in general case)
+         - get (function) getter of _master_ number (see @mina.time)
+         - set (function) setter of _slave_ number
+         - easing (function) #optional easing function, default is @mina.linear
+         = (object) animation descriptor
+         o {
+         o         id (string) animation id,
+         o         start (number) start _slave_ number,
+         o         end (number) end _slave_ number,
+         o         b (number) start _master_ number,
+         o         s (number) animation status (0..1),
+         o         dur (number) animation duration,
+         o         spd (number) animation speed,
+         o         get (function) getter of _master_ number (see @mina.time),
+         o         set (function) setter of _slave_ number,
+         o         easing (function) easing function, default is @mina.linear,
+         o         status (function) status getter/setter,
+         o         speed (function) speed getter/setter,
+         o         duration (function) duration getter/setter,
+         o         stop (function) animation stopper
+         o         pause (function) pauses the animation
+         o         resume (function) resumes the animation
+         o         update (function) calles setter with the right value of the animation
+         o }
+        \*/
+        mina = function (a, A, b, B, get, set, easing) {
+            var anim = {
+                id: ID(),
+                start: a,
+                end: A,
+                b: b,
+                s: 0,
+                dur: B - b,
+                spd: 1,
+                get: get,
+                set: set,
+                easing: easing || mina.linear,
+                status: sta,
+                speed: speed,
+                duration: duration,
+                stop: stopit,
+                pause: pause,
+                resume: resume,
+                update: update
+            };
+            animations[anim.id] = anim;
+            var len = 0, i;
+            for (i in animations) if (animations.hasOwnProperty(i)) {
+                len++;
+                if (len == 2) {
+                    break;
+                }
+            }
+            len == 1 && frame();
+            return anim;
+        };
     /*\
      * mina.time
      [ method ]
@@ -326,13 +327,36 @@ var mina = (function (eve) {
      - n (number) input 0..1
      = (number) output 0..1
     \*/
-    mina.elastic = function (n) {
-        if (n == !!n) {
+    mina.elastic = function (amp, per, n) {
+        if (per === undefined) {
+            n = amp;
+            amp = 1;
+        }
+
+        if (n === undefined) {
+            n = per;
+            per = undefined;
+        }
+
+        if (n === !!n) {
             return n;
         }
-        return Math.pow(2, -10 * n) * Math.sin((n - .075) *
-            (2 * Math.PI) / .3) + 1;
+
+        amp = amp || 1;
+
+        let a = (amp >= 1) ? amp : 1;
+        per = (per || .3) / (amp < 1 ? amp : 1);
+        let f = per / _2PI * (Math.asin(1 / a) || 0);
+
+        return a * (2 ** (-10 * n)) * Math.sin((n - f) * (_2PI / per)) + 1;
+
+        // var k = _2PI / .3;
+        // var ret = amp * Math.pow(2, -10 * n) * Math.sin((n - .075) * k) + 1;
     };
+    mina.elastic.withParams = function (amp, per) {
+        return mina.elastic.bind(undefined, amp, per);
+    };
+
     /*\
      * mina.bounce
      [ method ]
@@ -345,24 +369,46 @@ var mina = (function (eve) {
         var s = 7.5625,
             p = 2.75,
             l;
+        const or = n;
         if (n < 1 / p) {
             l = s * n * n;
+            // console.log(1, n, l, or)
         } else {
             if (n < 2 / p) {
                 n -= 1.5 / p;
                 l = s * n * n + .75;
+                // console.log(2, n, l, or)
             } else {
                 if (n < 2.5 / p) {
                     n -= 2.25 / p;
                     l = s * n * n + .9375;
+                    // console.log(3, n, l, or)
                 } else {
                     n -= 2.625 / p;
                     l = s * n * n + .984375;
+                    // console.log(4, n, l, or)
                 }
             }
         }
         return l;
     };
+
+    // mina.bounce2 = function(b, h, t){
+    //
+    // }
+
+    var non_easing_functions = {
+        getById: true,
+        isEasing: true,
+        anim: true,
+        time: true
+    };
+    mina.isEasing = function (name) {
+        return mina.hasOwnProperty(name) && !non_easing_functions[name]
+    };
+
     window.mina = mina;
     return mina;
-})(typeof eve == "undefined" ? function () {} : eve);
+})((typeof window.eve == "undefined" && window.eve_ia == "undefined")
+    ? function () {}
+: window.eve || window.eve_ia);

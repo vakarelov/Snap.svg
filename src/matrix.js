@@ -11,11 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var objectToString = Object.prototype.toString,
         Str = String,
         math = Math,
         E = "";
+
     function Matrix(a, b, c, d, e, f) {
         if (b == null && objectToString.call(a) == "[object SVGMatrix]") {
             this.a = a.a;
@@ -24,6 +25,17 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             this.d = a.d;
             this.e = a.e;
             this.f = a.f;
+            return;
+        }
+        if (b == null && typeof a === "string") {
+            a = a.replace("matrix(", "").replace("(", "").replace(")");
+            a = a.split(",");
+            this.a = +a[0] || 0;
+            this.b = +a[1] || 0;
+            this.c = +a[2] || 0;
+            this.d = +a[3] || 0;
+            this.e = +a[4] || 0;
+            this.f = +a[5] || 0;
             return;
         }
         if (a != null) {
@@ -42,6 +54,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             this.f = 0;
         }
     }
+
+    Snap.registerType("matrix", Matrix);
+
     (function (matrixproto) {
         /*\
          * Matrix.add
@@ -72,6 +87,25 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             this.b = bNew;
             return this;
         };
+        matrixproto.plus = function (a, b, c, d, e, f) {
+            if (a && a instanceof Matrix) {
+                return this.plus(a.a, a.b, a.c, a.d, a.e, a.f);
+            }
+
+            return this.clone().add(a, b, c, d, e, f);
+        };
+        matrixproto.scMult = function (c) {
+            this.a *= c;
+            this.b *= c;
+            this.c *= c;
+            this.d *= c;
+            this.f *= c;
+            this.e *= c;
+            return this;
+        };
+        matrixproto.timesSc = function (c) {
+            return this.clone().scMult(c);
+        };
         /*\
          * Matrix.multLeft
          [ method ]
@@ -87,6 +121,20 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
          - matrix (object) @Matrix
         \*/
         Matrix.prototype.multLeft = function (a, b, c, d, e, f) {
+            if (Array.isArray(a)) {
+                if (a[0] instanceof Matrix) {
+                    for (let i = a.length - 1; i > -1; --i) {
+                        this.multLeft(a[i])
+                    }
+                    return this;
+                }
+                if (typeof a[0] === "number") {
+                    return this.multLeft(a[0] || 0, a[1] || 0,
+                        a[2] || 0, a[3] || 0, a[4] || 0, a[5] || 0);
+                }
+                return this;
+            }
+
             if (a && a instanceof Matrix) {
                 return this.multLeft(a.a, a.b, a.c, a.d, a.e, a.f);
             }
@@ -237,23 +285,40 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         matrixproto.y = function (x, y) {
             return x * this.b + y * this.d + this.f;
         };
+
+        matrixproto.randomTrans = function (cx, cy, positive, distance) {
+            distance = distance || 300;
+            cx = cx || 0;
+            cy = cy || 0;
+            let angle = 360 * Math.random();
+            let scale = (Math.random() < .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random();
+
+            let dx = (positive) ? distance * Math.random() : distance * (Math.random() - .5),
+                dy = (positive) ? distance * Math.random() : distance * (Math.random() - .5);
+
+            return this.translate(dx, dy).rotate(angle, cx + dx, cy + dy).scale(scale, scale, cx + dx, cy + dy);
+        };
+
         matrixproto.get = function (i) {
-            return +this[Str.fromCharCode(97 + i)].toFixed(4);
+            return +this[Str.fromCharCode(97 + i)].toFixed(9);
         };
         matrixproto.toString = function () {
             return "matrix(" + [this.get(0), this.get(1), this.get(2), this.get(3), this.get(4), this.get(5)].join() + ")";
         };
         matrixproto.offset = function () {
-            return [this.e.toFixed(4), this.f.toFixed(4)];
+            return [this.e.toFixed(9), this.f.toFixed(9)];
         };
+
         function norm(a) {
             return a[0] * a[0] + a[1] * a[1];
         }
+
         function normalize(a) {
             var mag = math.sqrt(norm(a));
             a[0] && (a[0] /= mag);
             a[1] && (a[1] /= mag);
         }
+
         /*\
          * Matrix.determinant
          [ method ]
@@ -327,16 +392,21 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         matrixproto.toTransformString = function (shorter) {
             var s = shorter || this.split();
             if (!+s.shear.toFixed(9)) {
-                s.scalex = +s.scalex.toFixed(4);
-                s.scaley = +s.scaley.toFixed(4);
-                s.rotate = +s.rotate.toFixed(4);
-                return  (s.dx || s.dy ? "t" + [+s.dx.toFixed(4), +s.dy.toFixed(4)] : E) +
-                        (s.rotate ? "r" + [+s.rotate.toFixed(4), 0, 0] : E) +
-                        (s.scalex != 1 || s.scaley != 1 ? "s" + [s.scalex, s.scaley, 0, 0] : E);
+                s.scalex = +s.scalex.toFixed(9);
+                s.scaley = +s.scaley.toFixed(9);
+                s.rotate = +s.rotate.toFixed(9);
+                return (s.dx || s.dy ? "t" + [+s.dx.toFixed(9), +s.dy.toFixed(9)] : E) +
+                    (s.rotate ? "r" + [+s.rotate.toFixed(9), 0, 0] : E) +
+                    (s.scalex != 1 || s.scaley != 1 ? "s" + [s.scalex, s.scaley, 0, 0] : E);
             } else {
                 return "m" + [this.get(0), this.get(1), this.get(2), this.get(3), this.get(4), this.get(5)];
             }
         };
+
+        matrixproto.isMatrix = function () {
+            return true;
+        }
+
     })(Matrix.prototype);
     /*\
      * Snap.Matrix

@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var proto = Paper.prototype,
         is = Snap.is;
     /*\
@@ -34,20 +34,28 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      | // rectangle with rounded corners
      | var c = paper.rect(40, 40, 50, 50, 10);
     \*/
-    proto.rect = function (x, y, w, h, rx, ry) {
-        var attr;
+    proto.rect = function (x, y, w, h, rx, ry, attr) {
+        if (is(rx, "object")) {
+            attr = rx;
+            rx = ry = undefined
+        }
+        if (is(ry, "object")) {
+            attr = ry;
+            ry = undefined
+        }
         if (ry == null) {
             ry = rx;
         }
+        attr = attr || {};
         if (is(x, "object") && x == "[object Object]") {
             attr = x;
         } else if (x != null) {
-            attr = {
+            attr = Object.assign(attr, {
                 x: x,
                 y: y,
                 width: w,
                 height: h
-            };
+            });
             if (rx != null) {
                 attr.rx = rx;
                 attr.ry = ry;
@@ -69,16 +77,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      > Usage
      | var c = paper.circle(50, 50, 40);
     \*/
-    proto.circle = function (cx, cy, r) {
-        var attr;
+    proto.circle = function (cx, cy, r, attr) {
         if (is(cx, "object") && cx == "[object Object]") {
             attr = cx;
         } else if (cx != null) {
-            attr = {
+            attr = attr || {};
+            attr = Object.assign(attr, {
                 cx: cx,
                 cy: cy,
                 r: r
-            };
+            });
         }
         return this.el("circle", attr);
     };
@@ -87,6 +95,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         function onerror() {
             this.parentNode.removeChild(this);
         }
+
         return function (src, f) {
             var img = glob.doc.createElement("img"),
                 body = glob.doc.body;
@@ -120,7 +129,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      > Usage
      | var c = paper.image("apple.png", 10, 10, 80, 80);
     \*/
-    proto.image = function (src, x, y, width, height) {
+    proto.image = function (src, x, y, width, height, attr) {
         var el = this.el("image");
         if (is(src, "object") && "src" in src) {
             el.attr(src);
@@ -145,7 +154,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
                 });
             }
             Snap._.$(el.node, set);
+            if (attr) el.attr(attr);
         }
+
         return el;
     };
     /*\
@@ -163,21 +174,21 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      > Usage
      | var c = paper.ellipse(50, 50, 40, 20);
     \*/
-    proto.ellipse = function (cx, cy, rx, ry) {
-        var attr;
+    proto.ellipse = function (cx, cy, rx, ry, attr) {
         if (is(cx, "object") && cx == "[object Object]") {
             attr = cx;
         } else if (cx != null) {
-            attr ={
+            attr = attr || {};
+            attr = Object.assign(attr, {
                 cx: cx,
                 cy: cy,
                 rx: rx,
                 ry: ry
-            };
+            });
         }
         return this.el("ellipse", attr);
     };
-    // SIERRA Paper.path(): Unclear from the link what a Catmull-Rom curveto is, and why it would make life any easier.
+// SIERRA Paper.path(): Unclear from the link what a Catmull-Rom curveto is, and why it would make life any easier.
     /*\
      * Paper.path
      [ method ]
@@ -208,12 +219,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      | // draw a diagonal line:
      | // move to 10,10, line to 90,90
     \*/
-    proto.path = function (d) {
-        var attr;
+    proto.path = function (d, attr) {
+        attr = attr || {};
         if (is(d, "object") && !is(d, "array")) {
-            attr = d;
+            attr = Object.assign(attr, d);
         } else if (d) {
-            attr = {d: d};
+            attr['d'] = d;
         }
         return this.el("path", attr);
     };
@@ -221,9 +232,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      * Paper.g
      [ method ]
      **
-     * Creates a group element
+     * Creates a def_group element
      **
-     - varargs (…) #optional elements to nest within the group
+     - varargs (…) #optional elements to nest within the def_group
      = (object) the `g` element
      **
      > Usage
@@ -237,19 +248,27 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      | g.add(c2, c1);
     \*/
     /*\
-     * Paper.group
+     * Paper.def_group
      [ method ]
      **
      * See @Paper.g
     \*/
-    proto.group = proto.g = function (first) {
+    proto.def_group = proto.g = function () {
         var attr,
             el = this.el("g");
-        if (arguments.length == 1 && first && !first.type) {
-            el.attr(first);
-        } else if (arguments.length) {
-            el.add(Array.prototype.slice.call(arguments, 0));
+
+        var last = (arguments.length) ? arguments[arguments.length - 1] : undefined;
+        if (last && is(last, "object") && !last.type && !last.paper) {
+            attr = last
         }
+
+        if (arguments.length) {
+            var end = (attr) ? -1 : undefined;
+            el.add(Array.prototype.slice.call(arguments, 0, end));
+        }
+
+        if (attr) el.attr(attr);
+
         return el;
     };
     /*\
@@ -292,6 +311,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         }
         return this.el("svg", attrs);
     };
+    proto.svg.skip = true;
     /*\
      * Paper.mask
      [ method ]
@@ -328,11 +348,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      = (object) the `pattern` element
      **
     \*/
-    proto.ptrn = function (x, y, width, height, vx, vy, vw, vh) {
+    proto.ptrn = function (x, y, width, height, vx, vy, vw, vh, attr) {
+        attr = arguments(arguments.length - 1);
+        if (!is(attr, "object")) attr = {};
         if (is(x, "object")) {
-            var attr = x;
+            attr = x;
         } else {
-            attr = {patternUnits: "userSpaceOnUse"};
+            attr.patternUnits = "userSpaceOnUse";
             if (x) {
                 attr.x = x;
             }
@@ -365,22 +387,29 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      = (object) the `use` element
      **
     \*/
-    proto.use = function (id) {
+    proto.use = function (id, attr) {
         if (id != null) {
             if (id instanceof Element) {
                 if (!id.attr("id")) {
                     id.attr({id: Snap._.id(id)});
                 }
                 id = id.attr("id");
+            } else if (is(id, "object")) {
+                attr = id;
+                id = attr.id;
             }
             if (String(id).charAt() == "#") {
                 id = id.substring(1);
             }
-            return this.el("use", {"xlink:href": "#" + id});
+            attr = attr || {};
+            attr["href"] = "#" + id;
+            return this.el("use", attr);
         } else {
             return Element.prototype.use.call(this);
         }
     };
+    proto.use.skip = true;
+
     /*\
      * Paper.symbol
      [ method ]
@@ -393,8 +422,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      = (object) the `symbol` element
      **
     \*/
-    proto.symbol = function (vx, vy, vw, vh) {
-        var attr = {};
+    proto.symbol = function (vx, vy, vw, vh, attr) {
+        attr = attr || {};
         if (vx != null && vy != null && vw != null && vh != null) {
             attr.viewBox = [vx, vy, vw, vh];
         }
@@ -421,16 +450,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      | var pth = paper.path("M10,10L100,100");
      | t1.attr({textpath: pth});
     \*/
-    proto.text = function (x, y, text) {
-        var attr = {};
+    proto.text = function (x, y, text, attr) {
+        attr = attr || {};
         if (is(x, "object")) {
             attr = x;
         } else if (x != null) {
-            attr = {
+            attr = Object.assign(attr, {
                 x: x,
                 y: y,
                 text: text || ""
-            };
+            });
         }
         return this.el("text", attr);
     };
@@ -449,17 +478,17 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      > Usage
      | var t1 = paper.line(50, 50, 100, 100);
     \*/
-    proto.line = function (x1, y1, x2, y2) {
-        var attr = {};
+    proto.line = function (x1, y1, x2, y2, attr) {
+        attr = attr || {};
         if (is(x1, "object")) {
             attr = x1;
         } else if (x1 != null) {
-            attr = {
+            attr = Object.assign(attr, {
                 x1: x1,
                 x2: x2,
                 y1: y1,
                 y2: y2
-            };
+            });
         }
         return this.el("line", attr);
     };
@@ -478,15 +507,18 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      | var p1 = paper.polyline([10, 10, 100, 100]);
      | var p2 = paper.polyline(10, 10, 100, 100);
     \*/
-    proto.polyline = function (points) {
+    proto.polyline = function (points, attr) {
         if (arguments.length > 1) {
             points = Array.prototype.slice.call(arguments, 0);
         }
-        var attr = {};
         if (is(points, "object") && !is(points, "array")) {
             attr = points;
+        } else if (Array.isArray(points) && points.length === 2 && Array.isArray(points[0]) && (typeof points[1] === "object")) {
+            attr = points[1];
+           attr.points = points[0];
         } else if (points != null) {
-            attr = {points: points};
+            attr = attr || {};
+            attr.points = points;
         }
         return this.el("polyline", attr);
     };
@@ -496,19 +528,24 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
      **
      * Draws a polygon. See @Paper.polyline
     \*/
-    proto.polygon = function (points) {
+    proto.polygon = function (points, attr) {
         if (arguments.length > 1) {
             points = Array.prototype.slice.call(arguments, 0);
         }
-        var attr = {};
+
         if (is(points, "object") && !is(points, "array")) {
             attr = points;
+        } else if (Array.isArray(points) && points.length === 2 && Array.isArray(points[0]) && (typeof points[1] === "object")) {
+            attr = points[1];
+            // points = points[0];
+            attr.points = points[0];
         } else if (points != null) {
-            attr = {points: points};
+            attr = attr || {};
+            attr.points = points;
         }
         return this.el("polygon", attr);
     };
-    // gradients
+// gradients
     (function () {
         var $ = Snap._.$;
         // gradients' helpers
@@ -523,6 +560,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
         function Gstops() {
             return this.selectAll("stop");
         }
+
         /*\
          * Element.addStop
          [ method ]
@@ -546,7 +584,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             $(stop, attr);
             var stops = this.stops(),
                 inserted;
-            for (var i = 0; i < stops.length; i++) {
+            for (var i = 0; i < stops.length; ++i) {
                 var stopOffset = parseFloat(stops[i].attr("offset"));
                 if (stopOffset > offset) {
                     this.node.insertBefore(stop, stops[i].node);
@@ -559,20 +597,22 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             }
             return this;
         }
+
         function GgetBBox() {
             if (this.type == "linearGradient") {
                 var x1 = $(this.node, "x1") || 0,
                     x2 = $(this.node, "x2") || 1,
                     y1 = $(this.node, "y1") || 0,
                     y2 = $(this.node, "y2") || 0;
-                return Snap._.box(x1, y1, math.abs(x2 - x1), math.abs(y2 - y1));
+                return Snap.box(x1, y1, math.abs(x2 - x1), math.abs(y2 - y1));
             } else {
                 var cx = this.node.cx || .5,
                     cy = this.node.cy || .5,
                     r = this.node.r || 0;
-                return Snap._.box(cx - r, cy - r, r * 2, r * 2);
+                return Snap.box(cx - r, cy - r, r * 2, r * 2);
             }
         }
+
         /*\
          * Element.setStops
          [ method ]
@@ -588,12 +628,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             var grad = str,
                 stops = this.stops();
             if (typeof str == "string") {
-                grad = eve("snap.util.grad.parse", null, "l(0,0,0,1)" + str).firstDefined().stops;
+                grad = eve(["snap", "util", "grad", "parse"], null, "l(0,0,0,1)" + str).firstDefined().stops;
             }
             if (!Snap.is(grad, "array")) {
                 return;
             }
-            for (var i = 0; i < stops.length; i++) {
+            for (var i = 0; i < stops.length; ++i) {
                 if (grad[i]) {
                     var color = Snap.color(grad[i].color),
                         attr = {"offset": grad[i].offset + "%"};
@@ -606,13 +646,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
                     stops[i].remove();
                 }
             }
-            for (i = stops.length; i < grad.length; i++) {
+            for (i = stops.length; i < grad.length; ++i) {
                 this.addStop(grad[i].color, grad[i].offset);
             }
             return this;
         }
+
         function gradient(defs, str) {
-            var grad = eve("snap.util.grad.parse", null, str).firstDefined(),
+            var grad = eve(["snap", "util", "grad", "parse"], null, str).firstDefined(),
                 el;
             if (!grad) {
                 return null;
@@ -630,12 +671,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             }
             var stops = grad.stops,
                 len = stops.length;
-            for (var i = 0; i < len; i++) {
+            for (var i = 0; i < len; ++i) {
                 var stop = stops[i];
                 el.addStop(stop.color, stop.offset);
             }
             return el;
         }
+
         function gradientLinear(defs, x1, y1, x2, y2) {
             var el = Snap._.make("linearGradient", defs);
             el.stops = Gstops;
@@ -652,6 +694,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             }
             return el;
         }
+
         function gradientRadial(defs, cx, cy, r, fx, fy) {
             var el = Snap._.make("radialGradient", defs);
             el.stops = Gstops;
@@ -672,6 +715,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             }
             return el;
         }
+
         /*\
          * Paper.gradient
          [ method ]
@@ -738,6 +782,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
             f.removeChild(f.firstChild);
             return res;
         };
+        proto.toString.skip = true;
         /*\
          * Paper.toDataURL
          [ method ]
@@ -750,6 +795,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
                 return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(this)));
             }
         };
+        proto.toDataURL.skip = true;
         /*\
          * Paper.clear
          [ method ]
@@ -769,5 +815,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment) {
                 node = next;
             }
         };
+        proto.clear.skip = true;
     }());
-});
+})
+;

@@ -11,13 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob) {
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var elproto = Element.prototype,
     has = "hasOwnProperty",
-    supportsTouch = (('ontouchstart' in window) || window.TouchEvent || window.DocumentTouch && document instanceof DocumentTouch),
+    supportsTouch = "createTouch" in glob.doc,
     events = [
         "click", "dblclick", "mousedown", "mousemove", "mouseout",
-        "mouseover", "mouseup", "touchstart", "touchmove", "touchend",
+        "mouseover", "mouseenter","mouseup", "touchstart", "touchmove", "touchend",
         "touchcancel"
     ],
     touchMap = {
@@ -48,7 +48,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
                 var scrollY = getScroll("y", element),
                     scrollX = getScroll("x", element);
                 if (supportsTouch && touchMap[has](type)) {
-                    for (var i = 0, ii = e.targetTouches && e.targetTouches.length; i < ii; i++) {
+                    for (var i = 0, ii = e.targetTouches && e.targetTouches.length; i < ii; ++i) {
                         if (e.targetTouches[i].target == obj || obj.contains(e.targetTouches[i].target)) {
                             var olde = e;
                             e = e.targetTouches[i];
@@ -114,10 +114,10 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             // o = dragi.el.paper.getElementByPoint(x, y);
             // node.style.display = display;
             // glob.win.opera && (next ? parent.insertBefore(node, next) : parent.appendChild(node));
-            // o && eve("snap.drag.over." + dragi.el.id, dragi.el, o);
+            // o && eve(["snap","drag","over",dragi.el.id], dragi.el, o);
             x += scrollX;
             y += scrollY;
-            eve("snap.drag.move." + dragi.el.id, dragi.move_scope || dragi.el, x - dragi.el._drag.x, y - dragi.el._drag.y, x, y, e);
+            eve(["snap","drag","move",dragi.el.id], dragi.move_scope || dragi.el, x - dragi.el._drag.x, y - dragi.el._drag.y, x, y, e);
         }
     },
     dragUp = function (e) {
@@ -127,7 +127,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
         while (i--) {
             dragi = drag[i];
             dragi.el._drag = {};
-            eve("snap.drag.end." + dragi.el.id, dragi.end_scope || dragi.start_scope || dragi.move_scope || dragi.el, e);
+            eve(["snap","drag","end",dragi.el.id], dragi.end_scope || dragi.start_scope || dragi.move_scope || dragi.el, e);
             eve.off("snap.drag.*." + dragi.el.id);
         }
         drag = [];
@@ -329,7 +329,7 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
                         unbind: addEvent(this.node || document, eventName, fn, scope || this)
                     });
                 } else {
-                    for (var i = 0, ii = this.events.length; i < ii; i++) if (this.events[i].name == eventName) {
+                    for (var i = 0, ii = this.events.length; i < ii; ++i) if (this.events[i].name == eventName) {
                         try {
                             this.events[i].f.call(this);
                         } catch (e) {}
@@ -435,10 +435,10 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             onstart && eve.on("snap.drag.start." + el.id, onstart);
             onmove && eve.on("snap.drag.move." + el.id, onmove);
             onend && eve.on("snap.drag.end." + el.id, onend);
-            eve("snap.drag.start." + el.id, start_scope || move_scope || el, x, y, e);
+            eve(["snap","drag","start",el.id], start_scope || move_scope || el, x, y, e);
         }
         function init(e, x, y) {
-            eve("snap.draginit." + el.id, el, e, x, y);
+            eve(["snap","draginit",el.id], el, e, x, y);
         }
         eve.on("snap.draginit." + el.id, start);
         el._drag = {};
