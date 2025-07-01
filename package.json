@@ -22,6 +22,7 @@
         "grunt-contrib-uglify": "^0.2.7",
         "grunt-exec": "^0.4.7",
         "grunt-prettify": "^0.4.0",
+        "grunt-terser": "^2.0.0",
         "mocha": "*"
     },
     "eslintConfig": {
