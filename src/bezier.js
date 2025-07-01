@@ -2,6 +2,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     ///////////////// Bezier Library
 
+    //Based on https://github.com/Pomax/bezierjs
     /**
      * Bezier curve constructor. The constructor argument can be one of three things:
      *
