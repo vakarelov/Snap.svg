@@ -12880,6 +12880,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     ///////////////// Bezier Library
 
+    //Based on https://github.com/Pomax/bezierjs
     /**
      * Bezier curve constructor. The constructor argument can be one of three things:
      *
@@ -25368,6 +25369,20 @@ function voronoi(points) {
 
         //Paper functions, require snap_extensions and element_extensions
         Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+            const paper_element_extension = {};
+            let addExtension = function (name, processor) {
+                if (typeof processor === "function") paper_element_extension[name] = processor;
+            };
+            Paper.prototype.addExtension = addExtension;
+            Paper.prototype.addExtension.skip = true;
+
+            Paper.prototype.processExtensions = function (root) {
+                for (const name in paper_element_extension) {
+                    paper_element_extension[name](root);
+                }
+            }
+
+            Paper.prototype.processExtensions.skip = true;
 
             Paper.prototype.clipPath = function (first) {
                 let attr;
@@ -25390,6 +25405,29 @@ function voronoi(points) {
                 }
                 return el;
             };
+
+            Paper.prototype.button = function (el, border, action, background_style, style) {
+                border = border || 0;
+                if (typeof el === 'string') {
+                    el = this.text(0, 0, el);
+                }
+                const button = el.group();
+                const bbox = el.getBBox();
+                const background = this.rect(bbox.x - border, bbox.y - border, bbox.width + 2 * border, bbox.height + 2 * border);
+                if (background_style) {
+                    background.setStyle(background_style);
+                } else {
+                    background.attr("opacity", 0);
+                }
+                el.before(background);
+                if (style) button.setStyle(style);
+
+                if (action) {
+                    button.addClickEvent(action);
+                }
+                button.add([background, el]);
+                return button;
+            }
 
             Paper.prototype.foreignObject = function (x, y, width, height, html) {
                 if (typeof width === 'string' && height === undefined && html ===
@@ -25418,15 +25456,21 @@ function voronoi(points) {
                 x, y, width, height, html, style) {
                 const div = '<div xmlns="http://www.w3.org/1999/xhtml" class="IA_Designer_html"></div>';
                 const el = this.foreignObject(x, y, width, height, div);
-                el.div = Snap(el.node.firstChild);
+                let div_el;
+                if (el.type !== "foreignObject" && el.hasPartner()) {
+                    let partners = el.getPartners("dom");
+                    div_el = partners[0];
+                } else {
+                    div_el = el.node.firstChild;
+                }
+                el.div = Snap(div_el);
                 if (html) {
                     const type = typeof html;
+                    let root = el.div.select(".IA_Designer_html") || el.div;
                     if (type === 'string') {
-                        el.div.node.innerHTML = html;
+                        root.node.innerHTML = html;
                     } else if (type === 'object' && html.paper || Array.isArray(html)) {
-                        el.div.add(html);
-                    } else if (type === 'object' && html instanceof jQuery) {
-                        el.div.add(html.toArray());
+                        root.add(html);
                     }
                 }
                 if (style) el.div.setStyle(style);
@@ -25461,8 +25505,15 @@ function voronoi(points) {
                     'width="' + width + '" ' +
                     'height="' + height + '"></canvas>';
                 const fo = this.foreignObject(0, 0, width, height, html);
+
+                if (el.type !== "foreignObject" && el.hasPartner()) {
+                    let div_el = Snap(el.getPartners("dom")[0]);
+                    fo.canvas = div_el.select('canvas').node;
+                } else {
+                    fo.canvas = fo.select('canvas').node;
+                }
+
                 fo.attr({id: id});
-                fo.canvas = fo.select('canvas').node;
                 return fo;
             };
 
@@ -25475,7 +25526,7 @@ function voronoi(points) {
                     '</div>';
                 return this.foreignObject(x, y, width, height, html);
             };
-            // textInputBox.skip = true;
+            textInputBox.skip = true;
             Paper.prototype.textInputBox = textInputBox;
 
             Paper.prototype.point = function (
@@ -25534,6 +25585,10 @@ function voronoi(points) {
             };
 
 
+            Paper.prototype.getFromScreenDistance = Element.prototype.getFromScreenDistance;
+
+            Paper.prototype.getFromScreenDistance.skip = true;
+
             /**
              * Overwrite all circles to be ellipses for geometric simplicity
              * @param x
@@ -25554,7 +25609,7 @@ function voronoi(points) {
                 text_el.remove();
                 return box;
             };
-            measureText.skip = true; //Do not transfer to Element
+            measureText.skip = true;
             Paper.prototype.measureText = measureText;
 
             Paper.prototype.multilineText = function (
@@ -25573,6 +25628,279 @@ function voronoi(points) {
 
                 return text_tab;
             };
+
+
+            Paper.prototype.borderImage = function (image_url, border, x, y, width, height, color) {
+                color = color || "white"
+                border = border || 0;
+
+                let group, background, img, crop = "full";
+                if (Snap.is(image_url, "element")) {
+                    img = image_url;
+                    group = img.group();
+                    if (img.node.hasAttribute("transform")) {
+                        group.transform(img.node.getAttribute("transform"));
+                        img.attr("transform", "");
+                    }
+                    !border && (border = img.attr("border") || 0);
+                    const img_size = img.attr("crop");
+                    if (img_size !== undefined) {
+                        crop = img_size
+                    }
+                    if (image_url.type === "image"
+                        || image_url.type === "rect") {
+                        x = x || img.attr("x") || 0;
+                        y = y || img.attr("y") || 0;
+                        width = width || img.attr("width");
+                        height = height || img.attr("height");
+                    } else {
+                        const bb = img.getBBox();
+                        x = x || bb.x || 0;
+                        y = y || bb.y || 0;
+                        width = width || bb.width;
+                        height = height || bb.height;
+                    }
+
+                    let stored_color = img.attr("border_color") || img.attr("border-color");
+                    if (stored_color) {
+                        color = stored_color;
+                    }
+                } else if (typeof image_url === "string") {
+                    group = this.g();
+                    img = group.image(image_url)
+                }
+                width = Number(width || 0); // allow other formats for width
+                height = Number(height || 0);
+                x = x || 0;
+                y = y || 0;
+
+                let params = compute_border_image_params(x, y, width, height, border, crop);
+
+                const rect = group.rect(params.b_x, params.b_y, params.b_width, params.b_height);
+                if (typeof color === 'object') {
+                    rect.setStyle(color)
+                } else {
+                    rect.setStyle({fill: color})
+                }
+
+                img.before(rect);
+
+                group._img = img;
+                group._rect = rect
+
+                image_border_update_internal(group, params);
+
+                //automatic update functionality
+                let attributeFilter = ['x', 'y', 'width', 'height', 'border', 'crop'];
+                let border_image_observer = new MutationObserver(function (mutationList) {
+                    let params_of_el = {};
+                    // console.log(mutationList);
+                    for (const mutation of mutationList) {
+                        for (const attr of attributeFilter) {
+                            params_of_el[attr] = group.attr(attr);
+                        }
+                    }
+
+                    const params = compute_border_image_params(params_of_el.x, params_of_el.y, params_of_el.width, params_of_el.height, params_of_el.border, params_of_el.crop);
+
+                    image_border_update_internal(group, params, true);
+                    if (params_of_el["fill"]) {
+                        group._rect.attr("fill", "");
+                    }
+                },);
+                border_image_observer.observe(group.node, {
+                    attributes: true,
+                    attributeOldValue: true,
+                    // attributeFilter: attributeFilter,
+                });
+
+                group.registerRemoveFunction(() => {
+                    console.log("Disconnecting")
+                    border_image_observer.disconnect();
+                })
+
+                group._observer = border_image_observer;
+                group.isBorderImage = true;
+
+                group.addClass("IA_border_image");
+
+                // console.log("Making Border", img.getId());
+
+                return group;
+            }
+
+            addExtension("borderImage", function (root) {
+                if (!root || !root.selectAll) return;
+                const targets = root.selectAll('[border], [class*="IA_border_image"]');
+
+                targets.forEach((target) => {
+                    if (target._ghost_element || target.isBorderImage) return; //skip processing ghost images
+                    const classes = (target.attr('class') || "").toLowerCase();
+                    if (classes.includes("ia_border_image")) {
+                        let match = classes.match(/ia_border_image(_(\S+))?/);
+                        if (match && match.length) {
+                            if (match[2] == null) {
+                                target.attr('border', match[2]);
+                            }
+
+                            target.removeClass(match[0])
+                        }
+
+                        match = classes.match(/ia_border_crop(_(\S+))?/);
+                        if (match && match.length) {
+                            if (match[2] == null) {
+                                target.attr('crop', match[2]);
+                            }
+                            target.removeClass(match[0])
+                        }
+                    }
+
+                    root.paper.borderImage(target);
+                    if (target.node.hasAttribute('border')) target.node.removeAttribute('border');
+                    if (target.node.hasAttribute('crop')) target.node.removeAttribute('crop');
+                })
+            })
+
+            function compute_border_image_params(x, y, width, height, border, crop) {
+                let [computed_border, increment] = compute_border(border, Number(width), Number(height));
+
+                let params = {
+                    x: Number(x),
+                    y: Number(y),
+                    width: Number(width),
+                    height: Number(height),
+                    b_x: Number(x),
+                    b_y: Number(y),
+                    b_width: Number(width),
+                    b_height: Number(height),
+                    border: border,
+                    increment: Number(increment),
+                    crop: crop
+                }
+
+                if (increment) {
+                    params.b_x = params.x - computed_border;
+                    params.b_y = params.y - computed_border;
+                    params.b_width = params.width + 2 * computed_border;
+                    params.b_height = params.height + 2 * computed_border;
+                }
+
+                if (!increment) {
+                    params.x += computed_border;
+                    params.y += computed_border;
+                    params.width -= 2 * computed_border;
+                    params.height -= 2 * computed_border;
+                }
+                return params;
+            }
+
+            function compute_border_image_crop(crop, x, y, width, height) {
+                if (crop === undefined || crop === 'full'
+                    || crop == 1 || crop == 100) return [x, y, width, height];
+
+                const dim_w = width >= height;
+                const c = {x: x + width / 2, y: y + height / 2}
+                if (crop === "square") {
+                    width = (dim_w) ? height : width;
+                    height = (dim_w) ? height : width;
+                } else if (!isNaN(crop) && crop > 1) {
+                    width = (dim_w) ? width * crop / 100 : width;
+                    height = (dim_w) ? height : height * crop / 100;
+                } else if (!isNaN(crop) && crop < 1 && crop >= 0) {
+                    width = (dim_w) ? height + (width - height) * crop : width;
+                    height = (dim_w) ? height : width + (height - width) * crop;
+                }
+
+                x = (dim_w) ? c.x - width / 2 : x;
+                y = (dim_w) ? y : c.y - height / 2;
+
+                return [x, y, width, height];
+            }
+
+            function image_border_update_internal(group, params, skip_group) {
+                let increment = params.increment || 0;
+                if (!skip_group) group.attr({
+                    border: params.border,
+                    // increment: increment,
+                    x: (increment) ? params.x : params.b_x,
+                    y: (increment) ? params.y : params.b_y,
+                    width: (increment) ? params.width : params.b_width,
+                    height: (increment) ? params.height : params.b_height,
+                    crop: params.crop || "full"
+                });
+
+                if (params.crop !== null) {
+                    if (!group._crop_rec) {
+                        group._crop_rec = group.rect();
+                        group._img.createClipPath(group._crop_rec)
+                    }
+                    const border = params.x - params.b_x;
+                    if (group._crop_rec) {
+                        let [x, y, width, height]
+                            = compute_border_image_crop(params.crop, params.x, params.y, params.width, params.height)
+                        group._crop_rec.attr({
+                            x: x,
+                            y: y,
+                            width: width,
+                            height: height
+                        })
+
+                        params.b_x = x - border;
+                        params.b_y = y - border;
+                        params.b_width = width + 2 * border;
+                        params.b_height = height + 2 * border;
+                    }
+                }
+
+                group._rect.attr({
+                    x: params.b_x,
+                    y: params.b_y,
+                    width: params.b_width,
+                    height: params.b_height
+                })
+
+                let type = group._img.type;
+                if (type === "image" || type === "rect") {
+                    group._img.attr({
+                        x: params.x,
+                        y: params.y,
+                        width: params.width,
+                        height: params.height
+                    })
+                } else {
+                    group._img.fitInBox({
+                        cx: params.x + params.width / 2,
+                        cy: params.y + params.height / 2,
+                        width: params.width,
+                        height: params.height
+                    }, true)
+                }
+            }
+
+            function compute_border(border, width, height) {
+                let increment = false;
+                if (typeof border === 'string') {
+                    border = border.trim();
+                    if (border.startsWith("+")) {
+                        increment = true;
+                        border.replace("+", "");
+                    }
+                    if (border.includes("%")) {
+                        if (border.includes("%w")) {
+                            border.replace("%w", "");
+                            border = width * (Number(border) / 100);
+                        } else if (border.includes("%h")) {
+                            border.replace("%h", "");
+                            border = height * (Number(border) / 100);
+                        } else {
+                            border.replace("%h", "");
+                            border = Math.max(width, height) * (Number(border) / 100);
+                        }
+                    }
+                }
+
+                return [Number(border), increment];
+            }
 
         });
 
