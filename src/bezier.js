@@ -10,13 +10,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * 3. numerical array/12 ordered x1,y1,z1,x2,y2,z2,x3,y3,z3,x4,y4,z4
      *
      */
-    var Bezier = function (coords) {
+    const Bezier = function (coords) {
         this.id = String.rand(4);
-        var args = (coords && coords.forEach) ? coords : [].slice.call(arguments);
-        var coordlen = false;
+        let args = (coords && coords.forEach) ? coords : [].slice.call(arguments);
+        let coordlen = false;
         if (typeof args[0] === 'object') {
             coordlen = args.length;
-            var newargs = [];
+            const newargs = [];
             args.forEach(function (point) {
                 if (Array.isArray(point)) {
                     point.forEach((c) => newargs.push(c));
@@ -30,8 +30,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
             args = newargs;
         }
-        var higher = false;
-        var len = args.length;
+        let higher = false;
+        const len = args.length;
         if (coordlen) {
             if (coordlen > 4) {
                 if (arguments.length !== 1) {
@@ -48,15 +48,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             }
         }
-        var _3d = (!higher && (len === 9 || len === 12)) ||
+        const _3d = (!higher && (len === 9 || len === 12)) ||
             (coords && coords[0] &&
                 (typeof coords[0].z !== 'undefined'
                     || (Array.isArray(coords[0]) && coords[0].length === 3)
                 )
             );
         this._3d = _3d;
-        var points = [];
-        for (var idx = 0, step = (_3d ? 3 : 2); idx < len; idx += step) {
+        const points = [];
+        let idx = 0;
+        const step = (_3d ? 3 : 2);
+        for (; idx < len; idx += step) {
             let point;
 
             point = {
@@ -71,13 +73,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         this.order = points.length - 1;
         this.points = points;
-        var dims = ['x', 'y'];
+        const dims = ['x', 'y'];
         if (_3d) dims.push('z');
         this.dims = dims;
         this.dimlen = dims.length;
         (function (curve) {
-            var a = utils.align(points, {p1: points[0], p2: points[curve.order]});
-            for (var i = 0; i < a.length; ++i) {
+            const a = utils.align(points, {p1: points[0], p2: points[curve.order]});
+            for (let i = 0; i < a.length; ++i) {
                 if (abs(a[i].y) > 0.0001) {
                     curve._linear = false;
                     return;
@@ -91,8 +93,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     Bezier.fromSVG = function (svgString) {
-        var list = svgString.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g).map(parseFloat);
-        var relative = /[cq]/.test(svgString);
+        let list = svgString.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g).map(parseFloat);
+        const relative = /[cq]/.test(svgString);
         if (!relative) return new Bezier(list);
         list = list.map(function (v, i) {
             return i < 2 ? v : v + list[i % 2];
@@ -104,7 +106,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (typeof t === 'undefined') {
             t = 0.5;
         }
-        var u = utils.projectionratio(t, n),
+        const u = utils.projectionratio(t, n),
             um = 1 - u,
             C = {
                 x: u * S.x + um * E.x,
@@ -130,7 +132,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return new Bezier(p1, p2, p2);
         }
         // real fitting.
-        var abc = getABC(2, p1, p2, p3, t);
+        const abc = getABC(2, p1, p2, p3, t);
         return new Bezier(p1, abc.A, p3);
     };
 
@@ -138,13 +140,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (typeof t === 'undefined') {
             t = 0.5;
         }
-        var abc = getABC(3, S, B, E, t);
+        const abc = getABC(3, S, B, E, t);
         if (typeof d1 === 'undefined') {
             d1 = utils.dist(B, abc.C);
         }
-        var d2 = d1 * (1 - t) / t;
+        const d2 = d1 * (1 - t) / t;
 
-        var selen = utils.dist(S, E),
+        const selen = utils.dist(S, E),
             lx = (E.x - S.x) / selen,
             ly = (E.y - S.y) / selen,
             bx1 = d1 * lx,
@@ -152,7 +154,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             bx2 = d2 * lx,
             by2 = d2 * ly;
         // derivation of new hull coordinates
-        var e1 = {x: B.x - bx1, y: B.y - by1},
+        const e1 = {x: B.x - bx1, y: B.y - by1},
             e2 = {x: B.x + bx2, y: B.y + by2},
             A = abc.A,
             v1 = {x: A.x + (e1.x - A.x) / (1 - t), y: A.y + (e1.y - A.y) / (1 - t)},
@@ -166,7 +168,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new Bezier(S, nc1, nc2, E);
     };
 
-    var getUtils = function () {
+    const getUtils = function () {
         return utils;
     };
 
@@ -185,11 +187,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
         toSVG: function (relative) {
             if (this._3d) return false;
-            var p = this.points,
+            const p = this.points,
                 x = p[0].x,
                 y = p[0].y,
                 s = ['M', x, y, (this.order === 2 ? 'Q' : 'C')];
-            for (var i = 1, last = p.length; i < last; ++i) {
+            let i = 1;
+            const last = p.length;
+            for (; i < last; ++i) {
                 s.push(p[i].x);
                 s.push(p[i].y);
             }
@@ -199,9 +203,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         update: function () {
             // one-time pointAt derivative coordinates
             this.dpoints = [];
-            for (var p = this.points, d = p.length, c = d - 1; d > 1; d--, c--) {
-                var list = [];
-                for (var j = 0, dpt; j < c; j++) {
+            let p = this.points, d = p.length, c = d - 1;
+            for (; d > 1; d--, c--) {
+                const list = [];
+                let j = 0, dpt;
+                for (; j < c; j++) {
                     dpt = {
                         x: c * (p[j + 1].x - p[j].x),
                         y: c * (p[j + 1].y - p[j].y),
@@ -218,8 +224,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         computedirection: function () {
-            var points = this.points;
-            var angle = utils.angle(points[0], points[this.order], points[1]);
+            const points = this.points;
+            const angle = utils.angle(points[0], points[this.order], points[1]);
             this.clockwise = angle > 0;
         },
 
@@ -242,15 +248,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return this._lut;
             }
             this._lut = [];
-            for (var t = 0; t <= steps; t++) {
+            for (let t = 0; t <= steps; t++) {
                 this._lut.push(this.compute(t / steps));
             }
             return this._lut;
         },
         on: function (point, error) {
             error = error || 5;
-            var lut = this.getLUT(), hits = [], c, t = 0;
-            for (var i = 0; i < lut.length; ++i) {
+            const lut = this.getLUT(), hits = [];
+            let c, t = 0;
+            for (let i = 0; i < lut.length; ++i) {
                 c = lut[i];
                 if (utils.dist(c, point) < error) {
                     hits.push(c);
@@ -263,11 +270,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         project: function (point) {
             // step 1: coarse check
-            var LUT = this.getLUT(),
+            const LUT = this.getLUT(),
                 l = LUT.length - 1,
-                closest = utils.closest(LUT, point),
-                mdist = closest.mdist,
-                mpos = closest.mpos;
+                closest = utils.closest(LUT, point);
+            let mdist = closest.mdist;
+            const mpos = closest.mpos;
 
             if (mpos === 0 || mpos === l) {
                 var t = mpos / l, pt = this.compute(t);
@@ -323,8 +330,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return this.points[this.order];
             }
 
-            var p = this.points;
-            var mt = 1 - t;
+            let p = this.points;
+            const mt = 1 - t;
 
             // linear?
             if (this.order === 1) {
@@ -340,9 +347,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             // quadratic/cubic curve?
             if (this.order < 4) {
-                var mt2 = mt * mt,
-                    t2 = t * t,
-                    a, b, c, d = 0;
+                const mt2 = mt * mt,
+                    t2 = t * t;
+                let a, b, c, d = 0;
                 if (this.order === 2) {
                     p = [p[0], p[1], p[2], ZERO];
                     a = mt2;
@@ -365,9 +372,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             // higher order curves: use de Casteljau's computation
-            var dCpts = JSON.parse(JSON.stringify(this.points));
+            const dCpts = JSON.parse(JSON.stringify(this.points));
             while (dCpts.length > 1) {
-                for (var i = 0; i < dCpts.length - 1; ++i) {
+                for (let i = 0; i < dCpts.length - 1; ++i) {
                     dCpts[i] = {
                         x: dCpts[i].x + (dCpts[i + 1].x - dCpts[i].x) * t,
                         y: dCpts[i].y + (dCpts[i + 1].y - dCpts[i].y) * t,
@@ -428,8 +435,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return new Bezier(np);
         },
         derivative: function (t) {
-            var mt = 1 - t,
-                a, b, c = 0,
+            const mt = 1 - t;
+            let a, b, c = 0,
                 p = this.dpoints[0];
             if (this.order === 1) {
                 p = [p[0], ZERO, ZERO];
@@ -445,7 +452,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 b = mt * t * 2;
                 c = t * t;
             }
-            var ret = {
+            const ret = {
                 x: a * p[0].x + b * p[1].x + c * p[2].x,
                 y: a * p[0].y + b * p[1].y + c * p[2].y,
             };
@@ -461,13 +468,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this._3d ? this.__normal3(t) : this.__normal2(t);
         },
         __normal2: function (t) {
-            var d = this.derivative(t);
-            var q = sqrt(d.x * d.x + d.y * d.y);
+            const d = this.derivative(t);
+            const q = sqrt(d.x * d.x + d.y * d.y);
             return {x: -d.y / q, y: d.x / q};
         },
         __normal3: function () {
             // see http://stackoverflow.com/questions/25453159
-            var r1 = this.derivative(t),
+            const r1 = this.derivative(t),
                 r2 = this.derivative(t + 0.01),
                 q1 = sqrt(r1.x * r1.x + r1.y * r1.y + r1.z * r1.z),
                 q2 = sqrt(r2.x * r2.x + r2.y * r2.y + r2.z * r2.z);
@@ -478,22 +485,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             r2.y /= q2;
             r2.z /= q2;
             // cross product
-            var c = {
+            const c = {
                 x: r2.y * r1.z - r2.z * r1.y,
                 y: r2.z * r1.x - r2.x * r1.z,
                 z: r2.x * r1.y - r2.y * r1.x,
             };
-            var m = sqrt(c.x * c.x + c.y * c.y + c.z * c.z);
+            const m = sqrt(c.x * c.x + c.y * c.y + c.z * c.z);
             c.x /= m;
             c.y /= m;
             c.z /= m;
             // rotation matrix
-            var R = [
+            const R = [
                 c.x * c.x, c.x * c.y - c.z, c.x * c.z + c.y,
                 c.x * c.y + c.z, c.y * c.y, c.y * c.z - c.x,
                 c.x * c.z - c.y, c.y * c.z + c.x, c.z * c.z];
             // normal vector:
-            var n = {
+            const n = {
                 x: R[0] * r1.x + R[1] * r1.y + R[2] * r1.z,
                 y: R[3] * r1.x + R[4] * r1.y + R[5] * r1.z,
                 z: R[6] * r1.x + R[7] * r1.y + R[8] * r1.z,
@@ -501,11 +508,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return n;
         },
         hull: function (t) {
-            var p = this.points,
+            let p = this.points,
                 _p = [],
-                pt,
-                q = [],
-                idx = 0,
+                pt;
+            const q = [];
+            let idx = 0,
                 i = 0,
                 l = 0;
             q[idx++] = p[0];
@@ -550,7 +557,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             }
             if (this.order > 1) {
-                var q = this.hull(t1);
+                const q = this.hull(t1);
                 var result = {
                     left: this.order === 2 ?
                         new Bezier([q[0], q[3], q[5]]) :
@@ -576,14 +583,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             // if we have a t2, split again:
             t2 = utils.map(t2, t1, 1, 0, 1);
-            var subsplit = result.right.split(t2);
+            const subsplit = result.right.split(t2);
             return subsplit.left;
         },
 
         extrema: function () {
-            var dims = this.dims,
-                result = {},
-                roots = [],
+            const dims = this.dims,
+                result = {};
+            let roots = [],
                 p, mfn;
             dims.forEach(function (dim) {
 
@@ -609,7 +616,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         bbox: function () {
-            var extrema = this.extrema(), result = {};
+            const extrema = this.extrema(), result = {};
             this.dims.forEach(function (d) {
                 result[d] = utils.getminmax(this, d, extrema[d]);
             }.bind(this));
@@ -617,16 +624,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         overlaps: function (curve) {
-            var lbbox = this.bbox(),
+            const lbbox = this.bbox(),
                 tbbox = curve.bbox();
             return utils.bboxoverlap(lbbox, tbbox);
         },
 
         offset: function (t, d) {
             if (typeof d !== 'undefined') {
-                var c = this.get(t);
-                var n = this.normal(t);
-                var ret = {
+                const c = this.get(t);
+                const n = this.normal(t);
+                const ret = {
                     c: c,
                     n: n,
                     x: c.x + n.x * d,
@@ -640,9 +647,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             if (this._linear) {
-                var nv = this.normal(0);
-                var coords = this.points.map(function (p) {
-                    var ret = {
+                const nv = this.normal(0);
+                const coords = this.points.map(function (p) {
+                    const ret = {
                         x: p.x + t * nv.x,
                         y: p.y + t * nv.y,
                     };
@@ -653,7 +660,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 });
                 return [new Bezier(coords)];
             }
-            var reduced = this.reduce();
+            const reduced = this.reduce();
             return reduced.map(function (s) {
                 return s.scale(t);
             });
@@ -661,24 +668,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         simple: function () {
             if (this.order === 3) {
-                var a1 = utils.angle(this.points[0], this.points[3], this.points[1]);
-                var a2 = utils.angle(this.points[0], this.points[3], this.points[2]);
+                const a1 = utils.angle(this.points[0], this.points[3], this.points[1]);
+                const a2 = utils.angle(this.points[0], this.points[3], this.points[2]);
                 if (a1 > 0 && a2 < 0 || a1 < 0 && a2 > 0) return false;
             }
-            var n1 = this.normal(0);
-            var n2 = this.normal(1);
-            var s = n1.x * n2.x + n1.y * n2.y;
+            const n1 = this.normal(0);
+            const n2 = this.normal(1);
+            let s = n1.x * n2.x + n1.y * n2.y;
             if (this._3d) {
                 s += n1.z * n2.z;
             }
-            var angle = abs(acos(s));
+            const angle = abs(acos(s));
             return angle < pi / 3;
         },
 
         reduce: function () {
-            var i, t1 = 0, t2 = 0, step = 0.01, segment, pass1 = [], pass2 = [];
+            let i, t1 = 0, t2 = 0;
+            const step = 0.01;
+            let segment;
+            const pass1 = [], pass2 = [];
             // first pass: split on extrema
-            var extrema = this.extrema().values;
+            let extrema = this.extrema().values;
             if (extrema.indexOf(0) === -1) {
                 extrema = [0].coancat(extrema);
             }
@@ -735,8 +745,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         scale: function (d) {
-            var order = this.order;
-            var distanceFn = false;
+            const order = this.order;
+            let distanceFn = false;
             if (typeof d === 'function') {
                 distanceFn = d;
             }
@@ -745,20 +755,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             // TODO: add special handling for degenerate (=linear) curves.
-            var clockwise = this.clockwise;
-            var r1 = distanceFn ? distanceFn(0) : d;
-            var r2 = distanceFn ? distanceFn(1) : d;
-            var v = [this.offset(0, 10), this.offset(1, 10)];
-            var o = utils.lli4(v[0], v[0].c, v[1], v[1].c);
+            const clockwise = this.clockwise;
+            const r1 = distanceFn ? distanceFn(0) : d;
+            const r2 = distanceFn ? distanceFn(1) : d;
+            const v = [this.offset(0, 10), this.offset(1, 10)];
+            const o = utils.lli4(v[0], v[0].c, v[1], v[1].c);
             if (!o) {
                 throw new Error('cannot scale this curve. Try reducing it first.');
             }
             // move all points by distance 'd' wrt the origin 'o'
-            var points = this.points, np = [];
+            const points = this.points, np = [];
 
             // move end points by fixed distance along normal.
             [0, 1].forEach(function (t) {
-                var p = np[t * order] = utils.copy(points[t * order]);
+                const p = np[t * order] = utils.copy(points[t * order]);
                 p.x += (t ? r2 : r1) * v[t].n.x;
                 p.y += (t ? r2 : r1) * v[t].n.y;
             }.bind(this));
@@ -768,9 +778,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 // derivative vector, and the origin-through-control vector
                 [0, 1].forEach(function (t) {
                     if (this.order === 2 && !!t) return;
-                    var p = np[t * order];
-                    var d = this.derivative(t);
-                    var p2 = {x: p.x + d.x, y: p.y + d.y};
+                    const p = np[t * order];
+                    const d = this.derivative(t);
+                    const p2 = {x: p.x + d.x, y: p.y + d.y};
                     np[t + 1] = utils.lli4(p, p2, o, points[t + 1]);
                 }.bind(this));
                 return new Bezier(np);
@@ -780,14 +790,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // ensure the correct tangent to endpoint".
             [0, 1].forEach(function (t) {
                 if (this.order === 2 && !!t) return;
-                var p = points[t + 1];
-                var ov = {
+                const p = points[t + 1];
+                const ov = {
                     x: p.x - o.x,
                     y: p.y - o.y,
                 };
-                var rc = distanceFn ? distanceFn((t + 1) / order) : d;
+                let rc = distanceFn ? distanceFn((t + 1) / order) : d;
                 if (distanceFn && !clockwise) rc = -rc;
-                var m = sqrt(ov.x * ov.x + ov.y * ov.y);
+                const m = sqrt(ov.x * ov.x + ov.y * ov.y);
                 ov.x /= m;
                 ov.y /= m;
                 np[t + 1] = {
@@ -800,19 +810,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         outline: function (d1, d2, d3, d4) {
             d2 = (typeof d2 === 'undefined') ? d1 : d2;
-            var reduced = this.reduce(),
+            const reduced = this.reduce(),
                 len = reduced.length,
-                fcurves = [],
-                bcurves = [],
+                fcurves = [];
+            let bcurves = [],
                 p,
-                alen = 0,
-                tlen = this.length();
+                alen = 0;
+            const tlen = this.length();
 
-            var graduated = (typeof d3 !== 'undefined' && typeof d4 !== 'undefined');
+            const graduated = (typeof d3 !== 'undefined' && typeof d4 !== 'undefined');
 
             function linearDistanceFunction(s, e, tlen, alen, slen) {
                 return function (v) {
-                    var f1 = alen / tlen, f2 = (alen + slen) / tlen, d = e - s;
+                    const f1 = alen / tlen, f2 = (alen + slen) / tlen, d = e - s;
                     return utils.map(v, 0, 1, s + f1 * d, s + f2 * d);
                 };
             };
@@ -857,10 +867,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
         outlineshapes: function (d1, d2) {
             d2 = d2 || d1;
-            var outline = this.outline(d1, d2).curves;
-            var shapes = [];
-            for (var i = 1, len = outline.length; i < len / 2; ++i) {
-                var shape = utils.makeshape(outline[i], outline[len - i]);
+            const outline = this.outline(d1, d2).curves;
+            const shapes = [];
+            let i = 1;
+            const len = outline.length;
+            for (; i < len / 2; ++i) {
+                const shape = utils.makeshape(outline[i], outline[len - i]);
                 shape.startcap.virtual = (i > 1);
                 shape.endcap.virtual = (i < len / 2 - 1);
                 shapes.push(shape);
@@ -885,24 +897,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             const p1 = line.p1 || line.points[0];
             const p2 = line.p2 || line.points[1];
-            var mx = Math.min(p1.x, p2.x),
+            const mx = Math.min(p1.x, p2.x),
                 my = Math.min(p1.y, p2.y),
                 MX = Math.max(p1.x, p2.x),
                 MY = Math.max(p1.y, p2.y),
                 self = this;
 
             return utils.roots(this.points, line).filter(function (t) {
-                var p = self.get(t);
+                const p = self.get(t);
                 return utils.between(p.x, mx, MX) && utils.between(p.y, my, MY);
             });
         },
 
         selfintersects: function () {
-            var reduced = this.reduce();
+            const reduced = this.reduce();
             // "simple" curves cannot intersect with their direct
             // neighbour, so for each segment X we check whether
             // it intersects [0:x-2][x+2:last].
-            var i, len = reduced.length - 2, results = [], result, left, right;
+            let i;
+            const len = reduced.length - 2;
+            let results = [], result, left, right;
             for (i = 0; i < len; ++i) {
                 left = reduced.slice(i, i + 1);
                 right = reduced.slice(i + 2);
@@ -913,7 +927,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         curveintersects: function (c1, c2) {
-            var pairs = [];
+            const pairs = [];
             // step 1: pair off any overlapping segments
             c1.forEach(function (l) {
                 c2.forEach(function (r) {
@@ -923,9 +937,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 });
             });
             // step 2: for each pairing, run through the convergence algorithm.
-            var intersections = [];
+            let intersections = [];
             pairs.forEach(function (pair) {
-                var result = utils.pairiteration(pair.left, pair.right);
+                const result = utils.pairiteration(pair.left, pair.right);
                 if (result.length > 0) {
                     intersections = intersections.concat(result);
                 }
@@ -935,11 +949,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         arcs: function (errorThreshold) {
             errorThreshold = errorThreshold || 0.5;
-            var circles = [];
+            const circles = [];
             return this._iterate(errorThreshold, circles);
         },
         _error: function (pc, np1, s, e) {
-            var q = (e - s) / 4,
+            const q = (e - s) / 4,
                 c1 = this.get(s + q),
                 c2 = this.get(e - q),
                 ref = utils.dist(pc, np1),
@@ -948,7 +962,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return abs(d1 - ref) + abs(d2 - ref);
         },
         _iterate: function (errorThreshold, circles) {
-            var s = 0, e = 1, safety;
+            let s = 0, e = 1, safety;
             // we do a binary search to find the "good `t` closest to no-longer-good"
             do {
                 safety = 0;
@@ -957,13 +971,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 e = 1;
 
                 // points:
-                var np1 = this.get(s), np2, np3, arc, prev_arc;
+                const np1 = this.get(s);
+                let np2, np3, arc, prev_arc;
 
                 // booleans:
-                var curr_good = false, prev_good = false, done;
+                let curr_good = false, prev_good = false, done;
 
                 // numbers:
-                var m = e, prev_e = 1, step = 0;
+                let m = e, prev_e = 1, step = 0;
 
                 // step 2: find the best possible arc
                 do {
@@ -976,7 +991,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     np3 = this.get(e);
 
                     arc = utils.getccenter(np1, np2, np3);
-                    var error = this._error(arc, np1, s, e);
+                    const error = this._error(arc, np1, s, e);
                     curr_good = (error <= errorThreshold);
 
                     done = prev_good && !curr_good;
@@ -1122,15 +1137,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.curves[idx];
         },
         bbox: function () {
-            var c = this.curves;
-            var bbox = c[0].bbox();
-            for (var i = 1; i < c.length; ++i) {
+            const c = this.curves;
+            const bbox = c[0].bbox();
+            for (let i = 1; i < c.length; ++i) {
                 utils.expandbox(bbox, c[i].bbox());
             }
             return bbox;
         },
         offset: function (d) {
-            var offset = [];
+            let offset = [];
             this.curves.forEach(function (v) {
                 offset = offset.concat(v.offset(d));
             });
@@ -1265,8 +1280,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         ],
 
         arcfn: function (t, derivativeFn) {
-            var d = derivativeFn(t);
-            var l = d.x * d.x + d.y * d.y;
+            const d = derivativeFn(t);
+            let l = d.x * d.x + d.y * d.y;
             if (typeof d.z !== 'undefined') {
                 l += d.z * d.z;
             }
@@ -1283,7 +1298,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         length: function (derivativeFn) {
-            var z = 0.5, sum = 0, len = utils.Tvalues.length, i, t;
+            const z = 0.5;
+            let sum = 0;
+            const len = utils.Tvalues.length;
+            let i, t;
             for (i = 0; i < len; ++i) {
                 t = z * utils.Tvalues[i] + z;
                 sum += utils.Cvalues[i] * utils.arcfn(t, derivativeFn);
@@ -1292,12 +1310,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         map: function (v, ds, de, ts, te) {
-            var d1 = de - ds, d2 = te - ts, v2 = v - ds, r = v2 / d1;
+            const d1 = de - ds, d2 = te - ts, v2 = v - ds, r = v2 / d1;
             return ts + d2 * r;
         },
 
         lerp: function (r, v1, v2) {
-            var ret = {
+            const ret = {
                 x: v1.x + r * (v2.x - v1.x),
                 y: v1.y + r * (v2.y - v1.y),
             };
@@ -1308,7 +1326,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         pointToString: function (sep, p) {
-            var s = p.x + sep + p.y;
+            let s = p.x + sep + p.y;
             if (typeof p.z !== 'undefined') {
                 s += sep + p.z;
             }
@@ -1327,14 +1345,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         angle: function (o, v1, v2) {
-            var dx1 = v1.x - o.x,
+            let dx1 = v1.x - o.x,
                 dy1 = v1.y - o.y,
                 dx2 = v2.x - o.x,
-                dy2 = v2.y - o.y,
-                cross = dx1 * dy2 - dy1 * dx2,
+                dy2 = v2.y - o.y;
+            const cross = dx1 * dy2 - dy1 * dx2,
                 m1 = sqrt(dx1 * dx1 + dy1 * dy1),
-                m2 = sqrt(dx2 * dx2 + dy2 * dy2),
-                dot;
+                m2 = sqrt(dx2 * dx2 + dy2 * dy2);
+            let dot;
             dx1 /= m1;
             dy1 /= m1;
             dx2 /= m2;
@@ -1345,19 +1363,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         // round as string, to avoid rounding errors
         round: function (v, d) {
-            var s = '' + v;
-            var pos = s.indexOf('.');
+            const s = '' + v;
+            const pos = s.indexOf('.');
             return parseFloat(s.substring(0, pos + 1 + d));
         },
 
         dist: function (p1, p2) {
-            var dx = p1.x - p2.x,
+            const dx = p1.x - p2.x,
                 dy = p1.y - p2.y;
             return sqrt(dx * dx + dy * dy);
         },
 
         closest: function (LUT, point) {
-            var mdist = pow(2, 63), mpos, d;
+            let mdist = pow(2, 63), mpos, d;
             LUT.forEach(function (p, idx) {
                 d = utils.dist(point, p);
                 if (d < mdist) {
@@ -1378,7 +1396,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             } else if (t === 0 || t === 1) {
                 return t;
             }
-            var bottom = pow(t, n) + pow(1 - t, n), top = bottom - 1;
+            const bottom = pow(t, n) + pow(1 - t, n), top = bottom - 1;
             return abs(top / bottom);
         },
 
@@ -1392,12 +1410,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             } else if (t === 0 || t === 1) {
                 return t;
             }
-            var top = pow(1 - t, n), bottom = pow(t, n) + top;
+            const top = pow(1 - t, n), bottom = pow(t, n) + top;
             return top / bottom;
         },
 
         lli8: function (x1, y1, x2, y2, x3, y3, x4, y4) {
-            var nx = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) *
+            const nx = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) *
                     (x3 * y4 - y3 * x4),
                 ny = (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) *
                     (x3 * y4 - y3 * x4),
@@ -1409,7 +1427,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         lli4: function (p1, p2, p3, p4) {
-            var x1 = p1.x, y1 = p1.y,
+            const x1 = p1.x, y1 = p1.y,
                 x2 = p2.x, y2 = p2.y,
                 x3 = p3.x, y3 = p3.y,
                 x4 = p4.x, y4 = p4.y;
@@ -1421,17 +1439,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         makeline: function (p1, p2) {
-            var Bezier = require('./bezier');
-            var x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y, dx = (x2 - x1) / 3,
+
+            const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y, dx = (x2 - x1) / 3,
                 dy = (y2 - y1) / 3;
             return new Bezier(x1, y1, x1 + dx, y1 + dy, x1 + 2 * dx, y1 + 2 * dy, x2,
                 y2);
         },
 
         findbbox: function (sections) {
-            var mx = 99999999, my = mx, MX = -mx, MY = MX;
+            let mx = 99999999, my = mx, MX = -mx, MY = MX;
             sections.forEach(function (s) {
-                var bbox = s.bbox();
+                const bbox = s.bbox();
                 if (mx > bbox.x.min) mx = bbox.x.min;
                 if (my > bbox.y.min) my = bbox.y.min;
                 if (MX < bbox.x.max) MX = bbox.x.max;
@@ -1445,14 +1463,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         shapeintersections: function (s1, bbox1, s2, bbox2) {
             if (!utils.bboxoverlap(bbox1, bbox2)) return [];
-            var intersections = [];
-            var a1 = [s1.startcap, s1.forward, s1.back, s1.endcap];
-            var a2 = [s2.startcap, s2.forward, s2.back, s2.endcap];
+            const intersections = [];
+            const a1 = [s1.startcap, s1.forward, s1.back, s1.endcap];
+            const a2 = [s2.startcap, s2.forward, s2.back, s2.endcap];
             a1.forEach(function (l1) {
                 if (l1.virtual) return;
                 a2.forEach(function (l2) {
                     if (l2.virtual) return;
-                    var iss = l1.intersects(l2);
+                    const iss = l1.intersects(l2);
                     if (iss.length > 0) {
                         iss.c1 = l1;
                         iss.c2 = l2;
@@ -1466,18 +1484,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         makeshape: function (forward, back) {
-            var bpl = back.points.length;
-            var fpl = forward.points.length;
-            var start = utils.makeline(back.points[bpl - 1], forward.points[0]);
-            var end = utils.makeline(forward.points[fpl - 1], back.points[0]);
-            var shape = {
+            const bpl = back.points.length;
+            const fpl = forward.points.length;
+            const start = utils.makeline(back.points[bpl - 1], forward.points[0]);
+            const end = utils.makeline(forward.points[fpl - 1], back.points[0]);
+            const shape = {
                 startcap: start,
                 forward: forward,
                 back: back,
                 endcap: end,
                 bbox: utils.findbbox([start, forward, back, end]),
             };
-            var self = utils;
+            const self = utils;
             shape.intersections = function (s2) {
                 return self.shapeintersections(shape, shape.bbox, s2, s2.bbox);
             };
@@ -1486,14 +1504,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         getminmax: function (curve, d, list) {
             if (!list) return {min: 0, max: 0};
-            var min = 0xFFFFFFFFFFFFFFFF, max = -min, t, c;
+            let min = 0xFFFFFFFFFFFFFFFF, max = -min, t, c;
             if (list.indexOf(0) === -1) {
                 list = [0].concat(list);
             }
             if (list.indexOf(1) === -1) {
                 list.push(1);
             }
-            for (var i = 0, len = list.length; i < len; ++i) {
+            let i = 0;
+            const len = list.length;
+            for (; i < len; ++i) {
                 t = list[i];
                 c = curve.get(t);
                 if (c[d] < min) {
@@ -1506,10 +1526,64 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return {min: min, mid: (min + max) / 2, max: max, size: max - min};
         },
 
+        arePointsBetween: function (p1, p2, points) {
+            // Calculate the direction vector of the line formed by the reference points
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+
+            // Normalize the direction vector
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const normalizedDx = dx / length;
+            const normalizedDy = dy / length;
+
+            // Calculate the dot product of the normalized direction vector and each point
+            const dotProducts = points.map(point => {
+                const delta_x = point.x - p1.x;
+                const delta_y = point.y - p1.y;
+                return delta_x * normalizedDx + delta_y * normalizedDy;
+            });
+
+            // Check if all dot products are within the range [0, length]
+            return dotProducts.every(dotProduct => dotProduct >= 0 && dotProduct <= length);
+        },
+
+        // Define a function to test if points are collinear within a given epsilon
+        arePointsCollinear: function (points, epsilon) {
+            epsilon = epsilon || 1e-10;
+
+            if (points.length < 3) {
+                // Collinearity requires at least 3 points
+                return false;
+            }
+
+            // Calculate the slope between the first two points
+            const x0 = points[0].x;
+            const y0 = points[0].y;
+            const x1 = points[1].x;
+            const y1 = points[1].y;
+
+            const initialSlope = (x1 - x0) !== 0 ? (y1 - y0) / (x1 - x0) : Infinity;
+
+            // Check if the remaining points have approximately the same slope
+            for (let i = 2; i < points.length; i++) {
+                const xi = points[i].x;
+                const yi = points[i].y;
+
+                const currentSlope = (xi - x0) !== 0 ? (yi - y0) / (xi - x0) : Infinity;
+
+                // Compare the current slope with the initial slope
+                if (Math.abs(currentSlope - initialSlope) > epsilon) {
+                    return false; // Points are not collinear within epsilon
+                }
+            }
+
+            return true; // Points are collinear within epsilon
+        },
+
         align: function (points, line) {
             const p1 = line.p1 || line.points[0];
             const p2 = line.p2 || line.points[1];
-            var tx = p1.x,
+            const tx = p1.x,
                 ty = p1.y,
                 a = -atan2(p2.y - ty, p2.x - tx),
                 d = function (v) {
@@ -1521,11 +1595,39 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return points.map(d);
         },
 
+        allSameSideOfZero: function (arr) {
+            if (arr.length === 0) {
+                // If the array is empty, you can consider it as all on the same side of zero.
+                return true;
+            }
+
+            const referenceSign = Math.sign(arr[0]);
+
+            for (let i = 1; i < arr.length; i++) {
+                if (!arr[i] || Math.sign(arr[i]) !== referenceSign) {
+                    return false;
+                }
+            }
+
+            return true;
+        },
+
         roots: function (points, line) {
             line = line || {p1: {x: 0, y: 0}, p2: {x: 1, y: 0}};
-            var order = points.length - 1;
-            var p_aligned = utils.align(points, line);
-            var reduce = function (t) {
+            let order = points.length - 1;
+
+            if (utils.arePointsCollinear(points) &&
+                utils.arePointsBetween(points[0], points[points.length - 1], points.slice(1, -1))) {
+                order = 1;
+                points = [points[0], points[points.length - 1]];
+            }
+
+            const p_aligned = utils.align(points, line);
+
+            if (utils.allSameSideOfZero(p_aligned.map((p)=>p.y))){
+                return [];
+            }
+            const reduce = function (t) {
                 return 0 <= t && t <= 1;
             };
 
@@ -1557,63 +1659,84 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return [];
             }
 
+            const epsilon = 1e-10; // A small epsilon value for comparison
+            // see http://www.trans4mind.com/personal_development/mathematics/polynomials/cubicAlgebra.htm
+            if (order === 3) {
+                let pa = p_aligned[0].y,
+                    pb = p_aligned[1].y,
+                    pc = p_aligned[2].y,
+                    pd = p_aligned[3].y,
+                    d = (-pa + 3 * pb - 3 * pc + pd);
+
+                //ChatGPT generated. TODO: does it work always
+                if (Math.abs(d) < epsilon) {
+                    // Handle the special case when 'd' is close to zero
+                    // Treat it as a quadratic Bezier curve and compute the intersection points
+
+                    order = 2;
+                    //reverse of the equation pb = q0 + 2/3(q1 - q0)
+                    p_aligned[1].y = (3 / 2) * (pb - pa / 3);
+                    p_aligned[2].y = p_aligned[3].y;
+
+                    //let order 2 to take over.
+
+                } else {
+                    let a = (3 * pa - 6 * pb + 3 * pc) / d,
+                        b = (-3 * pa + 3 * pb) / d,
+                        c = pa / d,
+
+                        p = (3 * b - a * a) / 3,
+                        p3 = p / 3,
+                        q = (2 * a * a * a - 9 * a * b + 27 * c) / 27,
+                        q2 = q / 2,
+                        discriminant = q2 * q2 + p3 * p3 * p3,
+                        u1, v1, x1, x2, x3;
+                    if (discriminant < 0) {
+                        var mp3 = -p / 3,
+                            mp33 = mp3 * mp3 * mp3,
+                            r = sqrt(mp33),
+                            t = -q / (2 * r),
+                            cosphi = t < -1 ? -1 : t > 1 ? 1 : t,
+                            phi = acos(cosphi),
+                            crtr = crt(r),
+                            t1 = 2 * crtr;
+                        x1 = t1 * cos(phi / 3) - a / 3;
+                        x2 = t1 * cos((phi + tau) / 3) - a / 3;
+                        x3 = t1 * cos((phi + 2 * tau) / 3) - a / 3;
+                        return [x1, x2, x3].filter(reduce);
+                    } else if (discriminant === 0) {
+                        u1 = q2 < 0 ? crt(-q2) : -crt(q2);
+                        x1 = 2 * u1 - a / 3;
+                        x2 = -u1 - a / 3;
+                        return [x1, x2].filter(reduce);
+                    } else {
+                        const sd = sqrt(discriminant);
+                        u1 = crt(-q2 + sd);
+                        v1 = crt(q2 + sd);
+                        return [u1 - v1 - a / 3].filter(reduce);
+                    }
+                }
+            }
+
             if (order === 2) {
-                var a = p_aligned[0].y,
+                let a = p_aligned[0].y,
                     b = p_aligned[1].y,
                     c = p_aligned[2].y,
                     d = a - 2 * b + c;
-                if (d !== 0) {
-                    var m1 = -sqrt(b * b - a * c),
+                if (Math.abs(d) > epsilon) {
+                    let m1 = -sqrt(b * b - a * c),
                         m2 = -a + b,
                         v1 = -(m1 + m2) / d,
                         v2 = -(-m1 + m2) / d;
                     return [v1, v2].filter(reduce);
-                } else if (b !== c && d === 0) {
-                    return [(2 * b - c) / 2 * (b - c)].filter(reduce);
+                } else if (b !== c && Math.abs(d) <= epsilon) {
+                    let v = (2 * b - c) / 2 * (b - c);
+                    return [v].filter(reduce);
                 }
                 return [];
             }
 
-            // see http://www.trans4mind.com/personal_development/mathematics/polynomials/cubicAlgebra.htm
-            var pa = p_aligned[0].y,
-                pb = p_aligned[1].y,
-                pc = p_aligned[2].y,
-                pd = p_aligned[3].y,
-                d = (-pa + 3 * pb - 3 * pc + pd),
-                a = (3 * pa - 6 * pb + 3 * pc) / d,
-                b = (-3 * pa + 3 * pb) / d,
-                c = pa / d,
 
-                p = (3 * b - a * a) / 3,
-                p3 = p / 3,
-                q = (2 * a * a * a - 9 * a * b + 27 * c) / 27,
-                q2 = q / 2,
-                discriminant = q2 * q2 + p3 * p3 * p3,
-                u1, v1, x1, x2, x3;
-            if (discriminant < 0) {
-                var mp3 = -p / 3,
-                    mp33 = mp3 * mp3 * mp3,
-                    r = sqrt(mp33),
-                    t = -q / (2 * r),
-                    cosphi = t < -1 ? -1 : t > 1 ? 1 : t,
-                    phi = acos(cosphi),
-                    crtr = crt(r),
-                    t1 = 2 * crtr;
-                x1 = t1 * cos(phi / 3) - a / 3;
-                x2 = t1 * cos((phi + tau) / 3) - a / 3;
-                x3 = t1 * cos((phi + 2 * tau) / 3) - a / 3;
-                return [x1, x2, x3].filter(reduce);
-            } else if (discriminant === 0) {
-                u1 = q2 < 0 ? crt(-q2) : -crt(q2);
-                x1 = 2 * u1 - a / 3;
-                x2 = -u1 - a / 3;
-                return [x1, x2].filter(reduce);
-            } else {
-                var sd = sqrt(discriminant);
-                u1 = crt(-q2 + sd);
-                v1 = crt(q2 + sd);
-                return [u1 - v1 - a / 3].filter(reduce);
-            }
         },
 
         droots: function (p) {
@@ -1624,7 +1747,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     c = p[2],
                     d = a - 2 * b + c;
                 if (d !== 0) {
-                    var m1 = -sqrt(b * b - a * c),
+                    const m1 = -sqrt(b * b - a * c),
                         m2 = -a + b,
                         v1 = -(m1 + m2) / d,
                         v2 = -(-m1 + m2) / d;
@@ -1669,7 +1792,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         bboxoverlap: function (b1, b2) {
-            var dims = ['x', 'y'], len = dims.length, i, dim, l, t, d;
+            const dims = ['x', 'y'], len = dims.length;
+            let i, dim, l, t, d;
             for (i = 0; i < len; ++i) {
                 dim = dims[i];
                 l = b1[dim].mid;
@@ -1712,7 +1836,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         pairiteration: function (c1, c2) {
-            var c1b = c1.bbox(),
+            const c1b = c1.bbox(),
                 c2b = c2.bbox(),
                 r = 100000,
                 threshold = 0.5;
@@ -1722,17 +1846,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     ((r * (c1._t1 + c1._t2) / 2) | 0) / r + '/' +
                     ((r * (c2._t1 + c2._t2) / 2) | 0) / r];
             }
-            var cc1 = c1.split(0.5),
-                cc2 = c2.split(0.5),
-                pairs = [
-                    {left: cc1.left, right: cc2.left},
-                    {left: cc1.left, right: cc2.right},
-                    {left: cc1.right, right: cc2.right},
-                    {left: cc1.right, right: cc2.left}];
+            const cc1 = c1.split(0.5),
+                cc2 = c2.split(0.5);
+            let pairs = [
+                {left: cc1.left, right: cc2.left},
+                {left: cc1.left, right: cc2.right},
+                {left: cc1.right, right: cc2.right},
+                {left: cc1.right, right: cc2.left}];
             pairs = pairs.filter(function (pair) {
                 return utils.bboxoverlap(pair.left.bbox(), pair.right.bbox());
             });
-            var results = [];
+            let results = [];
             if (pairs.length === 0) return results;
             pairs.forEach(function (pair) {
                 results = results.concat(
@@ -1746,31 +1870,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
         getccenter: function (p1, p2, p3) {
-            var dx1 = (p2.x - p1.x),
+            const dx1 = (p2.x - p1.x),
                 dy1 = (p2.y - p1.y),
                 dx2 = (p3.x - p2.x),
                 dy2 = (p3.y - p2.y);
-            var dx1p = dx1 * cos(quart) - dy1 * sin(quart),
+            const dx1p = dx1 * cos(quart) - dy1 * sin(quart),
                 dy1p = dx1 * sin(quart) + dy1 * cos(quart),
                 dx2p = dx2 * cos(quart) - dy2 * sin(quart),
                 dy2p = dx2 * sin(quart) + dy2 * cos(quart);
             // chord midpoints
-            var mx1 = (p1.x + p2.x) / 2,
+            const mx1 = (p1.x + p2.x) / 2,
                 my1 = (p1.y + p2.y) / 2,
                 mx2 = (p2.x + p3.x) / 2,
                 my2 = (p2.y + p3.y) / 2;
             // midpoint offsets
-            var mx1n = mx1 + dx1p,
+            const mx1n = mx1 + dx1p,
                 my1n = my1 + dy1p,
                 mx2n = mx2 + dx2p,
                 my2n = my2 + dy2p;
             // intersection of these lines:
-            var arc = utils.lli8(mx1, my1, mx1n, my1n, mx2, my2, mx2n, my2n),
-                r = utils.dist(arc, p1),
-                // arc start/end values, over mid point:
-                s = atan2(p1.y - arc.y, p1.x - arc.x),
-                m = atan2(p2.y - arc.y, p2.x - arc.x),
-                e = atan2(p3.y - arc.y, p3.x - arc.x),
+            const arc = utils.lli8(mx1, my1, mx1n, my1n, mx2, my2, mx2n, my2n),
+                r = utils.dist(arc, p1);
+            let // arc start/end values, over mid point:
+                s = atan2(p1.y - arc.y, p1.x - arc.x);
+            const m = atan2(p2.y - arc.y, p2.x - arc.x);
+            let e = atan2(p3.y - arc.y, p3.x - arc.x),
                 _;
             // determine arc direction (cw_third/ccw_third correction)
             if (s < e) {

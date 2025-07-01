@@ -28,7 +28,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return;
         }
         if (b == null && typeof a === "string") {
-            a = a.replace("matrix(", "").replace("(", "").replace(")");
+            a = a.replace("matrix(", "").replace("(", "").replace(")", "");
             a = a.split(",");
             this.a = +a[0] || 0;
             this.b = +a[1] || 0;
@@ -62,7 +62,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * Matrix.add
          [ method ]
          **
-         * Adds the given matrix to existing one
+         * Adds, in the sense of multiplying to the right the given matrix to existing one. This is not matrix addition
          - a (number)
          - b (number)
          - c (number)
@@ -87,6 +87,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.b = bNew;
             return this;
         };
+
+        matrixproto.multRight = matrixproto.add;
+
         matrixproto.plus = function (a, b, c, d, e, f) {
             if (a && a instanceof Matrix) {
                 return this.plus(a.a, a.b, a.c, a.d, a.e, a.f);
@@ -286,17 +289,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return x * this.b + y * this.d + this.f;
         };
 
-        matrixproto.randomTrans = function (cx, cy, positive, distance) {
+        matrixproto.randomTrans = function (cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
             distance = distance || 300;
             cx = cx || 0;
             cy = cy || 0;
-            let angle = 360 * Math.random();
-            let scale = (Math.random() < .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random();
+            let angle = (skip_rotation) ? 0 : 360 * Math.random();
+            let scalex = (Math.random() < .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random();
+            let scaley = (diff_scale) ? (Math.random() < .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random() : scalex;
+
+            if (skip_scale) {
+                scalex = 1;
+                scaley = 1;
+            }
 
             let dx = (positive) ? distance * Math.random() : distance * (Math.random() - .5),
                 dy = (positive) ? distance * Math.random() : distance * (Math.random() - .5);
 
-            return this.translate(dx, dy).rotate(angle, cx + dx, cy + dy).scale(scale, scale, cx + dx, cy + dy);
+            return this.translate(dx, dy).rotate(angle, cx + dx, cy + dy).scale(scalex, scaley, cx + dx, cy + dy);
         };
 
         matrixproto.get = function (i) {
@@ -307,6 +316,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
         matrixproto.offset = function () {
             return [this.e.toFixed(9), this.f.toFixed(9)];
+        };
+
+        matrixproto.equals = function (m, error) {
+            if (!m) return false;
+            if (error == null) {
+                return this.a === m.a && this.b === m.b && this.c === m.c && this.d === m.d && this.e === m.e && this.f === m.f;
+            }
+            return Math.abs(this.a - m.a) <= error &&
+                Math.abs(this.b - m.b) <= error &&
+                Math.abs(this.c - m.c) <= error &&
+                Math.abs(this.d - m.d) <= error &&
+                Math.abs(this.e - m.e) <= error &&
+                Math.abs(this.f - m.f) <= error;
+        }
+        matrixproto.isIdentity = function () {
+            return this.a === 1 && !this.b && !this.c && this.d === 1 &&
+                !this.e && !this.f;
+        };
+
+        matrixproto.toArray = function () {
+            return [this.a, this.b, this.c, this.d, this.e, this.f];
         };
 
         function norm(a) {
@@ -343,11 +373,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          o rotate (number) rotation in deg
          o isSimple (boolean) could it be represented via simple transformations
         \*/
-        matrixproto.split = function () {
+        matrixproto.split = function (add_pre_translation) {
             var out = {};
             // translation
             out.dx = this.e;
             out.dy = this.f;
+
+            //pre-translation
+            if (add_pre_translation) {
+                let m = this.clone();
+                m.e -= this.e;
+                m.f -= this.f;
+                let inv = m.invert();
+
+                m = this.clone();
+                m.multLeft(inv);
+                out.px = m.e;
+                out.py = m.f;
+            }
+
 
             // scale and shear
             var row = [[this.a, this.b], [this.c, this.d]];
@@ -382,6 +426,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             out.noRotation = !+out.shear.toFixed(9) && !out.rotate;
             return out;
         };
+
+        matrixproto.split2 = function getTransform() {
+            let a = this.a,
+                b = this.b,
+                c = this.c,
+                d = this.d,
+                e = this.e,
+                f = this.f;
+
+            const dx = e;
+            const dy = f;
+            const r = Math.atan2(b, a);
+            const scx = Math.sqrt(a * a + b * b);
+            const scy = (a * d - b * c) / scx;
+
+            return {dx: dx, dy: dy, r: Snap.deg(r), scalex: scx, scaley: scy};
+        }
+
         /*\
          * Matrix.toTransformString
          [ method ]
@@ -406,6 +468,65 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         matrixproto.isMatrix = function () {
             return true;
         }
+
+        matrixproto.twoPointTransformMatrix = function (x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
+            // Calculate distances before and after transformation
+            const distanceBefore = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            const distanceAfter = Math.sqrt(Math.pow(x2Prime - x1Prime, 2) + Math.pow(y2Prime - y1Prime, 2));
+
+            // Scale factor
+            const s = distanceAfter / distanceBefore;
+
+            // Calculate rotation angle theta
+            const dotProduct = (x2Prime - x1Prime) * (x2 - x1) + (y2Prime - y1Prime) * (y2 - y1);
+            const determinant = (x2Prime - x1Prime) * (y2 - y1) - (y2Prime - y1Prime) * (x2 - x1);
+            const theta = Math.atan2(determinant, dotProduct);
+
+            // Calculate components of the transformation matrix
+            const a = s * Math.cos(theta);
+            const b = s * Math.sin(theta);
+            const c = -s * Math.sin(theta);
+            const d = s * Math.cos(theta);
+
+            // Calculate translation components
+            const e = x1Prime - (a * x1 + c * y1);
+            const f = y1Prime - (b * x1 + d * y1);
+
+            // Return the transformation matrix
+            return new Snap.Matrix(a, b, c, d, e, f);
+        }
+
+        function rightLeftFlipMatrix(m, base) {
+            let inv = base.clone().invert();
+            return base.clone().multRight(m).multRight(inv);
+        }
+
+        function rotScaleSplit(m) {
+            m = m || this;
+            const split = m.split();
+            const tm = new Matrix().translate(split.dx, split.dy);
+            const rm = new Matrix().rotate(split.rotate);
+            const scm = new Matrix().scale(split.scalex, split.scaley);
+            const shm = new Matrix().skew(split.shear);
+
+            const rot_shear = rightLeftFlipMatrix(rm.multRight(shm), tm);
+            const trans_scale = scm.multLeft(tm);
+
+            return {
+                0: trans_scale,
+                1: rot_shear,
+                trans_scale: trans_scale,
+                rot_shear: rot_shear,
+                scalex: split.scalex,
+                scaley: split.scaley,
+                rotate: split.rotate,
+                shear: split.shear,
+                dx: split.dx,
+                dy: split.dy
+            };
+        }
+
+        matrixproto.rotScaleSplit = rotScaleSplit;
 
     })(Matrix.prototype);
     /*\

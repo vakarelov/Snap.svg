@@ -20,9 +20,10 @@
 //Modifications copyright (C) 2019 <Orlin Vakarelov>
 
 (function (glob) {
-    var version = "0.5.4",
-        has = "hasOwnProperty",
-        separator = ".", // /[\.\/]/,
+    const version = "1.0.0",
+        has = "hasOwnProperty";
+    let separator = ".";
+    const // /[\.\/]/,
         comaseparator = /\s*,\s*/,
         wildcard = "*",
         numsort = function (a, b) {
@@ -30,46 +31,49 @@
         },
         function_sort = function (a, b) {
             return +a.zIndex - +b.zIndex;
+        };
+    let current_event,
+        stop;
+    //snap, drag and ia events are global
+    const global_event = {
+        n: {
+            snap: {n: {}},
+            drag: {n: {}},
+            ia: {n: {}},
+            global: {n: {}},
         },
-        current_event,
-        stop,
-        //snap, drag and ia events are global
-        global_event = {
-            n: {
-                snap: {n: {}},
-                drag: {n: {}},
-                ia: {n: {}},
-                global: {n: {}},
-            },
 
-        },
-        //table of local events
-        event_groups = {default: {n: {}}},
-        events = event_groups.default,
-        getNext = function (event_list, name, group) {
-            if (event_list === undefined) {
-                if (global_event.n.hasOwnProperty(name)) {
-                    return global_event.n;
-                }
-                if (group) {
-                    return event_groups[group].n;
-                } else {
-                    return events.n;
-                }
-            }
+    };
+    //table of local events
+    const event_groups = {default: {n: {}}}; //default group allows adding listeners to local (grouped) events in the global context
 
-            return event_list.n;
-        },
-        firstDefined = function () {
-            for (var i = 0, ii = this.length; i < ii; ++i) {
-                if (typeof this[i] != "undefined") {
-                    return this[i];
-                }
+    let events = event_groups.default;
+    const getNext = function (event_list, name, group, skip_global) {
+        if (event_list === undefined) {
+            if (!skip_global && global_event.n.hasOwnProperty(name)) {
+                return global_event.n;
             }
-        },
-        xIndex_cur = 0,
-        lastDefined = function () {
-            var i = this.length;
+            if (group) {
+                return event_groups[group].n;
+            } else {
+                return events.n;
+            }
+        }
+
+        return event_list.n;
+    };
+    const firstDefined = function () {
+        let i = 0;
+        const ii = this.length;
+        for (; i < ii; ++i) {
+            if (typeof this[i] != "undefined") {
+                return this[i];
+            }
+        }
+    };
+    let xIndex_cur = 0;
+    const lastDefined = function () {
+            let i = this.length;
             while (--i) {
                 if (typeof this[i] != "undefined") {
                     return this[i];
@@ -104,11 +108,11 @@
                 group = group.id;
             }
             args = args || Array.prototype.slice.call(arguments, 3)
-            var oldstop = stop,
+            const oldstop = stop,
                 listeners = eve.listeners(name, group),
-                z = 0,
-                l,
-                indexed = [],
+                z = 0;
+            let l;
+            const indexed = [],
                 queue = {},
                 out = [],
                 ce = current_event;
@@ -133,7 +137,12 @@
 
             for (let i = 0, lim = listeners.length; i < lim; ++i) {
                 l = listeners[i];
-                out.push(l.apply(scope, args));
+                try {
+                    out.push(l.apply(scope, args));
+                } catch (e) {
+                    console.error(e.message, e, args, l);
+                    eve("global.error", undefined, e, l, args);
+                }
                 if (stop) {
                     break;
                 }
@@ -177,8 +186,25 @@
 
             stop = oldstop;
             current_event = ce;
+
+            if (eve._log) {
+                if (!group) group = "global";
+                if (!eve._log[group]) {
+                    eve._log[group] = {};
+                }
+                name = (isArray(name)) ? name.join(separator) : name;
+                if (!eve._log[group][name]) {
+                    eve._log[group][name] = [1, listeners.length];
+                } else {
+                    eve._log[group][name][0]++;
+                    eve._log[group][name][1] = Math.max(eve._log[group][name][1], listeners.length);
+                }
+            }
+
             return out;
         };
+
+    eve.isEve = true;
 
     eve.localEve = function (group_id) {
         eve.setGroup(group_id);
@@ -186,6 +212,8 @@
             let args = [{id: group_id}, ...Array.prototype.slice.call(arguments)];
             return eve.apply(undefined, args);
         }
+
+        ret_eve.group = group_id;
 
         ret_eve.on = function (name, f) {
             return eve.on(name, f, group_id);
@@ -203,16 +231,32 @@
             return eve.unbind(name, f, group_id);
         }
 
-        for (let f in eve) if (eve.hasOwnProperty(f) && !ret_eve[f]){
+        ret_eve.f = function (name) {
+            const attrs = [].slice.call(arguments, 1);
+            return function () {
+                eve.apply(null, [{id: group_id}, name, null].concat(attrs).concat([].slice.call(arguments, 0)));
+            };
+        }
+
+        for (let f in eve) if (eve.hasOwnProperty(f) && !ret_eve[f]) {
             ret_eve[f] = eve[f];
         }
 
         return ret_eve;
     }
+    eve.logEvents = function (off) {
+        if (off) {
+            delete eve._log;
+        } else {
+            eve._log = {};
+        }
+    }
     // Undocumented. Debug only.
     eve._events = events.n;
     eve._all_events = event_groups;
     eve._snap_events = global_event.n;
+
+    eve.group = undefined;
     /*\
      * eve.listeners
      [ method ]
@@ -223,9 +267,9 @@
 
      = (array) array of event handlers
     \*/
-    eve.listeners = function (name, group) {
-        var names = isArray(name) ? name : name.split(separator),
-            e = undefined,
+    eve.listeners = function (name, group, skip_global) {
+        const names = isArray(name) ? name : name.split(separator);
+        let e = undefined,
             item,
             items,
             k,
@@ -239,11 +283,9 @@
         for (i = 0, ii = names.length; i < ii; ++i) {
             nes = [];
             for (j = 0, jj = es.length; j < jj; j++) {
-                e = getNext(es[j], names[i], group);  //es[j].n;
-                items = [e[names[i]], e[wildcard]];
-                k = 2;
-                while (k--) {
-                    item = items[k];
+                e = getNext(es[j], names[i], group, skip_global);  //es[j].n;
+                for (k = 0; k < 2; k++) {
+                    item = [e[names[i]], e[wildcard]][k];
                     if (item) {
                         nes.push(item);
                         out = out.concat(item.f || []);
@@ -252,6 +294,7 @@
             }
             es = nes;
         }
+        if (group && group !== 'default') out = out.concat(eve.listeners(name, 'default', true)); //add default events last
         return out;
     };
     /*\
@@ -275,10 +318,11 @@
     };
 
     eve.setGroup = function (group) {
-        if (!eve.hasOwnProperty("_events")) return;
+        // if (!group) throw new Error("group must be defined");
+
         if (!group) {
             events = event_groups.default;
-            eve._events = events.n;
+            if (eve.hasOwnProperty("_events")) eve._events = events.n;
             return;
         }
         if (!event_groups.hasOwnProperty(group)) {
@@ -286,7 +330,7 @@
         }
 
         events = event_groups[group];
-        eve._events = events.n;
+        if (eve.hasOwnProperty("_events")) eve._events = events.n;
     };
 
     eve.fireInGroup = function (group) {
@@ -300,6 +344,18 @@
         events = old_eve;
         return ret;
     };
+
+    /*\
+        * eve.addGlobalEventType
+        * Adds a global event type to the global event list.
+        * Be aware that this will not add the event to the local event list. Adding a global type may prevent local events
+        * starting with the same name from being triggered.
+     */
+    eve.addGlobalEventType = function (name) {
+        if (!global_event.n.hasOwnProperty(name)) {
+            global_event.n[name] = {n: {}};
+        }
+    }
 
     /*\
      * eve.on
@@ -332,16 +388,16 @@
             };
         }
 
-        if (!event_groups.hasOwnProperty(group)) {
+        if (group && !event_groups.hasOwnProperty(group)) {
             event_groups[group] = {n: {}};
         }
 
-        var names = isArray(name) ? isArray(name[0]) ? name : [name] : Str(name).split(comaseparator);
+        const names = isArray(name) ? isArray(name[0]) ? name : [name] : Str(name).split(comaseparator);
         f.zIndex = xIndex_cur;
         xIndex_cur += 1e-12;
         const process_name = function (name) {
-            var names = isArray(name) ? name : Str(name).split(separator),
-                e, exist, n;
+            const names = isArray(name) ? name : Str(name).split(separator);
+            let e, exist, n;
             for (var i = 0, ii = names.length; i < ii; ++i) {
                 n = names[i];
                 e = getNext(e, n, group);
@@ -379,7 +435,7 @@
      = (function) possible event handler function
     \*/
     eve.f = function (event) {
-        var attrs = [].slice.call(arguments, 1);
+        const attrs = [].slice.call(arguments, 1);
         return function () {
             eve.apply(null, [event, null].concat(attrs).concat([].slice.call(arguments, 0)));
         };
@@ -406,7 +462,7 @@
      = (boolean) `true`, if current event’s name contains `subname`
     \*/
     eve.nt = function (subname) {
-        var cur = isArray(current_event) ? current_event.join(".") : current_event;
+        const cur = isArray(current_event) ? current_event.join(".") : current_event;
         if (subname) {
             return new RegExp("(?:\\.|\\/|^)" + subname + "(?:\\.|\\/|$)").test(cur);
         }
@@ -446,7 +502,7 @@
             if (eve.hasOwnProperty("_events")) eve._events = events.n;
             return;
         }
-        var names = isArray(name) ? isArray(name[0]) ? name : [name] : Str(name).split(comaseparator);
+        let names = isArray(name) ? isArray(name[0]) ? name : [name] : Str(name).split(comaseparator);
         if (names.length > 1) {
             for (var i = 0, ii = names.length; i < ii; ++i) {
                 eve.off(names[i], f, group);
@@ -461,7 +517,7 @@
             inodes = [],
             events_here = (group) ? event_groups[group] : events;
         events_here = events_here || events;
-        var cur = [events_here, global_event];
+        const cur = [events_here, global_event];
 
         for (i = 0, ii = names.length; i < ii; ++i) {
             for (j = 0; j < cur.length; j += splice.length - 2) {
@@ -499,7 +555,7 @@
                         !e.f.length && delete e.f;
                     }
                     for (key in e.n) if (e.n[has](key) && e.n[key].f) {
-                        var funcs = e.n[key].f;
+                        const funcs = e.n[key].f;
                         for (j = 0, jj = funcs.length; j < jj; j++) if (funcs[j] == f) {
                             funcs.splice(j, 1);
                             break;
@@ -530,6 +586,71 @@
             delete e.n[e.name];
         }
     };
+
+    /**
+     * eve.is
+     * [ method ]
+     * Checks if the given event is registered with the given function.
+     * @type {(function(*, *, *): (boolean))|*}
+     */
+    eve.is = function (name, f, group) {
+        if (!name || typeof f !== 'function') {
+            return false;
+        }
+
+        let names = Array.isArray(name) ? (Array.isArray(name[0]) ? name : [name]) : String(name).split(comaseparator);
+        if (names.length > 1) {
+            for (let i = 0, ii = names.length; i < ii; ++i) {
+                if (eve.is(names[i], f, group)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        names = Array.isArray(name) ? name : String(name).split(separator);
+        let e,
+            key,
+            i, ii, j, jj,
+            events_here = (group) ? event_groups[group] : events;
+        events_here = events_here || events;
+        const cur = [events_here, global_event];
+
+        for (i = 0, ii = names.length; i < ii; ++i) {
+            for (j = 0; j < cur.length; j++) {
+                e = cur[j].n;
+                if (names[i] != wildcard) {
+                    if (e[names[i]]) {
+                        e = e[names[i]];
+                    } else {
+                        return false;
+                    }
+                } else {
+                    for (key in e) if (e.hasOwnProperty(key)) {
+                        if (isRegistered(key, f, group)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            }
+        }
+
+        while (e.n) {
+            if (e.f) {
+                for (j = 0, jj = e.f.length; j < jj; j++) {
+                    if (e.f[j] === f) {
+                        return true;
+                    }
+                }
+            }
+            e = e.n;
+        }
+
+        return false;
+    }
+
+
     /*\
      * eve.once
      [ method ]
@@ -546,9 +667,15 @@
      = (function) same return function as @eve.on
     \*/
     eve.once = function (name, f, group) {
-        var f2 = function () {
+        const f2 = function () {
             eve.off(name, f2, group);
-            return f.apply(this, arguments);
+            let apply;
+            try {
+                apply = f.apply(this, arguments);
+            } catch (e) {
+                console.error("error:", e, arguments, f);
+            }
+            return apply;
         };
         return eve.on(name, f2, group);
     };
@@ -578,7 +705,11 @@
             name = group;
             group = {id: undefined};
         }
-        var container = {
+        if (typeof group === "object" && group.eve) {
+            data = name;
+            name = group.eve
+        }
+        const container = {
             data: data,
             isFilter: true
         };
@@ -597,8 +728,14 @@
     eve.toString = function () {
         return "You are running Eve " + version;
     };
-    glob.eve = eve;
-    typeof module != "undefined" && module.exports ? module.exports = eve : typeof define === "function" && define.amd ? define("eve", [], function () {
-        return eve;
-    }) : glob.eve = eve;
-})(typeof window != "undefined" ? window : this);
+
+    if (!glob.eve_ia) {
+        glob.eve_ia = eve;
+        typeof module != "undefined" && module.exports ? module.exports = eve : typeof define === "function" && define.amd ? define("eve_ia", [], function () {
+            return eve;
+        }) : glob.eve_ia = eve;
+    }
+
+    glob.eve = glob.eve || eve;
+
+})(typeof window !== "undefined" ? window : (global || this));

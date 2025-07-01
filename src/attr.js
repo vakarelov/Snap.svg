@@ -53,9 +53,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             !mask.node.id && $(mask.node, {
                 id: mask.id
             });
+            mask.attrMonitor("id");
             $(this.node, {
                 mask: URL(mask.id)
             });
+            this.attrMonitor("mask");
         }
     });
     (function (clipIt) {
@@ -88,7 +90,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             $(this.node, {
                 "clip-path": URL(clip.node.id || clip.id)
             });
-            this.c_hull = undefined;
+            this.attrMonitor("clip-path");
+            this.clearCHull();
         }
     }));
 
@@ -137,6 +140,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             attrs[name] = fill;
             $(this.node, attrs);
             this.node.style[name] = E;
+            this.attrMonitor(name);
         };
     }
 
@@ -204,30 +208,30 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (value.match(/[ruo]/i)) {
             value = Snap.path.toAbsolute(value);
         }
-        this.c_hull = undefined;
+        this.clearCHull();
         $(this.node, {d: value});
     })(-1);
     eve.on("snap.util.attr.points", function (value) {
-        if (Array.isArray(value)){
-            if (Array.isArray(value[0])){
+        if (Array.isArray(value)) {
+            if (Array.isArray(value[0])) {
                 eve.stop();
-                let points =[];
-                value.forEach((p)=>{
+                let points = [];
+                value.forEach((p) => {
                     points.push(p[0]);
                     points.push(p[1]);
                 });
                 this.attr("points", points);
-            } else if (typeof value[0] === "object" && value[0].hasOwnProperty("x")){
+            } else if (typeof value[0] === "object" && value[0].hasOwnProperty("x")) {
                 eve.stop();
-                let points =[];
-                value.forEach((p)=>{
+                let points = [];
+                value.forEach((p) => {
                     points.push(p.x);
                     points.push(p.y);
                 });
                 this.attr("points", points);
             }
         }
-        this.c_hull = undefined;
+        this.clearCHull();
     })(-1);
     eve.on("snap.util.attr.#text", function (value) {
         eve.stop();
@@ -237,7 +241,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.node.removeChild(this.node.firstChild);
         }
         this.node.appendChild(txt);
-        this.c_hull = undefined;
+        this.clearCHull();
     })(-1);
     eve.on("snap.util.attr.path", function (value) {
         eve.stop();
@@ -245,7 +249,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     })(-1);
     eve.on("snap.util.attr.class", function (value) {
         eve.stop();
-        this.node.className.baseVal = value;
+        if (typeof this.node.className === "object") {
+            this.node.className.baseVal = value;
+        } else {
+            this.node.className = value;
+        }
+        this.attrMonitor("class");
+
     })(-1);
     eve.on("snap.util.attr.viewBox", function (value) {
         var vb;
@@ -259,6 +269,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         $(this.node, {
             viewBox: vb
         });
+        this.attrMonitor("viewBox");
         eve.stop();
     })(-1);
     eve.on("snap.util.attr.transform", function (value) {
@@ -272,7 +283,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 rx: value,
                 ry: value
             });
-            this.c_hull = undefined;
+            this.attrMonitor("rx").attrMonitor("ry");
+
+            this.clearCHull();
         }
     })(-1);
     eve.on("snap.util.attr.textpath", function (value) {
@@ -322,7 +335,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     this.textPath = wrap(tp);
                 }
             }
-            this.c_hull = undefined;
+            this.clearCHull();
         }
     })(-1);
     eve.on("snap.util.attr.text", function (value) {
@@ -349,12 +362,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             while (tuned.firstChild) {
                 node.appendChild(tuned.firstChild);
             }
+            this.clearCHull();
         }
         eve.stop();
     })(-1);
 
-    eve.on("snap.util.attr.href", function () {
-       if (this.type === "use" && this.use_target) this.use_target = undefined;
+    eve.on("snap.util.attr.href", function (value) {
+        if (this.type === "use" && this.use_target) this.use_target = undefined;
+        this.clearCHull();
+        value = Snap.fixUrl(value);
+        if (value) {
+            $(this.node, {href: value});
+        } else {
+            this.node.removeAttribute("href");
+        }
+        this.attrMonitor("href");
+    });
+
+    eve.on("snap.util.attr.src", function (value) {
+        value = Snap.fixUrl(value);
+        if (value) {
+            $(this.node, {src: value});
+        } else {
+            this.node.removeAttribute("src");
+        }
+        this.attrMonitor("src");
     });
 
     function setFontSize(value) {
@@ -363,11 +395,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             value += "px";
         }
         this.node.style.fontSize = value;
+        this.attrMonitor(["font-size", "fontSize"]);
+        this.clearCHull();
     }
 
     eve.on("snap.util.attr.fontSize", setFontSize)(-1);
     eve.on("snap.util.attr.font-size", setFontSize)(-1);
 
+    function fontClearBox(value) {
+        this.clearCHull();
+    }
+    //Attributs
+    eve.on("snap.util.attr.fontFamily", fontClearBox)(-1);
+    eve.on("snap.util.attr.font-family", fontClearBox)(-1);
+    eve.on("snap.util.attr.fontWeight", fontClearBox)(-1);
+    eve.on("snap.util.attr.font-weight", fontClearBox)(-1);
+    eve.on("snap.util.attr.fontStyle", fontClearBox)(-1);
+    eve.on("snap.util.attr.font-style", fontClearBox)(-1);
+    eve.on("snap.util.attr.letterSpacing", fontClearBox)(-1);
+    eve.on("snap.util.attr.letter-spacing", fontClearBox)(-1);
+    eve.on("snap.util.attr.wordSpacing", fontClearBox)(-1);
+    eve.on("snap.util.attr.word-spacing", fontClearBox)(-1);
+    eve.on("snap.util.attr.textAnchor", fontClearBox)(-1);
+    eve.on("snap.util.attr.text-anchor", fontClearBox)(-1);
 
     eve.on("snap.util.getattr.transform", function () {
         eve.stop();
@@ -397,14 +447,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 var name = "marker" + end.charAt(0).toUpperCase() + end.substring(1);
                 if (value == "" || !value) {
                     this.node.style[name] = "none";
+                    this.attrMonitor(name);
                     return;
                 }
                 if (value.type == "marker") {
                     var id = value.node.id;
                     if (!id) {
                         $(value.node, {id: value.id});
+                        value.attrMonitor("id");
                     }
                     this.node.style[name] = URL(id);
+                    this.attrMonitor(name);
                     return;
                 }
             };
@@ -501,7 +554,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return p;
     })(-1);
     eve.on("snap.util.getattr.class", function () {
-        return this.node.className.baseVal;
+        return (typeof this.node.className === "string") ? this.node.className : this.node.className.baseVal;
     })(-1);
 
     function getFontSize() {

@@ -13,18 +13,32 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.y = +x[1] || 0;
             this.width = +x[2] || 0;
             this.height = +x[3] || 0;
-            x = +x[0] || 0;
-        } else if (typeof x === 'object' && typeof x.x === 'number') {
-            this.x = +x.x || 0;
-            this.y = +x.y || 0;
-            this.width = +x.width || abs(x.x - +x.x2) || 0;
-            this.height = +x.height || abs(x.y - +x.y2) || 0;
+            this.x = +x[0] || 0;
         } else if (typeof x === 'object' && typeof x.x === 'object') {  //bezeir bbox
             this.x = x.x.min || 0;
             this.y = x.y.min || 0;
             this.width = x.x.size || 0;
             this.height = x.y.size || 0;
-        } else {
+        } else if (typeof x === 'object'
+            && (typeof x.x === 'number' || typeof x.cx === 'number' || typeof x.x2 === 'number')
+            && (typeof x.y === 'number' || typeof x.cy === 'number' || typeof x.y2 === 'number')) {
+            this.width = +x.width || abs(+x.x - +x.x2) || 0;
+            this.height = +x.height || abs(+x.y - +x.y2) || 0;
+            if (typeof x.x === 'number') {
+                this.x = x.x;
+            } else if (typeof x.cx === 'number') {
+                this.x = x.cx - this.width / 2
+            } else {
+                this.x = x.x2 - this.width
+            }
+            if (typeof x.y === 'number') {
+                this.y = x.y;
+            } else if (typeof x.cy === 'number') {
+                this.y = x.cy - this.height / 2
+            } else {
+                this.y = x.y2 - this.height
+            }
+        } else { //ZERO box
             this.x = +x || 0;
             this.y = +y || 0;
             this.width = +width || 0;
@@ -39,6 +53,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.cx = this.x + this.width / 2;
         this.cy = this.y + this.height / 2;
     }
+
+    BBox.prototype.clone = function () {
+        return new BBox(this.x, this.y, this.width, this.height);
+    };
 
     BBox.prototype.r1 = function () {
         return Math.min(this.width, this.height) / 2;
@@ -56,12 +74,57 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return Math.sqrt(this.width * this.width + this.height * this.height);
     };
 
+    BBox.prototype.addBorder = function (border, get_new) {
+        if (get_new) {
+            const bbox = this.clone();
+            return bbox.addBorder(border);
+        }
+        if (!border) {
+            border = {x: 0, y: 0, x2: 0, y2: 0};
+        } else {
+            if (!isNaN(border)) {
+                border = {x: border, y: border, x2: border, y2: border};
+            }
+            if (Array.isArray(border)) {
+                if (border.length === 1) border[1] = border[0];
+                border = {
+                    x: border[0], y: border[1],
+                    x2: (border[2] == null) ? border[0] : border[2],
+                    y2: (border[3] == null) ? border[1] : border[3]
+                };
+            }
+        }
+        this.x -= border.x;
+        this.y -= border.y;
+        this.width += border.x + border.x2;
+        this.w = this.width;
+        this.height += border.y + border.y2;
+        this.h = this.height;
+        this.x2 = this.x + this.width;
+        this.y2 = this.y + this.height;
+        this.cx = this.x + this.width / 2;
+        this.cy = this.y + this.height / 2;
+
+        return this;
+    }
+
     BBox.prototype.path = function () {
         return rectPath(this.x, this.y, this.width, this.height);
     };
 
-    BBox.prototype.rect = function (paper) {
-        return paper.rect(this.x, this.y, this.width, this.height);
+    BBox.prototype.rect = function (paper, radius, border) {
+        let rx, ry;
+        if (radius) {
+            if (!isNaN(radius)) {
+                rx = ry = radius;
+            } else {
+                rx = radius.rx || radius[0] || 0;
+                ry = radius.ry || radius[1] || rx;
+            }
+
+        }
+        const bb = (border) ? this.addBorder(border, true) : this;
+        return paper.rect(bb.x, bb.y, bb.width, bb.height, rx, ry);
     };
 
     BBox.prototype.vb = function () {
@@ -93,6 +156,49 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return {x: this.cx, y: this.cy};
     };
 
+    BBox.prototype.corner = function (count) {
+        count = count || 0;
+        switch (count) {
+            case 0:
+                return {x: this.x, y: this.y};
+            case 1:
+                return {x: this.x2, y: this.y};
+            case 2:
+                return {x: this.x2, y: this.y2};
+            case 3:
+                return {x: this.x, y: this.y2};
+        }
+    }
+
+    BBox.prototype.pointFromName = function (name) {
+        name = name.toLowerCase();
+        switch (name) {
+            case 'c':
+                return this.center();
+            case 'tl':
+                return this.corner(0);
+            case 'tr':
+                return this.corner(1);
+            case 'br':
+                return this.corner(2);
+            case 'bl':
+                return this.corner(3);
+            case 't':
+            case 'tc':
+                return {x: this.cx, y: this.y2};
+            case 'l':
+            case 'lc':
+                return {x: this.x, y: this.cy};
+            case 'r':
+            case 'rc':
+                return {x: this.x2, y: this.cy};
+            case 'b':
+            case 'bc':
+                return {x: this.cx, y: this.y2}
+        }
+        return null;
+    };
+
     BBox.prototype.intersect = function (box) {
         if (!box) return null;
 
@@ -107,6 +213,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return new BBox(x, y, x2 - x, y2 - y);
     };
+
+    BBox.prototype.isOverlap = function (box) {
+        if (!box) return false;
+
+        const x = Math.max(this.x, box.x),
+            y = Math.max(this.y, box.y),
+            x2 = Math.min(this.x2, box.x2),
+            y2 = Math.min(this.y2, box.y2);
+
+        return x < x2 && y < y2;
+
+    }
 
     BBox.prototype.union = function (box) {
         if (!box) return this;
@@ -149,6 +267,28 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return this;
     };
+
+    /**
+     * Scales the box by sx and sy factors arpound center (cx,cy).
+     * @param sx
+     * @param sy
+     * @param cx
+     * @param cy
+     */
+    BBox.prototype.scale = function (sx, sy, cx, cy) {
+        if (sy == null) sy = sx;
+        if (cx == null) cx = sx;
+        if (cy == null) cy = sy;
+        this.w = this.width *= sx;
+        this.h = this.height *= sy;
+
+        this.x = cx - (cx - this.x) * sx;
+        this.y = cy - (cy - this.y) * sy;
+        this.x2 = this.x + this.width;
+        this.y2 = this.y + this.height;
+        this.cx = this.x + this.width / 2;
+        this.cy = this.y + this.height / 2;
+    }
 
     BBox.prototype.getBBox = function () {
         return this;
@@ -281,7 +421,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 sleep: 100,
             };
         }
-        setTimeout(function () {
+        mina.setTimeout(function () {
             for (let key in p) if (p[has](key) && key != ps) {
                 p[key].sleep--;
                 !p[key].sleep && delete p[key];
@@ -291,6 +431,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     function box(x, y, width, height) {
+        if (x instanceof BBox) {
+            return x;
+        }
         if (Array.isArray(x) && x.length === 4) {
             return new BBox(+x[0], +x[1], +x[2], +x[3]);
         }
@@ -898,6 +1041,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             },
             polygon: function (el) {
                 return 'M' + el.attr('points') + 'z';
+            },
+            foreignObject: function (el) {
+                var attr = unit2px(el);
+                return rectPath(attr.x || 0, attr.y || 0, attr.width, attr.height);
             },
             g: function (el) {
                 if (STRICT_MODE) {
@@ -1561,6 +1708,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return path2curve(this, undefined, expand_only, process_arc);
     }
 
+    elproto.getNumberPathSegments = function () {
+        let path_str = getPath[this.type](this);
+
+        let c_segs = path2curve(path_str, false, true);
+        c_segs = removeRedundantCSegs(c_segs);
+        return c_segs.length;
+    }
+
     function removeRedundantCSegs(curves) {
         const result = [];
         let last = [];
@@ -1634,6 +1789,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         return result;
+    }
+
+    function isPolygon(path) {
+        path = path || this;
+        if (path.type === 'polygon' || path.type === 'polyline' || path.type === 'line') return true;
+        if (path.type !== 'path') return false;
+
+        if (isCompound(path)) return false;
+        let path_instr = path2curve(path, undefined, true);
+        const coms = ['m', 'l', 'z'];
+        for (let i = 0; i < path_instr.length; i++) {
+            if (coms.indexOf(path_instr[i][0].toLowerCase()) === -1) return false;
+        }
+        return true;
     }
 
     function near(p1, p2) {
@@ -1827,6 +1996,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     elproto.getControlPoints = getControlPoints;
     Snap.path.getControlPoints = getControlPoints;
+
+    elproto.isPolygon = isPolygon;
+    Snap.path.isPolygon = isPolygon;
 
     function getPathCompoundSegments(path) {
         if (!path) path = this;
@@ -2292,7 +2464,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 result.push(bz);
             }
 
-            if (next.endind === PathPoint.END || next.endind === PathPoint.START_END || i === l - 1) {
+            if (next.ending === PathPoint.END || i === l - 1) {
                 if (to_close) {
                     const bz = Snap.bezier(next.c.x, next.c.y, next.a.x, next.a.y, to_close.b.x,
                         to_close.b.y, to_close.c.x, to_close.c.y);
@@ -2300,6 +2472,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     to_close = undefined;
                 }
                 prev = undefined;
+            } else if (next.ending === PathPoint.START || next.ending === PathPoint.START_END) {
+                if (to_close && prev) {
+                    const bz = Snap.bezier(prev.c.x, prev.c.y, prev.a.x, prev.a.y, to_close.b.x,
+                        to_close.b.y, to_close.c.x, to_close.c.y);
+                    result.push(bz);
+                }
+
+                to_close = (next.ending === PathPoint.START_END) ? next : undefined;
+
+                prev = next;
             } else {
                 prev = next;
             }

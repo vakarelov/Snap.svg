@@ -35,7 +35,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      | var c = paper.rect(40, 40, 50, 50, 10);
     \*/
     proto.rect = function (x, y, w, h, rx, ry, attr) {
-        if (is(rx, "object")) {
+        if (is(rx, "object") && !Array.isArray(rx)) {
             attr = rx;
             rx = ry = undefined
         }
@@ -57,6 +57,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 height: h
             });
             if (rx != null) {
+                if (Array.isArray(rx)) {
+                    ry = rx[1];
+                    rx = rx[0];
+                }
                 attr.rx = rx;
                 attr.ry = ry;
             }
@@ -402,6 +406,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 id = id.substring(1);
             }
             attr = attr || {};
+
             attr["href"] = "#" + id;
             return this.el("use", attr);
         } else {
@@ -492,6 +497,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("line", attr);
     };
+
+    function point_args(args) {
+        let points, attr;
+        if (args.length) {
+            points = Array.prototype.slice.call(args, 0);
+            const last = points[points.length - 1];
+            if (is(last, "object") && !Array.isArray(last)) {
+                attr = points.pop();
+            } else {
+                attr = {};
+            }
+            if (points.length === 1 && Array.isArray(points[0])) {
+                points = points[0];
+            }
+        }
+
+        if (points != null) {
+            attr = attr || {};
+            attr.points = points;
+        }
+        return attr;
+    }
+
     /*\
      * Paper.polyline
      [ method ]
@@ -508,41 +536,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      | var p2 = paper.polyline(10, 10, 100, 100);
     \*/
     proto.polyline = function (points, attr) {
-        if (arguments.length > 1) {
-            points = Array.prototype.slice.call(arguments, 0);
-        }
-        if (is(points, "object") && !is(points, "array")) {
-            attr = points;
-        } else if (Array.isArray(points) && points.length === 2 && Array.isArray(points[0]) && (typeof points[1] === "object")) {
-            attr = points[1];
-           attr.points = points[0];
-        } else if (points != null) {
-            attr = attr || {};
-            attr.points = points;
-        }
+        attr = point_args(Array.from(arguments));
         return this.el("polyline", attr);
     };
-    /*\
-     * Paper.polygon
-     [ method ]
-     **
-     * Draws a polygon. See @Paper.polyline
-    \*/
-    proto.polygon = function (points, attr) {
-        if (arguments.length > 1) {
-            points = Array.prototype.slice.call(arguments, 0);
-        }
 
-        if (is(points, "object") && !is(points, "array")) {
-            attr = points;
-        } else if (Array.isArray(points) && points.length === 2 && Array.isArray(points[0]) && (typeof points[1] === "object")) {
-            attr = points[1];
-            // points = points[0];
-            attr.points = points[0];
-        } else if (points != null) {
-            attr = attr || {};
-            attr.points = points;
-        }
+
+    /*\
+         * Paper.polygon
+         [ method ]
+         **
+         * Draws a polygon. See @Paper.polyline
+        \*/
+    proto.polygon = function (points, attr) {
+        attr = point_args(Array.from(arguments));
         return this.el("polygon", attr);
     };
 // gradients

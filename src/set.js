@@ -11,26 +11,26 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob,Fragment, eve) {
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var mmax = Math.max,
         mmin = Math.min;
 
     // Set
     var Set = function (items) {
-        this.items = [];
-	this.bindings = {};
-        this.length = 0;
-        this.type = "set";
-        if (items) {
-            for (var i = 0, ii = items.length; i < ii; ++i) {
-                if (items[i]) {
-                    this[this.items.length] = this.items[this.items.length] = items[i];
-                    this.length++;
+            this.items = [];
+            this.bindings = {};
+            this.length = 0;
+            this.type = "set";
+            if (items) {
+                for (var i = 0, ii = items.length; i < ii; ++i) {
+                    if (items[i]) {
+                        this[this.items.length] = this.items[this.items.length] = items[i];
+                        this.length++;
+                    }
                 }
             }
-        }
-    },
-    setproto = Set.prototype;
+        },
+        setproto = Set.prototype;
     /*\
      * Set.push
      [ method ]
@@ -301,42 +301,30 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob,Fragment, eve) {
             y = [],
             x2 = [],
             y2 = [];
+        let box;
         for (var i = this.items.length; i--;) if (!this.items[i].removed) {
-            var box = this.items[i].getBBox();
-            x.push(box.x);
-            y.push(box.y);
-            x2.push(box.x + box.width);
-            y2.push(box.y + box.height);
+            if (box){
+                box = box.union(this.items[i].getBBox());
+            } else {
+                box = this.items[i].getBBox().clone();
+            }
         }
-        x = mmin.apply(0, x);
-        y = mmin.apply(0, y);
-        x2 = mmax.apply(0, x2);
-        y2 = mmax.apply(0, y2);
-        return {
-            x: x,
-            y: y,
-            x2: x2,
-            y2: y2,
-            width: x2 - x,
-            height: y2 - y,
-            cx: x + (x2 - x) / 2,
-            cy: y + (y2 - y) / 2
-        };
+        return box;
     };
 
-    setproto.filter = function(callback, thisArg){
-      return this.items.filter(callback, thisArg)
+    setproto.filter = function (callback, thisArg) {
+        return this.items.filter(callback, thisArg)
     };
 
-    setproto.map = function(callback, thisArg){
+    setproto.map = function (callback, thisArg) {
         return this.items.map(callback, thisArg)
     };
 
-    setproto.values = function(){
+    setproto.values = function () {
         return this.items.filter(values)
     };
 
-    setproto.includes = function(valueToFind, fromIndex){
+    setproto.includes = function (valueToFind, fromIndex) {
         return this.items.includes(valueToFind, fromIndex);
     };
 

@@ -373,6 +373,12 @@ module.exports = intersect;
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const _hull = require("hull.js");
     Snap.hull = function (points, concavity, format) {
+        //filter incorrect pionts;
+        points = points.filter(function (p){
+            return (!isNaN(p[0]) && !isNaN(p[1]))
+                ||  (!isNaN(p["x"]) && !isNaN(p["y"]))
+        })
+
         if (Array.isArray(points[0])) {
             return _hull(points, concavity, format);
         }

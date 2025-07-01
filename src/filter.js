@@ -68,7 +68,7 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
       var match = Str(p).match(rgurl);
       return match && Snap.select(match[1]);
     }
-  });
+  })(-1);
   eve.on('snap.util.attr.filter', function(value) {
     if (value instanceof Element && value.type == 'filter') {
       eve.stop();
@@ -85,7 +85,7 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
       eve.stop();
       this.node.removeAttribute('filter');
     }
-  });
+  })(-1);
   /*\
    * Snap.filter.blur
    [ method ]

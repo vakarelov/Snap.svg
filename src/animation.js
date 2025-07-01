@@ -12,20 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var elproto = Element.prototype,
+    const elproto = Element.prototype,
         is = Snap.is,
         Str = String,
         has = "hasOwnProperty";
+
     function slice(from, to, f) {
         return function (arr) {
-            var res = arr.slice(from, to);
+            let res = arr.slice(from, to);
             if (res.length == 1) {
                 res = res[0];
             }
             return f ? f(res) : res;
         };
     }
-    var Animation = function (attr, ms, easing, callback) {
+
+    const Animation = function (attr, ms, easing, callback) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;
             easing = mina.linear;
@@ -67,9 +69,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      o }
     \*/
     elproto.inAnim = function () {
-        var el = this,
+        const el = this,
             res = [];
-        for (var id in el.anims) if (el.anims[has](id)) {
+        for (let id in el.anims) if (el.anims[has](id)) {
             (function (a) {
                 res.push({
                     anim: new Animation(a._attrs, a.dur, a.easing, a._callback),
@@ -121,7 +123,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             callback = easing;
             easing = mina.linear;
         }
-        var now = mina.time(),
+        const now = mina.time(),
             anim = mina(from, to, now, now + ms, mina.time, setter, easing);
         callback && eve.once("snap.mina.finish." + anim.id, callback);
         return anim;
@@ -135,8 +137,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      = (Element) the current element
     \*/
     elproto.stop = function () {
-        var anims = this.inAnim();
-        for (var i = 0, ii = anims.length; i < ii; ++i) {
+        const anims = this.inAnim();
+        let i = 0;
+        const ii = anims.length;
+        for (; i < ii; ++i) {
             anims[i].stop();
         }
         return this;
@@ -164,9 +168,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             ms = attrs.dur;
             attrs = attrs.attr;
         }
-        var fkeys = [], tkeys = [], keys = {}, from, to, f, eq,
-            el = this;
-        for (var key in attrs) if (attrs[has](key)) {
+        let fkeys = [], tkeys = [];
+        const keys = {};
+        let from, to, f, eq;
+        const el = this;
+        for (let key in attrs) if (attrs[has](key)) {
             if (el.equal) {
                 eq = el.equal(key, Str(attrs[key]));
                 from = eq.from;
@@ -176,19 +182,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 from = +el.attr(key);
                 to = +attrs[key];
             }
-            var len = is(from, "array") ? from.length : 1;
+            const len = is(from, "array") ? from.length : 1;
             keys[key] = slice(fkeys.length, fkeys.length + len, f);
             fkeys = fkeys.concat(from);
             tkeys = tkeys.concat(to);
         }
-        var now = mina.time(),
-            anim = mina(fkeys, tkeys, now, now + ms, mina.time, function (val) {
-                var attr = {};
-                for (var key in keys) if (keys[has](key)) {
-                    attr[key] = keys[key](val);
-                }
-                el.attr(attr);
-            }, easing);
+        const now = mina.time();
+        const anim = mina(fkeys, tkeys, now, now + ms, mina.time, function (val) {
+            const attr = {};
+            for (let key in keys) if (keys[has](key)) {
+                attr[key] = keys[key](val);
+            }
+            el.attr(attr);
+        }, easing);
         el.anims[anim.id] = anim;
         anim._attrs = attrs;
         anim._callback = callback;
@@ -201,7 +207,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             eve.off("snap.mina.*." + anim.id);
             delete el.anims[anim.id];
         });
-        eve(["snap","animcreated",el.id], anim);
-        return el;
+        eve(["snap", "animcreated", el.id], anim);
+        return anim;
     };
 });
