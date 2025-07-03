@@ -12,6 +12,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     Voronoi.prototype.getPolygon = function (index) {
 
+        if (index === undefined) {
+            const ret = [];
+            for (let i = 0; i < this.length; ++i) {
+                ret.push(this.getPolygon(i))
+            }
+            return ret;
+        }
+
         if (index >= this.length) return;
         let cell = this.cells[index];
         cell = cell.filter((v) => v !== -1)
@@ -20,6 +28,48 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         });
         return map;
     }
+
+    Voronoi.prototype.getTriangle = function (index) {
+
+        if (index === undefined) {
+            const ret = [];
+            for (let i = 0; i < this.triangles.length; ++i) {
+                const t = this.getTriangle(i);
+                if (t) ret.push(t);
+            }
+            return ret;
+        }
+
+        // Check if index is valid
+        if (index < 0 || index >= this.triangles.length) return null;
+
+        const triangle = this.triangles[index];
+
+        // Check if this is an infinite triangle (containing -1)
+        if (triangle.includes(-1)) return null;
+
+        // Map triangle indices to actual positions
+        return triangle.map(pointIndex => this.points[pointIndex]);
+    };
+
+    Voronoi.prototype.getPointTriangles = function (point_index) {
+        // Check if point_index is valid
+        if (point_index < 0 || point_index >= this.points.length) return [];
+
+        const result = [];
+
+        // Iterate through all triangles
+        for (let i = 0; i < this.triangles.length; i++) {
+            const triangle = this.triangles[i];
+
+            // If the triangle contains our point and is finite, add it to results
+            if (triangle.includes(point_index) && !triangle.includes(-1)) {
+                result.push(this.getTriangle(i));
+            }
+        }
+
+        return result;
+    };
 
     Snap.registerClass("Voronoi", Voronoi);
 
@@ -510,7 +560,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     function dist(p1, p2, sq) {
-        if (sq){
+        if (sq) {
             return Snap.len2(
                 p1.x || p1[0] || 0,
                 p1.y || p1[1] || 0,
@@ -740,7 +790,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (set1.length * set2.length < 25000) {
             return clPairs_BF(set1, set2);
         } else {
-            return clPairs_KD(set1,set2);
+            return clPairs_KD(set1, set2);
         }
     }
 });

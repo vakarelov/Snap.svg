@@ -98,6 +98,13 @@ function voronoi(points) {
     dualCells = new Array(n)
     for(var i=0; i<n; ++i) {
       const dual = stars[i];
+
+      // Handle empty stars case
+      if(dual.length === 0) {
+        dualCells[i] = [];
+        continue;
+      }
+
       const c = [cellIndex[dual[0]]];
       var s = cells[dual[0]][(cells[dual[0]].indexOf(i)+1) % 3]
       for(var j=1; j<dual.length; ++j) {
