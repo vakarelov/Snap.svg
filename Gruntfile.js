@@ -25,9 +25,9 @@ module.exports = function (grunt) {
         // './src/convex_overlap.js',
         // './src/point_utils.js',
 
-        './src/snap_extensions.js',
-        './src/element_extensions.js',
-        './src/paper_extensions.js',
+        // './src/snap_extensions.js',
+        // './src/element_extensions.js',
+        // './src/paper_extensions.js',
     ];
 
     const adv = [
