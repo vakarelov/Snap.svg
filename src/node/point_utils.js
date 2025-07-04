@@ -542,22 +542,40 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.points = points;
     }
 
-    KDTree.prototype.nearest = function (point, num) {
+    KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
         num = Math.floor(num || 1);
+        let points = this.nearest(point, num);
 
-        if (point.hasOwnProperty("x")) point = [point.x, point.y];
-
-        let res;
-        if (num > 1) {
-            res = this.kNearestNeighbors(num, point);
-            res = res.map((i) => this.points[i]);
-        } else {
-            res = this.nearestNeighbor(point);
-            res = this.points[res];
+        switch (this._ax) {
+            case 1:
+                if (num > 1) {
+                    return points.map((p) => [p,
+                        Math.abs((point[0] || point.x || 0) - (p[0] || p.x || 0)),
+                        dist(point, p)])
+                } else {
+                    return [points,
+                        Math.abs((point[0] || point.x || 0) - (points[0] || points.x || 0)),
+                        dist(point, points, sqere_dist)]
+                }
+            case 2:
+                if (num > 1) {
+                    return points.map((p) => [p,
+                        Math.abs((point[1] || point.y || 0) - (p[1] || p.y || 0)),
+                        dist(point, p)])
+                } else {
+                    return [points,
+                        Math.abs((point[1] || point.y || 0) - (points[1] || points.y || 0)),
+                        dist(point, points, sqere_dist)]
+                }
+            default:
+                if (num > 1) {
+                    return points.map((p) => [p, dist(point, p)])
+                } else {
+                    return [points, dist(point, points, sqere_dist)]
+                }
         }
-
-        return res;
     }
+
 
     function dist(p1, p2, sq) {
         if (sq) {
@@ -589,14 +607,33 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     }
 
-    Snap.kdTree = function (points) {
-        const xs = points.map((p) => (p.hasOwnProperty("x") ? p.x : p[0]));
-        const ys = points.map((p) => (p.hasOwnProperty("y") ? p.y : p[1]));
+    Snap.kdTree = function (points, dim) {
+        let xs, ys, ax = [];
+        const x_only = dim === 1 || dim === "x";
+        const y_only = dim === 1 || dim === "y";
+        if (!dim || x_only) {
+            xs = points.map((p) => (p.hasOwnProperty("x") ? p.x : p[0]));
+            ax.push(xs)
+        }
 
-        let kd = KDTree.fromAxes([xs, ys])
+        if (!dim || y_only) {
+            ys = points.map((p) => (p.hasOwnProperty("y") ? p.y : p[1]));
+            ax.push(ys)
+        }
+
+        let kd = KDTree.fromAxes(ax)
+        kd._ax = (x_only) ? 1 : ((y_only) ? 2 : null)
         kd.attachPoints(points);
 
         return kd;
+    }
+
+    Snap.kdTreeX = function (points) {
+        return Snap.kdTree(points, "x");
+    }
+
+    Snap.kdTreeY = function (points) {
+        return Snap.kdTree(points, "y");
     }
 
     // Binary heap implementation from:
