@@ -123,11 +123,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          **
          = (boolean) `true` if the element has given class
         \*/
-        elproto.hasClass = function (value) {
+        elproto.hasClass = function (value, conjunctive = false) {
             var elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
                 curClasses = className.match(rgNotSpace) || [];
-            return !!~curClasses.indexOf(value);
+            if (Array.isArray(value)) {
+                if (conjunctive) {
+                    return value.every(v => curClasses.indexOf(v) !== -1);
+                } else {
+                    return value.some(v => curClasses.indexOf(v) !== -1);
+                }
+            }
+            return curClasses.indexOf(value) !== -1;
         };
 
         elproto.matchClass = function (regex) {

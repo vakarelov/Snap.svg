@@ -4,12 +4,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     //Based on https://github.com/Pomax/bezierjs
     /**
-     * Bezier curve constructor. The constructor argument can be one of three things:
+     * Creates a Bezier curve instance from a flexible set of coordinate inputs.
      *
-     * 1. array/4 of {x:..., y:..., z:...}, z optional
-     * 2. numerical array/8 ordered x1,y1,x2,y2,x3,y3,x4,y4
-     * 3. numerical array/12 ordered x1,y1,z1,x2,y2,z2,x3,y3,z3,x4,y4,z4
+     * Accepts:
+     * 1. An array of `{x, y, z?}` control points (2D or 3D).
+     * 2. A flat numeric array in the order `x1, y1, x2, y2, ...`.
+     * 3. Individual numeric arguments matching the flat array forms above.
      *
+    * @constructor
+    * @param {...(Array.<number>|Point3DList|number)} coords Control points defining the curve.
      */
     const Bezier = function (coords) {
         this.id = String.rand(4);
@@ -93,6 +96,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.update();
     };
 
+    /**
+     * Creates a Bezier curve from an SVG path segment string (`C`/`c` or `Q`/`q`).
+     * @param {string} svgString SVG path command string containing curve coordinates.
+     * @returns {Bezier} New Bezier instance representing the parsed curve.
+     */
     Bezier.fromSVG = function (svgString) {
         let list = svgString.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g).map(parseFloat);
         const relative = /[cq]/.test(svgString);
@@ -103,6 +111,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new Bezier(list);
     };
 
+    /**
+     * Computes helper points used when fitting curves through three constraints.
+     * @param {number} n Curve order (2 for quadratic, 3 for cubic).
+    * @param {Point2D} S Start point.
+    * @param {Point2D} B Through point.
+    * @param {Point2D} E End point.
+     * @param {number} [t=0.5] Parameter position of the through point.
+    * @returns {{A: Point2D, B: Point2D, C: Point2D}} Helper points.
+     */
     function getABC(n, S, B, E, t) {
         if (typeof t === 'undefined') {
             t = 0.5;
@@ -121,6 +138,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return {A: A, B: B, C: C};
     }
 
+    /**
+     * Fits a quadratic Bezier curve through three points with an optional parameter for the middle point.
+    * @param {Point2D} p1 Start point.
+    * @param {Point2D} p2 Through point.
+    * @param {Point2D} p3 End point.
+     * @param {number} [t=0.5] Parameter value of `p2` along the curve.
+     * @returns {Bezier} New quadratic Bezier passing through the provided points.
+     */
     Bezier.quadraticFromPoints = function (p1, p2, p3, t) {
         if (typeof t === 'undefined') {
             t = 0.5;
@@ -137,6 +162,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new Bezier(p1, abc.A, p3);
     };
 
+    /**
+     * Fits a cubic Bezier curve through a start/through/end configuration.
+    * @param {Point2D} S Start point.
+    * @param {Point2D} B Through point.
+    * @param {Point2D} E End point.
+     * @param {number} [t=0.5] Parameter value describing where `B` lies along the curve.
+     * @param {number} [d1] Tangent distance from the start point; used to adjust curvature.
+     * @returns {Bezier} New cubic Bezier matching the constraints.
+     */
     Bezier.cubicFromPoints = function (S, B, E, t, d1) {
         if (typeof t === 'undefined') {
             t = 0.5;
@@ -169,6 +203,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new Bezier(S, nc1, nc2, E);
     };
 
+    /**
+     * Exposes the internal utility helpers backing the Bezier implementation.
+     * @returns {Object} Collection of utility functions used by the Bezier library.
+     */
     const getUtils = function () {
         return utils;
     };
@@ -176,16 +214,38 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Bezier.getUtils = getUtils;
 
     Bezier.prototype = {
+        /**
+         * Returns the shared Bezier utility helpers.
+         * @returns {Object}
+         */
         getUtils: getUtils,
+        /**
+         * Returns the curve representation when coerced to a primitive.
+         * @returns {string}
+         */
         valueOf: function () {
             return this.toString();
         },
+        /**
+         * Serialises the curve control points into a string.
+         * @param {string} [point_sep] Optional separator inserted between points.
+         * @returns {string} String representation of the control points.
+         */
         toString: function (point_sep) {
             return utils.pointsToString(this.points, point_sep);
         },
+        /**
+         * Creates a duplicate of the current curve.
+         * @returns {Bezier} New Bezier instance with copied control points.
+         */
         clone: function () {
             return new Bezier(this.points.slice());
         },
+        /**
+         * Serialises the curve to an SVG path command string.
+         * @param {boolean} [relative=false] Whether to keep coordinates relative (currently unused).
+         * @returns {string|false} SVG string for 2D curves or `false` when exporting 3D curves.
+         */
         toSVG: function (relative) {
             if (this._3d) return false;
             const p = this.points,
@@ -201,7 +261,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return s.join(' ');
         },
 
-        update: function () {
+    /**
+     * Rebuilds cached derivative points and directional metadata after control point changes.
+     */
+    update: function () {
             // one-time pointAt derivative coordinates
             this.dpoints = [];
             let p = this.points, d = p.length, c = d - 1;
@@ -224,13 +287,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.computedirection();
         },
 
-        computedirection: function () {
+    /**
+     * Computes the clockwise orientation of the curve based on the first segment.
+     */
+    computedirection: function () {
             const points = this.points;
             const angle = utils.angle(points[0], points[this.order], points[1]);
             this.clockwise = angle > 0;
         },
 
-        length: function () {
+    /**
+     * Calculates the curve length using numeric approximation for non-linear curves.
+     * @returns {number} Curve length in coordinate units.
+     */
+    length: function () {
             if (this.order === 1) {
                 let sum = (this.points[0].x - this.points[1].x) ** 2
                     + (this.points[0].y - this.points[1].y) ** 2;
@@ -243,7 +313,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return utils.length(this.derivative.bind(this));
         },
         _lut: [],
-        getLUT: function (steps) {
+    /**
+     * Generates a lookup table of curve points for fast approximations.
+     * @param {number} [steps=100] Number of segments to precompute.
+    * @returns {Point3DList} Array of sampled points along the curve.
+     */
+    getLUT: function (steps) {
             steps = steps || 100;
             if (this._lut.length === steps) {
                 return this._lut;
@@ -254,7 +329,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this._lut;
         },
-        on: function (point, error) {
+    /**
+     * Tests whether a given point lies on the curve within an error threshold.
+    * @param {Point2D} point Point to test.
+     * @param {number} [error=5] Allowed deviation in coordinate units.
+     * @returns {false|number} False when outside tolerance, or average parameter value when hit(s) found.
+     */
+    on: function (point, error) {
             error = error || 5;
             const lut = this.getLUT(), hits = [];
             let c, t = 0;
@@ -269,7 +350,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return t /= hits.length;
         },
 
-        project: function (point) {
+    /**
+     * Projects a point onto the curve and returns the closest position.
+    * @param {Point2D} point External point to project.
+    * @returns {{x: number, y: number, z: (number|undefined), t: number, d: number}} Closest point with parameter `t` and distance `d`.
+     */
+    project: function (point) {
             // step 1: coarse check
             const LUT = this.getLUT(),
                 l = LUT.length - 1,
@@ -304,24 +390,55 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return p;
         },
 
+        /**
+         * Alias for {@link Bezier#compute}.
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point3D} Point on the curve.
+         */
         get: function (t) {
             return this.compute(t);
         },
+        /**
+         * Returns the control point at the specified index.
+         * @param {number} idx Control point index.
+         * @returns {Point3D}
+         */
         point: function (idx) {
             return this.points[idx];
         },
+        /**
+         * Returns the starting control point.
+         * @returns {Point3D}
+         */
         first: function () {
             return this.points[0];
         },
+        /**
+         * Returns the end control point.
+         * @returns {Point3D}
+         */
         last: function () {
             return this.points[this.points.length - 1];
         },
+        /**
+         * Returns the last control handle preceding the end point.
+         * @returns {Point3D}
+         */
         lastTarget: function () {
             return this.points[this.points.length - 2]
         },
+        /**
+         * Returns the first control handle following the start point.
+         * @returns {Point3D}
+         */
         firstTarget: function () {
             return this.points[1]
         },
+        /**
+         * Evaluates the curve at the provided parameter value.
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point3D} Point on the curve.
+         */
         compute: function (t) {
             // shortcuts
             if (t === 0) {
@@ -388,6 +505,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return dCpts[0];
         },
+        /**
+         * Approximates the parameter whose arc length equals the provided distance.
+         * @param {number} length Target arc length along the curve.
+         * @param {number} [precision=1] Desired precision in coordinate units.
+         * @param {number} [tot_length] Optional cached total length.
+         * @returns {number} Parameter value in [0, 1].
+         */
         tAtLength: function (length, precision, tot_length) {
             precision = precision || 1;
             tot_length = tot_length || this.length();
@@ -415,14 +539,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return t;
         },
-        getPointAtLength(length, precision) {
+    /**
+     * Returns the point lying at the specified arc length along the curve.
+     * @param {number} length Target arc length from the start of the curve.
+     * @param {number} [precision=1] Precision forwarded to {@link Bezier#tAtLength}.
+    * @returns {{x: number, y: number, z: (number|undefined), alpha: number}} Point with tangent angle in degrees.
+     */
+    getPointAtLength(length, precision) {
             let t = this.tAtLength(length, precision);
             let p = this.compute(t);
             let der = this.derivative(t);
             p.alpha = 180 + 90 - Math.atan2(der.x, der.y) * 180 / Math.PI;
             return p;
         },
-        raise: function () {
+    /**
+     * Elevates the degree of the curve by one while preserving its shape.
+     * @returns {Bezier} Raised-degree curve instance.
+     */
+    raise: function () {
             var p = this.points, np = [p[0]], i, k = p.length, pi, pim;
             for (var i = 1; i < k; ++i) {
                 pi = p[i];
@@ -435,7 +569,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             np[k] = p[k - 1];
             return new Bezier(np);
         },
-        derivative: function (t) {
+    /**
+     * Evaluates the first derivative at parameter `t`.
+     * @param {number} t Parameter in [0, 1].
+    * @returns {Point3D} Tangent vector at the specified parameter.
+     */
+    derivative: function (t) {
             const mt = 1 - t;
             let a, b, c = 0,
                 p = this.dpoints[0];
@@ -462,17 +601,38 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return ret;
         },
+        /**
+         * Computes the inflection parameters for the curve.
+         * @returns {Array<number>} Parameter values where inflections occur.
+         */
         inflections: function () {
             return utils.inflections(this.points);
         },
+        /**
+         * Returns the normal vector for the curve at parameter `t`.
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point3D} Normalised normal vector.
+         */
         normal: function (t) {
             return this._3d ? this.__normal3(t) : this.__normal2(t);
         },
+        /**
+         * Computes the 2D unit normal at parameter `t`.
+         * @private
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point2D}
+         */
         __normal2: function (t) {
             const d = this.derivative(t);
             const q = sqrt(d.x * d.x + d.y * d.y);
             return {x: -d.y / q, y: d.x / q};
         },
+        /**
+         * Computes the 3D unit normal at parameter `t` using a nearby tangent.
+         * @private
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point3D}
+         */
         __normal3: function () {
             // see http://stackoverflow.com/questions/25453159
             const r1 = this.derivative(t),
@@ -508,7 +668,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             };
             return n;
         },
-        hull: function (t) {
+    /**
+     * Returns the intermediate hull points generated by the de Casteljau algorithm.
+     * @param {number} t Parameter in [0, 1].
+    * @returns {Point3DList} Sequence of hull points.
+     */
+    hull: function (t) {
             let p = this.points,
                 _p = [],
                 pt;
@@ -534,7 +699,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return q;
         },
-        split: function (t1, t2) {
+    /**
+     * Splits the curve at `t1` (and optionally `t2`) returning the resulting sub-curves.
+     * @param {number} t1 First split parameter.
+     * @param {number} [t2] Optional second parameter to extract the middle segment.
+     * @returns {{left:Bezier,right:Bezier}|Bezier} Pair of curves or a single middle segment when `t2` supplied.
+     */
+    split: function (t1, t2) {
             // shortcuts
             if (t1 === 0 && !!t2) {
                 return this.split(t2).left;
@@ -588,7 +759,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return subsplit.left;
         },
 
-        extrema: function () {
+    /**
+    * Calculates the curve extrema in each dimension.
+    * @returns {ExtremaCollection} Extrema parameter collections.
+     */
+    extrema: function () {
             const dims = this.dims,
                 result = {};
             let roots = [],
@@ -616,7 +791,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return result;
         },
 
-        bbox: function () {
+    /**
+    * Returns the axis-aligned bounding box for the curve.
+    * @returns {Range3D}
+     */
+    bbox: function () {
             const extrema = this.extrema(), result = {};
             this.dims.forEach(function (d) {
                 result[d] = utils.getminmax(this, d, extrema[d]);
@@ -624,12 +803,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return result;
         },
 
+        /**
+         * Tests whether two curves' bounding boxes overlap.
+         * @param {Bezier} curve Curve to compare against.
+         * @returns {boolean} True when the bounding boxes overlap.
+         */
         overlaps: function (curve) {
             const lbbox = this.bbox(),
                 tbbox = curve.bbox();
             return utils.bboxoverlap(lbbox, tbbox);
         },
 
+        /**
+         * Offsets the curve by a distance or generates offset segments across its length.
+         * @param {number} t Parameter or offset distance depending on usage.
+         * @param {number} [d] Optional explicit distance when sampling a point offset.
+         * @returns {Array.<Bezier>|OffsetGeometry} Offset geometry.
+         */
         offset: function (t, d) {
             if (typeof d !== 'undefined') {
                 const c = this.get(t);
@@ -667,7 +857,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
         },
 
-        simple: function () {
+    /**
+     * Determines whether the curve is simple (monotonic enough for offsetting).
+     * @returns {boolean} True when the curve is considered simple.
+     */
+    simple: function () {
             if (this.order === 3) {
                 const a1 = utils.angle(this.points[0], this.points[3], this.points[1]);
                 const a2 = utils.angle(this.points[0], this.points[3], this.points[2]);
@@ -683,7 +877,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return angle < pi / 3;
         },
 
-        reduce: function () {
+    /**
+     * Splits the curve into simple segments suitable for offsetting and intersections.
+     * @returns {Array<Bezier>} Array of simple sub-curves covering the original curve.
+     */
+    reduce: function () {
             let i, t1 = 0, t2 = 0;
             const step = 0.01;
             let segment;
@@ -739,13 +937,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return pass2;
         },
 
-        reverse: function () {
+    /**
+     * Reverses the order of control points and updates cached data.
+     */
+    reverse: function () {
             this.points.reverse();
             this.update();
             if (this._lut && this._lut.length > 0) this._lut = this._lut.reverse();
         },
 
-        scale: function (d) {
+    /**
+     * Scales (offsets) the curve by a uniform distance or distance function.
+     * @param {number|Function} d Constant offset distance or function returning distance per parameter.
+     * @returns {Bezier} New curve scaled away from the original.
+     */
+    scale: function (d) {
             const order = this.order;
             let distanceFn = false;
             if (typeof d === 'function') {
@@ -809,7 +1015,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return new Bezier(np);
         },
 
-        outline: function (d1, d2, d3, d4) {
+    /**
+     * Builds an outline polygon around the curve, optionally with graduated offsets.
+     * @param {number} d1 Leading-side offset distance.
+     * @param {number} [d2=d1] Trailing-side offset distance.
+     * @param {number} [d3] Leading offset at the end of the curve for graduated outlines.
+     * @param {number} [d4] Trailing offset at the end of the curve for graduated outlines.
+     * @returns {PolyBezier} PolyBezier describing the outline.
+     */
+    outline: function (d1, d2, d3, d4) {
             d2 = (typeof d2 === 'undefined') ? d1 : d2;
             const reduced = this.reduce(),
                 len = reduced.length,
@@ -866,7 +1080,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             return new PolyBezier(segments);
         },
-        outlineshapes: function (d1, d2) {
+    /**
+     * Generates closed outline shapes for the curve.
+     * @param {number} d1 Leading offset distance.
+     * @param {number} [d2=d1] Trailing offset distance.
+     * @returns {Array<Object>} Shape descriptors representing the outlined regions.
+     */
+    outlineshapes: function (d1, d2) {
             d2 = d2 || d1;
             const outline = this.outline(d1, d2).curves;
             const shapes = [];
@@ -881,7 +1101,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return shapes;
         },
 
-        intersects: function (curve) {
+    /**
+     * Computes intersections between this curve and another curve or line.
+    * @param {(Bezier|Point2DList)} [curve] Curve or line to test; omitted for self-intersections.
+     * @returns {Array<Object>} Intersection descriptors.
+     */
+    intersects: function (curve) {
             if (!curve) return this.selfintersects();
             if (curve.points.length === 2) {
                 return this.lineIntersects(curve);
@@ -892,7 +1117,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.curveintersects(this.reduce(), curve);
         },
 
-        lineIntersects: function (line) {
+    /**
+     * Finds intersections between the curve and a line segment.
+    * @param {{p1: Point2D, p2: Point2D}|Point2DList} line Line definition.
+     * @returns {Array<number>} Parameter values of intersections along the curve.
+     */
+    lineIntersects: function (line) {
 
             if (Array.isArray(line)) line = {p1: line[0], p2: line[1]};
 
@@ -910,7 +1140,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
         },
 
-        selfintersects: function () {
+    /**
+     * Finds self-intersections in the curve.
+     * @returns {Array<Object>} Intersection descriptors.
+     */
+    selfintersects: function () {
             const reduced = this.reduce();
             // "simple" curves cannot intersect with their direct
             // neighbour, so for each segment X we check whether
@@ -927,7 +1161,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return results;
         },
 
-        curveintersects: function (c1, c2) {
+    /**
+     * Calculates intersections between two arrays of Bezier segments.
+     * @param {Array<Bezier>} c1 First set of segments.
+     * @param {Array<Bezier>} c2 Second set of segments.
+     * @returns {Array<Object>} Intersection descriptors.
+     */
+    curveintersects: function (c1, c2) {
             const pairs = [];
             // step 1: pair off any overlapping segments
             c1.forEach(function (l) {
@@ -948,11 +1188,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return intersections;
         },
 
-        arcs: function (errorThreshold) {
+    /**
+     * Approximates the curve with circular arcs.
+     * @param {number} [errorThreshold=0.5] Maximum allowed deviation.
+     * @returns {Array<Object>} Arc descriptors approximating the curve.
+     */
+    arcs: function (errorThreshold) {
             errorThreshold = errorThreshold || 0.5;
             const circles = [];
             return this._iterate(errorThreshold, circles);
         },
+        /**
+         * Computes the approximation error for a proposed arc segment.
+         * @private
+         * @param {Point2D} pc Candidate circle centre.
+         * @param {Point2D} np1 Start point of the segment.
+         * @param {number} s Start parameter.
+         * @param {number} e End parameter.
+         * @returns {number} Combined deviation from the circle.
+         */
         _error: function (pc, np1, s, e) {
             const q = (e - s) / 4,
                 c1 = this.get(s + q),
@@ -962,6 +1216,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 d2 = utils.dist(pc, c2);
             return abs(d1 - ref) + abs(d2 - ref);
         },
+        /**
+         * Iteratively fits arc segments to the curve.
+         * @private
+         * @param {number} errorThreshold Maximum allowed deviation.
+         * @param {Array<Object>} circles Accumulator for generated arcs.
+         * @returns {Array<Object>} Collection of fitted arcs.
+         */
         _iterate: function (errorThreshold, circles) {
             let s = 0, e = 1, safety;
             // we do a binary search to find the "good `t` closest to no-longer-good"
@@ -1034,8 +1295,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     /**
-     * Poly Bezier
-     * @param {[type]} curves [description]
+     * Constructs a poly-bezier wrapper around multiple curve segments.
+     * @param {Array<Bezier|Array>} [curves] Collection of Bezier instances or control point arrays.
+     * @constructor
      */
     var PolyBezier = function (curves) {
         this.curves = [];
@@ -1053,16 +1315,32 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     PolyBezier.prototype = {
+        /**
+         * Returns the SVG path representation when coerced to a primitive.
+         * @returns {string}
+         */
         valueOf: function () {
             return this.toString();
         },
+        /**
+         * Serialises the poly-bezier into an SVG path string.
+         * @returns {string}
+         */
         toString: function () {
             const res = this.curves.map((c) => c.toString());
             return res.join(' ');
         },
+        /**
+         * Produces a deep copy of the poly-bezier.
+         * @returns {PolyBezier}
+         */
         clone: function () {
             return new PolyBezier(this.curves.map((bz) => bz.clone()));
         },
+        /**
+         * Converts the poly-bezier into a valid SVG path command string.
+         * @returns {string}
+         */
         toSVG: function () {
             const deg_to_command = [undefined, 'L', 'Q', 'C'];
             let res = '';
@@ -1098,20 +1376,40 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return res;
         },
+        /**
+         * Returns the control points for each constituent curve.
+         * @returns {Array.<Point3DList>}
+         */
         getPoints: function () {
             return this.curves.map((bz) => bz.points);
         },
+        /**
+         * Returns the first control point across all curves.
+         * @returns {Point3D}
+         */
         getFirstPoint: function () {
             return this.curves[0].points[0];
         },
+        /**
+         * Returns the final control point across all curves.
+         * @returns {Point3D}
+         */
         getLastPoint: function () {
             let c = this.curves[this.curves.length - 1];
             return c.points[c.order];
         },
+        /**
+         * Appends a curve to the collection.
+         * @param {Bezier} curve Curve to add.
+         */
         addCurve: function (curve) {
             this.curves.push(curve);
             this._3d = this._3d || curve._3d;
         },
+        /**
+         * Computes the combined length of all curve segments.
+         * @returns {number}
+         */
         length: function () {
             return this.curves.map(function (v) {
                 return v.length();
@@ -1119,7 +1417,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return a + b;
             });
         },
-        getPointAtLength(length, precision) {
+    /**
+     * Samples a point along the poly-bezier at a specified arc length.
+     * @param {number} length Arc length from the start of the poly-bezier.
+     * @param {number} [precision=1] Precision forwarded to segment sampling.
+    * @returns {{x: number, y: number, z: (number|undefined), alpha: number}|null} Point or `null` when length exceeds total.
+     */
+    getPointAtLength(length, precision) {
             let inc = 0;
             this.lengths = this.lengths || this.curves.map((c) => {
                 inc += c.length();
@@ -1134,9 +1438,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             length = Math.max(0, length);
             return this.curves[i].getPointAtLength(length, precision);
         },
+        /**
+         * Retrieves the curve at the provided index.
+         * @param {number} idx Segment index.
+         * @returns {Bezier}
+         */
         curve: function (idx) {
             return this.curves[idx];
         },
+        /**
+         * Calculates the bounding box over all curve segments.
+         * @returns {Range3D}
+         */
         bbox: function () {
             const c = this.curves;
             const bbox = c[0].bbox();
@@ -1145,14 +1458,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return bbox;
         },
-        offset: function (d) {
+    /**
+     * Offsets every segment by the specified distance and returns a new poly-bezier.
+     * @param {number} d Offset distance.
+     * @returns {PolyBezier}
+     */
+    offset: function (d) {
             let offset = [];
             this.curves.forEach(function (v) {
                 offset = offset.concat(v.offset(d));
             });
             return new PolyBezier(offset);
         },
-        lineIntersects: function (line) {
+    /**
+     * Finds intersections between the poly-bezier and a line segment.
+    * @param {{p1: Point2D, p2: Point2D}|Point2DList} line Line definition.
+    * @returns {Array.<{curve: Bezier, t: number, i: number}>}
+     */
+    lineIntersects: function (line) {
             let intersections = [];
             this.curves.forEach(function (c, i) {
                 const items = c.lineIntersects(line);
@@ -1165,7 +1488,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
             return intersections;
         },
-        intersect: function (curve) {
+    /**
+     * Finds intersections between the poly-bezier and another curve.
+     * @param {Bezier|PolyBezier} curve Target curve.
+    * @returns {Array.<{curve: Bezier, t: number, i: number}>}
+     */
+    intersect: function (curve) {
             let intersections = [];
             this.curves.forEach(function (c, i) {
                 const items = c.intersect(curve);
@@ -1176,7 +1504,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             return intersections;
         },
-        reverse: function () {
+    /**
+     * Reverses the order of all curve segments and their control points.
+     */
+    reverse: function () {
             let p1 = this.curves[0].first();
             this.curves.reverse();
             // console.log(this.getPoints());
@@ -1187,9 +1518,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 console.log('Wrong', p1, p2);
             }
         },
+        /**
+         * Returns the instance itself for API symmetry.
+         * @returns {PolyBezier}
+         */
         toPolyBezier: function () {
             return this;
         },
+        /**
+         * Returns the raw array of underlying Bezier curves.
+         * @returns {Array<Bezier>}
+         */
         toBeziers: function () {
             return this.curves;
         },

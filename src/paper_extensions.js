@@ -4,12 +4,33 @@
         //Paper functions, require snap_extensions and element_extensions
         Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
             const paper_element_extension = {};
+            /**
+             * Registers a lazily executed Paper extension that can augment any SVG root.
+             * Extensions are executed later through {@link Snap.Paper#processExtensions}.
+             *
+             * @function Snap.Paper#addExtension
+             * @param {string} name Unique identifier for the extension.
+             * @param {function(Element):void} processor Callback that receives the root element to extend.
+             * @example
+             * paper.addExtension('highlight', (root) => {
+             *     root.addClass('is-highlighted');
+             * });
+             */
             let addExtension = function (name, processor) {
                 if (typeof processor === "function") paper_element_extension[name] = processor;
             };
             Paper.prototype.addExtension = addExtension;
             Paper.prototype.addExtension.skip = true;
 
+            /**
+             * Executes all registered extensions against the supplied SVG root. Each extension is invoked
+             * with the root element so that it can perform DOM manipulations or add helpers.
+             *
+             * @function Snap.Paper#processExtensions
+             * @param {Element} root Root SVG element that will receive all registered extensions.
+             * @example
+             * paper.processExtensions(paper.select('svg'));
+             */
             Paper.prototype.processExtensions = function (root) {
                 for (const name in paper_element_extension) {
                     paper_element_extension[name](root);
@@ -18,6 +39,16 @@
 
             Paper.prototype.processExtensions.skip = true;
 
+            /**
+             * Creates a `<clipPath>` element and optionally populates it with content or attributes.
+             *
+             * @function Snap.Paper#clipPath
+             * @param {Object|Snap.Element} [first] Attribute map or element to append immediately.
+             * @returns {Snap.Element} Newly created clipPath element.
+             * @example
+             * const clip = paper.clipPath({ id: 'avatarClip' });
+             * clip.add(paper.circle(50, 50, 40));
+             */
             Paper.prototype.clipPath = function (first) {
                 let attr;
                 const el = this.el('clipPath');
@@ -29,6 +60,17 @@
                 return el;
             };
 
+            /**
+             * Creates an SVG `<a>` anchor element and assigns optional href/target attributes.
+             *
+             * @function Snap.Paper#a
+             * @param {string} [href] Hyperlink reference (internal or external).
+             * @param {string} [target] Target attribute such as `_blank`.
+             * @returns {Snap.Element} Anchor element ready for child content.
+             * @example
+             * const link = paper.a('https://example.com', '_blank');
+             * link.add(paper.text(0, 0, 'Open example'));
+             */
             Paper.prototype.a = function (href, target) {
                 const el = this.el('a');
                 if (href || target) {
@@ -40,6 +82,20 @@
                 return el;
             };
 
+            /**
+             * Wraps an element (or text) with a styled rectangle and optional click handler to form a button.
+             *
+             * @function Snap.Paper#button
+             * @param {Snap.Element|string} el Element or string label to display inside the button.
+             * @param {number} [border=0] Padding around the element in SVG units.
+             * @param {function(MouseEvent):void} [action] Click handler assigned to the button group.
+             * @param {Object|string} [background_style] Style map or CSS string applied to the background rect.
+             * @param {Object|string} [style] Style map or CSS string applied to the wrapper group.
+             * @returns {Snap.Element} Group containing the clickable button and its background.
+            * @example
+            * const btn = paper.button('Save', 4, () => console.log('Saving...'));
+            * btn.addClass('ui-button');
+             */
             Paper.prototype.button = function (el, border, action, background_style, style) {
                 border = border || 0;
                 if (typeof el === 'string') {
@@ -63,6 +119,19 @@
                 return button;
             }
 
+            /**
+             * Creates a `<foreignObject>` container, injecting optional HTML markup into the node.
+             *
+             * @function Snap.Paper#foreignObject
+             * @param {number|Object} [x] X coordinate or attribute object.
+             * @param {number} [y] Y coordinate when numeric arguments are used.
+             * @param {number|string} [width] Width of the foreignObject.
+             * @param {number|string} [height] Height of the foreignObject.
+             * @param {string} [html] Inner HTML markup injected into the foreignObject.
+             * @returns {Snap.Element} The created foreignObject element.
+            * @example
+            * paper.foreignObject(10, 10, 120, 40, '<div>Inline HTML</div>');
+             */
             Paper.prototype.foreignObject = function (x, y, width, height, html) {
                 if (typeof width === 'string' && height === undefined && html ===
                     undefined) {
@@ -86,6 +155,22 @@
                 return el;
             };
 
+            /**
+             * Creates a managed foreignObject container whose inner `<div>` is exposed via `el.div` for
+             * easier manipulation. Accepts HTML, Snap elements, or arrays of elements.
+             *
+             * @function Snap.Paper#htmlInsert
+             * @param {number} x X coordinate.
+             * @param {number} y Y coordinate.
+             * @param {number|string} width Width of the container.
+             * @param {number|string} height Height of the container.
+             * @param {string|Snap.Element|Snap.Element[]} [html] Content injected into the inner div.
+             * @param {Object|string} [style] Style applied to the inner div.
+             * @returns {Snap.Element} ForeignObject element with an accessible `div` property.
+            * @example
+            * const widget = paper.htmlInsert(0, 0, 200, 100, '<p>Hello UI</p>');
+            * widget.div.addClass('widget-shell');
+             */
             Paper.prototype.htmlInsert = function (
                 x, y, width, height, html, style) {
                 const div = '<div xmlns="http://www.w3.org/1999/xhtml" class="IA_Designer_html"></div>';
@@ -111,6 +196,22 @@
                 return el;
             };
 
+            /**
+             * Creates a nested Snap canvas rendered inside a foreignObject, returning references to the
+             * embedded instance via `el.embeddedSvg`.
+             *
+             * @function Snap.Paper#embeddedSVG
+             * @param {number} x X coordinate of the container.
+             * @param {number} y Y coordinate of the container.
+             * @param {number} width Width of the embedded SVG viewport.
+             * @param {number} height Height of the embedded SVG viewport.
+             * @param {Snap.Element|Snap.Element[]} [element] Elements to add to the embedded canvas.
+             * @param {Snap.Element|Array<number>} [viewBox] Element or `[x, y, width, height]` defining the viewBox.
+             * @returns {Snap.Element} ForeignObject with `embeddedSvg` pointing to the inner Snap instance.
+             * @example
+             * const embedded = paper.embeddedSVG(0, 0, 200, 200);
+             * embedded.embeddedSvg.circle(100, 100, 40).attr({ fill: '#5bc0de' });
+             */
             Paper.prototype.embeddedSVG = function (
                 x, y, width, height, element, viewBox) {
                 if (viewBox && viewBox.getBBox) {
@@ -133,6 +234,21 @@
                 return el;
             };
 
+            /**
+             * Creates a `<canvas>` element inside a foreignObject and exposes the native node via `el.canvas`.
+             *
+             * @function Snap.Paper#canvas
+             * @param {number} x X coordinate of the foreignObject.
+             * @param {number} y Y coordinate of the foreignObject.
+             * @param {number} width Canvas width in pixels.
+             * @param {number} height Canvas height in pixels.
+             * @param {string} [id] Base id used for the foreignObject and canvas elements.
+             * @returns {Snap.Element} ForeignObject containing the created canvas element.
+             * @example
+             * const canvasFo = paper.canvas(0, 0, 300, 150, 'chart');
+             * const ctx = canvasFo.canvas.getContext('2d');
+             * ctx.fillRect(0, 0, 300, 150);
+             */
             Paper.prototype.canvas = function (x, y, width, height, id) {
                 id = id || String.rand(8, 'alpha');
                 const html = '<canvas id="' + id + '_canvas" ' +
@@ -151,6 +267,17 @@
                 return fo;
             };
 
+            /**
+             * Creates a simple HTML `<input type="text">` form inside a foreignObject.
+             *
+             * @function Snap.Paper#textInputBox
+             * @param {string} id Element id assigned to the wrapping div.
+             * @param {number} x X coordinate of the foreignObject.
+             * @param {number} y Y coordinate of the foreignObject.
+             * @param {number} width Width of the input container.
+             * @param {number} height Height of the input container.
+             * @returns {Snap.Element} ForeignObject containing the form markup.
+             */
             const textInputBox = function (id, x, y, width, height) {
                 const html = '<div id ="' + id +
                     '" xmlns="http://www.w3.org/1999/xhtml">' +
@@ -163,17 +290,47 @@
             textInputBox.skip = true;
             Paper.prototype.textInputBox = textInputBox;
 
-            Paper.prototype.point = function (
-                group, x, y, color, size, label, label_style) {
-                if (typeof group !== 'object' || !group.paper) {
-                    label_style = label;
-                    label = size;
-                    size = color;
-                    color = y;
-                    y = x;
-                    x = group;
-                    group = this;
-                }
+            /**
+             * Draws a screen-space constant point marker with optional label support.
+             *
+             * @function Snap.Paper#point
+             * @param {Snap.Element|number|number[]} group Target group or x coordinate.
+             * @param {number} [x] X coordinate when `group` is provided.
+             * @param {number} [y] Y coordinate when `group` is provided.
+             * @param {string|number} [color] Fill color or radius when numeric.
+             * @param {number|string} [size=1] Base radius expressed in screen pixels.
+             * @param {string|null} [label] Optional label text (use `null` to suppress).
+             * @param {Object} [label_style] Additional label styling options such as `dx`/`dy`.
+             * @returns {Snap.Element} Created marker element or wrapper group when labeled.
+             */
+            /**
+             * Draws an SVG grid made of horizontal and vertical lines. This helper is useful when you need the
+             * underlying line elements; for a rectangular cell grid see the later `Snap.Paper#grid` override.
+             *
+             * @name Snap.Paper#gridLines
+             * @private
+             * @param {number} x X coordinate of the grid origin.
+             * @param {number} y Y coordinate of the grid origin.
+             * @param {number} width Total width of the grid.
+             * @param {number} height Total height of the grid.
+             * @param {number|Object|Snap.Element} columns Column count, attribute map, or existing container element.
+             * @param {number} rows Number of rows (used when `columns` is numeric).
+             * @param {number} [stroke_width=1] Stroke width applied to grid lines.
+             * @param {Object} [style] Attribute map applied to the grid lines.
+             * @param {boolean} [elements=false] When truthy, returns separate horizontal/vertical collections.
+             * @returns {Snap.Element|Object} Grid group or object `{ lines, columns, rows }` when `elements` is true.
+             */
+            Paper.prototype.grid = function (
+                x,
+                y,
+                width,
+                height,
+                columns,
+                rows,
+                stroke_width,
+                style,
+                elements
+            ) {
                 if (typeof x === 'object') {
                     label_style = label;
                     label = size;
@@ -224,17 +381,29 @@
             Paper.prototype.getFromScreenDistance.skip = true;
 
             /**
-             * Overwrite all circles to be ellipses for geometric simplicity
-             * @param x
-             * @param y
-             * @param r
-             * @param attr
-             * @return {*}
+             * Draws a circle by delegating to {@link Snap.Paper#ellipse} so that width and height scale
+             * consistently when transforms are applied.
+             *
+             * @function Snap.Paper#circle
+             * @param {number} x X coordinate of the centre.
+             * @param {number} y Y coordinate of the centre.
+             * @param {number} r Circle radius.
+             * @param {Object} [attr] Attribute map for the circle element.
+             * @returns {Snap.Element} Created ellipse element representing the circle.
              */
             Paper.prototype.circle = function (x, y, r, attr) {
                 return this.ellipse(x, y, r, r, attr);
             };
 
+            /**
+             * Measures text by temporarily drawing it within the SVG, returning the associated bounding box.
+             *
+             * @function Snap.Paper#measureText
+             * @param {string} text Text to measure.
+             * @param {Object} [font_style] Attribute map (e.g. `font-size`, `font-family`).
+             * @param {Snap.Element} [group] Optional group to which the transient text is added.
+             * @returns {Snap.BBox} Bounding box of the rendered text.
+             */
             const measureText = function (text, font_style, group) {
                 const text_el = this.text(0, 0, text);
                 if (font_style) text_el.attr(font_style);
@@ -246,6 +415,18 @@
             measureText.skip = true;
             Paper.prototype.measureText = measureText;
 
+            /**
+             * Renders text containing newline characters as stacked tspans, with configurable spacing.
+             *
+             * @function Snap.Paper#multilineText
+             * @param {number} x X coordinate of the first baseline.
+             * @param {number} y Y coordinate of the first baseline.
+             * @param {string|string[]} text Text value or list of lines.
+             * @param {Object} [attr] Attribute map applied to the text element.
+             * @param {number} [linespace=1.2] Line spacing expressed in em units.
+             * @param {number} [first_tab=0] Initial horizontal offset for the first line.
+             * @returns {Snap.Element} Text element containing the generated tspans.
+             */
             Paper.prototype.multilineText = function (
                 x, y, text, attr, linespace, first_tab) {
                 linespace = linespace || 1.2;
@@ -263,7 +444,19 @@
                 return text_tab;
             };
 
-
+            /**
+             * Creates an image-based border using nine-slice scaling and optional background colour fill.
+             *
+             * @function Snap.Paper#borderImage
+             * @param {Snap.Element|string} image_url Image element or URL used for the border slices.
+             * @param {number} [border=0] Border width around the target rectangle.
+             * @param {number} x X coordinate of the top-left corner.
+             * @param {number} y Y coordinate of the top-left corner.
+             * @param {number} width Target width of the border frame.
+             * @param {number} height Target height of the border frame.
+             * @param {string} [color="white"] Background colour used if the source image contains transparency.
+             * @returns {Snap.Element} Group containing the tiled border graphics.
+             */
             Paper.prototype.borderImage = function (image_url, border, x, y, width, height, color) {
                 color = color || "white"
                 border = border || 0;
@@ -347,12 +540,6 @@
                     attributeOldValue: true,
                     // attributeFilter: attributeFilter,
                 });
-
-                group.registerRemoveFunction(() => {
-                    console.log("Disconnecting")
-                    border_image_observer.disconnect();
-                })
-
                 group._observer = border_image_observer;
                 group.isBorderImage = true;
 
@@ -541,7 +728,16 @@
         //Shape builders
         Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
-                /*Creates a circle from a center and a point on it*/
+                /**
+                 * Builds a circle from a centre point and a point lying on its circumference.
+                 *
+                 * @function Snap.Paper#circleCentPoint
+                 * @param {number|Object} x1 Centre x coordinate or `{x, y}` object.
+                 * @param {number|Object} y1 Centre y coordinate or `{x, y}` object when `x1` is numeric.
+                 * @param {number} x2 X coordinate of the circumference point.
+                 * @param {number} y2 Y coordinate of the circumference point.
+                 * @returns {Snap.Element} Circle element derived from the two points.
+                 */
                 Paper.prototype.circleCentPoint = function (x1, y1, x2, y2) {
                     if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
                         x2 = y1.x;
@@ -558,6 +754,16 @@
                 };
 
 
+                /**
+                 * Builds a circle from two points defining the endpoints of a diameter.
+                 *
+                 * @function Snap.Paper#circleTwoPoints
+                 * @param {number|Object} x1 First point x coordinate or `{x, y}` object.
+                 * @param {number|Object} y1 First point y coordinate or `{x, y}` object when `x1` is numeric.
+                 * @param {number} x2 Second point x coordinate.
+                 * @param {number} y2 Second point y coordinate.
+                 * @returns {Snap.Element} Circle passing through the two provided points.
+                 */
                 Paper.prototype.circleTwoPoints = function (x1, y1, x2, y2) {
                     if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
                         x2 = y1.x;
@@ -573,6 +779,18 @@
                     return this.circle((x1 + x2) / 2, (y1 + y2) / 2, Snap.len(x1, y1, x2, y2) / 2);
                 };
 
+                /**
+                 * Builds a circle that passes through three distinct points.
+                 *
+                 * @function Snap.Paper#circleThreePoints
+                 * @param {number|Object} x1 First point x coordinate or `{x, y}` object.
+                 * @param {number|Object} y1 First point y coordinate or `{x, y}` object when `x1` is numeric.
+                 * @param {number|Object} x2 Second point x coordinate or `{x, y}` object.
+                 * @param {number} y2 Second point y coordinate.
+                 * @param {number} x3 Third point x coordinate.
+                 * @param {number} y3 Third point y coordinate.
+                 * @returns {Snap.Element|null} Circle through the three points, or `null` if the points are colinear.
+                 */
                 Paper.prototype.circleThreePoints = function (x1, y1, x2, y2, x3, y3) {
 
                     if (typeof x2 === "object" && x2.hasOwnProperty("x")) {
@@ -611,6 +829,19 @@
                 };
 
 
+                /**
+                 * Constructs an ellipse from the general quadratic equation coefficients.
+                 *
+                 * @function Snap.Paper#ellipseFromEquation
+                 * @param {number} A Coefficient for $x^2$.
+                 * @param {number} B Coefficient for $xy$.
+                 * @param {number} C Coefficient for $y^2$.
+                 * @param {number} D Coefficient for $x$.
+                 * @param {number} E Coefficient for $y$.
+                 * @param {number} [F=-1] Constant term.
+                 * @param {boolean} [properties_only=false] When true, returns ellipse properties instead of an element.
+                 * @returns {Snap.Element|Object|null} Ellipse element or property object; `null` when coefficients do not represent an ellipse.
+                 */
                 Paper.prototype.ellipseFromEquation = function (A, B, C, D, E, F, properties_only) {
                     if (typeof F === "boolean") {
                         properties_only = F;
@@ -711,6 +942,21 @@
                     }
                 };
 
+                /**
+                 * Splits an annulus into equal angular segments and renders them as path elements.
+                 *
+                 * @function Snap.Paper#diskSegments
+                 * @param {number} num_segments Number of segments to generate.
+                 * @param {number} [angle] Angular span in radians; defaults to a full circle.
+                 * @param {number} [start_angle=0] Angle offset applied to the first segment.
+                 * @param {number} inner_rad Inner radius of the annulus.
+                 * @param {number} outer_rad Outer radius of the annulus.
+                 * @param {Object|Array|function} [style] Styling applied to each segment.
+                 * @param {string} [id] Base id assigned to generated segments.
+                 * @param {Snap.Element} [group] Group that receives the generated segments.
+                 * @param {string} [class_name] Class name appended to each path.
+                 * @returns {Snap.Element} Group containing all generated segments, or the last path when no group is supplied.
+                 */
                 Paper.prototype.diskSegments = function (num_segments, angle, start_angle, inner_rad, outer_rad, style, id, group, class_name) {
                     if (!group && num_segments > 1) {
                         group = this.g()
@@ -756,6 +1002,16 @@
                     return (group) ? group : path;
                 };
 
+                /**
+                 * Creates a donut-shaped path by subtracting an inner circle from an outer circle.
+                 *
+                 * @function Snap.Paper#disk
+                 * @param {number} cx Centre x coordinate.
+                 * @param {number} cy Centre y coordinate.
+                 * @param {number} our_rad Outer radius of the disk.
+                 * @param {number} inner_rad Inner radius of the disk.
+                 * @returns {Snap.Element} Path element representing the disk with even-odd fill rule.
+                 */
                 Paper.prototype.disk = function (cx, cy, our_rad, inner_rad) {
                     const outer = this.circle(cx, cy, our_rad).toDefs();
                     const inner = this.circle(cx, cy, inner_rad).toDefs();
@@ -768,6 +1024,19 @@
                     return this.path(d).attr({fillRule: "evenodd"});
                 };
 
+                /**
+                 * Places repeated symbols along an arc, rotating each instance to face outward.
+                 *
+                 * @function Snap.Paper#arcFan
+                 * @param {number} rad Radius of the arc.
+                 * @param {number} angle Total angular span in degrees.
+                 * @param {number} step Number of symbol placements along the arc.
+                 * @param {Snap.Element|Object} symbol Element or descriptor used to render each symbol.
+                 * @param {Object|Array|function} [style] Styling applied to the generated elements.
+                 * @param {string} [id] Base id assigned to the generated elements.
+                 * @param {Snap.Element} [group] Group that receives the generated elements.
+                 * @returns {Snap.Element} Group containing the repeated symbols.
+                 */
                 Paper.prototype.arcFan = function (rad, angle, step, symbol, style, id, group) {
                     if (!group) {
                         group = this.g()
@@ -821,16 +1090,17 @@
                 };
 
                 /**
-                 * Creates a rectangular grid.
+                 * Creates a uniform rectangular grid of `<rect>` elements.
                  *
-                 * @param {number} width
-                 * @param {number} height
-                 * @param {number} rows
-                 * @param {number} cols
-                 * @param {function, object} style
-                 * @param {string} id
-                 * @param {Element} group
-                 * @return {*}
+                 * @function Snap.Paper#grid
+                 * @param {number} width Overall grid width.
+                 * @param {number} height Overall grid height.
+                 * @param {number} rows Number of rows.
+                 * @param {number} cols Number of columns.
+                 * @param {Object|function} [style] Style map or callback applied to each cell.
+                 * @param {string} [id] Base id assigned to generated cells.
+                 * @param {Snap.Element} [group] Group that receives the cells.
+                 * @returns {Snap.Element} Group containing all generated rectangles.
                  */
                 Paper.prototype.grid = function (width, height, rows, cols, style, id, group) {
                     if (!group) {
@@ -866,6 +1136,17 @@
                     return group;
                 };
 
+                /**
+                 * Creates a zigzag polyline between two points or across a specified horizontal width.
+                 *
+                 * @function Snap.Paper#zigzag
+                 * @param {Object} p1 Starting point `{x, y}`.
+                 * @param {Object|number} p2_width Second point `{x, y}` or horizontal length in pixels.
+                 * @param {number} period Length of a single zigzag period.
+                 * @param {number} amplitude Vertical displacement from the centre line.
+                 * @param {boolean} [reverice=false] When true, inverts the initial zigzag direction.
+                 * @returns {Snap.Element} Polyline element representing the zigzag path.
+                 */
                 Paper.prototype.zigzag = function (p1, p2_width, period, amplitude, reverice) {
                     const p2 = (typeof p2_width === "number") ? {x: p1.x + p2_width, y: p1.y} : p2_width;
 

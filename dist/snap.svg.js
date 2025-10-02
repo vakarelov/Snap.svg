@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-07-04
+// build: 2025-10-02
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -66,6 +66,42 @@
     const event_groups = {default: {n: {}}}; //default group allows adding listeners to local (grouped) events in the global context
 
     let events = event_groups.default;
+
+    // Global alias mappings for namespace translation
+    let namespace_aliases = undefined;
+
+    /*\
+     * translateNamespaceAlias
+     [ method ]
+     **
+     * Internal function to translate namespace aliases in event names.
+     * Translates the top-level namespace (first part before separator) if an alias exists.
+     **
+     - name (string|array) event name or array of event name parts
+     **
+     = (array|string) translated event name as array (or may return string if no aliases defind)
+    \*/
+    const translateNamespaceAlias = function(name) {
+        if (!namespace_aliases) return name;
+        if (isArray(name)) {
+            // Handle array format
+            if (name.length > 0 && namespace_aliases.hasOwnProperty(name[0])) {
+                const translated = name.slice(); // Create a copy
+                translated[0] = namespace_aliases[name[0]];
+                return translated;
+            }
+            return name;
+        } else {
+            // Handle string format
+            const nameParts = String(name).split(separator);
+            if (nameParts.length > 0 && namespace_aliases.hasOwnProperty(nameParts[0])) {
+                nameParts[0] = namespace_aliases[nameParts[0]];
+                return nameParts;
+            }
+            return nameParts;
+        }
+    };
+
     const getNext = function (event_list, name, group, skip_global) {
         if (event_list === undefined) {
             if (!skip_global && global_event.n.hasOwnProperty(name)) {
@@ -125,6 +161,10 @@
             } else {
                 group = group.id;
             }
+
+            // Apply namespace alias translation
+            name = translateNamespaceAlias(name);
+
             args = args || Array.prototype.slice.call(arguments, 3)
             const oldstop = stop,
                 listeners = eve.listeners(name, group),
@@ -224,6 +264,125 @@
 
     eve.isEve = true;
 
+    /*\
+     * eve.a
+     [ method ]
+
+     * Async version of eve that returns an array of promises from all listeners.
+     * All listener functions are wrapped to ensure they return promises.
+
+     - name (string) name of the *event*, dot (`.`) or slash (`/`) separated
+     - scope (object) context for the event handlers
+     - varargs (...) the rest of arguments will be sent to event handlers
+
+     = (array) array of promises from the listeners
+    \*/
+    eve.a = function (group, name, scope) {
+        let args;
+        if (Array.isArray(group) || typeof group === "string") {
+            args = Array.prototype.slice.call(arguments, 2)
+            scope = name;
+            name = group;
+            group = undefined;
+        } else {
+            group = group.id;
+        }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
+        args = args || Array.prototype.slice.call(arguments, 3)
+
+        const oldstop = stop,
+            listeners = eve.listeners(name, group),
+            promises = [],
+            ce = current_event;
+
+        promises.firstDefined = firstDefined;
+        promises.lastDefined = lastDefined;
+
+        if (typeof scope !== "undefined" && typeof scope !== "object") {
+            args.unshift(scope);
+            scope = undefined;
+        }
+
+        current_event = name;
+        stop = 0;
+
+        // Sort listeners by zIndex
+        listeners.sort(function_sort);
+
+        for (let i = 0, lim = listeners.length; i < lim; ++i) {
+            const l = listeners[i];
+            try {
+                // Universal wrapper to ensure all returns are promises
+                const result = l.apply(scope, args);
+                promises.push(Promise.resolve(result));
+            } catch (e) {
+                console.error(e.message, e, args, l);
+                eve("global.error", undefined, e, l, args);
+                promises.push(Promise.reject(e));
+            }
+            if (stop) {
+                break;
+            }
+        }
+
+        stop = oldstop;
+        current_event = ce;
+
+        // Log if enabled
+        if (eve._log) {
+            if (!group) group = "global";
+            if (!eve._log[group]) {
+                eve._log[group] = {};
+            }
+            name = (isArray(name)) ? name.join(separator) : name;
+            if (!eve._log[group][name]) {
+                eve._log[group][name] = [1, listeners.length];
+            } else {
+                eve._log[group][name][0]++;
+                eve._log[group][name][1] = Math.max(eve._log[group][name][1], listeners.length);
+            }
+        }
+
+        return promises;
+    };
+
+    /*\
+     * eve.all
+     [ method ]
+
+     * Async version that returns a single promise resolving to an array of all listener results.
+     * Waits for all promises to resolve before returning the results array.
+
+     - name (string) name of the *event*, dot (`.`) or slash (`/`) separated
+     - scope (object) context for the event handlers
+     - varargs (...) the rest of arguments will be sent to event handlers
+
+     = (Promise) promise that resolves to array of results from all listeners
+    \*/
+    eve.all = function (group, name, scope) {
+        const promises = eve.a.apply(this, arguments);
+
+        return Promise.all(promises).then(results => {
+            results.firstDefined = firstDefined;
+            results.lastDefined = lastDefined;
+            return results;
+        });
+    };
+
+    /*\
+     * eve.localEve
+     [ method ]
+     **
+     * Creates a local eve instance that operates within a specific event group.
+     * All events fired through this instance will be scoped to the specified group.
+     **
+     - group_id (string) identifier for the event group
+     **
+     = (function) local eve instance with all eve methods scoped to the group
+    \*/
     eve.localEve = function (group_id) {
         eve.setGroup(group_id);
         const ret_eve = function (name, scope) {
@@ -232,6 +391,18 @@
         }
 
         ret_eve.group = group_id;
+
+        // Add this inside the eve.localEve function, after the existing methods
+        ret_eve.a = function (name, scope) {
+            let args = [{id: group_id}, ...Array.prototype.slice.call(arguments)];
+            return eve.a.apply(undefined, args);
+        }
+
+        // Add this inside the eve.localEve function
+        ret_eve.all = function (name, scope) {
+            let args = [{id: group_id}, ...Array.prototype.slice.call(arguments)];
+            return eve.all.apply(undefined, args);
+        }
 
         ret_eve.on = function (name, f) {
             return eve.on(name, f, group_id);
@@ -262,6 +433,16 @@
 
         return ret_eve;
     }
+
+    /*\
+     * eve.logEvents
+     [ method ]
+     **
+     * Enables or disables event logging for debugging purposes.
+     * When enabled, tracks event firing statistics including call count and listener count.
+     **
+     - off (boolean) if true, disables logging; if false or undefined, enables logging
+    \*/
     eve.logEvents = function (off) {
         if (off) {
             delete eve._log;
@@ -286,6 +467,9 @@
      = (array) array of event handlers
     \*/
     eve.listeners = function (name, group, skip_global) {
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
         const names = isArray(name) ? name : name.split(separator);
         let e = undefined,
             item,
@@ -335,6 +519,15 @@
         }
     };
 
+    /*\
+     * eve.setGroup
+     [ method ]
+     **
+     * Sets the current active event group for subsequent event operations.
+     * If no group is specified, resets to the default group.
+     **
+     - group (string) #optional name of the event group to set as active
+    \*/
     eve.setGroup = function (group) {
         // if (!group) throw new Error("group must be defined");
 
@@ -351,6 +544,18 @@
         if (eve.hasOwnProperty("_events")) eve._events = events.n;
     };
 
+    /*\
+     * eve.fireInGroup
+     [ method ]
+     **
+     * Fires an event within a specific event group context.
+     * Temporarily switches to the specified group, fires the event, then restores the previous group.
+     **
+     - group (string) name of the event group to fire the event in
+     - varargs (...) event arguments to pass to eve()
+     **
+     = (array) array of returned values from the listeners
+    \*/
     eve.fireInGroup = function (group) {
         const args = Array.from(arguments).slice(1);
         if (!event_groups.hasOwnProperty(group)) {
@@ -364,11 +569,15 @@
     };
 
     /*\
-        * eve.addGlobalEventType
-        * Adds a global event type to the global event list.
-        * Be aware that this will not add the event to the local event list. Adding a global type may prevent local events
-        * starting with the same name from being triggered.
-     */
+     * eve.addGlobalEventType
+     [ method ]
+     **
+     * Adds a global event type to the global event list.
+     * Be aware that this will not add the event to the local event list. Adding a global type may prevent local events
+     * starting with the same name from being triggered.
+     **
+     - name (string) name of the global event type to add
+    \*/
     eve.addGlobalEventType = function (name) {
         if (!global_event.n.hasOwnProperty(name)) {
             global_event.n[name] = {n: {}};
@@ -414,6 +623,9 @@
         f.zIndex = xIndex_cur;
         xIndex_cur += 1e-12;
         const process_name = function (name) {
+            // Apply namespace alias translation for each name
+            name = translateNamespaceAlias(name);
+
             const names = isArray(name) ? name : Str(name).split(separator);
             let e, exist, n;
             for (var i = 0, ii = names.length; i < ii; ++i) {
@@ -527,6 +739,10 @@
             }
             return;
         }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
         names = isArray(name) ? name : Str(name).split(separator);
         var e,
             key,
@@ -605,16 +821,89 @@
         }
     };
 
+    /*\
+     * eve.alias
+     [ method ]
+     **
+     * Sets up namespace alias mappings for backward compatibility.
+     * Allows translating top-level event namespaces from one name to another.
+     * When an event is fired, registered, or removed with an aliased namespace,
+     * it will be automatically translated to the target namespace.
+     **
+     - aliases (object) object containing key-value pairs where keys are alias names
+     *   and values are the target namespace names they should be translated to
+     **
+     > Examples:
+     | // Set up aliases
+     | eve.alias({
+     |     "OLD_NAMESPACE": "new_namespace",
+     |     "LEGACY": "modern"
+     | });
+     |
+     | // These will be equivalent:
+     | eve.on("OLD_NAMESPACE.event.name", handler);
+     | eve.on("new_namespace.event.name", handler);
+     |
+     | eve("OLD_NAMESPACE.event.name", data);
+     | eve("new_namespace.event.name", data);
+    \*/
+    eve.alias = function(aliases) {
+        if (typeof aliases === 'object' && aliases !== null) {
+            namespace_aliases = namespace_aliases || {};
+            for (const aliasName in aliases) {
+                if (aliases.hasOwnProperty(aliasName)) {
+                    namespace_aliases[aliasName] = aliases[aliasName];
+                }
+            }
+        }
+    };
+
+    /*\
+     * eve.clearAliases
+     [ method ]
+     **
+     * Clears all namespace alias mappings.
+     **
+    \*/
+    eve.clearAliases = function() {
+        for (const key in namespace_aliases) {
+            if (namespace_aliases.hasOwnProperty(key)) {
+                delete namespace_aliases[key];
+            }
+        }
+    };
+
+    /*\
+     * eve.getAliases
+     [ method ]
+     **
+     * Returns a copy of the current namespace alias mappings.
+     **
+     = (object) copy of current alias mappings
+    \*/
+    eve.getAliases = function() {
+        const aliases = {};
+        if (namespace_aliases) for (const key in namespace_aliases) {
+            if (namespace_aliases.hasOwnProperty(key)) {
+                aliases[key] = namespace_aliases[key];
+            }
+        }
+        return aliases;
+    };
+
     /**
      * eve.is
      * [ method ]
-     * Checks if the given event is registered with the given function.
-     * @type {(function(*, *, *): (boolean))|*}
+    * Checks if the given event is registered with the given function.
+    * @type {function(*, *, *): boolean}
      */
     eve.is = function (name, f, group) {
         if (!name || typeof f !== 'function') {
             return false;
         }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
 
         let names = Array.isArray(name) ? (Array.isArray(name[0]) ? name : [name]) : String(name).split(comaseparator);
         if (names.length > 1) {
@@ -645,7 +934,7 @@
                     }
                 } else {
                     for (key in e) if (e.hasOwnProperty(key)) {
-                        if (isRegistered(key, f, group)) {
+                        if (eve.is(key, f, group)) {
                             return true;
                         }
                     }
@@ -666,8 +955,7 @@
         }
 
         return false;
-    }
-
+    };
 
     /*\
      * eve.once
@@ -727,6 +1015,10 @@
             data = name;
             name = group.eve
         }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
         const container = {
             data: data,
             isFilter: true
@@ -829,6 +1121,34 @@
     };
     let lastTimeStamp;
 
+    /**
+     * @typedef {(number|number[])} AnimationValue
+     * @description Numeric value (or array of numeric values) animated by mina.
+     */
+
+    /**
+     * @callback MinaGetter
+     * @returns {number} Current master value that drives the animation timeline.
+     */
+
+    /**
+     * @callback MinaSetter
+     * @param {AnimationValue} value The interpolated value to apply.
+     * @returns {void}
+     */
+
+    /**
+     * @callback MinaEasing
+     * @param {number} t Normalized progress in the `[0, 1]` range.
+     * @returns {number} Eased progress value in the `[0, 1]` range.
+     */
+
+    /**
+     * Drives the global animation loop and updates all registered animations.
+     *
+     * @param {number} [timeStamp] High-resolution timestamp provided by `requestAnimationFrame`.
+     * @returns {void}
+     */
     function frame(timeStamp) {
         // Manual invokation?
         if (!timeStamp) {
@@ -883,10 +1203,24 @@
         requestID = len ? requestAnimFrame(frame) : false;
     }
 
+    /**
+     * Generates a unique animation identifier.
+     *
+     * @returns {string}
+     */
     function ID() {
         return idprefix + (idgen++).toString(36);
     }
 
+    /**
+     * Computes a linear interpolation function for the supplied values.
+     *
+     * @param {AnimationValue} a Start value(s).
+     * @param {number} b Start timestamp.
+     * @param {AnimationValue} A End value(s).
+     * @param {number} B End timestamp.
+    * @returns {function(number): AnimationValue}
+     */
     function diff(a, b, A, B) {
         if (isArray(a)) {
             const res = [];
@@ -907,6 +1241,13 @@
         return +new Date;
     };
 
+    /**
+     * Gets or sets the current status of an animation.
+     *
+     * @this {Animation}
+     * @param {number} [val] New normalized progress in the `[0, 1]` range.
+     * @returns {number|void}
+     */
     function sta(val) {
         if (val == null) {
             return this.s;
@@ -917,6 +1258,13 @@
         this.s = val;
     }
 
+    /**
+     * Gets or sets the playback speed of an animation.
+     *
+     * @this {Animation}
+     * @param {number} [val] New speed multiplier.
+     * @returns {number|void}
+     */
     function speed(val) {
         if (val == null) {
             return this.spd;
@@ -924,6 +1272,13 @@
         this.spd = val;
     }
 
+    /**
+     * Gets or sets the duration of an animation.
+     *
+     * @this {Animation}
+     * @param {number} [val] New duration in timeline units.
+     * @returns {number|void}
+     */
     function duration(val) {
         if (val == null) {
             return this.dur;
@@ -932,12 +1287,24 @@
         this.dur = val;
     }
 
+    /**
+     * Stops the animation immediately and emits the appropriate event.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function stopit() {
         delete animations[this.id];
         this.update();
         eve(["snap", "mina", "stop", this.id], this);
     }
 
+    /**
+     * Pauses the animation, preserving the current timeline offset.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function pause() {
         if (this.pdif) {
             return;
@@ -947,6 +1314,12 @@
         this.pdif = this.get() - this.b;
     }
 
+    /**
+     * Resumes a paused animation from its preserved timeline offset.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function resume() {
         if (!this.pdif) {
             return;
@@ -977,6 +1350,12 @@
     //     this.set(res);
     // };
 
+    /**
+     * Applies the easing function and updates the animated value.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function update() {
         let chng = false;
         if (this._lastRev !== undefined && this._lastRev !== this.rev) {
@@ -1018,11 +1397,25 @@
         }
     }
 
+    /**
+     * Toggles the playback direction of the animation.
+     *
+     * @this {Animation}
+     * @param {boolean} [fast=false] When `true`, the animation attempts to reuse the current eased position for a smoother reversal.
+     * @returns {void}
+     */
     function reverse(fast) {
         this.rev = !this.rev;
         this.rev_fast = !!fast;
     }
 
+    /**
+     * Registers a callback that resolves once the animation reaches completion.
+     *
+     * @this {Animation}
+    * @param {function(Animation): void} [callback] Invoked with the animation when it finishes.
+     * @returns {Promise<void>} Promise that resolves when the animation finishes.
+     */
     function then(callback) {
         return new Promise((resolve, reject) => {
             if (typeof callback === "function") {
@@ -1039,40 +1432,18 @@
         });
     }
 
-    /*\
- * mina
- [ method ]
- **
- * Generic animation of numbers
- **
- - a (number) start _slave_ number
- - A (number) end _slave_ number
- - b (number) start _master_ number (start time in general case)
- - B (number) end _master_ number (end time in general case)
- - get (function) getter of _master_ number (see @mina.time)
- - set (function) setter of _slave_ number
- - easing (function) #optional easing function, default is @mina.linear
- = (object) animation descriptor
- o {
- o         id (string) animation id,
- o         start (number) start _slave_ number,
- o         end (number) end _slave_ number,
- o         b (number) start _master_ number,
- o         s (number) animation status (0..1),
- o         dur (number) animation duration,
- o         spd (number) animation speed,
- o         get (function) getter of _master_ number (see @mina.time),
- o         set (function) setter of _slave_ number,
- o         easing (function) easing function, default is @mina.linear,
- o         status (function) status getter/setter,
- o         speed (function) speed getter/setter,
- o         duration (function) duration getter/setter,
- o         stop (function) animation stopper
- o         pause (function) pauses the animation
- o         resume (function) resumes the animation
- o         update (function) calles setter with the right value of the animation
- o }
-\*/
+    /**
+     * Descriptor returned by {@link mina} that encapsulates an active animation.
+     *
+     * @class Animation
+     * @param {AnimationValue} a Starting value(s).
+     * @param {AnimationValue} A Ending value(s).
+     * @param {number} b Starting master value (typically, start time).
+     * @param {number} B Ending master value (typically, end time).
+     * @param {MinaGetter} get Retrieves the current master value.
+     * @param {MinaSetter} set Applies the interpolated slave value.
+     * @param {MinaEasing} [easing=mina.linear] Easing function that transforms progress.
+     */
     class Animation {
         constructor(a, A, b, B, get, set, easing) {
             this.id = ID();
@@ -1096,12 +1467,29 @@
             this.update = update;
             this.reverse = reverse;
             this.then = then;
+            /**
+             * Indicates whether the animation has finished.
+             *
+             * @returns {boolean}
+             */
             this.done = function () {
                 return this.status() === 1
             };
         }
     }
 
+    /**
+     * Creates a new animation descriptor and schedules it on the shared timeline.
+     *
+     * @param {AnimationValue} a Starting value(s).
+     * @param {AnimationValue} A Ending value(s).
+     * @param {number} b Start time or master value.
+     * @param {number} B End time or master value.
+     * @param {MinaGetter} get Getter invoked to retrieve the current master value.
+     * @param {MinaSetter} set Setter invoked with the interpolated value during updates.
+     * @param {MinaEasing} [easing=mina.linear] Optional easing function.
+     * @returns {Animation}
+     */
     function mina(a, A, b, B, get, set, easing) {
         const anim = new Animation(a, A, b, B, get, set, easing);
         animations[anim.id] = anim;
@@ -1119,71 +1507,62 @@
         return anim;
     }
 
+    /**
+     * Exposes the `Animation` constructor for advanced use cases.
+    * @type {Function}
+     */
     mina.Animation = Animation;
 
-    /*\
-     * mina.time
-     [ method ]
-     **
-     * Returns the current time. Equivalent to:
-     | function () {
-     |     return (new Date).getTime();
-     | }
-    \*/
+    /**
+     * Returns the current timestamp in milliseconds.
+     * Mirrors `Date.now()` and is primarily used as the default master getter.
+     *
+     * @returns {number}
+     */
     mina.time = timer;
-    /*\
-     * mina.getById
-     [ method ]
-     **
-     * Returns an animation by its id
-     - id (string) animation's id
-     = (object) See @mina
-    \*/
+    /**
+     * Retrieves an animation descriptor by its identifier.
+     *
+     * @param {string} id Animation identifier generated by {@link mina}.
+     * @returns {Animation|null} Registered animation or `null` if not found.
+     */
     mina.getById = function (id) {
         return animations[id] || null;
     };
 
-    /*\
-     * mina.linear
-     [ method ]
-     **
-     * Default linear easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Default linear easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.linear = function (n) {
         return n;
     };
-    /*\
-     * mina.easeout
-     [ method ]
-     **
-     * Easeout easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Exponential ease-out easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.easeout = function (n) {
         return Math.pow(n, 1.7);
     };
-    /*\
-     * mina.easein
-     [ method ]
-     **
-     * Easein easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Exponential ease-in easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.easein = function (n) {
         return Math.pow(n, .48);
     };
-    /*\
-     * mina.easeinout
-     [ method ]
-     **
-     * Easeinout easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Smooth ease-in-out easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.easeinout = function (n) {
         if (n == 1) {
             return 1;
@@ -1196,14 +1575,12 @@
             Y = Math.pow(Math.abs(y), 1 / 3) * (y < 0 ? -1 : 1), t = X + Y + .5;
         return (1 - t) * 3 * t * t + t * t * t;
     };
-    /*\
-     * mina.backin
-     [ method ]
-     **
-     * Backin easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Back-in easing that overshoots slightly before accelerating.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.backin = function (n) {
         if (n == 1) {
             return 1;
@@ -1211,14 +1588,12 @@
         const s = 1.70158;
         return n * n * ((s + 1) * n - s);
     };
-    /*\
-     * mina.backout
-     [ method ]
-     **
-     * Backout easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Back-out easing that overshoots the end value before settling.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.backout = function (n) {
         if (n == 0) {
             return 0;
@@ -1227,14 +1602,14 @@
         const s = 1.70158;
         return n * n * ((s + 1) * n + s) + 1;
     };
-    /*\
-     * mina.elastic
-     [ method ]
-     **
-     * Elastic easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Elastic easing with optional amplitude and period customization.
+     *
+     * @param {number} [amp=1] Amplitude of the overshoot.
+     * @param {number} [per=0.3] Period of oscillation.
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.elastic = function (amp, per, n) {
         if (per === undefined) {
             n = amp;
@@ -1261,18 +1636,23 @@
         // var k = _2PI / .3;
         // var ret = amp * Math.pow(2, -10 * n) * Math.sin((n - .075) * k) + 1;
     };
+    /**
+     * Creates a reusable elastic easing function with predefined parameters.
+     *
+     * @param {number} amp Amplitude passed to {@link mina.elastic}.
+     * @param {number} per Period passed to {@link mina.elastic}.
+     * @returns {MinaEasing}
+     */
     mina.elastic.withParams = function (amp, per) {
         return mina.elastic.bind(undefined, amp, per);
     };
 
-    /*\
-     * mina.bounce
-     [ method ]
-     **
-     * Bounce easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Bounce easing that simulates a ball dropping and settling.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.bounce = function (n) {
         const s = 7.5625, p = 2.75;
         let l;
@@ -1304,6 +1684,10 @@
     //
     // }
 
+    /**
+     * Flags functions that are not easing helpers so they are excluded from {@link mina.isEasing} checks.
+     * @type {Record<string, boolean>}
+     */
     const non_easing_functions = {
         Animation: true,
         getById: true,
@@ -1317,10 +1701,23 @@
         setInterval: true,
         trakSkippedFrames: true,
     };
+    /**
+     * Determines whether the provided key refers to a registered easing function.
+     *
+     * @param {string} name Property name on the mina namespace.
+     * @returns {boolean}
+     */
     mina.isEasing = function (name) {
         return mina.hasOwnProperty(name) && !non_easing_functions[name]
     };
 
+    /**
+     * Updates the global speed multiplier applied to all running animations.
+     *
+     * @param {number} [speed=1] Speed multiplier; values greater than `1` speed up animations.
+     * @param {number} [skip] Optional skip interval forwarded to {@link mina.setSkip}.
+     * @returns {void}
+     */
     mina.setSpeed = function (speed, skip) {
         if (speed) {
             global_speed = speed;
@@ -1333,6 +1730,12 @@
         if (skip) this.setSkip(skip);
     };
 
+    /**
+     * Sets the global step-skipping interval for all animations.
+     *
+     * @param {number} skip Number of frames to skip between updates.
+     * @returns {void}
+     */
     mina.setSkip = function (skip) {
         global_skip = Math.floor(+skip);
         Object.values(animations).forEach(function (anim) {
@@ -1340,26 +1743,62 @@
         });
     }
 
+    /**
+     * Schedules a timeout that respects the global mina speed multiplier.
+     *
+     * @param {Function} callback Handler to invoke.
+     * @param {number} deley Delay in milliseconds (affected by `setSpeed`).
+     * @param {...*} args Optional arguments forwarded to the callback.
+     * @returns {number}
+     */
     mina.setTimeout = function (callback, deley, ...args) {
         deley *= global_speed
         return setTimeout(callback, deley, ...args);
     }
 
+    /**
+     * Schedules an immediate or delayed callback aligned with the global speed multiplier.
+     *
+     * @param {Function} callback Handler to invoke.
+     * @param {number} deley Delay in milliseconds before execution.
+     * @param {...*} args Optional arguments forwarded to the callback.
+     * @returns {number|void}
+     */
     mina.setTimeoutNow = function (callback, deley, ...args) {
         deley *= global_speed
         return (deley) ? setTimeout(callback, deley, ...args) : callback(...args);
     }
 
+    /**
+     * Registers an interval timer that honors the global speed multiplier.
+     *
+     * @param {Function} callback Handler to invoke on each tick.
+     * @param {number} interval Interval duration in milliseconds.
+     * @param {...*} args Optional arguments forwarded to the callback.
+     * @returns {number}
+     */
     mina.setInterval = function (callback, interval, ...args) {
         interval *= global_speed;
         return setInterval(callback, interval, ...args);
     };
 
+    /**
+     * Enables detection of skipped frames by providing an expected frame duration.
+     *
+     * @param {number} [frame_time=18] Expected duration of each frame in milliseconds.
+     * @returns {void}
+     */
     mina.trakSkippedFrames = function (frame_time) {
         expectedFrameDuration = (frame_time === undefined) ? 18 // a bit longer than 60fps frame
             : +(frame_time || 0)
     }
 
+    /**
+     * Returns the last animation(s) registered or starts collecting the next batch.
+     *
+     * @param {boolean} [start_collecting=false] When `true`, clears the stored reference and begins collecting anew.
+     * @returns {Animation|Animation[]|undefined}
+     */
     mina.getLast = function (start_collecting) {
         if (start_collecting) {
             last = [];
@@ -1402,22 +1841,21 @@
 
         const eve = eve_ia;
 
-        /*\
-         * Snap
-         [ method ]
-         **
-         * Creates a drawing surface or wraps existing SVG element.
-         **
-         - width (number|string) width of surface
-         - height (number|string) height of surface
-         * or
-         - DOM (SVGElement) element to be wrapped into Snap structure
-         * or
-         - array (array) array of elements (will return set of elements)
-         * or
-         - query (string) CSS query selector
-         = (object) @Element
-        \*/
+    /**
+     * Main Snap.svg factory function and namespace entry point.
+     * Creates a drawing surface, wraps existing SVG content, or returns utility objects
+     * depending on the argument type.
+     *
+     * @namespace Snap
+     * @function Snap
+     * @param {(number|string|SVGElement|Array.<Element>|string)} [width] Width of the new surface,
+     *        an existing SVG DOM node, an array of elements, or a CSS selector when combined with
+     *        the `height` parameter being `null` or `undefined`.
+     * @param {(number|string|Object)} [height] Height of the new surface or attribute map applied
+     *        when the first argument is an element creation string.
+     * @returns {(Snap.Element|Snap.Paper|Snap.Set|null)} Wrapped element, drawing paper, set of
+     *          elements, or `null` when a selector matches nothing.
+     */
         function Snap(w, h) {
             if (w) {
                 if (w.nodeType || (Snap._.glob.win.jQuery && w instanceof jQuery)) {
@@ -1620,14 +2058,14 @@
         const xmlns = 'http://www.w3.org/2000/svg';
         const hub = {};
         const hub_rem = {};
-        /*\
-     * Snap.url
-     [ method ]
-     **
-     * Wraps path into `"url('<path>')"`.
-     - value (string) path
-     = (string) wrapped path
-    \*/
+        /**
+         * Wraps an ID in a `url(#...)` reference.
+         *
+         * @function Snap.url
+         * @memberof Snap
+         * @param {string} value Fragment identifier.
+         * @returns {string} URL reference string.
+         */
         const URL = Snap.url = function (url) {
             return 'url(#' + url + ')';
         };
@@ -1751,27 +2189,23 @@
                 objectToString.call(o).slice(8, -1).toLowerCase() === type;
         }
 
-        /*\
-         * Snap.format
-         [ method ]
-         **
-         * Replaces construction of type `{<name>}` to the corresponding argument
-         **
-         - token (string) string to format
-         - json (object) object which properties are used as a replacement
-         = (string) formatted string
-         > Usage
-         | // this draws a rectangular shape equivalent to "M10,20h40v50h-40z"
-         | paper.path(Snap.format("M{x},{y}h{dim.width}v{dim.height}h{dim['negative width']}z", {
-         |     x: 10,
-         |     y: 20,
-         |     dim: {
-         |         width: 40,
-         |         height: 50,
-         |         "negative width": -40
-         |     }
-         | }));
-        \*/
+    /**
+     * Performs simple token replacement on strings using `{token}` placeholders.
+     *
+     * @function Snap.format
+     * @memberof Snap
+     * @param {string} token Template string containing `{name}` placeholders.
+     * @param {Object} json Object whose properties are used as replacements.
+     * @returns {string} Formatted string.
+     * @example
+     * const path = Snap.format("M{x},{y}h{width}v{height}h{negWidth}z", {
+     *   x: 10,
+     *   y: 20,
+     *   width: 40,
+     *   height: 50,
+     *   negWidth: -40
+     * });
+     */
         Snap.format = (function () {
             const tokenRegex = /\{([^\}]+)\}/g,
                 objNotationRegex = /(?:(?:^|\.)(.+?)(?=\[|\.|$|\()|\[('|")(.+?)\2\])(\(\))?/g, // matches .xxxxx or ["xxxxx"] to run over object properties
@@ -1883,66 +2317,65 @@
             return this.x + S + this.y + S + this.width + ' \xd7 ' + this.height;
         }
 
-        /*\
-         * Snap.rad
-         [ method ]
-         **
-         * Transform angle to radians
-         - deg (number) angle in degrees
-         = (number) angle in radians
-        \*/
+        /**
+         * Converts degrees to radians.
+         *
+         * @function Snap.rad
+         * @memberof Snap
+         * @param {number} deg Angle in degrees.
+         * @returns {number} Angle in radians.
+         */
         Snap.rad = rad;
-        /*\
-         * Snap.deg
-         [ method ]
-         **
-         * Transform angle to degrees
-         - rad (number) angle in radians
-         = (number) angle in degrees
-        \*/
+        /**
+         * Converts radians to degrees.
+         *
+         * @function Snap.deg
+         * @memberof Snap
+         * @param {number} rad Angle in radians.
+         * @returns {number} Angle in degrees.
+         */
         Snap.deg = deg;
-        /*\
-         * Snap.sin
-         [ method ]
-         **
-         * Equivalent to `Math.sin()` only works with degrees, not radians.
-         - angle (number) angle in degrees
-         = (number) sin
-        \*/
+        /**
+         * Calculates the sine of an angle specified in degrees.
+         *
+         * @function Snap.sin
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Sine of the angle.
+         */
         Snap.sin = function (angle) {
             return math.sin(Snap.rad(angle));
         };
-        /*\
-         * Snap.tan
-         [ method ]
-         **
-         * Equivalent to `Math.tan()` only works with degrees, not radians.
-         - angle (number) angle in degrees
-         = (number) tan
-        \*/
+        /**
+         * Calculates the tangent of an angle specified in degrees.
+         *
+         * @function Snap.tan
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Tangent of the angle.
+         */
         Snap.tan = function (angle) {
             return math.tan(Snap.rad(angle));
         };
-        /*\
-         * Snap.cotan
-         [ method ]
-         **
-         * Evaluates cotangent of angle.
-         - angle (number) angle in degrees
-         = (number) tan
-        \*/
+        /**
+         * Calculates the cotangent of an angle specified in degrees.
+         *
+         * @function Snap.cot
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Cotangent of the angle.
+         */
         Snap.cot = function (angle) {
             return 1 / Snap.tan(angle);
         };
-
-        /*\
-         * Snap.cos
-         [ method ]
-         **
-         * Equivalent to `Math.cos()` only works with degrees, not radians.
-         - angle (number) angle in degrees
-         = (number) cos
-        \*/
+        /**
+         * Calculates the cosine of an angle specified in degrees.
+         *
+         * @function Snap.cos
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Cosine of the angle.
+         */
         Snap.cos = function (angle) {
             return math.cos(Snap.rad(angle));
         };
@@ -3070,7 +3503,13 @@
         //     }
         // }
 
-        function Element(el) {
+    /**
+     * Wrapper around native SVG DOM nodes providing Snap.svg convenience helpers.
+     *
+     * @class Snap.Element
+     * @param {SVGElement} el Underlying DOM node.
+     */
+    function Element(el) {
             if (el.snap in hub) {
                 return hub[el.snap];
             }
@@ -3264,7 +3703,13 @@
             return new Fragment(f);
         };
 
-        function Fragment(frag) {
+    /**
+     * Lightweight container representing detached SVG content that can be inserted elsewhere.
+     *
+     * @class Snap.Fragment
+     * @param {DocumentFragment} frag Native document fragment produced by Snap.
+     */
+    function Fragment(frag) {
             this.node = frag;
         }
 
@@ -3304,7 +3749,15 @@
             return el;
         }
 
-        function Paper(w, h) {
+    /**
+     * Wrapper around an `<svg>` root node providing element creation helpers and utilities.
+     * Instances are created through {@link Snap} and mirror the behaviour of Snap.svg papers.
+     *
+     * @class Snap.Paper
+     * @param {(number|string|SVGElement)} w Width of the surface or an existing SVG element.
+     * @param {(number|string)} [h] Height of the surface when `w` is a numeric or string size.
+     */
+    function Paper(w, h) {
             let res,
                 // desc,
                 defs;
@@ -3410,13 +3863,12 @@
             attr && el.attr(attr);
             return el;
         };
-        /*\
-         * Element.children
-         [ method ]
-         **
-         * Returns array of all the children of the element.
-         = (array) array of Elements
-        \*/
+    /**
+     * Returns all child elements wrapped as Snap elements.
+     *
+     * @function Snap.Element#children
+     * @returns {Array.<Snap.Element>} Array of child elements.
+     */
         Element.prototype.children = function () {
             const out = [],
                 ch = this.node.childNodes;
@@ -3444,18 +3896,12 @@
             }
         }
 
-        /*\
-         * Element.toJSON
-         [ method ]
-         **
-         * Returns object representation of the given element and all its children.
-         = (object) in format
-         o {
-         o     type (string) this.type,
-         o     attr (object) attributes map,
-         o     childNodes (array) optional array of children in the same format
-         o }
-        \*/
+    /**
+     * Serialises the element and its descendants into a plain object tree.
+     *
+     * @function Snap.Element#toJSON
+     * @returns {Object} Element descriptor containing type, attributes, and child nodes.
+     */
         Element.prototype.toJSON = function () {
             const out = [];
             jsonFiller([this], out);
@@ -3498,7 +3944,7 @@
             if (cssAttr[has](css)) {
                 attr[att] = '';
                 $(this.node, attr);
-                if (this.type === 'jquery') {
+                if (this.type === 'jquery') { //we don't use jquery anymore. Just for backwords compatibility
                     this.node.css(style, value);
                 } else {
                     this.node.style[style] = value;
@@ -3512,6 +3958,7 @@
                 }
                 if (geomAttr[has](att)) this.clearCHull() //.c_hull = undefined;
             }
+            this.attrMonitor(att)
         });
         (function (proto) {
         }(Paper.prototype));
@@ -3684,18 +4131,15 @@
                 x: left,
             };
         };
-        /*\
-         * Snap.getElementByPoint
-         [ method ]
-         **
-         * Returns you topmost element under given point.
-         **
-         = (object) Snap element object
-         - x (number) x coordinate from the top left corner of the window
-         - y (number) y coordinate from the top left corner of the window
-         > Usage
-         | Snap.getElementByPoint(mouseX, mouseY).attr({stroke: "#f00"});
-        \*/
+    /**
+     * Returns the topmost element under the given window coordinates.
+     *
+     * @function Snap.getElementByPoint
+     * @memberof Snap
+     * @param {number} x X coordinate relative to the top-left corner of the viewport.
+     * @param {number} y Y coordinate relative to the top-left corner of the viewport.
+     * @returns {(Snap.Element|null)} Snap element wrapper or `null` when nothing is found.
+     */
         Snap.getElementByPoint = function (x, y) {
             const paper = this,
                 svg = paper.canvas;
@@ -3716,21 +4160,13 @@
             }
             return wrap(target);
         };
-        /*\
-         * Snap.plugin
-         [ method ]
-         **
-         * Let you write plugins. You pass in a function with five arguments, like this:
-         | Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
-         |     Snap.newmethod = function () {};
-         |     Element.prototype.newmethod = function () {};
-         |     Paper.prototype.newmethod = function () {};
-         | });
-         * Inside the function you have access to all main objects (and their
-         * prototypes). This allow you to extend anything you want.
-         **
-         - f (function) your plugin body
-        \*/
+        /**
+         * Registers a plugin function that receives the Snap namespace and key prototypes.
+         *
+         * @function Snap.plugin
+         * @memberof Snap
+         * @param {function(Snap, Snap.Element, Snap.Paper, Window, Snap.Fragment, Function)} f Plugin callback.
+         */
         Snap.plugin = function (f) {
             f(Snap, Element, Paper, glob, Fragment, eve);
         };
@@ -3760,7 +4196,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             max = Math.max,
             INITIAL_BBOX = 'initial_bbox';
 
-        Snap.joinBBoxes = function (bboxes) {
+    /**
+     * Computes the minimal bounding box that encloses every box from the provided collection.
+     * @param {Snap.BBox[]} bboxes Collection of bounding boxes to merge.
+     * @returns {Snap.BBox|undefined} A Snap-ified bounding box describing the union of all input boxes, or
+     * `undefined` when no input boxes are provided.
+     */
+    Snap.joinBBoxes = function (bboxes) {
             const len = bboxes.length;
             if (len == 1) return bboxes[0];
             if (!Snap.path) return;
@@ -3782,9 +4224,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return Snap.box(box);
         };
 
-        Snap.bBoxFromPoints = boxFromPoints;
+    /**
+     * Converts a list of points into an axis-aligned bounding box in the current coordinate system.
+     * @function
+     * @name Snap.bBoxFromPoints
+    * @param {Point2DList} points Points that should be enclosed in the resulting bounding box.
+     * @param {Snap.Matrix} [matrix] Optional matrix to apply to every point before evaluating the box.
+     * @returns {Snap.BBox} Bounding box that contains the transformed point cloud.
+     */
+    Snap.bBoxFromPoints = boxFromPoints;
 
-        const clip_path_box_helper = function (box, clip_path, matrix) {
+    /**
+     * Intersects a bounding box with a clip-path region, optionally applying an additional matrix to the clip-path.
+     * @param {Snap.BBox|null} box Bounding box to adjust by the clip-path.
+     * @param {Element|null} clip_path Clip-path element that constrains the box.
+     * @param {Snap.Matrix} [matrix] Transformation applied to the clip-path before the intersection is computed.
+     * @returns {Snap.BBox|null} Intersected bounding box or `null` when no box is supplied.
+     */
+    const clip_path_box_helper = function (box, clip_path, matrix) {
             if (box && clip_path) {
                 if (matrix && !matrix.isIdentity()) {
                     const old_trans = clip_path.attr('transform');
@@ -3798,7 +4255,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return box;
         };
 
-        elproto.getPoints = function (use_local_transform, skip_hidden) {
+    /**
+     * Collects representative points for the element's geometry.
+     * @param {boolean} [use_local_transform=false] When true, applies the element's local matrix to the returned points.
+     * @param {boolean} [skip_hidden=false] When true, ignores children with `display: none`.
+    * @returns {Point2DList} Array of points that describe the element footprint.
+     */
+    elproto.getPoints = function (use_local_transform, skip_hidden) {
             let result = [];
             let rx, ry, matrix;
             switch (this.type) {
@@ -3903,7 +4366,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return result;
         };
 
-        elproto.getCHull = function (with_transform, skip_hidden) {
+    /**
+     * Builds the convex hull for an element, optionally applying its current transform.
+     * @param {boolean} [with_transform=false] When true, returns the hull in global coordinates.
+     * @param {boolean} [skip_hidden=false] When true, excludes hidden descendants while computing the hull.
+    * @returns {(Point2DList|null)} Array of hull vertices ordered clockwise, or `null` for unresolved targets.
+     */
+    elproto.getCHull = function (with_transform, skip_hidden) {
 
             let el = this.getUseTarget();
             if (!el) return null;
@@ -3942,7 +4411,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return points;
         };
 
-        elproto.getUseTarget = function () {
+    /**
+     * Resolves the underlying element referenced by a `<use>` node.
+     * @returns {Element|null} Resolved target element or `null` when no referenced node is available.
+     */
+    elproto.getUseTarget = function () {
             if (this.type !== 'use') return this;
             if (this.use_target) {
                 return this.use_target;
@@ -3958,14 +4431,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return null;
         };
 
-        elproto.saveMatrix = function (m) {
+    /**
+     * Persists the provided matrix on the element instance for subsequent lookups.
+     * @param {Snap.Matrix} m Matrix to assign as the element's current transform cache.
+     */
+    elproto.saveMatrix = function (m) {
             this.matrix = m;
             if (this.type === 'image' && m.f) {
                 // console.log("saving matrix", this.getId(), m.toString())
             }
         }
 
-        function boxFromPoints(points, matrix) {
+    /**
+    * Generates a bounding box from a set of points, optionally applying a matrix prior to evaluation.
+    * @param {Point2DList} points Collection of 2D points to enclose.
+     * @param {Snap.Matrix} [matrix] Matrix used to transform the points before computing the bounds.
+     * @returns {Snap.BBox} Bounding box covering the (transformed) points.
+     */
+    function boxFromPoints(points, matrix) {
             let min_x = Infinity, max_x = -Infinity, min_y = Infinity,
                 max_y = -Infinity;
             if (matrix && !matrix.isIdentity()) {
@@ -3981,31 +4464,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return Snap.box(min_x, min_y, max_x - min_x, max_y - min_y);
         }
 
-        /*\
-                 * Element.getBBox
-                 [ method ]
-                 **
-                 * Returns the bounding box descriptor for the given element
-                 **
-                 = (object) bounding box descriptor:
-                 o {
-                 o     cx: (number) x of the center,
-                 o     cy: (number) x of the center,
-                 o     h: (number) height,
-                 o     height: (number) height,
-                 o     path: (string) path command for the box,
-                 o     r0: (number) radius of a circle that fully encloses the box,
-                 o     r1: (number) radius of the smallest circle that can be enclosed,
-                 o     r2: (number) radius of the largest circle that can be enclosed,
-                 o     vb: (string) box as a viewbox command,
-                 o     w: (number) width,
-                 o     width: (number) width,
-                 o     x2: (number) x of the right side,
-                 o     x: (number) x of the left side,
-                 o     y2: (number) y of the bottom edge,
-                 o     y: (number) y of the top edge
-                 o }
-                 \*/
+    /**
+     * Returns the bounding-box descriptor for the current element with optional control over caching, transforms, and
+     * clip-path intersection.
+     * The returned descriptor exposes the canonical {@link Snap.BBox} API enriched with helper fields such as `cx`,
+     * `cy`, `path`, `vb`, and circle radii (`r0`, `r1`, `r2`).
+     * @param {boolean|Element|Snap.Matrix|Object} [settings] When `true`, omits the local transform from the answer. A
+     * {@link Element} scopes the result relative to an ancestor. A {@link Snap.Matrix} explicitly defines the applied
+     * transform. An options object may contain `without_transform`, `cache_bbox`, `include_clip_path`, `approx`,
+     * `skip_hidden`, `relative_parent`, `relative_coord`, or `matrix` flags for fine-grained control.
+     * @returns {Snap.BBox|null} Bounding-box descriptor or `null` if it can't be resolved (e.g. hidden `<use>` target).
+     */
         elproto.getBBox = function (settings) {
             if (!this.paper) {
                 // console.log("No paper", this.getId());
@@ -4044,7 +4513,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             if (!matrix && relative_parent) {
-                matrix = Snap.matrix();
+                matrix = this.getLocalMatrix();
                 let p = this;
                 //get the transform between this and the relative_parent
                 while ((p = p.parent()) && p !== relative_parent && p.type !== 'svg') {
@@ -4247,12 +4716,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.getBBoxApprox = function (setting) {
+    /**
+     * Convenience wrapper around {@link Element#getBBox} that enforces approximate convex-hull evaluation.
+     * @param {Object} [setting={}] Optional settings forwarded to {@link Element#getBBox}.
+     * @returns {Snap.BBox|null} Approximate bounding box or `null` on failure.
+     */
+    elproto.getBBoxApprox = function (setting) {
             setting = setting || {};
             setting.approx = true;
             return this.getBBox(setting);
         };
-        elproto.getBBoxExact = function (settigns) {
+    /**
+     * Forces precise bounding-box computation for the element, ignoring cached approximations.
+     * @param {boolean|Object|Snap.Matrix} [settigns] Options forwarded to {@link Element#getBBox}.
+     * @returns {Snap.BBox|null} Exact bounding box or `null` on failure.
+     */
+    elproto.getBBoxExact = function (settigns) {
             if (settigns && typeof settigns === 'object' && settigns.isMatrix) {
                 return this.getBBox({approx: false, matrix: settigns});
             }
@@ -4262,7 +4741,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.getBBox(settigns);
         };
 
-        elproto.attrMonitor = function (attr, callback_val) {
+    /**
+     * Registers or triggers attribute change monitors on the element.
+     * @param {string|string[]} attr Attribute name or list of names to monitor.
+     * @param {Function} [callback_val] Callback invoked with the attribute's current value when changes occur. When
+     * omitted, previously registered callbacks for `attr` are executed immediately.
+     * @returns {Element} The current element for chaining.
+     */
+    elproto.attrMonitor = function (attr, callback_val) {
             if (typeof callback_val === 'function') {
                 if (!this._attr_monitor) {
                     this._attr_monitor = {};
@@ -4283,7 +4769,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.string;
         };
 
-        function extractTransform(el, tstr) {
+    /**
+     * Parses the transform attribute of an element, caching and returning the corresponding matrix.
+     * @param {Element} el Element whose transform should be extracted.
+     * @param {string|Array|Snap.Matrix} [tstr] Optional transform override in string, array, or matrix form.
+     * @returns {Snap.Matrix|undefined} Parsed matrix when no explicit transform is supplied.
+     */
+    function extractTransform(el, tstr) {
             if (tstr == null) {
                 var doReturn = true;
                 if (el.type == 'linearGradient' || el.type == 'radialGradient') {
@@ -4327,7 +4819,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        function extractTransformStrict(el, tstr) {
+    /**
+     * Strict transform parser that bypasses compatibility heuristics used by {@link extractTransform}.
+     * @param {Element} el Element whose transform should be parsed.
+     * @param {string|Array|Snap.Matrix} [tstr] Optional transform override.
+     * @returns {Snap.Matrix|undefined} Parsed matrix when reading from the DOM.
+     */
+    function extractTransformStrict(el, tstr) {
             if (tstr == null) {
                 var doReturn = true;
                 if (el.type == 'linearGradient' || el.type == 'radialGradient') {
@@ -4359,7 +4857,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        function clearParentCHull(el, efficient) {
+    /**
+     * Clears cached convex hull data for the element's ancestors.
+     * @param {Element} el Element whose parents should be invalidated.
+     * @param {boolean} [efficient=false] When true, stops once an ancestor without cached hull data is found.
+     */
+    function clearParentCHull(el, efficient) {
             let parent = el.parent();
             while (parent && parent.type !== 'svg') {
                 if (parent.c_hull) {
@@ -4371,7 +4874,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        elproto.clearCHull = function (force_top) {
+    /**
+     * Clears cached convex hull data for the element and optionally its ancestors.
+     * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
+     */
+    elproto.clearCHull = function (force_top) {
             force_top = true;
             this.c_hull = undefined;
             clearParentCHull(this, !force_top);
@@ -4397,7 +4904,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          o     toString (function) returns `string` property
          o }
          \*/
-        elproto.transform = function (tstr, do_update, matrix, apply) {
+    /**
+     * Gets or sets the element transform.
+     * @param {string|Snap.Matrix} [tstr] Transform string or matrix to apply. When omitted, returns a descriptor with
+     * the current transform matrices.
+     * @param {boolean} [do_update=false] When true, refreshes cached bounding boxes after applying the transform.
+     * @param {Snap.Matrix|boolean} [matrix] Optional matrix used for cache updates or a boolean forwarded as the
+     * `apply` flag.
+     * @param {boolean} [apply] Internal flag controlling partner propagation.
+     * @returns {Element|Object} Element for chaining when setting transforms, or an object with aggregate matrices when
+     * querying.
+     */
+    elproto.transform = function (tstr, do_update, matrix, apply) {
             if (typeof matrix === 'boolean') {
                 apply = matrix;
                 matrix = undefined;
@@ -4509,7 +5027,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this;
         };
 
-        function transform2matrix(tdata) {
+    /**
+     * Translates a parsed transform token array into a {@link Snap.Matrix} instance.
+     * @param {Array} tdata Result from {@link Snap._.svgTransform2string} parsing.
+     * @returns {Snap.Matrix} Matrix representing the combined transform.
+     */
+    function transform2matrix(tdata) {
             let m = new Snap.Matrix;
             if (tdata) {
                 for (var i = 0, l = tdata.length; i < l; ++i) {
@@ -4532,7 +5055,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return m;
         }
 
-        elproto.transToMatrix = function () {
+    /**
+     * Normalises the element's current transform attribute and saves it as a matrix.
+     */
+    elproto.transToMatrix = function () {
             let tstr = "";
             if (this.type === 'linearGradient' || this.type === 'radialGradient') {
                 tstr = this.node.getAttribute('gradientTransform') || "";
@@ -4553,8 +5079,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 // console.log("Fixing transform for", this.getId(), tstr, "to", m);
                 if (this.type === 'linearGradient' || this.type === 'radialGradient') {
                     this.node.setAttribute('gradientTransform', m); //getAttribute("gradientTransform");
+                    this.attrMonitor('gradientTransform')
                 } else if (this.type === 'pattern') {
                     this.node.setAttribute('patternTransform', m);
+                    this.attrMonitor('patternTransform')
                 } else {
                     // this.node.setAttribute('transform', m);
                     this.transform(m)
@@ -4563,7 +5091,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.updateBBoxCache = function (matrix, apply, _skip_parent) {
+    /**
+     * Updates the cached bounding box after a transformation or clears it when the new transform is incompatible.
+     * @param {Snap.Matrix} [matrix] Matrix describing the current transformation.
+     * @param {boolean|number} [apply] When `-1`, clears the cache entirely. Otherwise controls whether child caches are
+     * updated.
+     * @param {boolean} [_skip_parent=false] Skips parent cache updates when truthy.
+     */
+    elproto.updateBBoxCache = function (matrix, apply, _skip_parent) {
             //if apply is negative, erase all bbox catches
             if (apply === -1) {
                 this.eraseBBoxCache();
@@ -4634,7 +5169,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         };
 
-        elproto.expandParenBBoxCatch = function (bbox_circ, is_circle) {
+    /**
+     * Expands cached bounding boxes up the parent chain when the current element grows in size.
+     * @param {Snap.BBox|{x:number,y:number,r:number}} bbox_circ Bounding region describing the new extent.
+     * @param {boolean} [is_circle=false] Indicates that `bbox_circ` represents a circle definition.
+     */
+    elproto.expandParenBBoxCatch = function (bbox_circ, is_circle) {
             const parent = this.parent();
             if (!parent) return;
             let saved_bb = parent.attr('bbox');
@@ -4667,7 +5207,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param bbox_circle a bbox or a circle region that contains the element. If provided, parent (and higher) bboxes
          * are erased only if region extrudes from the parent bbox. Otherwise, there is no need to remove.
          */
-        elproto.eraseParentBBoxCache = function (bbox_circle) {
+    /**
+     * Invalidates cached bounding boxes stored on parent elements.
+     * @param {Snap.BBox|{x:number,y:number,r:number}} [bbox_circle] Bounding region used to decide whether the parent
+     * caches still contain the element.
+     */
+    elproto.eraseParentBBoxCache = function (bbox_circle) {
             const parent = this.parent();
             if (!parent) return;
             let parent_bb = parent.attr('bbox');
@@ -4705,7 +5250,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         };
 
-        elproto.eraseBBoxCache = function () {
+    /**
+     * Removes the cached bounding box from the element and, recursively, its children.
+     */
+    elproto.eraseBBoxCache = function () {
             this.attr({bbox: ''});
             this.removeData(INITIAL_BBOX);
             if (this.isGroupLike()) {
@@ -4715,7 +5263,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.getLocalMatrix = function (strict) {
+    /**
+     * Retrieves the element's local matrix, parsing it from the DOM when not cached.
+     * @param {boolean} [strict=false] Enforces strict parsing semantics for the transform attribute.
+     * @returns {Snap.Matrix} Local transformation matrix.
+     */
+    elproto.getLocalMatrix = function (strict) {
             if (this.matrix) return this.matrix;
             if (strict) {
                 return extractTransformStrict(this);
@@ -4724,21 +5277,34 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.getGlobalMatrix = function () {
+    /**
+     * Returns the element's current global transformation matrix using the DOM CTM API.
+     * @returns {Snap.Matrix} Global matrix representing the element's absolute transform.
+     */
+    elproto.getGlobalMatrix = function () {
             const ctm = this.node.getCTM ? this.node.getCTM() : null;
             let matrix = new Snap.Matrix(ctm);
             return matrix;
         }
 
-        elproto.setPartner = function (el_dom, strict) {
-            if (el_dom.paper || el_dom instanceof Element) {
+    /**
+     * Registers a DOM or Snap partner that should mirror this element's transformations and style updates.
+     * @param {Element|HTMLElement|Object} el_dom Partner reference (Snap element, DOM node, or jQuery-like wrapper).
+     * @param {boolean} [strict] Reserved flag for stricter partner synchronisation.
+     */
+    elproto.setPartner = function (el_dom, strict) {
+            if (el_dom.paper && this.paper === el_dom.paper
+                // || el_dom instanceof Element
+            ) {
                 const el_part = this._element_partner || [];
 
                 if (!el_part.includes(el_dom)) {
                     el_part.push(el_dom);
                 }
                 this._element_partner = el_part;
-            } else if (el_dom instanceof HTMLElement || el_dom.css) {
+            } else
+                // if (el_dom instanceof HTMLElement || el_dom.css)
+                {
                 const dom_part = this._dom_partner || [];
                 if (el_dom instanceof HTMLElement) el_dom = Snap(el_dom);
                 if (!dom_part.includes(el_dom)) {
@@ -4757,7 +5323,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // }
         };
 
-        elproto._updatePartnerChild = function (el, remove) {
+    /**
+     * Updates the registry of partner children when elements are added or removed.
+     * @param {Element} el Child element that was added or removed.
+     * @param {boolean} [remove=false] Indicates whether the child should be removed from the registry.
+     * @returns {Element} Current element for chaining.
+     */
+    elproto._updatePartnerChild = function (el, remove) {
             if (this.type === 'svg' || this.type === 'defs') return;
 
             if (remove) {
@@ -4786,7 +5358,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        elproto._propagateTransToPartnersChild = function (el, trans) {
+    /**
+     * Propagates transformation updates to partner children.
+     * @param {Element} el Partner child receiving the propagated transform.
+     * @param {Snap.Matrix} [trans] Matrix to apply; defaults to the current element's global matrix.
+     */
+    elproto._propagateTransToPartnersChild = function (el, trans) {
             if (!el) return;
             if (trans) {
                 let matrix = trans.clone().add(this.getLocalMatrix(true));
@@ -4796,7 +5373,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto._applyToPartner = function (matrix) {
+    /**
+     * Applies the provided matrix to each registered partner, keeping their transforms aligned.
+     * @param {Snap.Matrix} matrix Matrix to propagate.
+     */
+    elproto._applyToPartner = function (matrix) {
             const partners = this.getPartners();
             if (partners) {
                 const loc = this.getLocalMatrix();
@@ -4819,7 +5400,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
 
-        elproto.removePartner = function (el_type, remove_elements) {
+    /**
+     * Removes partner associations or optionally deletes the partner nodes themselves.
+     * @param {'dom'|'element'|Element|HTMLElement|Snap|boolean} [el_type] Partner type or specific partner reference.
+     * @param {boolean} [remove_elements=false] When true, removes the partner elements from the DOM/SVG tree.
+     */
+    elproto.removePartner = function (el_type, remove_elements) {
 
             if (typeof el_type === 'boolean') {
                 remove_elements = el_type;
@@ -4871,11 +5457,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.hasPartner = function () {
+    /**
+     * Determines whether any partners are currently registered with the element.
+     * @returns {boolean} True when at least one DOM or Snap partner exists.
+     */
+    elproto.hasPartner = function () {
             return !!(this._dom_partner || this._element_partner);
         };
 
-        elproto.getPartners = function (el_type) {
+    /**
+     * Returns registered partners filtered by type.
+     * @param {'dom'|'element'|'both'} [el_type] Desired partner category.
+     * @returns {Array|Object|undefined} Matching partners or `undefined` when none exist.
+     */
+    elproto.getPartners = function (el_type) {
             if (!el_type) {
                 return this._dom_partner || this._element_partner;
             } else if (el_type === 'dom') {
@@ -4887,7 +5482,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        elproto.setPartnerStyle = function (style_obj) {
+    /**
+     * Applies style updates to registered partners, mirroring key display-related properties.
+     * @param {Object} style_obj Style object whose `opacity` and `display` values are forwarded to partners.
+     */
+    elproto.setPartnerStyle = function (style_obj) {
             let obj = {};
             if (style_obj.hasOwnProperty(
                 'opacity')) obj.opacity = style_obj.opacity;
@@ -4899,26 +5498,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el && el.forEach((e) => e.attr(obj));
         };
 
-        /*\
-         * Element.parent
-         [ method ]
-         **
-         * Returns the element's parent
-         **
-         = (Element) the parent element
-         \*/
+        /**
+         * Returns the element's parent element.
+         * @returns {Element} Parent element wrapper.
+         */
         elproto.parent = function () {
             return wrap(this.node.parentNode);
         };
 
-        /*\
-         * Element.setPaper
-         [ method ]
-         **
-         * Sets the elements paper.
-         **
-         = (Element) this
-         \*/
+        /**
+         * Assigns a new paper instance to the element and all of its descendants.
+         * @param {Paper} paper Target paper instance.
+         * @param {boolean} [force=false] When true, reassigns even if the paper is unchanged.
+         * @returns {Element} Current element for chaining.
+         */
         elproto.setPaper = function (paper, force) {
             if (!paper instanceof Paper ||
                 (!force && this.paper === paper)) return this;
@@ -4928,21 +5521,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this;
         };
 
-        /*\
-         * Element.append
-         [ method ]
-         **
-         * Appends the given element to current one
-         **
-         - el (Element|Set) element to append
-         = (Element) the parent element
-         \*/
-        /*\
-         * Element.add
-         [ method ]
-         **
-         * See @Element.append
-         \*/
+        /**
+         * Appends the provided element (or set) to the current element.
+         * @param {Element|Set|Array<Element>} el Element, set, or array to append.
+         * @returns {Element} Parent element for chaining.
+         */
         elproto.append = elproto.add = function (el) {
 
             if (el) {
@@ -4981,15 +5564,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.appendTo
-         [ method ]
-         **
-         * Appends the current element to the given one
-         **
-         - el (Element) parent element to append to
-         = (Element) the child element
-         \*/
+    /**
+     * Appends the current element to the specified parent.
+     * @param {Element} el Parent element that will receive this node.
+     * @returns {Element} Child element for chaining.
+     */
         elproto.appendTo = function (el) {
             if (el) {
                 clearParentCHull(this);
@@ -4998,15 +5577,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.prepend
-         [ method ]
-         **
-         * Prepends the given element to the current one
-         **
-         - el (Element) element to prepend
-         = (Element) the parent element
-         \*/
+    /**
+     * Prepends the specified element (or set) to the current element.
+     * @param {Element|Set} el Element to prepend.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.prepend = function (el) {
             if (el) {
                 clearParentCHull(this);
@@ -5033,29 +5608,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.prependTo
-         [ method ]
-         **
-         * Prepends the current element to the given one
-         **
-         - el (Element) parent element to prepend to
-         = (Element) the child element
-         \*/
+    /**
+     * Prepends this element to the specified parent.
+     * @param {Element} el Parent element to receive this node.
+     * @returns {Element} Child element for chaining.
+     */
         elproto.prependTo = function (el) {
             el = wrap(el);
             el.prepend(this);
             return this;
         };
-        /*\
-         * Element.before
-         [ method ]
-         **
-         * Inserts given element before the current one
-         **
-         - el (Element) element to insert
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the provided element before the current element.
+     * @param {Element|Set} el Element to insert.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.before = function (el) {
             clearParentCHull(this);
             if (el.type == 'set') {
@@ -5076,15 +5643,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.paper = this.paper;
             return this;
         };
-        /*\
-         * Element.after
-         [ method ]
-         **
-         * Inserts given element after the current one
-         **
-         - el (Element) element to insert
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the provided element after the current element.
+     * @param {Element} el Element to insert.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.after = function (el) {
             el = wrap(el);
             clearParentCHull(this);
@@ -5104,15 +5667,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.paper = this.paper;
             return this;
         };
-        /*\
-         * Element.insertBefore
-         [ method ]
-         **
-         * Inserts the element after the given one
-         **
-         - el (Element) element next to whom insert to
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the current element before the provided sibling.
+     * @param {Element} el Sibling element used as insertion point.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.insertBefore = function (el) {
             el = wrap(el);
             clearParentCHull(el);
@@ -5123,15 +5682,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.parent() && el.parent().add();
             return this;
         };
-        /*\
-         * Element.insertAfter
-         [ method ]
-         **
-         * Inserts the element after the given one
-         **
-         - el (Element) element next to whom insert to
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the current element after the provided sibling.
+     * @param {Element} el Sibling element used as insertion reference.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.insertAfter = function (el) {
             el = wrap(el);
             clearParentCHull(el);
@@ -5142,13 +5697,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.parent() && el.parent().add();
             return this;
         };
-        /*\
-         * Element.remove
-         [ method ]
-         **
-         * Removes element from the DOM
-         = (Element) the detached element
-         \*/
+    /**
+     * Removes the element from the DOM and detaches partner associations.
+     * @returns {Array<Element>} Collection of child elements that were detached alongside this element.
+     */
         elproto.remove = function () {
             clearParentCHull(this);
             const parent = this.parent();
@@ -5168,12 +5720,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // parent && parent.add();
             return this.getChildren();
         };
-        /*\
-         * Element.removeChildren
-         [ method ]
-         **
-         * Removes all children element from the DOM
-         \*/
+    /**
+     * Removes all child elements from the DOM.
+     */
         elproto.removeChildren = function () {
             this.getChildren().forEach(function (el) {
                 el.remove();
@@ -5233,7 +5782,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // });
         };
 
-        elproto.hasChildren = function () {
+    /**
+     * Determines whether the element contains any non-meta child nodes.
+     * @returns {boolean} True when at least one meaningful child exists.
+     */
+    elproto.hasChildren = function () {
             if (this.type !== 'g' || this.type !== 'svg' || this.type !== 'clipPath') {
                 return false;
             }
@@ -5251,28 +5804,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return false;
         };
 
-        /*\
-         * Element.select
-         [ method ]
-         **
-         * Gathers the nested @Element matching the given set of CSS selectors
-         **
-         - query (string) CSS svg_selector
-         = (Element) result of query selection
-         \*/
+        /**
+         * Returns the first descendant matching the provided CSS selector.
+         * @param {string} query CSS selector compatible with SVG.
+         * @returns {Element|null} Wrapped element or `null` when not found.
+         */
         elproto.select = function (query) {
             query = replaceNumericIdSelectors(query);
             return wrap(this.node.querySelector(query));
         };
-        /*\
-         * Element.selectAll
-         [ method ]
-         **
-         * Gathers nested @Element objects matching the given set of CSS selectors
-         **
-         - query (string) CSS svg_selector
-         = (Set|array) result of query selection
-         \*/
+        /**
+         * Returns all descendants matching the provided CSS selector.
+         * @param {string} query CSS selector compatible with SVG.
+         * @returns {Array<Element>|Set} Collection containing all matches.
+         */
         elproto.selectAll = function (query) {
             query = replaceNumericIdSelectors(query);
             const nodelist = this.node.querySelectorAll(query),
@@ -5283,7 +5828,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return set;
         };
 
-        function replaceNumericIdSelectors(cssQuery) {
+    /**
+     * Transforms numeric ID selectors into attribute selectors for SVG compatibility.
+     * @param {string} cssQuery Raw CSS selector string.
+     * @returns {string} Selector with numeric ID references translated.
+     */
+    function replaceNumericIdSelectors(cssQuery) {
             // Regular expression to match ID selectors starting with a number
             const regex = /#(\d[\w-]*)/g;
 
@@ -5293,16 +5843,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return modifiedQuery;
         }
 
-        /*\
-         * Element.asPX
-         [ method ]
-         **
-         * Returns given attribute of the element as a `px` value (not %, em, etc.)
-         **
-         - attr (string) attribute name
-         - value (string) #optional attribute value
-         = (Element) result of query selection
-         \*/
+    /**
+     * Resolves an attribute value into pixels.
+     * @param {string} attr Attribute name.
+     * @param {string|number} [value] Optional raw value; defaults to the current attribute.
+     * @returns {number} Attribute value converted to pixels.
+     */
         elproto.asPX = function (attr, value) {
             if (value == null) {
                 value = this.attr(attr);
@@ -5310,15 +5856,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return +unit2px(this, attr, value);
         };
 // SIERRA Element.use(): I suggest adding a note about how to access the original element the returned <use> instantiates. It's a part of SVG with which ordinary web developers may be least familiar.
-        /*\
-         * Element.use
-         [ method ]
-         **
-         * Creates a `<use>` element linked to the current element, or if css_ref is provided, creates a '<use>' element
-         * from it, and adds it to the current element. In the second case, the current element must have meaningful children.
-         **
-         = (Element) the `<use>` element
-         \*/
+    /**
+     * Creates a `<use>` element referencing this element or one matched by the provided selector and appends it.
+     * @param {string} [css_ref] CSS reference resolving to an element to clone.
+     * @param {number} [x] Optional x-offset applied to the generated `<use>`.
+     * @param {number} [y] Optional y-offset applied to the generated `<use>`.
+     * @returns {Element|undefined} The newly created `<use>` element, or `undefined` when the selector fails.
+     */
         elproto.addUse = function (css_ref, x, y) {
             let use,
                 id = this.node.id;
@@ -5359,7 +5903,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         elproto.use = elproto.addUse;
 
-        function fixids(el, id_rename_callback) {
+    /**
+     * Normalises IDs within a cloned subtree to avoid collisions.
+     * @param {Element} el Root element containing cloned nodes.
+     * @param {Function} [id_rename_callback] Callback returning the new ID for a given current ID.
+     */
+    function fixids(el, id_rename_callback) {
             const els = el.selectAll('*');
             let it;
             const url = /^\s*url\(("|'|)(.*)\1\)\s*$/,
@@ -5428,14 +5977,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        /*\
-         * Element.clone
-         [ method ]
-         **
-         * Creates a clone of the element and inserts it after the element
-         **
-         = (Element) the clone
-         \*/
+    /**
+     * Clones the element, optionally hiding it, renaming IDs, or performing a deep `use` expansion.
+     * @param {boolean} [hidden] When true, skips inserting the clone into the DOM.
+     * @param {Function} [id_rename_callback] Callback used to generate unique IDs for the clone and descendants.
+     * @param {boolean} [deep_copy=false] When true, expands `<use>` references into actual nodes.
+     * @returns {Element} Cloned element.
+     */
         elproto.clone = function (hidden, id_rename_callback, deep_copy) {
             if (typeof hidden === 'function') {
                 id_rename_callback = hidden;
@@ -5492,10 +6040,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
            legend: true,
            label: true
         };
+        /**
+         * Determines whether the element behaves like a grouping container.
+         * @returns {boolean} True for group-like elements.
+         */
         elproto.isGroupLike = function () {
             return !!groupLikeTest[this.type];
         };
 
+        /**
+         * Recursively expands `<use>` elements into standalone clones.
+         */
         elproto.removeUses = function () {
             if (this.isGroupLike()) {
                 this.getChildren().forEach(function (el) {
@@ -5538,42 +6093,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        /*\
-         * Element.toDefs
-         [ method ]
-         **
-         * Moves element to the shared `<defs>` area
-         **
-         = (Element) the element
-         \*/
+    /**
+     * Moves the element into the shared `<defs>` section.
+     * @returns {Element} Current element for chaining.
+     */
         elproto.toDefs = function () {
             const defs = getSomeDefs(this);
             defs.appendChild(this.node);
             return this;
         };
-        /*\
-         * Element.toPattern
-         [ method ]
-         **
-         * Creates a `<pattern>` element from the current element
-         **
-         * To create a pattern you have to specify the pattern rect:
-         - x (string|number)
-         - y (string|number)
-         - width (string|number)
-         - height (string|number)
-         = (Element) the `<pattern>` element
-         * You can use pattern later on as an argument for `fill` attribute:
-         | var p = paper.path("M10-5-10,15M15,0,0,15M0-5-20,15").attr({
-         |         fill: "none",
-         |         stroke: "#bada55",
-         |         strokeWidth: 5
-         |     }).pattern(0, 0, 10, 10),
-         |     c = paper.circle(200, 200, 100);
-         | c.attr({
-         |     fill: p
-         | });
-         \*/
+    /**
+     * Converts the current element into a reusable `<pattern>` definition.
+     * @param {number|Object} [x] X coordinate or bounding-box object.
+     * @param {number} [y]
+     * @param {number} [width]
+     * @param {number} [height]
+     * @returns {Element} Pattern element that now owns the node.
+     */
         elproto.pattern = elproto.toPattern = function (x, y, width, height) {
             const p = make('pattern', getSomeDefs(this));
             if (x == null) {
@@ -5597,25 +6133,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             p.node.appendChild(this.node);
             return p;
         };
-// SIERRA Element.marker(): clarify what a reference point is. E.g., helps you offset the object from its edge such as when centering it over a path.
-// SIERRA Element.marker(): I suggest the method should accept default reference point values.  Perhaps centered with (refX = width/2) and (refY = height/2)? Also, couldn't it assume the element's current _width_ and _height_? And please specify what _x_ and _y_ mean: offsets? If so, from where?  Couldn't they also be assigned default values?
-        /*\
-         * Element.marker
-         [ method ]
-         **
-         * Creates a `<marker>` element from the current element
-         **
-         * To create a marker you have to specify the bounding rect and reference point:
-         - x (number)
-         - y (number)
-         - width (number)
-         - height (number)
-         - refX (number)
-         - refY (number)
-         = (Element) the `<marker>` element
-         * You can specify the marker later as an argument for `marker-start`, `marker-end`, `marker-mid`, and `marker` attributes. The `marker` attribute places the marker at every point along the path, and `marker-mid` places them at every point except the start and end.
-         \*/
-// TODO add usage for markers
+
+        /**
+         * Converts the current element into a `<marker>` definition.
+         * @param {number|Object} [x] X coordinate or bounding-box-like descriptor containing marker data.
+         * @param {number} [y]
+         * @param {number} [width]
+         * @param {number} [height]
+         * @param {number} [refX]
+         * @param {number} [refY]
+         * @returns {Element} Marker element referencing the current node.
+         */
         elproto.marker = function (x, y, width, height, refX, refY) {
             const p = make('marker', getSomeDefs(this));
             if (x == null) {
@@ -6031,6 +6559,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         math = Math,
         E = "";
 
+    /**
+     * Represents a 2D affine transformation matrix with six coefficients.
+     * Accepts individual numeric coefficients, an `SVGMatrix`-like object, a matrix string, or another `Matrix` instance.
+     * When invoked without arguments, an identity matrix is produced.
+     *
+     * @class
+     * @alias Snap.Matrix
+     * @param {number|SVGMatrix|string|Matrix} [a=1] - Either an existing matrix representation or the `a` component.
+     * @param {number} [b=0] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c=0] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d=1] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e=0] - The `e` translation component when numeric values are provided.
+     * @param {number} [f=0] - The `f` translation component when numeric values are provided.
+     */
     function Matrix(a, b, c, d, e, f) {
         if (b == null && objectToString.call(a) == "[object SVGMatrix]") {
             this.a = a.a;
@@ -6072,20 +6614,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.registerType("matrix", Matrix);
 
     (function (matrixproto) {
-        /*\
-         * Matrix.add
-         [ method ]
-         **
-         * Adds, in the sense of multiplying to the right the given matrix to existing one. This is not matrix addition
-         - a (number)
-         - b (number)
-         - c (number)
-         - d (number)
-         - e (number)
-         - f (number)
-         * or
-         - matrix (object) @Matrix
-        \*/
+    /**
+     * Multiplies the current matrix on the right by the supplied affine transform.
+     * If another {@link Matrix} instance is provided, its coefficients will be applied directly.
+     *
+     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient of the multiplier.
+     * @param {number} [c] - The `c` coefficient of the multiplier.
+     * @param {number} [d] - The `d` coefficient of the multiplier.
+     * @param {number} [e] - The `e` translation component of the multiplier.
+     * @param {number} [f] - The `f` translation component of the multiplier.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
         matrixproto.add = function (a, b, c, d, e, f) {
             if (a && a instanceof Matrix) {
                 return this.add(a.a, a.b, a.c, a.d, a.e, a.f);
@@ -6104,14 +6644,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         matrixproto.multRight = matrixproto.add;
 
-        matrixproto.plus = function (a, b, c, d, e, f) {
+    /**
+     * Returns a clone of the current matrix multiplied on the right by the supplied transform.
+     *
+     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient of the multiplier.
+     * @param {number} [c] - The `c` coefficient of the multiplier.
+     * @param {number} [d] - The `d` coefficient of the multiplier.
+     * @param {number} [e] - The `e` translation component of the multiplier.
+     * @param {number} [f] - The `f` translation component of the multiplier.
+     * @returns {Matrix} A new matrix containing the multiplied result.
+     */
+    matrixproto.plus = function (a, b, c, d, e, f) {
             if (a && a instanceof Matrix) {
                 return this.plus(a.a, a.b, a.c, a.d, a.e, a.f);
             }
 
             return this.clone().add(a, b, c, d, e, f);
         };
-        matrixproto.scMult = function (c) {
+    /**
+     * Multiplies all affine coefficients by a scalar.
+     *
+     * @param {number} c - Scalar value applied to each coefficient.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+    matrixproto.scMult = function (c) {
             this.a *= c;
             this.b *= c;
             this.c *= c;
@@ -6120,23 +6677,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.e *= c;
             return this;
         };
-        matrixproto.timesSc = function (c) {
+    /**
+     * Returns a clone of the matrix scaled by the supplied scalar.
+     *
+     * @param {number} c - Scalar value applied to each coefficient.
+     * @returns {Matrix} A new matrix instance with scaled coefficients.
+     */
+    matrixproto.timesSc = function (c) {
             return this.clone().scMult(c);
         };
-        /*\
-         * Matrix.multLeft
-         [ method ]
-         **
-         * Multiplies a passed affine transform to the left: M * this.
-         - a (number)
-         - b (number)
-         - c (number)
-         - d (number)
-         - e (number)
-         - f (number)
-         * or
-         - matrix (object) @Matrix
-        \*/
+    /**
+     * Multiplies the current matrix on the left by the supplied affine transform (pre-multiplication).
+     * Accepts a single matrix, an array of matrices, or individual coefficients.
+     *
+     * @param {number|Matrix|Array<number|Matrix>} a - Matrix, array of matrices, or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e] - The `e` translation component when numeric values are provided.
+     * @param {number} [f] - The `f` translation component when numeric values are provided.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
         Matrix.prototype.multLeft = function (a, b, c, d, e, f) {
             if (Array.isArray(a)) {
                 if (a[0] instanceof Matrix) {
@@ -6167,52 +6728,45 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.e = eNew;
             return this;
         };
-        /*\
-         * Matrix.invert
-         [ method ]
-         **
-         * Returns an inverted version of the matrix
-         = (object) @Matrix
-        \*/
+        /**
+         * Computes the inverse of the affine matrix.
+         *
+         * @returns {Matrix} A new matrix representing the inverse transform.
+         */
         matrixproto.invert = function () {
             var me = this,
                 x = me.a * me.d - me.b * me.c;
             return new Matrix(me.d / x, -me.b / x, -me.c / x, me.a / x, (me.c * me.f - me.d * me.e) / x, (me.b * me.e - me.a * me.f) / x);
         };
-        /*\
-         * Matrix.clone
-         [ method ]
-         **
-         * Returns a copy of the matrix
-         = (object) @Matrix
-        \*/
+        /**
+         * Creates an exact copy of the matrix.
+         *
+         * @returns {Matrix} A new matrix with identical coefficients.
+         */
         matrixproto.clone = function () {
             return new Matrix(this.a, this.b, this.c, this.d, this.e, this.f);
         };
-        /*\
-         * Matrix.translate
-         [ method ]
-         **
-         * Translate the matrix
-         - x (number) horizontal offset distance
-         - y (number) vertical offset distance
-        \*/
+        /**
+         * Applies a translation to the matrix.
+         *
+         * @param {number} x - Horizontal translation distance.
+         * @param {number} y - Vertical translation distance.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.translate = function (x, y) {
             this.e += x * this.a + y * this.c;
             this.f += x * this.b + y * this.d;
             return this;
         };
-        /*\
-         * Matrix.scale
-         [ method ]
-         **
-         * Scales the matrix
-         - x (number) amount to be scaled, with `1` resulting in no change
-         - y (number) #optional amount to scale along the vertical axis. (Otherwise `x` applies to both axes.)
-         - cx (number) #optional horizontal origin point from which to scale
-         - cy (number) #optional vertical origin point from which to scale
-         * Default cx, cy is the middle point of the element.
-        \*/
+        /**
+         * Applies a scale transformation to the matrix.
+         *
+         * @param {number} x - Horizontal scale factor; `1` leaves the axis unchanged.
+         * @param {number} [y=x] - Vertical scale factor; defaults to {@link x} when omitted.
+         * @param {number} [cx] - Optional horizontal origin around which to scale.
+         * @param {number} [cy] - Optional vertical origin around which to scale.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.scale = function (x, y, cx, cy) {
             y == null && (y = x);
             (cx || cy) && this.translate(cx, cy);
@@ -6223,15 +6777,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             (cx || cy) && this.translate(-cx, -cy);
             return this;
         };
-        /*\
-         * Matrix.rotate
-         [ method ]
-         **
-         * Rotates the matrix
-         - a (number) angle of rotation, in degrees
-         - x (number) horizontal origin point from which to rotate
-         - y (number) vertical origin point from which to rotate
-        \*/
+        /**
+         * Applies a rotation to the matrix.
+         *
+         * @param {number} a - Rotation angle in degrees.
+         * @param {number} [x=0] - Horizontal origin around which to rotate.
+         * @param {number} [y=0] - Vertical origin around which to rotate.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.rotate = function (a, x, y) {
             a = Snap.rad(a);
             x = x || 0;
@@ -6241,34 +6794,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.add(cos, sin, -sin, cos, x, y);
             return this.add(1, 0, 0, 1, -x, -y);
         };
-        /*\
-         * Matrix.skewX
-         [ method ]
-         **
-         * Skews the matrix along the x-axis
-         - x (number) Angle to skew along the x-axis (in degrees).
-        \*/
+        /**
+         * Skews the matrix along the x-axis.
+         *
+         * @param {number} x - Angle, in degrees, to skew along the x-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.skewX = function (x) {
             return this.skew(x, 0);
         };
-        /*\
-         * Matrix.skewY
-         [ method ]
-         **
-         * Skews the matrix along the y-axis
-         - y (number) Angle to skew along the y-axis (in degrees).
-        \*/
+        /**
+         * Skews the matrix along the y-axis.
+         *
+         * @param {number} y - Angle, in degrees, to skew along the y-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.skewY = function (y) {
             return this.skew(0, y);
         };
-        /*\
-         * Matrix.skew
-         [ method ]
-         **
-         * Skews the matrix
-         - y (number) Angle to skew along the y-axis (in degrees).
-         - x (number) Angle to skew along the x-axis (in degrees).
-        \*/
+        /**
+         * Applies a simultaneous skew transform on both axes.
+         *
+         * @param {number} [x=0] - Angle, in degrees, to skew along the x-axis.
+         * @param {number} [y=0] - Angle, in degrees, to skew along the y-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.skew = function (x, y) {
             x = x || 0;
             y = y || 0;
@@ -6278,32 +6828,41 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             var b = math.tan(y).toFixed(9);
             return this.add(1, b, c, 1, 0, 0);
         };
-        /*\
-         * Matrix.x
-         [ method ]
-         **
-         * Returns x coordinate for given point after transformation described by the matrix. See also @Matrix.y
-         - x (number)
-         - y (number)
-         = (number) x
-        \*/
+        /**
+         * Transforms a point and returns its x-coordinate.
+         *
+         * @param {number} x - Original x-coordinate.
+         * @param {number} y - Original y-coordinate.
+         * @returns {number} The transformed x-coordinate.
+         */
         matrixproto.x = function (x, y) {
             return x * this.a + y * this.c + this.e;
         };
-        /*\
-         * Matrix.y
-         [ method ]
-         **
-         * Returns y coordinate for given point after transformation described by the matrix. See also @Matrix.x
-         - x (number)
-         - y (number)
-         = (number) y
-        \*/
+        /**
+         * Transforms a point and returns its y-coordinate.
+         *
+         * @param {number} x - Original x-coordinate.
+         * @param {number} y - Original y-coordinate.
+         * @returns {number} The transformed y-coordinate.
+         */
         matrixproto.y = function (x, y) {
             return x * this.b + y * this.d + this.f;
         };
 
-        matrixproto.randomTrans = function (cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
+    /**
+     * Applies a pseudo-random translation, rotation, and scaling around an optional origin.
+     * Useful for generating varied transforms for effects or automated testing.
+     *
+     * @param {number} [cx=0] - Horizontal origin for rotation and scaling.
+     * @param {number} [cy=0] - Vertical origin for rotation and scaling.
+     * @param {boolean} [positive=false] - When `true`, restricts translations to positive offsets.
+     * @param {number} [distance=300] - Maximum translation distance along each axis.
+     * @param {boolean} [diff_scale=false] - When `true`, allows non-uniform (x/y) scaling.
+     * @param {boolean} [skip_rotation=false] - When `true`, prevents random rotation.
+     * @param {boolean} [skip_scale=false] - When `true`, prevents random scaling.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+    matrixproto.randomTrans = function (cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
             distance = distance || 300;
             cx = cx || 0;
             cy = cy || 0;
@@ -6322,16 +6881,39 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.translate(dx, dy).rotate(angle, cx + dx, cy + dy).scale(scalex, scaley, cx + dx, cy + dy);
         };
 
+        /**
+         * Returns a coefficient of the matrix by index (`0 → a`, `5 → f`).
+         *
+         * @param {number} i - Index of the coefficient (0-5).
+         * @returns {number} The coefficient rounded to nine decimal places.
+         */
         matrixproto.get = function (i) {
             return +this[Str.fromCharCode(97 + i)].toFixed(9);
         };
+        /**
+         * Serialises the matrix into an SVG `matrix(a,b,c,d,e,f)` transform string.
+         *
+         * @returns {string} SVG transform string representing the matrix.
+         */
         matrixproto.toString = function () {
             return "matrix(" + [this.get(0), this.get(1), this.get(2), this.get(3), this.get(4), this.get(5)].join() + ")";
         };
+        /**
+         * Returns the translation components (`e`, `f`) rounded to nine decimal places.
+         *
+         * @returns {number[]} A two-item array `[e, f]`.
+         */
         matrixproto.offset = function () {
             return [this.e.toFixed(9), this.f.toFixed(9)];
         };
 
+        /**
+         * Compares the matrix with another instance within an optional tolerance.
+         *
+         * @param {Matrix} m - Matrix to compare against.
+         * @param {number} [error] - Optional absolute tolerance per coefficient.
+         * @returns {boolean} `true` if all coefficients match within the tolerance.
+         */
         matrixproto.equals = function (m, error) {
             if (!m) return false;
             if (error == null) {
@@ -6344,11 +6926,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 Math.abs(this.e - m.e) <= error &&
                 Math.abs(this.f - m.f) <= error;
         }
+        /**
+         * Checks whether the matrix equals the identity transform.
+         *
+         * @returns {boolean} `true` when all non-identity coefficients are zero.
+         */
         matrixproto.isIdentity = function () {
             return this.a === 1 && !this.b && !this.c && this.d === 1 &&
                 !this.e && !this.f;
         };
 
+        /**
+         * Returns the matrix coefficients as an array `[a, b, c, d, e, f]`.
+         *
+         * @returns {number[]} Array of the six coefficients.
+         */
         matrixproto.toArray = function () {
             return [this.a, this.b, this.c, this.d, this.e, this.f];
         };
@@ -6363,30 +6955,32 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             a[1] && (a[1] /= mag);
         }
 
-        /*\
-         * Matrix.determinant
-         [ method ]
-         **
-         * Finds determinant of the given matrix.
-         = (number) determinant
-        \*/
+        /**
+         * Computes the determinant of the affine matrix.
+         *
+         * @returns {number} Determinant value (`a * d - b * c`).
+         */
         matrixproto.determinant = function () {
             return this.a * this.d - this.b * this.c;
         };
-        /*\
-         * Matrix.split
-         [ method ]
-         **
-         * Splits matrix into primitive transformations
-         = (object) in format:
-         o dx (number) translation by x
-         o dy (number) translation by y
-         o scalex (number) scale by x
-         o scaley (number) scale by y
-         o shear (number) shear
-         o rotate (number) rotation in deg
-         o isSimple (boolean) could it be represented via simple transformations
-        \*/
+    /**
+     * Decomposes the matrix into intuitive primitives (translation, rotation, scale, shear).
+     * Optionally records any pre-translation that occurred before the core linear transform.
+     *
+     * @param {boolean} [add_pre_translation=false] - When `true`, include the pre-translation offset (`px`, `py`).
+     * @returns {object} Parts describing the transform.
+     * @returns {number} return.dx - Final translation along the x-axis.
+     * @returns {number} return.dy - Final translation along the y-axis.
+     * @returns {number} [return.px] - Optional pre-translation along the x-axis (only when `add_pre_translation` is `true`).
+     * @returns {number} [return.py] - Optional pre-translation along the y-axis (only when `add_pre_translation` is `true`).
+     * @returns {number} return.scalex - Scale factor applied along the x-axis. Negative when the matrix mirrors across an axis.
+     * @returns {number} return.scaley - Scale factor applied along the y-axis.
+     * @returns {number} return.shear - Shear factor that skews the y-axis relative to the x-axis.
+     * @returns {number} return.rotate - Rotation in degrees, measured after the scale/shear decomposition.
+     * @returns {boolean} return.isSimple - `true` when the matrix can be expressed as translate → rotate → uniform scale (or no rotation).
+     * @returns {boolean} return.isSuperSimple - `true` when the matrix is only translate → uniform scale (no rotation or shear).
+     * @returns {boolean} return.noRotation - `true` when the matrix has neither rotation nor shear.
+     */
         matrixproto.split = function (add_pre_translation) {
             var out = {};
             // translation
@@ -6441,7 +7035,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return out;
         };
 
-        matrixproto.split2 = function getTransform() {
+    /**
+     * Provides a lightweight decomposition returning translation, rotation, and scale components.
+     *
+     * @returns {{dx:number, dy:number, r:number, scalex:number, scaley:number}} Simplified transform description.
+     */
+    matrixproto.split2 = function getTransform() {
             let a = this.a,
                 b = this.b,
                 c = this.c,
@@ -6458,13 +7057,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return {dx: dx, dy: dy, r: Snap.deg(r), scalex: scx, scaley: scy};
         }
 
-        /*\
-         * Matrix.toTransformString
-         [ method ]
-         **
-         * Returns transform string that represents given matrix
-         = (string) transform string
-        \*/
+        /**
+         * Serialises the matrix into Snap's short transform string format.
+         *
+         * @param {object} [shorter] - Optional decomposition result to reuse.
+         * @returns {string} A transform string compatible with Snap.svg syntax.
+         */
         matrixproto.toTransformString = function (shorter) {
             var s = shorter || this.split();
             if (!+s.shear.toFixed(9)) {
@@ -6479,11 +7077,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
+        /**
+         * Identifies the object as a matrix instance.
+         *
+         * @returns {boolean} Always returns `true` for matrix instances.
+         */
         matrixproto.isMatrix = function () {
             return true;
         }
 
-        matrixproto.twoPointTransformMatrix = function (x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
+    /**
+     * Computes an affine transform mapping two source points to two destination points.
+     *
+     * @param {number} x1 - X-coordinate of the first source point.
+     * @param {number} y1 - Y-coordinate of the first source point.
+     * @param {number} x1Prime - X-coordinate of the first destination point.
+     * @param {number} y1Prime - Y-coordinate of the first destination point.
+     * @param {number} x2 - X-coordinate of the second source point.
+     * @param {number} y2 - Y-coordinate of the second source point.
+     * @param {number} x2Prime - X-coordinate of the second destination point.
+     * @param {number} y2Prime - Y-coordinate of the second destination point.
+     * @returns {Matrix} A new matrix performing the inferred transform.
+     */
+    matrixproto.twoPointTransformMatrix = function (x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
             // Calculate distances before and after transformation
             const distanceBefore = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
             const distanceAfter = Math.sqrt(Math.pow(x2Prime - x1Prime, 2) + Math.pow(y2Prime - y1Prime, 2));
@@ -6510,11 +7126,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return new Snap.Matrix(a, b, c, d, e, f);
         }
 
+        /**
+         * Conjugates an affine transform by a base matrix (`base * m * base^{-1}`).
+         *
+         * @param {Matrix} m - Matrix to conjugate.
+         * @param {Matrix} base - Base matrix providing the reference frame.
+         * @returns {Matrix} The conjugated matrix.
+         * @private
+         */
         function rightLeftFlipMatrix(m, base) {
             let inv = base.clone().invert();
             return base.clone().multRight(m).multRight(inv);
         }
 
+        /**
+         * Splits a matrix into translation/scale and rotation/shear factors.
+         *
+         * @param {Matrix} [m=this] - Matrix to decompose.
+         * @returns {{0:Matrix, 1:Matrix, trans_scale:Matrix, rot_shear:Matrix, scalex:number, scaley:number, rotate:number, shear:number, dx:number, dy:number}} Matrices and scalars describing the decomposition.
+         */
         function rotScaleSplit(m) {
             m = m || this;
             const split = m.split();
@@ -6543,31 +7173,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         matrixproto.rotScaleSplit = rotScaleSplit;
 
     })(Matrix.prototype);
-    /*\
-     * Snap.Matrix
-     [ method ]
-     **
-     * Matrix constructor, extend on your own risk.
-     * To create matrices use @Snap.matrix.
-    \*/
+    /**
+     * Exposes the {@link Matrix} constructor on the `Snap` namespace.
+     *
+    * @type {Function}
+     */
     Snap.Matrix = Matrix;
-    /*\
-     * Snap.matrix
-     [ method ]
-     **
-     * Utility method
-     **
-     * Returns a matrix based on the given parameters
-     - a (number)
-     - b (number)
-     - c (number)
-     - d (number)
-     - e (number)
-     - f (number)
-     * or
-     - svgMatrix (SVGMatrix)
-     = (object) @Matrix
-    \*/
+    /**
+     * Factory helper mirroring the {@link Matrix} constructor signature.
+     *
+     * @param {number|SVGMatrix|string|Matrix} [a] - Either an existing matrix representation or the `a` coefficient.
+     * @param {number} [b] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e] - The `e` translation component when numeric values are provided.
+     * @param {number} [f] - The `f` translation component when numeric values are provided.
+     * @returns {Matrix} A new matrix instance.
+     */
     Snap.matrix = function (a, b, c, d, e, f) {
         return new Matrix(a, b, c, d, e, f);
     };
@@ -7266,11 +7888,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          **
          = (boolean) `true` if the element has given class
         \*/
-        elproto.hasClass = function (value) {
+        elproto.hasClass = function (value, conjunctive = false) {
             var elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
                 curClasses = className.match(rgNotSpace) || [];
-            return !!~curClasses.indexOf(value);
+            if (Array.isArray(value)) {
+                if (conjunctive) {
+                    return value.every(v => curClasses.indexOf(v) !== -1);
+                } else {
+                    return value.some(v => curClasses.indexOf(v) !== -1);
+                }
+            }
+            return curClasses.indexOf(value) !== -1;
         };
 
         elproto.matchClass = function (regex) {
@@ -7441,26 +8070,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var proto = Paper.prototype,
         is = Snap.is;
-    /*\
-     * Paper.rect
-     [ method ]
+    /**
+     * Draws a rectangle on the paper.
      *
-     * Draws a rectangle
-     **
-     - x (number) x coordinate of the top left corner
-     - y (number) y coordinate of the top left corner
-     - width (number) width
-     - height (number) height
-     - rx (number) #optional horizontal radius for rounded corners, default is 0
-     - ry (number) #optional vertical radius for rounded corners, default is rx or 0
-     = (object) the `rect` element
-     **
-     > Usage
-     | // regular rectangle
-     | var c = paper.rect(10, 10, 50, 50);
-     | // rectangle with rounded corners
-     | var c = paper.rect(40, 40, 50, 50, 10);
-    \*/
+     * @function Snap.Paper#rect
+     * @param {number} x X coordinate of the top-left corner.
+     * @param {number} y Y coordinate of the top-left corner.
+     * @param {number} width Rectangle width.
+     * @param {number} height Rectangle height.
+     * @param {number|Array.<number>} [rx] Horizontal radius for rounded corners, or an `[rx, ry]` pair.
+     * @param {number} [ry] Vertical radius for rounded corners; defaults to `rx` when omitted.
+     * @param {Object} [attr] Attribute map applied to the created element.
+     * @returns {Snap.Element} The rectangle element.
+     * @example
+     * // Regular rectangle
+     * paper.rect(10, 10, 50, 50);
+     *
+     * // Rectangle with rounded corners
+     * paper.rect(40, 40, 50, 50, 10);
+     */
     proto.rect = function (x, y, w, h, rx, ry, attr) {
         if (is(rx, "object") && !Array.isArray(rx)) {
             attr = rx;
@@ -7494,20 +8122,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("rect", attr);
     };
-    /*\
-     * Paper.circle
-     [ method ]
-     **
-     * Draws a circle
-     **
-     - x (number) x coordinate of the centre
-     - y (number) y coordinate of the centre
-     - r (number) radius
-     = (object) the `circle` element
-     **
-     > Usage
-     | var c = paper.circle(50, 50, 40);
-    \*/
+
+    /**
+     * Draws a circle.
+     *
+     * @function Snap.Paper#circle
+     * @param {number} x X coordinate of the centre.
+     * @param {number} y Y coordinate of the centre.
+     * @param {number} r Circle radius.
+     * @param {Object} [attr] Attribute map for the circle element.
+     * @returns {Snap.Element} The circle element.
+     * @example
+     * paper.circle(50, 50, 40);
+     */
     proto.circle = function (cx, cy, r, attr) {
         if (is(cx, "object") && cx == "[object Object]") {
             attr = cx;
@@ -7521,7 +8148,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("circle", attr);
     };
-
     var preload = (function () {
         function onerror() {
             this.parentNode.removeChild(this);
@@ -7542,24 +8168,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
     }());
 
-    /*\
-     * Paper.image
-     [ method ]
-     **
-     * Places an image on the surface
-     **
-     - src (string) URI of the source image
-     - x (number) x offset position
-     - y (number) y offset position
-     - width (number) width of the image
-     - height (number) height of the image
-     = (object) the `image` element
-     * or
-     = (object) Snap element object with type `image`
-     **
-     > Usage
-     | var c = paper.image("apple.png", 10, 10, 80, 80);
-    \*/
+    /**
+     * Places an image on the surface.
+     *
+     * @function Snap.Paper#image
+     * @param {string|Object} src Image URL or attribute map containing at least a `src` property.
+     * @param {number} [x] Horizontal offset on the paper.
+     * @param {number} [y] Vertical offset on the paper.
+     * @param {number} [width] Image width.
+     * @param {number} [height] Image height.
+     * @param {Object} [attr] Additional attributes applied to the element.
+     * @returns {Snap.Element} The image element.
+     * @example
+     * paper.image("apple.png", 10, 10, 80, 80);
+     */
     proto.image = function (src, x, y, width, height, attr) {
         var el = this.el("image");
         if (is(src, "object") && "src" in src) {
@@ -7590,21 +8212,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return el;
     };
-    /*\
-     * Paper.ellipse
-     [ method ]
-     **
-     * Draws an ellipse
-     **
-     - x (number) x coordinate of the centre
-     - y (number) y coordinate of the centre
-     - rx (number) horizontal radius
-     - ry (number) vertical radius
-     = (object) the `ellipse` element
-     **
-     > Usage
-     | var c = paper.ellipse(50, 50, 40, 20);
-    \*/
+    /**
+     * Draws an ellipse.
+     *
+     * @function Snap.Paper#ellipse
+     * @param {number} x X coordinate of the centre.
+     * @param {number} y Y coordinate of the centre.
+     * @param {number} rx Horizontal radius.
+     * @param {number} ry Vertical radius.
+     * @param {Object} [attr] Attribute map for the element.
+     * @returns {Snap.Element} The ellipse element.
+     * @example
+     * paper.ellipse(50, 50, 40, 20);
+     */
     proto.ellipse = function (cx, cy, rx, ry, attr) {
         if (is(cx, "object") && cx == "[object Object]") {
             attr = cx;
@@ -7620,36 +8240,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this.el("ellipse", attr);
     };
 // SIERRA Paper.path(): Unclear from the link what a Catmull-Rom curveto is, and why it would make life any easier.
-    /*\
-     * Paper.path
-     [ method ]
-     **
-     * Creates a `<path>` element using the given string as the path's definition
-     - pathString (string) #optional path string in SVG format
-     * Path string consists of one-letter commands, followed by comma seprarated arguments in numerical form. Example:
-     | "M10,20L30,40"
-     * This example features two commands: `M`, with arguments `(10, 20)` and `L` with arguments `(30, 40)`. Uppercase letter commands express coordinates in absolute terms, while lowercase commands express them in relative terms from the most recently declared coordinates.
+    /**
+     * Creates a `<path>` element using the provided SVG path data string.
+     * The path data follows standard SVG syntax where single-letter commands are followed by
+     * comma- or space-separated numeric arguments (for example, `"M10,20L30,40"`).
      *
-     # <p>Here is short list of commands available, for more details see <a href="http://www.w3.org/TR/SVG/paths.html#PathData" title="Details of a path's data attribute's format are described in the SVG specification.">SVG path string format</a> or <a href="https://developer.mozilla.org/en/SVG/Tutorial/Paths">article about path strings at MDN</a>.</p>
-     # <table><thead><tr><th>Command</th><th>Name</th><th>Parameters</th></tr></thead><tbody>
-     # <tr><td>M</td><td>moveto</td><td>(x y)+</td></tr>
-     # <tr><td>Z</td><td>closepath</td><td>(none)</td></tr>
-     # <tr><td>L</td><td>lineto</td><td>(x y)+</td></tr>
-     # <tr><td>H</td><td>horizontal lineto</td><td>x+</td></tr>
-     # <tr><td>V</td><td>vertical lineto</td><td>y+</td></tr>
-     # <tr><td>C</td><td>curveto</td><td>(x1 y1 x2 y2 x y)+</td></tr>
-     # <tr><td>S</td><td>smooth curveto</td><td>(x2 y2 x y)+</td></tr>
-     # <tr><td>Q</td><td>quadratic Bézier curveto</td><td>(x1 y1 x y)+</td></tr>
-     # <tr><td>T</td><td>smooth quadratic Bézier curveto</td><td>(x y)+</td></tr>
-     # <tr><td>A</td><td>elliptical arc</td><td>(rx ry x-axis-rotation large-arc-flag sweep-flag x y)+</td></tr>
-     # <tr><td>R</td><td><a href="http://en.wikipedia.org/wiki/Catmull–Rom_spline#Catmull.E2.80.93Rom_spline">Catmull-Rom curveto</a>*</td><td>x1 y1 (x y)+</td></tr></tbody></table>
-     * * _Catmull-Rom curveto_ is a not standard SVG command and added to make life easier.
-     * Note: there is a special case when a path consists of only three commands: `M10,10R…z`. In this case the path connects back to its starting point.
-     > Usage
-     | var c = paper.path("M10 10L90 90");
-     | // draw a diagonal line:
-     | // move to 10,10, line to 90,90
-    \*/
+     * @function Snap.Paper#path
+     * @param {(string|Array|Object)} [pathString] SVG path string, an array of segments, or an
+     *        attribute map applied to the created element.
+     * @returns {Snap.Element} The resulting path element.
+     * @see <a href="http://www.w3.org/TR/SVG/paths.html#PathData">SVG path specification</a>
+     * @see <a href="https://developer.mozilla.org/en/SVG/Tutorial/Paths">MDN path tutorial</a>
+     * @example
+     * // Draw a diagonal line
+     * paper.path("M10 10L90 90");
+     */
     proto.path = function (d, attr) {
         attr = attr || {};
         if (is(d, "object") && !is(d, "array")) {
@@ -7659,31 +8264,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("path", attr);
     };
-    /*\
-     * Paper.g
-     [ method ]
-     **
-     * Creates a def_group element
-     **
-     - varargs (…) #optional elements to nest within the def_group
-     = (object) the `g` element
-     **
-     > Usage
-     | var c1 = paper.circle(),
-     |     c2 = paper.rect(),
-     |     g = paper.g(c2, c1); // note that the order of elements is different
-     * or
-     | var c1 = paper.circle(),
-     |     c2 = paper.rect(),
-     |     g = paper.g();
-     | g.add(c2, c1);
-    \*/
-    /*\
-     * Paper.def_group
-     [ method ]
-     **
-     * See @Paper.g
-    \*/
+    /**
+     * Creates an SVG `<g>` element on the paper and optionally nests the supplied elements within it.
+     * The last argument may be an attribute map applied to the created group.
+     *
+     * @function Snap.Paper#g
+     * @alias Snap.Paper#def_group
+     * @param {...(Snap.Element|Object)} elements Elements to append to the group. When the final argument
+     *        is a plain object without `type` or `paper` properties, it is treated as the attribute map.
+     * @returns {Snap.Element} The group element.
+     * @example
+     * const circle = paper.circle(10, 10, 5);
+     * const rect = paper.rect(0, 0, 20, 20);
+     * paper.g(circle, rect);
+     */
     proto.def_group = proto.g = function () {
         var attr,
             el = this.el("g");
@@ -7702,23 +8296,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return el;
     };
-    /*\
-     * Paper.svg
-     [ method ]
-     **
-     * Creates a nested SVG element.
-     - x (number) @optional X of the element
-     - y (number) @optional Y of the element
-     - width (number) @optional width of the element
-     - height (number) @optional height of the element
-     - vbx (number) @optional viewbox X
-     - vby (number) @optional viewbox Y
-     - vbw (number) @optional viewbox width
-     - vbh (number) @optional viewbox height
-     **
-     = (object) the `svg` element
-     **
-    \*/
+    /**
+     * Creates a nested `<svg>` element.
+     *
+     * @function Snap.Paper#svg
+     * @param {number} [x] X coordinate of the embedded SVG.
+     * @param {number} [y] Y coordinate of the embedded SVG.
+     * @param {number|string} [width] Viewport width.
+     * @param {number|string} [height] Viewport height.
+     * @param {number} [vbx] ViewBox x origin.
+     * @param {number} [vby] ViewBox y origin.
+     * @param {number} [vbw] ViewBox width.
+     * @param {number} [vbh] ViewBox height.
+     * @returns {Snap.Element} The nested SVG element.
+     */
     proto.svg = function (x, y, width, height, vbx, vby, vbw, vbh) {
         var attrs = {};
         if (is(x, "object") && y == null) {
@@ -7743,15 +8334,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this.el("svg", attrs);
     };
     proto.svg.skip = true;
-    /*\
-     * Paper.mask
-     [ method ]
-     **
-     * Equivalent in behaviour to @Paper.g, except it’s a mask.
-     **
-     = (object) the `mask` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<mask>` element, mirroring the behaviour of {@link Snap.Paper#g}.
+     * When a single plain object is supplied, it is treated as the attribute map; otherwise all
+     * parameters are added to the mask as children.
+     *
+     * @function Snap.Paper#mask
+     * @param {...(Snap.Element|Object)} nodes Elements to include in the mask or a terminating attribute map.
+     * @returns {Snap.Element} The mask element.
+     */
     proto.mask = function (first) {
         var attr,
             el = this.el("mask");
@@ -7762,23 +8353,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return el;
     };
-    /*\
-     * Paper.ptrn
-     [ method ]
-     **
-     * Equivalent in behaviour to @Paper.g, except it’s a pattern.
-     - x (number) @optional X of the element
-     - y (number) @optional Y of the element
-     - width (number) @optional width of the element
-     - height (number) @optional height of the element
-     - vbx (number) @optional viewbox X
-     - vby (number) @optional viewbox Y
-     - vbw (number) @optional viewbox width
-     - vbh (number) @optional viewbox height
-     **
-     = (object) the `pattern` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<pattern>` element, optionally configuring its position, size, and viewBox.
+     *
+     * @function Snap.Paper#ptrn
+     * @param {number} [x] X coordinate of the pattern.
+     * @param {number} [y] Y coordinate of the pattern.
+     * @param {number} [width] Width of the pattern tile.
+     * @param {number} [height] Height of the pattern tile.
+     * @param {number} [vx] ViewBox x origin.
+     * @param {number} [vy] ViewBox y origin.
+     * @param {number} [vw] ViewBox width.
+     * @param {number} [vh] ViewBox height.
+     * @param {Object} [attr] Attribute map applied to the pattern.
+     * @returns {Snap.Element} The pattern element.
+     */
     proto.ptrn = function (x, y, width, height, vx, vy, vw, vh, attr) {
         attr = arguments(arguments.length - 1);
         if (!is(attr, "object")) attr = {};
@@ -7806,18 +8395,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("pattern", attr);
     };
-    /*\
-     * Paper.use
-     [ method ]
-     **
-     * Creates a <use> element.
-     - id (string) @optional id of element to link
-     * or
-     - id (Element) @optional element to link
-     **
-     = (object) the `use` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<use>` element referencing an existing symbol or node.
+     *
+     * @function Snap.Paper#use
+     * @param {(string|Snap.Element|Object)} [id] ID of the element to reference, the element itself,
+     *        or an attribute map containing an `id` property. When omitted the method defers to the
+     *        {@link Snap.Element#use} behaviour.
+     * @param {Object} [attr] Additional attributes applied to the `<use>` element.
+     * @returns {Snap.Element} The `<use>` element.
+     */
     proto.use = function (id, attr) {
         if (id != null) {
             if (id instanceof Element) {
@@ -7842,18 +8429,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
     proto.use.skip = true;
 
-    /*\
-     * Paper.symbol
-     [ method ]
-     **
-     * Creates a <symbol> element.
-     - vbx (number) @optional viewbox X
-     - vby (number) @optional viewbox Y
-     - vbw (number) @optional viewbox width
-     - vbh (number) @optional viewbox height
-     = (object) the `symbol` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<symbol>` element.
+     *
+     * @function Snap.Paper#symbol
+     * @param {number} [vbx] ViewBox x origin.
+     * @param {number} [vby] ViewBox y origin.
+     * @param {number} [vbw] ViewBox width.
+     * @param {number} [vbh] ViewBox height.
+     * @param {Object} [attr] Additional attributes applied to the symbol.
+     * @returns {Snap.Element} The symbol element.
+     */
     proto.symbol = function (vx, vy, vw, vh, attr) {
         attr = attr || {};
         if (vx != null && vy != null && vw != null && vh != null) {
@@ -7862,26 +8448,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return this.el("symbol", attr);
     };
-    /*\
-     * Paper.text
-     [ method ]
-     **
-     * Draws a text string
-     **
-     - x (number) x coordinate position
-     - y (number) y coordinate position
-     - text (string|array) The text string to draw or array of strings to nest within separate `<tspan>` elements
-     = (object) the `text` element
-     **
-     > Usage
-     | var t1 = paper.text(50, 50, "Snap");
-     | var t2 = paper.text(50, 50, ["S","n","a","p"]);
-     | // Text path usage
-     | t1.attr({textpath: "M10,10L100,100"});
-     | // or
-     | var pth = paper.path("M10,10L100,100");
-     | t1.attr({textpath: pth});
-    \*/
+    /**
+     * Draws a text string.
+     *
+     * @function Snap.Paper#text
+     * @param {number} x X coordinate of the baseline origin.
+     * @param {number} y Y coordinate of the baseline origin.
+     * @param {(string|Array.<string>)} text Text content or an array of strings that become nested `<tspan>` elements.
+     * @param {Object} [attr] Attribute map for the text element.
+     * @returns {Snap.Element} The text element.
+     * @example
+     * const label = paper.text(50, 50, "Snap");
+     * label.attr({textpath: "M10,10L100,100"});
+     */
     proto.text = function (x, y, text, attr) {
         attr = attr || {};
         if (is(x, "object")) {
@@ -7895,21 +8474,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("text", attr);
     };
-    /*\
-     * Paper.line
-     [ method ]
-     **
-     * Draws a line
-     **
-     - x1 (number) x coordinate position of the start
-     - y1 (number) y coordinate position of the start
-     - x2 (number) x coordinate position of the end
-     - y2 (number) y coordinate position of the end
-     = (object) the `line` element
-     **
-     > Usage
-     | var t1 = paper.line(50, 50, 100, 100);
-    \*/
+    /**
+     * Draws a line segment between two points.
+     *
+     * @function Snap.Paper#line
+     * @param {number} x1 Start point X coordinate.
+     * @param {number} y1 Start point Y coordinate.
+     * @param {number} x2 End point X coordinate.
+     * @param {number} y2 End point Y coordinate.
+     * @param {Object} [attr] Attribute map for the line element.
+     * @returns {Snap.Element} The line element.
+     */
     proto.line = function (x1, y1, x2, y2, attr) {
         attr = attr || {};
         if (is(x1, "object")) {
@@ -7947,33 +8522,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return attr;
     }
 
-    /*\
-     * Paper.polyline
-     [ method ]
-     **
-     * Draws a polyline
-     **
-     - points (array) array of points
-     * or
-     - varargs (…) points
-     = (object) the `polyline` element
-     **
-     > Usage
-     | var p1 = paper.polyline([10, 10, 100, 100]);
-     | var p2 = paper.polyline(10, 10, 100, 100);
-    \*/
+    /**
+     * Draws a polyline through a list of coordinates.
+     *
+     * @function Snap.Paper#polyline
+     * @param {(Array.<number>|...number)} points Coordinate list. Provide either a flat array or individual arguments.
+     * @param {Object} [attr] Attribute map applied to the element.
+     * @returns {Snap.Element} The polyline element.
+     */
     proto.polyline = function (points, attr) {
         attr = point_args(Array.from(arguments));
         return this.el("polyline", attr);
     };
 
 
-    /*\
-         * Paper.polygon
-         [ method ]
-         **
-         * Draws a polygon. See @Paper.polyline
-        \*/
+    /**
+     * Draws a closed polygon by joining supplied coordinates.
+     *
+     * @function Snap.Paper#polygon
+     * @see Snap.Paper#polyline
+     * @param {(Array.<number>|...number)} points Coordinate list as an array or individual numbers.
+     * @param {Object} [attr] Attribute map for the polygon element.
+     * @returns {Snap.Element} The polygon element.
+     */
     proto.polygon = function (points, attr) {
         attr = point_args(Array.from(arguments));
         return this.el("polygon", attr);
@@ -7982,28 +8553,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     (function () {
         var $ = Snap._.$;
         // gradients' helpers
-        /*\
-         * Element.stops
-         [ method ]
-         **
-         * Only for gradients!
-         * Returns array of gradient stops elements.
-         = (array) the stops array.
-        \*/
+        /**
+         * Returns all gradient stop elements.
+         *
+         * @function Snap.Element#stops
+         * @memberof Snap.Element
+         * @returns {Snap.Set} Collection of `<stop>` elements.
+         */
         function Gstops() {
             return this.selectAll("stop");
         }
 
-        /*\
-         * Element.addStop
-         [ method ]
-         **
-         * Only for gradients!
-         * Adds another stop to the gradient.
-         - color (string) stops color
-         - offset (number) stops offset 0..100
-         = (object) gradient element
-        \*/
+        /**
+         * Adds a stop to the gradient.
+         *
+         * @function Snap.Element#addStop
+         * @memberof Snap.Element
+         * @param {string} color Stop colour.
+         * @param {number} offset Stop offset from `0` to `100`.
+         * @returns {Snap.Element} The gradient element.
+         */
         function GaddStop(color, offset) {
             var stop = $("stop"),
                 attr = {
@@ -8046,17 +8615,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        /*\
-         * Element.setStops
-         [ method ]
-         **
-         * Only for gradients!
-         * Updates stops of the gradient based on passed gradient descriptor. See @Ppaer.gradient
-         - str (string) gradient descriptor part after `()`.
-         = (object) gradient element
-         | var g = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
-         | g.setStops("#fff-#000-#f00-#fc0");
-        \*/
+    /**
+     * Updates gradient stops based on a descriptor string or parsed structure.
+     *
+     * @function Snap.Element#setStops
+     * @memberof Snap.Element
+     * @param {(string|Array)} str Gradient descriptor (after the `()` portion) or parsed stops array.
+     * @returns {Snap.Element} The gradient element.
+     * @example
+     * const grad = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
+     * grad.setStops("#fff-#000-#f00-#fc0");
+     */
         function GsetStops(str) {
             var grad = str,
                 stops = this.stops();
@@ -8149,59 +8718,54 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return el;
         }
 
-        /*\
-         * Paper.gradient
-         [ method ]
-         **
-         * Creates a gradient element
-         **
-         - gradient (string) gradient descriptor
-         > Gradient Descriptor
-         * The gradient descriptor is an expression formatted as
-         * follows: `<type>(<coords>)<colors>`.  The `<type>` can be
-         * either linear or radial.  The uppercase `L` or `R` letters
-         * indicate absolute coordinates offset from the SVG surface.
-         * Lowercase `l` or `r` letters indicate coordinates
-         * calculated relative to the element to which the gradient is
-         * applied.  Coordinates specify a linear gradient vector as
-         * `x1`, `y1`, `x2`, `y2`, or a radial gradient as `cx`, `cy`,
-         * `r` and optional `fx`, `fy` specifying a focal point away
-         * from the center of the circle. Specify `<colors>` as a list
-         * of dash-separated CSS color values.  Each color may be
-         * followed by a custom offset value, separated with a colon
-         * character.
-         > Examples
-         * Linear gradient, relative from top-left corner to bottom-right
-         * corner, from black through red to white:
-         | var g = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
-         * Linear gradient, absolute from (0, 0) to (100, 100), from black
-         * through red at 25% to white:
-         | var g = paper.gradient("L(0, 0, 100, 100)#000-#f00:25-#fff");
-         * Radial gradient, relative from the center of the element with radius
-         * half the width, from black to white:
-         | var g = paper.gradient("r(0.5, 0.5, 0.5)#000-#fff");
-         * To apply the gradient:
-         | paper.circle(50, 50, 40).attr({
-         |     fill: g
-         | });
-         = (object) the `gradient` element
-        \*/
+        /**
+         * Creates an SVG gradient element from a descriptor string.
+         * The descriptor has the format `<type>(<coords>)<stops>` where `type` is one of `l`, `L`,
+         * `r`, or `R` (lowercase for relative coordinates, uppercase for absolute). Coordinates define
+         * the gradient line or circle and stops are dash-separated colour values with optional
+         * `:offset` suffixes.
+         *
+         * @function Snap.Paper#gradient
+         * @param {string} str Gradient descriptor.
+         * @returns {Snap.Element} The gradient element.
+         * @example
+         * const grad = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
+         * paper.circle(50, 50, 40).attr({fill: grad});
+         */
         proto.gradient = function (str) {
             return gradient(this.defs, str);
         };
+        /**
+         * Creates a linear gradient with the given bounding coordinates.
+         * @function Snap.Paper#gradientLinear
+         * @param {number} x1 Start x coordinate.
+         * @param {number} y1 Start y coordinate.
+         * @param {number} x2 End x coordinate.
+         * @param {number} y2 End y coordinate.
+         * @returns {Snap.Element} The linear gradient element.
+         */
         proto.gradientLinear = function (x1, y1, x2, y2) {
             return gradientLinear(this.defs, x1, y1, x2, y2);
         };
+        /**
+         * Creates a radial gradient centred at the supplied coordinates.
+         * @function Snap.Paper#gradientRadial
+         * @param {number} cx Centre x coordinate.
+         * @param {number} cy Centre y coordinate.
+         * @param {number} r Radius of the gradient.
+         * @param {number} [fx] Optional focal x coordinate.
+         * @param {number} [fy] Optional focal y coordinate.
+         * @returns {Snap.Element} The radial gradient element.
+         */
         proto.gradientRadial = function (cx, cy, r, fx, fy) {
             return gradientRadial(this.defs, cx, cy, r, fx, fy);
         };
-        /*\
-         * Paper.toString
-         [ method ]
-         **
-         * Returns SVG code for the @Paper
-         = (string) SVG code for the @Paper
-        \*/
+    /**
+     * Serialises the paper to SVG markup.
+     *
+     * @function Snap.Paper#toString
+     * @returns {string} SVG markup representing the paper.
+     */
         proto.toString = function () {
             var doc = this.node.ownerDocument,
                 f = doc.createDocumentFragment(),
@@ -8216,25 +8780,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return res;
         };
         proto.toString.skip = true;
-        /*\
-         * Paper.toDataURL
-         [ method ]
-         **
-         * Returns SVG code for the @Paper as Data URI string.
-         = (string) Data URI string
-        \*/
+    /**
+     * Serialises the paper to a Data URI containing SVG markup.
+     *
+     * @function Snap.Paper#toDataURL
+     * @returns {string} Data URI string for the paper's SVG content.
+     */
         proto.toDataURL = function () {
             if (window && window.btoa) {
                 return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(this)));
             }
         };
         proto.toDataURL.skip = true;
-        /*\
-         * Paper.clear
-         [ method ]
-         **
-         * Removes all child nodes of the paper, except <defs>.
-        \*/
+    /**
+     * Removes all child nodes of the paper except its `<defs>` block.
+     *
+     * @function Snap.Paper#clear
+     */
         proto.clear = function () {
             var node = this.node.firstChild,
                 next;
@@ -8258,8 +8820,79 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
  */
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
-    const ERROR = 1e-12;
+    /**
+     * Snap.svg plugin augmenting the library with a {@link BBox} helper type and
+     * related geometry utilities for working with rectangular bounds.
+     *
+     * @namespace Snap.bbox
+     */
 
+    const abs = Math.abs;
+    const p2s = /,?([a-z]),?/gi;
+
+    /**
+     * Converts an array-based path representation into a compact string.
+     *
+     * @param {Array} [path=this]
+     *        Sequence of path commands (as produced by Snap.svg helpers).
+     * @returns {string}
+     *          SVG path data string.
+     */
+    function toString(path) {
+        path = path || this;
+        return path.join(',').replace(p2s, '$1');
+    }
+
+    /**
+     * Generates the path command array describing a rectangle.
+     *
+     * @param {number} x The rectangle's top-left x coordinate.
+     * @param {number} y The rectangle's top-left y coordinate.
+     * @param {number} w The rectangle's width.
+     * @param {number} h The rectangle's height.
+     * @param {number} [rx]
+     *        Optional corner radius on the x axis for rounded corners.
+     * @param {number} [ry=rx]
+     *        Optional corner radius on the y axis when different from `rx`.
+     * @returns {Array}
+     *          Snap-compatible path command list describing the rectangle.
+     */
+    function rectPath(x, y, w, h, rx, ry) {
+        if (rx) {
+            if (!ry) ry = rx;
+            return [
+                ['M', +x + +rx, y],
+                ['l', w - rx * 2, 0],
+                ['a', rx, ry, 0, 0, 1, rx, ry],
+                ['l', 0, h - ry * 2],
+                ['a', rx, ry, 0, 0, 1, -rx, ry],
+                ['l', rx * 2 - w, 0],
+                ['a', rx, ry, 0, 0, 1, -rx, -ry],
+                ['l', 0, ry * 2 - h],
+                ['a', rx, ry, 0, 0, 1, rx, -ry],
+                ['z'],
+            ];
+        }
+        const res = [['M', x, y], ['l', w, 0], ['l', 0, h], ['l', -w, 0], ['z']];
+        res.toString = toString;
+        return res;
+    }
+
+    /**
+     * Represents an axis-aligned bounding box and offers utility methods to
+     * interrogate and transform it.
+     *
+     * @class
+     * @param {(number|Array|Object|null)} x
+     *        Top-left x coordinate, array form `[x, y, width, height]`, an object
+     *        with positional fields, or `null` to produce an empty box.
+     * @param {number} [y]
+     *        Top-left y coordinate when `x` is numeric.
+     * @param {number} [width]
+     *        Width when `x` is numeric.
+     * @param {number} [height]
+     *        Height when `x` is numeric.
+     */
     function BBox(x, y, width, height) {
         if (x === null) {
             x = y = width = height = 0;
@@ -8309,26 +8942,67 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.cy = this.y + this.height / 2;
     }
 
+    /**
+     * Creates a shallow copy of the bounding box.
+     *
+     * @returns {BBox}
+     *          New instance with identical coordinates and dimensions.
+     */
     BBox.prototype.clone = function () {
         return new BBox(this.x, this.y, this.width, this.height);
     };
 
+    /**
+     * Returns the radius of the largest circle that fits inside the box.
+     *
+     * @returns {number}
+     *          Half of the shortest side length.
+     */
     BBox.prototype.r1 = function () {
         return Math.min(this.width, this.height) / 2;
     };
 
+    /**
+     * Returns the radius of the smallest circle that fully contains the box.
+     *
+     * @returns {number}
+     *          Half of the longest side length.
+     */
     BBox.prototype.r2 = function () {
         return Math.max(this.width, this.height) / 2;
     };
 
+    /**
+     * Returns the radius of the circle covering the box's diagonal.
+     *
+     * @returns {number}
+     *          Half the diagonal length.
+     */
     BBox.prototype.r0 = function () {
         return Math.sqrt(this.width * this.width + this.height * this.height) / 2;
     };
 
+    /**
+     * Computes the full diagonal length of the box.
+     *
+     * @returns {number}
+     *          Distance between the top-left and bottom-right corners.
+     */
     BBox.prototype.diag = function () {
         return Math.sqrt(this.width * this.width + this.height * this.height);
     };
 
+    /**
+     * Expands the box by the supplied border amounts.
+     *
+     * @param {(number|Array|Object)} [border=0]
+     *        Uniform numeric padding, tuple `[x, y, x2, y2]`, or object literal
+     *        with per-side offsets.
+     * @param {boolean} [get_new=false]
+     *        When `true`, a new expanded {@link BBox} is returned.
+     * @returns {BBox}
+     *          The mutated box or the newly created instance.
+     */
     BBox.prototype.addBorder = function (border, get_new) {
         if (get_new) {
             const bbox = this.clone();
@@ -8363,10 +9037,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this;
     }
 
+    /**
+     * Produces a rectangle path description matching the bounds.
+     *
+     * @returns {Array}
+     *          Array of Snap path commands outlining the box.
+     */
     BBox.prototype.path = function () {
         return rectPath(this.x, this.y, this.width, this.height);
     };
 
+    /**
+     * Draws the bounding box on the supplied paper instance.
+     *
+     * @param {Snap.Paper} paper Destination paper to receive the rectangle.
+     * @param {(number|Object|Array)} [radius]
+     *        Corner radius or `{rx, ry}`/array form for rounded corners.
+     * @param {(number|Array|Object)} [border]
+     *        Optional expansion applied before drawing.
+     * @returns {Snap.Element}
+     *          The created rectangle element.
+     */
     BBox.prototype.rect = function (paper, radius, border) {
         let rx, ry;
         if (radius) {
@@ -8382,14 +9073,36 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return paper.rect(bb.x, bb.y, bb.width, bb.height, rx, ry);
     };
 
+    /**
+     * Serialises the box to an SVG viewBox string.
+     *
+     * @returns {string}
+     *          Space separated `x y width height` representation.
+     */
     BBox.prototype.vb = function () {
         return [this.x, this.y, this.width, this.height].join(' ');
     };
 
+    /**
+     * Returns the aspect ratio of the box.
+     *
+     * @returns {number}
+     *          Width divided by height.
+     */
     BBox.prototype.ration = function () {
         return this.width / this.height;
     };
 
+    /**
+     * Tests whether the box fully contains another box or point.
+     *
+    * @param {(BBox|BoundsLike|Array.<number>)} bbox_or_point
+     *        Target bounds or point to evaluate.
+     * @param {number} [clearance=0]
+     *        Optional tolerance applied to the container box.
+     * @returns {boolean}
+     *          `true` when the target lies completely inside the bounds.
+     */
     BBox.prototype.contains = function (bbox_or_point, clearance) {
         clearance = clearance || 0;
         const x = bbox_or_point.x || bbox_or_point[0],
@@ -8402,15 +9115,36 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return is_in;
     };
 
+    /**
+     * Tests whether the box completely contains a circle.
+     *
+    * @param {Circle} circle Circle descriptor.
+     * @returns {boolean}
+     *          `true` when the circle fits within the bounds.
+     */
     BBox.prototype.containsCircle = function (circle) {
         return this.x <= circle.x - circle.r && this.y <= circle.y - circle.r &&
             this.x2 >= circle.x + circle.r && this.y2 >= circle.y + circle.r;
     };
 
+    /**
+     * Returns the geometric centre of the box.
+     *
+    * @returns {Point2D}
+     *          Center point coordinates.
+     */
     BBox.prototype.center = function () {
         return {x: this.cx, y: this.cy};
     };
 
+    /**
+     * Retrieves a corner point by index.
+     *
+     * @param {number} [count=0]
+     *        Corner index where 0=top-left, 1=top-right, 2=bottom-right, 3=bottom-left.
+    * @returns {Point2D}
+     *          The requested corner coordinates.
+     */
     BBox.prototype.corner = function (count) {
         count = count || 0;
         switch (count) {
@@ -8425,6 +9159,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     }
 
+    /**
+     * Looks up a named anchor point on the box.
+     *
+     * @param {string} name Named location (e.g. `c`, `tl`, `rc`).
+    * @returns {(Point2D|null)}
+     *          The resolved point or `null` when unknown.
+     */
     BBox.prototype.pointFromName = function (name) {
         name = name.toLowerCase();
         switch (name) {
@@ -8454,6 +9195,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return null;
     };
 
+    /**
+     * Computes the overlapping region between this box and another.
+     *
+     * @param {BBox|Object} box Other box-like descriptor.
+     * @returns {BBox|null}
+     *          Intersection bounds, empty box, or `null` when input is falsy.
+     */
     BBox.prototype.intersect = function (box) {
         if (!box) return null;
 
@@ -8469,6 +9217,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new BBox(x, y, x2 - x, y2 - y);
     };
 
+    /**
+     * Checks whether another box overlaps the current bounds.
+     *
+     * @param {BBox|Object} box Other box-like descriptor.
+     * @returns {boolean}
+     *          `true` when the two boxes share any overlapping area.
+     */
     BBox.prototype.isOverlap = function (box) {
         if (!box) return false;
 
@@ -8481,6 +9236,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     }
 
+    /**
+     * Computes the smallest box that contains both this and another box.
+     *
+     * @param {BBox|Object} box Other box-like descriptor.
+     * @returns {BBox}
+     *          Bounding box covering both inputs.
+     */
     BBox.prototype.union = function (box) {
         if (!box) return this;
         const x = Math.min(this.x, box.x),
@@ -8491,6 +9253,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new BBox(x, y, x2 - x, y2 - y);
     };
 
+    /**
+     * Moves the box so that its top-left corner is at the provided coordinates.
+     *
+     * @param {number} x New top-left x coordinate.
+     * @param {number} y New top-left y coordinate.
+     * @returns {BBox}
+     *          The mutated box instance.
+     */
     BBox.prototype.setCorner = function (x, y) {
         this.x = x;
         this.y = y;
@@ -8502,9 +9272,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     /**
-     * Translates the box by x and y units
-     * @param  x an number or matrix. If matrix, only the f and e values are used
-     * @param  y
+     * Translates the box by the supplied offsets.
+     *
+     * @param {(number|Snap.Matrix)} x X offset or matrix whose translation
+     *        components will be applied.
+     * @param {number} [y]
+     *        Y offset when `x` is numeric.
+     * @returns {BBox}
+     *          The mutated box instance.
      */
     BBox.prototype.translate = function (x, y) {
         if (typeof x === 'object' && x.hasOwnProperty('e') &&
@@ -8524,16 +9299,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     /**
-     * Scales the box by sx and sy factors arpound center (cx,cy).
-     * @param sx
-     * @param sy
-     * @param cx
-     * @param cy
+     * Scales the box around an anchor point.
+     *
+     * @param {number} sx Scale factor along the x axis.
+     * @param {number} [sy=sx] Scale factor along the y axis.
+     * @param {number} [cx=this.x]
+     *        X coordinate of the pivot point.
+     * @param {number} [cy=this.y]
+     *        Y coordinate of the pivot point.
+     * @returns {BBox}
+     *          The mutated box instance.
      */
     BBox.prototype.scale = function (sx, sy, cx, cy) {
         if (sy == null) sy = sx;
-        if (cx == null) cx = sx;
-        if (cy == null) cy = sy;
+        if (cx == null) cx = this.x;
+        if (cy == null) cy = this.y;
         this.w = this.width *= sx;
         this.h = this.height *= sy;
 
@@ -8543,17 +9323,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.y2 = this.y + this.height;
         this.cx = this.x + this.width / 2;
         this.cy = this.y + this.height / 2;
+
+        return this;
     }
 
+    /**
+     * Returns the bounding box itself (Snap.svg compatibility helper).
+     *
+     * @returns {BBox}
+     *          The current instance.
+     */
     BBox.prototype.getBBox = function () {
         return this;
     };
 
     /**
-     * Returns a new bbox with the same first corner, that contains the rotation of this bbox at a given angle.
-     * A property "old_corner" is added to the new bbox, giving the coord of the first corner of the rotates bbox.
-     * @param angle
-     * @return {BBox}
+     * Computes the bounds required to contain the box rotated by the given angle.
+     *
+     * @param {number} angle Rotation angle in degrees.
+     * @returns {BBox}
+     *          New box covering the rotated area. Includes `old_corner`
+     *          metadata describing the original top-left location.
      */
     BBox.prototype.getBBoxRot = function (angle) {
         const rotation = Snap.matrix().rotate(angle);
@@ -8576,9 +9366,54 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return bbox;
     };
 
-    BBox.prototype.getBBox = function () {
-        return this;
-    };
+    /**
+     * Normalises input values into a {@link BBox} instance.
+     *
+     * @param {(BBox|Array|Object|number)} x
+     *        Either an existing {@link BBox}, tuple, bounds object or x coordinate.
+     * @param {number} [y]
+     *        Y coordinate when numeric values are provided.
+     * @param {number} [width]
+     *        Width when numeric values are provided.
+     * @param {number} [height]
+     *        Height when numeric values are provided.
+     * @returns {BBox}
+     *          Prepared bounding box instance.
+     */
+    function box(x, y, width, height) {
+        if (x instanceof BBox) {
+            return x;
+        }
+        if (Array.isArray(x) && x.length === 4) {
+            return new BBox(+x[0], +x[1], +x[2], +x[3]);
+        }
+        if (typeof x === 'object') {
+            return new BBox(x);
+        }
+        return new BBox(+x, +y, +width, +height);
+    }
+
+    Snap._.box = box; //for backward compatibility
+    Snap.box = box;
+    Snap.BBox = BBox;
+    Snap._.BBox = BBox;
+    Snap.registerType('bbox', BBox);
+
+});
+
+/*
+ * Copyright (c) 2018.  Orlin Vakarelov
+ */
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+
+    const ERROR = 1e-12;
+
+    const BBox = Snap.BBox || Snap._.BBox;
+    const box = Snap.box || Snap._.box;
+
+    if (!BBox || !box) {
+        throw new Error('Snap BBox extension must be loaded before the path extension.');
+    }
 
 //Snap begins here
     Snap._.transform2matrixStrict = function transform2matrixStrict(tstr) {
@@ -8683,19 +9518,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         });
         return p[ps];
-    }
-
-    function box(x, y, width, height) {
-        if (x instanceof BBox) {
-            return x;
-        }
-        if (Array.isArray(x) && x.length === 4) {
-            return new BBox(+x[0], +x[1], +x[2], +x[3]);
-        }
-        if (typeof x === 'object') {
-            return new BBox(x);
-        }
-        return new BBox(+x, +y, +width, +height);
     }
 
     function toString(path) {
@@ -10517,6 +11339,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     PathPoint.SMOOTH = 'smooth'; //2;
     PathPoint.SYMMETRIC = 'symmetric'; //3;
 
+    /**
+     * Describes a single anchor point within a path segment, including the
+     * control handles that precede and follow it.
+     *
+     * @param {{x:number,y:number}|PathPoint} center
+     *        The anchor point position, or an existing {@link PathPoint} to clone.
+     * @param {{x:number,y:number}} [before]
+     *        Handle leading into the point (a.k.a. the "previous" handle).
+     * @param {{x:number,y:number}} [after]
+     *        Handle exiting the point (a.k.a. the "next" handle).
+     * @param {string} [ending]
+     *        Optional ending flag describing how the point terminates a segment.
+     */
     function PathPoint(center, before, after, ending) {
         let type, bezier;
         if (center instanceof PathPoint) {
@@ -10576,6 +11411,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this.getType() === PathPoint.SYMMETRIC;
     }
 
+    /**
+     * Annotates a collection of {@link PathPoint}s with arc-length metadata.
+     *
+     * @param {PathPoint[]} pathPoints
+     *        Ordered list of points describing the path.
+     * @param {Snap.PolyBezier[]|Array} [beziers]
+     *        Optional cached Bézier segments. When omitted they are recomputed.
+     * @param {boolean} [close=false]
+     *        When `true`, a synthetic closing point mirroring the first anchor is appended.
+     * @param {Object} [data]
+     *        Extra key/value pairs replicated onto each point for downstream consumers.
+     */
     PathPoint.prototype.addMeasurements = function (pathPoints, beziers, close, data) {
         beziers = beziers || Snap.path.toBeziers(pathPoints);
         const total_length = beziers.reduce((len, bz) => len + bz.length(), 0);
@@ -10627,15 +11474,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     /**
-     * Computes new bezier tangent control points around a point to make the curve
-     * @param center the main point.
-     * @param after the after control point
-     * @param before the before control point
-     * @param symmetric whether to make the control tangents points symmetric
-     * @param modify_points if true, the before and after points objects are modified, instead of new points being returned.
-     * @returns {undefined|*[]} If modify_points is true, nothing is returend, otherwise, array [new_after, new_before]
-     * is returned.
-     * TODO: implement auto-smooth, as in: https://stackoverflow.com/questions/61564459/algorithm-behind-inkscapes-auto-smooth-nodes
+     * Recomputes tangent handles to smooth the curve through a {@link PathPoint}.
+     *
+     * @param {{x:number,y:number}} center
+     *        The anchor to be smoothed.
+     * @param {{x:number,y:number}} after
+     *        The outgoing handle from the anchor.
+     * @param {{x:number,y:number}} before
+     *        The incoming handle to the anchor.
+     * @param {boolean} [symmetric=false]
+     *        When `true`, both handles are forced to be symmetric.
+     * @param {boolean} [modify_points=false]
+     *        When `true`, the original handle objects are mutated in place.
+     * @returns {(Array|undefined)}
+     *          Returns `[new_after, new_before]` unless `modify_points` is `true`, in which case the handles are mutated and `undefined` is returned.
+     * @todo Implement auto-smooth heuristics similar to Inkscape.
      */
     Snap.path.smoothCorner = function (center, after, before, symmetric, modify_points) {
         const type = Snap.path.getPointType(center, after, before);
@@ -10746,6 +11599,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return result;
     }
 
+    /**
+     * Generates {@link PathPoint} descriptors for the element's path data.
+     *
+     * @returns {PathPoint[]}
+     *          Ordered points enriched with control handles and segment metadata.
+     */
     elproto.getSegmentAnalysis = function () {
         let path_str = getPath[this.type](this);
 
@@ -10811,6 +11670,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return joins;
     };
 
+    /**
+     * Builds cubic Bézier curve descriptions from path analysis points.
+     *
+     * When called with no arguments, it will attempt to call `getSegmentAnalysis()`
+     * on the current context (`this`). Passing a truthy non-array first argument is
+     * treated as the `segmented` flag, matching the legacy API behaviour.
+     *
+     * @param {(PathPoint[]|{getSegmentAnalysis:Function}|boolean)} [anals]
+     *        Optional segment analysis result or boolean shorthand for `segmented`.
+     * @param {boolean} [segmented=false]
+     *        When `true`, the returned array is chunked per logical path segment.
+     * @returns {Array<Array|Object>|undefined}
+     *          An array of cubic Bézier descriptors, or nested arrays when segmented.
+     */
     function toBeziers(anals, segmented) {
         if (anals && !Array.isArray(anals) && !anals.getSegmentAnalysis) {
             segmented = anals;
@@ -10842,10 +11715,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     elproto.toBeziers = toBeziers;
     Snap.path.toBeziers = toBeziers
 
+    /**
+     * Converts the current path element into a {@link Snap.polyBezier} instance.
+     *
+     * @returns {Snap.PolyBezier}
+     *          A poly-bézier representation of the element suitable for tessellation.
+     */
     elproto.toPolyBezier = function () {
         return Snap.polyBezier(this.toBeziers());
     };
 
+    /**
+     * Computes a cubic Bézier curve that interpolates four third-points.
+     *
+     * @param {{x:number,y:number}} p1 The start point of the curve.
+     * @param {{x:number,y:number}} p2 The first interior control point.
+     * @param {{x:number,y:number}} p3 The second interior control point.
+     * @param {{x:number,y:number}} p4 The end point of the curve.
+     * @returns {Array<{x:number,y:number}>}
+     *          Array describing the resulting cubic Bézier points.
+     */
     function cubicFromThirdPoints(p1, p2, p3, p4) {
         let m = [
             [1, 0, 0, 0],
@@ -11156,8 +12045,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (items) {
                 for (var i = 0, ii = items.length; i < ii; ++i) {
                     if (items[i]) {
-                        this[this.items.length] = this.items[this.items.length] = items[i];
-                        this.length++;
+                        // this[this.items.length] = this.items[this.items.length] = items[i];
+                        // this.length++;
+                        this.push(items[i])
                     }
                 }
             }
@@ -11749,6 +12639,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             mouseenter: 'pointerenter',
             mouseleave: 'pointerleave',
         },
+        /**
+         * Retrieves the current scroll offset for the specified axis.
+         *
+         * @param {"x"|"y"} xy Indicates which axis to measure.
+         * @param {Element|Snap|undefined} [el] Optional element used to resolve the owning document.
+         * @returns {number} The scroll offset in pixels for the requested axis.
+         */
         getScroll = function (xy, el) {
             const name = xy == "y" ? "scrollTop" : "scrollLeft",
                 doc = el && el.node ? el.node.ownerDocument : Snap.document();
@@ -11767,6 +12664,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         stopTouch = function () {
             return this.originalEvent.stopPropagation();
         },
+        /**
+         * Normalises DOM, touch, and pointer events for Snap elements.
+         *
+         * @param {HTMLElement|Document} obj A DOM node to attach the native listener to.
+         * @param {string} type The canonical mouse event name.
+         * @param {Function} fn The handler invoked with normalised coordinates.
+         * @param {Element} element The Snap element used as `this` when invoking the handler.
+         * @returns {Function} A disposer that removes the underlying native listeners.
+         */
         addEvent = function (obj, type, fn, element) {
             let realName = (supportsPointer && pointerMap[type])
                 ? pointerMap[type] : (supportsTouch && touchMap[type] ? touchMap[type] : type);
@@ -11840,6 +12746,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             };
         };
     let drag = [];
+    /**
+     * Handles the active drag gesture by relaying movement coordinates to registered listeners.
+     *
+     * @param {MouseEvent|TouchEvent} e The original DOM event.
+     */
     const dragMove = function (e) {
             let x = e.clientX,
                 y = e.clientY;
@@ -11881,6 +12792,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 // console.log("drag move", dragi.el.id, x, y);
             }
         },
+        /**
+         * Concludes all active drag gestures and removes the shared move/up listeners.
+         *
+         * @param {MouseEvent|TouchEvent} e The original DOM event that ended the drag.
+         */
         dragUp = function (e) {
             Snap.unmousemove(dragMove).unmouseup(dragUp);
             let i = drag.length,
@@ -11893,192 +12809,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             drag = [];
         };
-    /*\
-     * Element.click
-     [ method ]
-     **
-     * Adds a click event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unclick
-     [ method ]
-     **
-     * Removes a click event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.dblclick
-     [ method ]
-     **
-     * Adds a double click event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.undblclick
-     [ method ]
-     **
-     * Removes a double click event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mousedown
-     [ method ]
-     **
-     * Adds a mousedown event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmousedown
-     [ method ]
-     **
-     * Removes a mousedown event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mousemove
-     [ method ]
-     **
-     * Adds a mousemove event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmousemove
-     [ method ]
-     **
-     * Removes a mousemove event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mouseout
-     [ method ]
-     **
-     * Adds a mouseout event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmouseout
-     [ method ]
-     **
-     * Removes a mouseout event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mouseover
-     [ method ]
-     **
-     * Adds a mouseover event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmouseover
-     [ method ]
-     **
-     * Removes a mouseover event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mouseup
-     [ method ]
-     **
-     * Adds a mouseup event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmouseup
-     [ method ]
-     **
-     * Removes a mouseup event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchstart
-     [ method ]
-     **
-     * Adds a touchstart event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchstart
-     [ method ]
-     **
-     * Removes a touchstart event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchmove
-     [ method ]
-     **
-     * Adds a touchmove event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchmove
-     [ method ]
-     **
-     * Removes a touchmove event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchend
-     [ method ]
-     **
-     * Adds a touchend event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchend
-     [ method ]
-     **
-     * Removes a touchend event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchcancel
-     [ method ]
-     **
-     * Adds a touchcancel event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchcancel
-     [ method ]
-     **
-     * Removes a touchcancel event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
+    /**
+     * Generates pointer helper methods such as `element.click`, `element.mousemove`, and their
+     * corresponding `un*` counterparts. These helpers normalise mouse, touch, and pointer events,
+     * optionally invoke handlers with a custom scope, and expose the event coordinates adjusted for
+     * document scroll.
+     *
+     * Each generated method supports two calling conventions:
+     * - `element.eventName(handler, [scope], [data])` to bind a listener.
+     * - `element.eventName()` to trigger previously bound listeners for the same event type.
+     *
+     * @param {Function} fn The event handler. When omitted the previously registered handlers are invoked.
+     * @param {Object} [scope] Optional `this` context passed to the handler.
+     * @param {*} [data] Arbitrary data stored alongside the handler metadata.
+     * @returns {Element} The current element, allowing chaining.
+     *
+     * @example
+     * element.click(function (event, x, y) {
+     *     console.log("Clicked at", x, y);
+     * });
+     *
+     * @example
+     * element.unclick(handler);
+     */
     for (var i = events.length; i--;) {
         (function (eventName) {
             Snap[eventName] = elproto[eventName] = function (fn, scope, data) {
@@ -12120,29 +12873,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 };
         })(events[i]);
     }
-    /*\
-     * Element.hover
-     [ method ]
-     **
-     * Adds hover event handlers to the element
-     - f_in (function) handler for hover in
-     - f_out (function) handler for hover out
-     - icontext (object) #optional context for hover in handler
-     - ocontext (object) #optional context for hover out handler
-     = (object) @Element
-    \*/
+    /**
+     * Adds hover-in and hover-out handlers to the element using `mouseover` and `mouseout` events.
+     *
+     * @param {Function} f_in Handler executed when the pointer enters the element.
+     * @param {Function} f_out Handler executed when the pointer leaves the element.
+     * @param {Object} [scope_in] Optional context bound to the hover-in handler.
+     * @param {Object} [scope_out] Optional context bound to the hover-out handler.
+     * @returns {Element} The current element for chaining.
+     */
     elproto.hover = function (f_in, f_out, scope_in, scope_out) {
         return this.mouseover(f_in, scope_in).mouseout(f_out, scope_out || scope_in);
     };
-    /*\
-     * Element.unhover
-     [ method ]
-     **
-     * Removes hover event handlers from the element
-     - f_in (function) handler for hover in
-     - f_out (function) handler for hover out
-     = (object) @Element
-    \*/
+    /**
+     * Removes previously registered hover handlers from the element.
+     *
+     * @param {Function} f_in The hover-in handler to unregister.
+     * @param {Function} f_out The hover-out handler to unregister.
+     * @returns {Element} The current element for chaining.
+     */
     elproto.unhover = function (f_in, f_out) {
         return this.unmouseover(f_in).unmouseout(f_out);
     };
@@ -12151,37 +12900,30 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     // SIERRA Element.drag(): _x position of the mouse_: Where are the x/y values offset from?
     // SIERRA Element.drag(): much of this member's doc appears to be duplicated for some reason.
     // SIERRA Unclear about this sentence: _Additionally following drag events will be triggered: drag.start.<id> on start, drag.end.<id> on end and drag.move.<id> on every move._ Is there a global _drag_ object to which you can assign handlers keyed by an element's ID?
-    /*\
-     * Element.drag
-     [ method ]
-     **
-     * Adds event handlers for an element's drag gesture
-     **
-     - onmove (function) handler for moving
-     - onstart (function) handler for drag start
-     - onend (function) handler for drag end
-     - mcontext (object) #optional context for moving handler
-     - scontext (object) #optional context for drag start handler
-     - econtext (object) #optional context for drag end handler
-     * Additionaly following `drag` events are triggered: `drag.start.<id>` on start, 
-     * `drag.end.<id>` on end and `drag.move.<id>` on every move. When element is dragged over another element 
-     * `drag.over.<id>` fires as well.
+    /**
+     * Adds drag gesture handlers to the element.
      *
-     * Start event and start handler are called in specified context or in context of the element with following parameters:
-     o x (number) x position of the mouse
-     o y (number) y position of the mouse
-     o event (object) DOM event object
-     * Move event and move handler are called in specified context or in context of the element with following parameters:
-     o dx (number) shift by x from the start point
-     o dy (number) shift by y from the start point
-     o x (number) x position of the mouse
-     o y (number) y position of the mouse
-     o event (object) DOM event object
-     * End event and end handler are called in specified context or in context of the element with following parameters:
-     o event (object) DOM event object
-     = (object) @Element
-    \*/
-    elproto.drag = function (onmove, onstart, onend, move_scope, start_scope, end_scope) {
+     * Additional `drag` events are triggered for convenience:
+     * - `drag.start.<id>` when the gesture begins.
+     * - `drag.move.<id>` while the pointer moves.
+     * - `drag.end.<id>` when the gesture finishes.
+     * - `drag.over.<id>` when the element is dragged over another element.
+     *
+     * Handler invocation details:
+     * - The start handler receives `(x, y, event)` where `x` and `y` are the pointer coordinates.
+     * - The move handler receives `(dx, dy, x, y, event)` where `dx`/`dy` are deltas from the start point.
+     * - The end handler receives `(event)`.
+     *
+     * @param {Function} [onmove] Handler for pointer movement.
+     * @param {Function} [onstart] Handler fired when the drag starts.
+     * @param {Function} [onend] Handler fired when the drag ends.
+     * @param {Object} [move_scope] Optional context for the move handler.
+     * @param {Object} [start_scope] Optional context for the start handler.
+     * @param {Object} [end_scope] Optional context for the end handler.
+    * @param {AltClickEventSpecification} [alt_click_event] Optional alternate click trigger when the drag is extremely short. Accepts a timeout in milliseconds or `[event, timeout]` where `event` can be an event name or callback.
+     * @returns {Element} The current element to support chaining.
+     */
+    elproto.drag = function (onmove, onstart, onend, move_scope, start_scope, end_scope, alt_click_event) {
         const el = this;
         if (!arguments.length) {
             let origTransform;
@@ -12194,9 +12936,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
         }
 
+        let time;
+
         function start(e, x, y) {
             // (e.originalEvent || e).preventDefault();
-
+            if (alt_click_event) time = Date.now();
             el._drag.x = x;
             el._drag.y = y;
             el._drag.id = e.identifier;
@@ -12205,11 +12949,33 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             drag.push({el: el, move_scope: move_scope, start_scope: start_scope, end_scope: end_scope});
             onstart && eve.on("snap.drag.start." + el.id, onstart);
             onmove && eve.on("snap.drag.move." + el.id, onmove);
+            if (alt_click_event) {
+                eve.on("snap.drag.end." + el.id, () => {
+                    let cl_t = (typeof alt_click_event === "number") ? alt_click_event : 500;
+                    if (Array.isArray(alt_click_event)
+                        && typeof alt_click_event[1] === "number"
+                        && (typeof alt_click_event[0] === "string"
+                            || typeof alt_click_event[0] === "function")) {
+                        [alt_click_event, cl_t] = alt_click_event;
+                    }
+                    if (Date.now() - time < cl_t) {
+                        if (typeof alt_click_event === "string") {
+                            eve(alt_click_event)
+                        }
+                        if (typeof alt_click_event === "function") {
+                            alt_click_event()
+                        } else {
+                           el.node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+                        }
+                        eve("snap.drag.click." + el.id)
+                    }
+                })
+            }
             onend && eve.on("snap.drag.end." + el.id, onend);
             eve(["snap", "drag", "start", el.id], start_scope || move_scope || el, x, y, e);
         }
 
-       function init(e, x, y) {
+        function init(e, x, y) {
             // Prevent execution if more than one button or finger is pressed
             if ((e.touches && e.touches.length > 1) || (e.buttons && e.buttons > 1)) {
                 return;
@@ -12236,12 +13002,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     // elproto.onDragOver = function (f) {
     //     f ? eve.on("snap.drag.over." + this.id, f) : eve.unbind("snap.drag.over." + this.id);
     // };
-    /*\
-     * Element.undrag
-     [ method ]
-     **
-     * Removes all drag event handlers from the given element
-    \*/
+    /**
+     * Removes all drag-related handlers from the element and detaches shared listeners when applicable.
+     *
+     * @returns {Element} The current element for chaining.
+     */
     elproto.undrag = function () {
         let i = draggable.length;
         while (i--) if (draggable[i].el == this) {
@@ -12254,6 +13019,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this;
     };
 
+    /**
+     * Removes every registered mouse, touch, and drag listener from the element.
+     *
+     * @returns {Element} The current element for chaining.
+     */
     elproto.removeAllMouseListeners = function () {
         const events = this.events || [];
         let l = events.length;
@@ -12264,8 +13034,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         this.undrag();
         this.unhover();
-    }
+        return this;
+    };
 
+    /**
+     * Copies registered event listeners from another element, optionally preserving the original scopes.
+     *
+     * @param {Element} el Source element whose listeners should be duplicated.
+     * @param {boolean} [preserveScopes=false] When `true`, retains the original listener scopes.
+     * @param {boolean} [skip_drag=false] When `true`, drag handlers are ignored.
+     * @returns {Element} The current element for chaining.
+     */
     elproto.copyListeners = function (el, preserveScopes, skip_drag) {
         if (!el.events) return this;
 
@@ -12275,8 +13054,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             } else {
                 this[ev.name](ev.f, (preserveScopes) ? ev.scope : undefined);
             }
-        })
-    }
+        });
+
+        return this;
+    };
 });
 
 // Copyright (c) 2013 Adobe Systems Incorporated. All rights reserved.
@@ -12642,35 +13423,46 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   };
 });
 
-
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var box = Snap.box,
+    const box = Snap.box,
         is = Snap.is,
         firstLetter = /^[^a-z]*([tbmlrc])/i,
         toString = function () {
             return "T" + this.dx + "," + this.dy;
         };
-    /*\
-     * Element.getAlign
-     [ method ]
-     **
-     * Returns shift needed to align the element relatively to given element.
-     * If no elements specified, parent `<svg>` container will be used.
-     - el (object) @optional alignment element
-     - way (string) one of six values: `"top"`, `"middle"`, `"bottom"`, `"left"`, `"center"`, `"right"`
-     = (object|string) Object in format `{dx: , dy: }` also has a string representation as a transformation string
-     > Usage
-     | el.transform(el.getAlign(el2, "top"));
-     * or
-     | var dy = el.getAlign(el2, "top").dy;
-    \*/
+
+    /**
+     * @typedef {Object} AlignOffset
+     * @property {number} dx Horizontal shift required for alignment.
+     * @property {number} dy Vertical shift required for alignment.
+     * @property {function(): string} toString Serialises the offset as an SVG transform string (e.g. `"T10,-5"`).
+     */
+
+    /**
+     * Returns the translation vector required to align this element with a target element, Snap set, or raw bounding box.
+     * If no target is provided, the current paper (parent `<svg>`) is used by default. Passing a string as the first
+     * argument is treated as the `way` so you can call `el.getAlign("top")` directly.
+     *
+     * @param {Snap.Element|Snap.Paper|Snap.BBox|Element|Object|string} [el] Alignment target. When a string is provided it is treated as the `way` argument.
+     * @param {string} [way="center"] Alignment mode: "top", "middle", "bottom", "left", "center", or "right".
+     * @returns {AlignOffset} Offset needed to align the element.
+     *
+     * @example <caption>Apply the translation directly as a transform</caption>
+     * const shift = el.getAlign(el2, "top");
+     * el.transform(el.transform().localMatrix.toTransformString() + shift.toString());
+     *
+     * @example <caption>Use the numeric values for custom positioning</caption>
+     * const topOffset = el.getAlign(el2, "top");
+     * const dy = topOffset.dy;
+     * // position some helper guides with `dy`
+     */
     Element.prototype.getAlign = function (el, way) {
         if (way == null && is(el, "string")) {
             way = el;
             el = null;
         }
         el = el || this.paper;
-        var bx = el.getBBox ? el.getBBox() : box(el),
+        const bx = el.getBBox ? el.getBBox() : box(el),
             bb = this.getBBox(),
             out = {};
         way = way && way.match(firstLetter);
@@ -12679,47 +13471,150 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             case "t":
                 out.dx = 0;
                 out.dy = bx.y - bb.y;
-            break;
+                break;
             case "b":
                 out.dx = 0;
                 out.dy = bx.y2 - bb.y2;
-            break;
+                break;
             case "m":
                 out.dx = 0;
                 out.dy = bx.cy - bb.cy;
-            break;
+                break;
             case "l":
                 out.dx = bx.x - bb.x;
                 out.dy = 0;
-            break;
+                break;
             case "r":
                 out.dx = bx.x2 - bb.x2;
                 out.dy = 0;
-            break;
+                break;
             default:
                 out.dx = bx.cx - bb.cx;
                 out.dy = 0;
-            break;
+                break;
         }
         out.toString = toString;
         return out;
     };
-    /*\
-     * Element.align
-     [ method ]
-     **
-     * Aligns the element relatively to given one via transformation.
-     * If no elements specified, parent `<svg>` container will be used.
-     - el (object) @optional alignment element
-     - way (string) one of six values: `"top"`, `"middle"`, `"bottom"`, `"left"`, `"center"`, `"right"`
-     = (object) this element
-     > Usage
-     | el.align(el2, "top");
-     * or
-     | el.align("middle");
-    \*/
+    /**
+     * Aligns this element with a target element or bounding box by applying the translation returned from {@link Element#getAlign}.
+     * The method is chainable and does not reset the existing transformation matrix; it simply appends the calculated shift.
+     *
+     * @param {Snap.Element|Snap.Paper|Snap.BBox|Element|Object|string} [el] Alignment target. When a string is provided it is treated as the `way` argument.
+     * @param {string} [way="center"] Alignment mode: "top", "middle", "bottom", "left", "center", or "right".
+     * @returns {Snap.Element} The current element for chaining.
+     *
+     * @example <caption>Align the element to the top of another element</caption>
+     * el.align(el2, "top");
+     *
+     * @example <caption>Align relative to the parent SVG by passing only the way</caption>
+     * el.align("middle");
+     */
     Element.prototype.align = function (el, way) {
         return this.transform("..." + this.getAlign(el, way));
+    };
+
+    /**
+     * Aligns this element together with other elements or bounding boxes. The method resolves a shared anchor box—either
+     * the explicit anchor provided, or one derived from the combined bounding boxes—and then applies {@link Element#align}
+     * to every member of the set.
+     *
+     * @param {Snap.Set|Array<Snap.Element|Snap.BBox|Object>} [els=[]] Elements, sets, or bounding boxes to align alongside this element.
+     * @param {string} [way="center"] Alignment mode: "top", "middle", "bottom", "left", "center", or "right".
+     * @param {string|Snap.Element|Snap.BBox|Object} [anchor_id] Named anchor, element, or bounding box to align against.
+     * @returns {number|false} Number of elements moved, or `false` if no anchor can be resolved.
+     *
+     * @example <caption>Align a group to the center of the first element</caption>
+     * const movedCount = el.alignAll([el2, el3], "center", el);
+     * // movedCount === 3 when all three elements were repositioned
+     *
+     * @example <caption>Align several elements to the top edge of an element with id="anchor"</caption>
+     * el.alignAll([el2, el3], "top", "anchor");
+     */
+    Element.prototype.alignAll = function (els, way, anchor_id) {
+        if (way == null && anchor_id == null && is(els, "string")) {
+            anchor_id = null;
+            way = els;
+            els = [];
+        } else if (anchor_id == null && way != null && !is(way, "string")) {
+            anchor_id = way;
+            way = null;
+        }
+
+        way = way || "center";
+
+
+        const alignSet = new Snap.Set([this, ...els.filter((el) => is(el, "element"))]);
+
+        if (!alignSet.length) {
+            return this;
+        }
+
+        let anchorElement = null,
+            anchorBox = null;
+
+        if (anchor_id != null) {
+            if (is(anchor_id, "string")) {
+                const needle = anchor_id;
+                anchorElement = alignSet.filter((el) => el.getId() === anchor_id)[0];
+
+                if (!anchorElement) {
+                    anchorElement = this.paper.select('#' + anchor_id);
+                }
+                if (anchorElement) {
+                    anchorBox = box(anchorElement.getBBox());
+                } else {
+                    return false;
+                }
+            } else if (Snap.is(anchor_id, "Element")) {
+                anchorElement = anchor_id;
+                anchorBox = box(anchorElement.getBBox());
+            } else if (anchor_id && anchor_id.getBBox && is(anchor_id.getBBox, "function")) {
+                anchorBox = anchor_id.getBBox();
+            } else if (anchor_id) {
+                try {
+                    anchorBox = box(anchor_id);
+                } catch (er) {
+                    return false;
+                }
+            }
+        }
+
+        if (!anchorBox) {
+            const boxes = Array.from(new Snap.Set([this, ...els])).map((el) => (el.getBBox) ?? el.getBBox()).filter(Boolean);
+            const n = boxes.length;
+            if (way[0].toLowerCase() === 'c') {
+                let CX_bar = boxes.map(b => b.cx).sum() / n,
+                    CY_bar = boxes.map(b => b.cy).sum() / n;
+                anchorBox = box(CX_bar - 10, CY_bar - 10, 20, 20);
+            } else {
+                let X_bar = boxes.map(b => b.x).sum() / n,
+                    Y_bar = boxes.map(b => b.y).sum() / n,
+                    X2_bar = boxes.map(b => b.x2).sum() / n,
+                    Y2_bar = boxes.map(b => b.y2).sum() / n;
+
+                anchorBox = box(X_bar, Y_bar, X2_bar - X_bar, Y2_bar - Y2_bar);
+            }
+        }
+
+        if (anchorElement && !anchorBox) {
+            anchorBox = box(anchorElement.getBBox());
+        }
+
+        if (!anchorBox) {
+            return this;
+        }
+
+        let moved = 0
+        alignSet.forEach(function (item) {
+            if (!item || !item.getBBox || !is(item.getBBox, "function")) {
+                return;
+            }
+            item.align(anchorElement || anchorBox, way);
+            ++moved
+        });
+
+        return moved;
     };
 });
 
@@ -12882,12 +13777,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     //Based on https://github.com/Pomax/bezierjs
     /**
-     * Bezier curve constructor. The constructor argument can be one of three things:
+     * Creates a Bezier curve instance from a flexible set of coordinate inputs.
      *
-     * 1. array/4 of {x:..., y:..., z:...}, z optional
-     * 2. numerical array/8 ordered x1,y1,x2,y2,x3,y3,x4,y4
-     * 3. numerical array/12 ordered x1,y1,z1,x2,y2,z2,x3,y3,z3,x4,y4,z4
+     * Accepts:
+     * 1. An array of `{x, y, z?}` control points (2D or 3D).
+     * 2. A flat numeric array in the order `x1, y1, x2, y2, ...`.
+     * 3. Individual numeric arguments matching the flat array forms above.
      *
+    * @constructor
+    * @param {...(Array.<number>|Point3DList|number)} coords Control points defining the curve.
      */
     const Bezier = function (coords) {
         this.id = String.rand(4);
@@ -12971,6 +13869,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.update();
     };
 
+    /**
+     * Creates a Bezier curve from an SVG path segment string (`C`/`c` or `Q`/`q`).
+     * @param {string} svgString SVG path command string containing curve coordinates.
+     * @returns {Bezier} New Bezier instance representing the parsed curve.
+     */
     Bezier.fromSVG = function (svgString) {
         let list = svgString.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g).map(parseFloat);
         const relative = /[cq]/.test(svgString);
@@ -12981,6 +13884,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new Bezier(list);
     };
 
+    /**
+     * Computes helper points used when fitting curves through three constraints.
+     * @param {number} n Curve order (2 for quadratic, 3 for cubic).
+    * @param {Point2D} S Start point.
+    * @param {Point2D} B Through point.
+    * @param {Point2D} E End point.
+     * @param {number} [t=0.5] Parameter position of the through point.
+    * @returns {{A: Point2D, B: Point2D, C: Point2D}} Helper points.
+     */
     function getABC(n, S, B, E, t) {
         if (typeof t === 'undefined') {
             t = 0.5;
@@ -12999,6 +13911,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return {A: A, B: B, C: C};
     }
 
+    /**
+     * Fits a quadratic Bezier curve through three points with an optional parameter for the middle point.
+    * @param {Point2D} p1 Start point.
+    * @param {Point2D} p2 Through point.
+    * @param {Point2D} p3 End point.
+     * @param {number} [t=0.5] Parameter value of `p2` along the curve.
+     * @returns {Bezier} New quadratic Bezier passing through the provided points.
+     */
     Bezier.quadraticFromPoints = function (p1, p2, p3, t) {
         if (typeof t === 'undefined') {
             t = 0.5;
@@ -13015,6 +13935,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new Bezier(p1, abc.A, p3);
     };
 
+    /**
+     * Fits a cubic Bezier curve through a start/through/end configuration.
+    * @param {Point2D} S Start point.
+    * @param {Point2D} B Through point.
+    * @param {Point2D} E End point.
+     * @param {number} [t=0.5] Parameter value describing where `B` lies along the curve.
+     * @param {number} [d1] Tangent distance from the start point; used to adjust curvature.
+     * @returns {Bezier} New cubic Bezier matching the constraints.
+     */
     Bezier.cubicFromPoints = function (S, B, E, t, d1) {
         if (typeof t === 'undefined') {
             t = 0.5;
@@ -13047,6 +13976,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new Bezier(S, nc1, nc2, E);
     };
 
+    /**
+     * Exposes the internal utility helpers backing the Bezier implementation.
+     * @returns {Object} Collection of utility functions used by the Bezier library.
+     */
     const getUtils = function () {
         return utils;
     };
@@ -13054,16 +13987,38 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Bezier.getUtils = getUtils;
 
     Bezier.prototype = {
+        /**
+         * Returns the shared Bezier utility helpers.
+         * @returns {Object}
+         */
         getUtils: getUtils,
+        /**
+         * Returns the curve representation when coerced to a primitive.
+         * @returns {string}
+         */
         valueOf: function () {
             return this.toString();
         },
+        /**
+         * Serialises the curve control points into a string.
+         * @param {string} [point_sep] Optional separator inserted between points.
+         * @returns {string} String representation of the control points.
+         */
         toString: function (point_sep) {
             return utils.pointsToString(this.points, point_sep);
         },
+        /**
+         * Creates a duplicate of the current curve.
+         * @returns {Bezier} New Bezier instance with copied control points.
+         */
         clone: function () {
             return new Bezier(this.points.slice());
         },
+        /**
+         * Serialises the curve to an SVG path command string.
+         * @param {boolean} [relative=false] Whether to keep coordinates relative (currently unused).
+         * @returns {string|false} SVG string for 2D curves or `false` when exporting 3D curves.
+         */
         toSVG: function (relative) {
             if (this._3d) return false;
             const p = this.points,
@@ -13079,7 +14034,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return s.join(' ');
         },
 
-        update: function () {
+    /**
+     * Rebuilds cached derivative points and directional metadata after control point changes.
+     */
+    update: function () {
             // one-time pointAt derivative coordinates
             this.dpoints = [];
             let p = this.points, d = p.length, c = d - 1;
@@ -13102,13 +14060,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.computedirection();
         },
 
-        computedirection: function () {
+    /**
+     * Computes the clockwise orientation of the curve based on the first segment.
+     */
+    computedirection: function () {
             const points = this.points;
             const angle = utils.angle(points[0], points[this.order], points[1]);
             this.clockwise = angle > 0;
         },
 
-        length: function () {
+    /**
+     * Calculates the curve length using numeric approximation for non-linear curves.
+     * @returns {number} Curve length in coordinate units.
+     */
+    length: function () {
             if (this.order === 1) {
                 let sum = (this.points[0].x - this.points[1].x) ** 2
                     + (this.points[0].y - this.points[1].y) ** 2;
@@ -13121,7 +14086,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return utils.length(this.derivative.bind(this));
         },
         _lut: [],
-        getLUT: function (steps) {
+    /**
+     * Generates a lookup table of curve points for fast approximations.
+     * @param {number} [steps=100] Number of segments to precompute.
+    * @returns {Point3DList} Array of sampled points along the curve.
+     */
+    getLUT: function (steps) {
             steps = steps || 100;
             if (this._lut.length === steps) {
                 return this._lut;
@@ -13132,7 +14102,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this._lut;
         },
-        on: function (point, error) {
+    /**
+     * Tests whether a given point lies on the curve within an error threshold.
+    * @param {Point2D} point Point to test.
+     * @param {number} [error=5] Allowed deviation in coordinate units.
+     * @returns {false|number} False when outside tolerance, or average parameter value when hit(s) found.
+     */
+    on: function (point, error) {
             error = error || 5;
             const lut = this.getLUT(), hits = [];
             let c, t = 0;
@@ -13147,7 +14123,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return t /= hits.length;
         },
 
-        project: function (point) {
+    /**
+     * Projects a point onto the curve and returns the closest position.
+    * @param {Point2D} point External point to project.
+    * @returns {{x: number, y: number, z: (number|undefined), t: number, d: number}} Closest point with parameter `t` and distance `d`.
+     */
+    project: function (point) {
             // step 1: coarse check
             const LUT = this.getLUT(),
                 l = LUT.length - 1,
@@ -13182,24 +14163,55 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return p;
         },
 
+        /**
+         * Alias for {@link Bezier#compute}.
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point3D} Point on the curve.
+         */
         get: function (t) {
             return this.compute(t);
         },
+        /**
+         * Returns the control point at the specified index.
+         * @param {number} idx Control point index.
+         * @returns {Point3D}
+         */
         point: function (idx) {
             return this.points[idx];
         },
+        /**
+         * Returns the starting control point.
+         * @returns {Point3D}
+         */
         first: function () {
             return this.points[0];
         },
+        /**
+         * Returns the end control point.
+         * @returns {Point3D}
+         */
         last: function () {
             return this.points[this.points.length - 1];
         },
+        /**
+         * Returns the last control handle preceding the end point.
+         * @returns {Point3D}
+         */
         lastTarget: function () {
             return this.points[this.points.length - 2]
         },
+        /**
+         * Returns the first control handle following the start point.
+         * @returns {Point3D}
+         */
         firstTarget: function () {
             return this.points[1]
         },
+        /**
+         * Evaluates the curve at the provided parameter value.
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point3D} Point on the curve.
+         */
         compute: function (t) {
             // shortcuts
             if (t === 0) {
@@ -13266,6 +14278,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return dCpts[0];
         },
+        /**
+         * Approximates the parameter whose arc length equals the provided distance.
+         * @param {number} length Target arc length along the curve.
+         * @param {number} [precision=1] Desired precision in coordinate units.
+         * @param {number} [tot_length] Optional cached total length.
+         * @returns {number} Parameter value in [0, 1].
+         */
         tAtLength: function (length, precision, tot_length) {
             precision = precision || 1;
             tot_length = tot_length || this.length();
@@ -13293,14 +14312,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return t;
         },
-        getPointAtLength(length, precision) {
+    /**
+     * Returns the point lying at the specified arc length along the curve.
+     * @param {number} length Target arc length from the start of the curve.
+     * @param {number} [precision=1] Precision forwarded to {@link Bezier#tAtLength}.
+    * @returns {{x: number, y: number, z: (number|undefined), alpha: number}} Point with tangent angle in degrees.
+     */
+    getPointAtLength(length, precision) {
             let t = this.tAtLength(length, precision);
             let p = this.compute(t);
             let der = this.derivative(t);
             p.alpha = 180 + 90 - Math.atan2(der.x, der.y) * 180 / Math.PI;
             return p;
         },
-        raise: function () {
+    /**
+     * Elevates the degree of the curve by one while preserving its shape.
+     * @returns {Bezier} Raised-degree curve instance.
+     */
+    raise: function () {
             var p = this.points, np = [p[0]], i, k = p.length, pi, pim;
             for (var i = 1; i < k; ++i) {
                 pi = p[i];
@@ -13313,7 +14342,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             np[k] = p[k - 1];
             return new Bezier(np);
         },
-        derivative: function (t) {
+    /**
+     * Evaluates the first derivative at parameter `t`.
+     * @param {number} t Parameter in [0, 1].
+    * @returns {Point3D} Tangent vector at the specified parameter.
+     */
+    derivative: function (t) {
             const mt = 1 - t;
             let a, b, c = 0,
                 p = this.dpoints[0];
@@ -13340,17 +14374,38 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return ret;
         },
+        /**
+         * Computes the inflection parameters for the curve.
+         * @returns {Array<number>} Parameter values where inflections occur.
+         */
         inflections: function () {
             return utils.inflections(this.points);
         },
+        /**
+         * Returns the normal vector for the curve at parameter `t`.
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point3D} Normalised normal vector.
+         */
         normal: function (t) {
             return this._3d ? this.__normal3(t) : this.__normal2(t);
         },
+        /**
+         * Computes the 2D unit normal at parameter `t`.
+         * @private
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point2D}
+         */
         __normal2: function (t) {
             const d = this.derivative(t);
             const q = sqrt(d.x * d.x + d.y * d.y);
             return {x: -d.y / q, y: d.x / q};
         },
+        /**
+         * Computes the 3D unit normal at parameter `t` using a nearby tangent.
+         * @private
+         * @param {number} t Parameter in [0, 1].
+         * @returns {Point3D}
+         */
         __normal3: function () {
             // see http://stackoverflow.com/questions/25453159
             const r1 = this.derivative(t),
@@ -13386,7 +14441,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             };
             return n;
         },
-        hull: function (t) {
+    /**
+     * Returns the intermediate hull points generated by the de Casteljau algorithm.
+     * @param {number} t Parameter in [0, 1].
+    * @returns {Point3DList} Sequence of hull points.
+     */
+    hull: function (t) {
             let p = this.points,
                 _p = [],
                 pt;
@@ -13412,7 +14472,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return q;
         },
-        split: function (t1, t2) {
+    /**
+     * Splits the curve at `t1` (and optionally `t2`) returning the resulting sub-curves.
+     * @param {number} t1 First split parameter.
+     * @param {number} [t2] Optional second parameter to extract the middle segment.
+     * @returns {{left:Bezier,right:Bezier}|Bezier} Pair of curves or a single middle segment when `t2` supplied.
+     */
+    split: function (t1, t2) {
             // shortcuts
             if (t1 === 0 && !!t2) {
                 return this.split(t2).left;
@@ -13466,7 +14532,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return subsplit.left;
         },
 
-        extrema: function () {
+    /**
+    * Calculates the curve extrema in each dimension.
+    * @returns {ExtremaCollection} Extrema parameter collections.
+     */
+    extrema: function () {
             const dims = this.dims,
                 result = {};
             let roots = [],
@@ -13494,7 +14564,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return result;
         },
 
-        bbox: function () {
+    /**
+    * Returns the axis-aligned bounding box for the curve.
+    * @returns {Range3D}
+     */
+    bbox: function () {
             const extrema = this.extrema(), result = {};
             this.dims.forEach(function (d) {
                 result[d] = utils.getminmax(this, d, extrema[d]);
@@ -13502,12 +14576,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return result;
         },
 
+        /**
+         * Tests whether two curves' bounding boxes overlap.
+         * @param {Bezier} curve Curve to compare against.
+         * @returns {boolean} True when the bounding boxes overlap.
+         */
         overlaps: function (curve) {
             const lbbox = this.bbox(),
                 tbbox = curve.bbox();
             return utils.bboxoverlap(lbbox, tbbox);
         },
 
+        /**
+         * Offsets the curve by a distance or generates offset segments across its length.
+         * @param {number} t Parameter or offset distance depending on usage.
+         * @param {number} [d] Optional explicit distance when sampling a point offset.
+         * @returns {Array.<Bezier>|OffsetGeometry} Offset geometry.
+         */
         offset: function (t, d) {
             if (typeof d !== 'undefined') {
                 const c = this.get(t);
@@ -13545,7 +14630,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
         },
 
-        simple: function () {
+    /**
+     * Determines whether the curve is simple (monotonic enough for offsetting).
+     * @returns {boolean} True when the curve is considered simple.
+     */
+    simple: function () {
             if (this.order === 3) {
                 const a1 = utils.angle(this.points[0], this.points[3], this.points[1]);
                 const a2 = utils.angle(this.points[0], this.points[3], this.points[2]);
@@ -13561,7 +14650,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return angle < pi / 3;
         },
 
-        reduce: function () {
+    /**
+     * Splits the curve into simple segments suitable for offsetting and intersections.
+     * @returns {Array<Bezier>} Array of simple sub-curves covering the original curve.
+     */
+    reduce: function () {
             let i, t1 = 0, t2 = 0;
             const step = 0.01;
             let segment;
@@ -13617,13 +14710,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return pass2;
         },
 
-        reverse: function () {
+    /**
+     * Reverses the order of control points and updates cached data.
+     */
+    reverse: function () {
             this.points.reverse();
             this.update();
             if (this._lut && this._lut.length > 0) this._lut = this._lut.reverse();
         },
 
-        scale: function (d) {
+    /**
+     * Scales (offsets) the curve by a uniform distance or distance function.
+     * @param {number|Function} d Constant offset distance or function returning distance per parameter.
+     * @returns {Bezier} New curve scaled away from the original.
+     */
+    scale: function (d) {
             const order = this.order;
             let distanceFn = false;
             if (typeof d === 'function') {
@@ -13687,7 +14788,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return new Bezier(np);
         },
 
-        outline: function (d1, d2, d3, d4) {
+    /**
+     * Builds an outline polygon around the curve, optionally with graduated offsets.
+     * @param {number} d1 Leading-side offset distance.
+     * @param {number} [d2=d1] Trailing-side offset distance.
+     * @param {number} [d3] Leading offset at the end of the curve for graduated outlines.
+     * @param {number} [d4] Trailing offset at the end of the curve for graduated outlines.
+     * @returns {PolyBezier} PolyBezier describing the outline.
+     */
+    outline: function (d1, d2, d3, d4) {
             d2 = (typeof d2 === 'undefined') ? d1 : d2;
             const reduced = this.reduce(),
                 len = reduced.length,
@@ -13744,7 +14853,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             return new PolyBezier(segments);
         },
-        outlineshapes: function (d1, d2) {
+    /**
+     * Generates closed outline shapes for the curve.
+     * @param {number} d1 Leading offset distance.
+     * @param {number} [d2=d1] Trailing offset distance.
+     * @returns {Array<Object>} Shape descriptors representing the outlined regions.
+     */
+    outlineshapes: function (d1, d2) {
             d2 = d2 || d1;
             const outline = this.outline(d1, d2).curves;
             const shapes = [];
@@ -13759,7 +14874,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return shapes;
         },
 
-        intersects: function (curve) {
+    /**
+     * Computes intersections between this curve and another curve or line.
+    * @param {(Bezier|Point2DList)} [curve] Curve or line to test; omitted for self-intersections.
+     * @returns {Array<Object>} Intersection descriptors.
+     */
+    intersects: function (curve) {
             if (!curve) return this.selfintersects();
             if (curve.points.length === 2) {
                 return this.lineIntersects(curve);
@@ -13770,7 +14890,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.curveintersects(this.reduce(), curve);
         },
 
-        lineIntersects: function (line) {
+    /**
+     * Finds intersections between the curve and a line segment.
+    * @param {{p1: Point2D, p2: Point2D}|Point2DList} line Line definition.
+     * @returns {Array<number>} Parameter values of intersections along the curve.
+     */
+    lineIntersects: function (line) {
 
             if (Array.isArray(line)) line = {p1: line[0], p2: line[1]};
 
@@ -13788,7 +14913,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
         },
 
-        selfintersects: function () {
+    /**
+     * Finds self-intersections in the curve.
+     * @returns {Array<Object>} Intersection descriptors.
+     */
+    selfintersects: function () {
             const reduced = this.reduce();
             // "simple" curves cannot intersect with their direct
             // neighbour, so for each segment X we check whether
@@ -13805,7 +14934,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return results;
         },
 
-        curveintersects: function (c1, c2) {
+    /**
+     * Calculates intersections between two arrays of Bezier segments.
+     * @param {Array<Bezier>} c1 First set of segments.
+     * @param {Array<Bezier>} c2 Second set of segments.
+     * @returns {Array<Object>} Intersection descriptors.
+     */
+    curveintersects: function (c1, c2) {
             const pairs = [];
             // step 1: pair off any overlapping segments
             c1.forEach(function (l) {
@@ -13826,11 +14961,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return intersections;
         },
 
-        arcs: function (errorThreshold) {
+    /**
+     * Approximates the curve with circular arcs.
+     * @param {number} [errorThreshold=0.5] Maximum allowed deviation.
+     * @returns {Array<Object>} Arc descriptors approximating the curve.
+     */
+    arcs: function (errorThreshold) {
             errorThreshold = errorThreshold || 0.5;
             const circles = [];
             return this._iterate(errorThreshold, circles);
         },
+        /**
+         * Computes the approximation error for a proposed arc segment.
+         * @private
+         * @param {Point2D} pc Candidate circle centre.
+         * @param {Point2D} np1 Start point of the segment.
+         * @param {number} s Start parameter.
+         * @param {number} e End parameter.
+         * @returns {number} Combined deviation from the circle.
+         */
         _error: function (pc, np1, s, e) {
             const q = (e - s) / 4,
                 c1 = this.get(s + q),
@@ -13840,6 +14989,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 d2 = utils.dist(pc, c2);
             return abs(d1 - ref) + abs(d2 - ref);
         },
+        /**
+         * Iteratively fits arc segments to the curve.
+         * @private
+         * @param {number} errorThreshold Maximum allowed deviation.
+         * @param {Array<Object>} circles Accumulator for generated arcs.
+         * @returns {Array<Object>} Collection of fitted arcs.
+         */
         _iterate: function (errorThreshold, circles) {
             let s = 0, e = 1, safety;
             // we do a binary search to find the "good `t` closest to no-longer-good"
@@ -13912,8 +15068,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     /**
-     * Poly Bezier
-     * @param {[type]} curves [description]
+     * Constructs a poly-bezier wrapper around multiple curve segments.
+     * @param {Array<Bezier|Array>} [curves] Collection of Bezier instances or control point arrays.
+     * @constructor
      */
     var PolyBezier = function (curves) {
         this.curves = [];
@@ -13931,16 +15088,32 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     PolyBezier.prototype = {
+        /**
+         * Returns the SVG path representation when coerced to a primitive.
+         * @returns {string}
+         */
         valueOf: function () {
             return this.toString();
         },
+        /**
+         * Serialises the poly-bezier into an SVG path string.
+         * @returns {string}
+         */
         toString: function () {
             const res = this.curves.map((c) => c.toString());
             return res.join(' ');
         },
+        /**
+         * Produces a deep copy of the poly-bezier.
+         * @returns {PolyBezier}
+         */
         clone: function () {
             return new PolyBezier(this.curves.map((bz) => bz.clone()));
         },
+        /**
+         * Converts the poly-bezier into a valid SVG path command string.
+         * @returns {string}
+         */
         toSVG: function () {
             const deg_to_command = [undefined, 'L', 'Q', 'C'];
             let res = '';
@@ -13976,20 +15149,40 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return res;
         },
+        /**
+         * Returns the control points for each constituent curve.
+         * @returns {Array.<Point3DList>}
+         */
         getPoints: function () {
             return this.curves.map((bz) => bz.points);
         },
+        /**
+         * Returns the first control point across all curves.
+         * @returns {Point3D}
+         */
         getFirstPoint: function () {
             return this.curves[0].points[0];
         },
+        /**
+         * Returns the final control point across all curves.
+         * @returns {Point3D}
+         */
         getLastPoint: function () {
             let c = this.curves[this.curves.length - 1];
             return c.points[c.order];
         },
+        /**
+         * Appends a curve to the collection.
+         * @param {Bezier} curve Curve to add.
+         */
         addCurve: function (curve) {
             this.curves.push(curve);
             this._3d = this._3d || curve._3d;
         },
+        /**
+         * Computes the combined length of all curve segments.
+         * @returns {number}
+         */
         length: function () {
             return this.curves.map(function (v) {
                 return v.length();
@@ -13997,7 +15190,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return a + b;
             });
         },
-        getPointAtLength(length, precision) {
+    /**
+     * Samples a point along the poly-bezier at a specified arc length.
+     * @param {number} length Arc length from the start of the poly-bezier.
+     * @param {number} [precision=1] Precision forwarded to segment sampling.
+    * @returns {{x: number, y: number, z: (number|undefined), alpha: number}|null} Point or `null` when length exceeds total.
+     */
+    getPointAtLength(length, precision) {
             let inc = 0;
             this.lengths = this.lengths || this.curves.map((c) => {
                 inc += c.length();
@@ -14012,9 +15211,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             length = Math.max(0, length);
             return this.curves[i].getPointAtLength(length, precision);
         },
+        /**
+         * Retrieves the curve at the provided index.
+         * @param {number} idx Segment index.
+         * @returns {Bezier}
+         */
         curve: function (idx) {
             return this.curves[idx];
         },
+        /**
+         * Calculates the bounding box over all curve segments.
+         * @returns {Range3D}
+         */
         bbox: function () {
             const c = this.curves;
             const bbox = c[0].bbox();
@@ -14023,14 +15231,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return bbox;
         },
-        offset: function (d) {
+    /**
+     * Offsets every segment by the specified distance and returns a new poly-bezier.
+     * @param {number} d Offset distance.
+     * @returns {PolyBezier}
+     */
+    offset: function (d) {
             let offset = [];
             this.curves.forEach(function (v) {
                 offset = offset.concat(v.offset(d));
             });
             return new PolyBezier(offset);
         },
-        lineIntersects: function (line) {
+    /**
+     * Finds intersections between the poly-bezier and a line segment.
+    * @param {{p1: Point2D, p2: Point2D}|Point2DList} line Line definition.
+    * @returns {Array.<{curve: Bezier, t: number, i: number}>}
+     */
+    lineIntersects: function (line) {
             let intersections = [];
             this.curves.forEach(function (c, i) {
                 const items = c.lineIntersects(line);
@@ -14043,7 +15261,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
             return intersections;
         },
-        intersect: function (curve) {
+    /**
+     * Finds intersections between the poly-bezier and another curve.
+     * @param {Bezier|PolyBezier} curve Target curve.
+    * @returns {Array.<{curve: Bezier, t: number, i: number}>}
+     */
+    intersect: function (curve) {
             let intersections = [];
             this.curves.forEach(function (c, i) {
                 const items = c.intersect(curve);
@@ -14054,7 +15277,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             return intersections;
         },
-        reverse: function () {
+    /**
+     * Reverses the order of all curve segments and their control points.
+     */
+    reverse: function () {
             let p1 = this.curves[0].first();
             this.curves.reverse();
             // console.log(this.getPoints());
@@ -14065,9 +15291,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 console.log('Wrong', p1, p2);
             }
         },
+        /**
+         * Returns the instance itself for API symmetry.
+         * @returns {PolyBezier}
+         */
         toPolyBezier: function () {
             return this;
         },
+        /**
+         * Returns the raw array of underlying Bezier curves.
+         * @returns {Array<Bezier>}
+         */
         toBeziers: function () {
             return this.curves;
         },
@@ -14835,42 +16069,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 });
 
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-function _cross(o, a, b) {
-    return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+function _ccw(p1, p2, p3) {
+    return (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0]) <= 0;
 }
 
-function _upperTangent(pointset) {
-    const lower = [];
-    for (let l = 0; l < pointset.length; l++) {
-        while (lower.length >= 2 && (_cross(lower[lower.length - 2], lower[lower.length - 1], pointset[l]) <= 0)) {
-            lower.pop();
+function _tangent(pointset) {
+    const res = [];
+    for (let t = 0; t < pointset.length; t++) {
+        while (res.length > 1 && _ccw(res[res.length - 2], res[res.length - 1], pointset[t])) {
+            res.pop();
         }
-        lower.push(pointset[l]);
+        res.push(pointset[t]);
     }
-    lower.pop();
-    return lower;
-}
-
-function _lowerTangent(pointset) {
-    const reversed = pointset.reverse(),
-        upper = [];
-    for (let u = 0; u < reversed.length; u++) {
-        while (upper.length >= 2 && (_cross(upper[upper.length - 2], upper[upper.length - 1], reversed[u]) <= 0)) {
-            upper.pop();
-        }
-        upper.push(reversed[u]);
-    }
-    upper.pop();
-    return upper;
+    res.pop();
+    return res;
 }
 
 // pointset has to be sorted by X
 function convex(pointset) {
-    const upper = _upperTangent(pointset),
-          lower = _lowerTangent(pointset);
+    const upper = _tangent(pointset),
+          lower = _tangent(pointset.reverse());
     const convex = lower.concat(upper);
-    convex.push(pointset[0]);  
-    return convex;  
+    convex.push(pointset[0]);
+    return convex;
 }
 
 module.exports = convex;
@@ -14882,25 +16103,36 @@ module.exports = {
         if (format === undefined) {
             return pointset.slice();
         }
-        return pointset.map(function(pt) {
-            /*jslint evil: true */
-            const _getXY = new Function('pt', 'return [pt' + format[0] + ',' + 'pt' + format[1] + '];');
-            return _getXY(pt);
-        });
+
+        const xPropertyName = format[0].slice(1);
+        const yPropertyName = format[1].slice(1);
+        const _getXY = function(pt) {
+            return [pt[xPropertyName], pt[yPropertyName]];
+        };
+
+        return pointset.map(_getXY);
     },
 
     fromXy: function(pointset, format) {
         if (format === undefined) {
             return pointset.slice();
         }
+
+        const xPropertyName = format[0].slice(1);
+        const yPropertyName = format[1].slice(1);
+        const _getObj = function(pt) {
+            const obj = {};
+            obj[xPropertyName] = pt[0];
+            obj[yPropertyName] = pt[1];
+            return obj;
+        };
+
         return pointset.map(function(pt) {
-            /*jslint evil: true */
-            const _getObj = new Function('pt', 'const o = {}; o' + format[0] + '= pt[0]; o' + format[1] + '= pt[1]; return o;');
             return _getObj(pt);
         });
     }
 
-}
+};
 },{}],3:[function(require,module,exports){
 function Grid(points, cellSize) {
     this._cells = [];
@@ -14989,11 +16221,7 @@ function grid(points, cellSize) {
 
 module.exports = grid;
 },{}],4:[function(require,module,exports){
-/*
- (c) 2014-2020, Andrii Heonia
- Hull.js, a JavaScript library for concave hull generation by set of points.
- https://github.com/AndriiHeonia/hull
-*/
+/* The license text can be found in the LICENSE file */
 
 'use strict';
 
@@ -15157,7 +16385,8 @@ function hull(pointset, concavity, format) {
     const points = _filterDuplicates(_sortByX(formatUtil.toXy(pointset, format)));
 
     if (points.length < 4) {
-        return points.concat([points[0]]);
+        const concave = points.concat([points[0]]);
+        return format ? formatUtil.fromXy(concave, format) : concave;
     }
 
     const occupiedArea = _occupiedArea(points);
@@ -15177,11 +16406,7 @@ function hull(pointset, concavity, format) {
         convex, Math.pow(maxEdgeLen, 2),
         maxSearchArea, grid(innerPoints, cellSize), new Set());
 
-    if (format) {
-        return formatUtil.fromXy(concave, format);
-    } else {
-        return concave;
-    }
+    return format ? formatUtil.fromXy(concave, format) : concave;
 }
 
 const MAX_CONCAVE_ANGLE_COS = Math.cos(90 / (180 / Math.PI)); // angle = 90 deg
@@ -15208,6 +16433,15 @@ module.exports = intersect;
 },{}],6:[function(require,module,exports){
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const _hull = require("hull.js");
+    /**
+     * Computes a concave hull for a given set of points and proxies the call to the underlying hull.js implementation.
+     *
+    * @param {PointCollection} points - Collection of points.
+    *        Accepts an array of coordinate tuples, a flat numeric array, or point objects with `x`/`y`.
+     * @param {number} [concavity] - Maximum concavity allowed by hull.js. Use `Infinity` (or omit) for a convex hull.
+     * @param {"simple"|undefined} [format] - Optional hull.js format flag. When omitted the output matches the input shape.
+    * @returns {(Array.<NumberPair>|Point2DList|null)} The computed hull or `null` when the input is invalid.
+     */
     Snap.hull = function (points, concavity, format) {
         //filter incorrect pionts;
         points = points.filter(function (p){
@@ -15235,6 +16469,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return null;
     };
 
+    /**
+     * Convenience wrapper for `Snap.hull` that forces a convex hull by setting concavity to `Infinity`.
+     *
+    * @param {PointCollection} points - Collection of input points.
+     * @param {"simple"|undefined} [format] - Optional hull.js format flag.
+    * @returns {(Array.<NumberPair>|Point2DList|null)} Closed convex hull without the repeated last point.
+     */
     Snap.convexHull = function (points, format) {
         const hull = Snap.hull(points, Infinity, format);
         hull && hull.pop();
@@ -15863,5131 +17104,5215 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.polygons.sat = sat;
 
 })
-(function () {
-    function r(e, n, t) {
-        function o(i, f) {
-            if (!n[i]) {
-                if (!e[i]) {
-                    var c = "function" == typeof require && require;
-                    if (!f && c) return c(i, !0);
-                    if (u) return u(i, !0);
-                    var a = new Error("Cannot find module '" + i + "'");
-                    throw a.code = "MODULE_NOT_FOUND", a
-                }
-                var p = n[i] = {exports: {}};
-                e[i][0].call(p.exports, function (r) {
-                    var n = e[i][1][r];
-                    return o(n || r)
-                }, p, p.exports, r, e, n, t)
-            }
-            return n[i].exports
-        }
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+/**
+ * Bit twiddling hacks for JavaScript.
+ *
+ * Author: Mikola Lysenko
+ *
+ * Ported from Stanford bit twiddling hack library:
+ *    http://graphics.stanford.edu/~seander/bithacks.html
+ */
 
-        for (var u = "function" == typeof require && require, i = 0; i < t.length; i++) o(t[i]);
-        return o
-    }
-
-    return r
-})()({
-    1: [function (require, module, exports) {
-        /**
-         * Bit twiddling hacks for JavaScript.
-         *
-         * Author: Mikola Lysenko
-         *
-         * Ported from Stanford bit twiddling hack library:
-         *    http://graphics.stanford.edu/~seander/bithacks.html
-         */
-
-        "use strict";
-        "use restrict";
+"use strict"; "use restrict";
 
 //Number of bits in an integer
-        var INT_BITS = 32;
+var INT_BITS = 32;
 
 //Constants
-        exports.INT_BITS = INT_BITS;
-        exports.INT_MAX = 0x7fffffff;
-        exports.INT_MIN = -1 << (INT_BITS - 1);
+exports.INT_BITS  = INT_BITS;
+exports.INT_MAX   =  0x7fffffff;
+exports.INT_MIN   = -1<<(INT_BITS-1);
 
 //Returns -1, 0, +1 depending on sign of x
-        exports.sign = function (v) {
-            return (v > 0) - (v < 0);
-        }
+exports.sign = function(v) {
+  return (v > 0) - (v < 0);
+}
 
 //Computes absolute value of integer
-        exports.abs = function (v) {
-            var mask = v >> (INT_BITS - 1);
-            return (v ^ mask) - mask;
-        }
+exports.abs = function(v) {
+  var mask = v >> (INT_BITS-1);
+  return (v ^ mask) - mask;
+}
 
 //Computes minimum of integers x and y
-        exports.min = function (x, y) {
-            return y ^ ((x ^ y) & -(x < y));
-        }
+exports.min = function(x, y) {
+  return y ^ ((x ^ y) & -(x < y));
+}
 
 //Computes maximum of integers x and y
-        exports.max = function (x, y) {
-            return x ^ ((x ^ y) & -(x < y));
-        }
+exports.max = function(x, y) {
+  return x ^ ((x ^ y) & -(x < y));
+}
 
 //Checks if a number is a power of two
-        exports.isPow2 = function (v) {
-            return !(v & (v - 1)) && (!!v);
-        }
+exports.isPow2 = function(v) {
+  return !(v & (v-1)) && (!!v);
+}
 
 //Computes log base 2 of v
-        exports.log2 = function (v) {
-            var r, shift;
-            r = (v > 0xFFFF) << 4;
-            v >>>= r;
-            shift = (v > 0xFF) << 3;
-            v >>>= shift;
-            r |= shift;
-            shift = (v > 0xF) << 2;
-            v >>>= shift;
-            r |= shift;
-            shift = (v > 0x3) << 1;
-            v >>>= shift;
-            r |= shift;
-            return r | (v >> 1);
-        }
+exports.log2 = function(v) {
+  var r, shift;
+  r =     (v > 0xFFFF) << 4; v >>>= r;
+  shift = (v > 0xFF  ) << 3; v >>>= shift; r |= shift;
+  shift = (v > 0xF   ) << 2; v >>>= shift; r |= shift;
+  shift = (v > 0x3   ) << 1; v >>>= shift; r |= shift;
+  return r | (v >> 1);
+}
 
 //Computes log base 10 of v
-        exports.log10 = function (v) {
-            return (v >= 1000000000) ? 9 : (v >= 100000000) ? 8 : (v >= 10000000) ? 7 :
-                (v >= 1000000) ? 6 : (v >= 100000) ? 5 : (v >= 10000) ? 4 :
-                    (v >= 1000) ? 3 : (v >= 100) ? 2 : (v >= 10) ? 1 : 0;
-        }
+exports.log10 = function(v) {
+  return  (v >= 1000000000) ? 9 : (v >= 100000000) ? 8 : (v >= 10000000) ? 7 :
+          (v >= 1000000) ? 6 : (v >= 100000) ? 5 : (v >= 10000) ? 4 :
+          (v >= 1000) ? 3 : (v >= 100) ? 2 : (v >= 10) ? 1 : 0;
+}
 
 //Counts number of bits
-        exports.popCount = function (v) {
-            v = v - ((v >>> 1) & 0x55555555);
-            v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
-            return ((v + (v >>> 4) & 0xF0F0F0F) * 0x1010101) >>> 24;
-        }
+exports.popCount = function(v) {
+  v = v - ((v >>> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+  return ((v + (v >>> 4) & 0xF0F0F0F) * 0x1010101) >>> 24;
+}
 
 //Counts number of trailing zeros
-        function countTrailingZeros(v) {
-            var c = 32;
-            v &= -v;
-            if (v) c--;
-            if (v & 0x0000FFFF) c -= 16;
-            if (v & 0x00FF00FF) c -= 8;
-            if (v & 0x0F0F0F0F) c -= 4;
-            if (v & 0x33333333) c -= 2;
-            if (v & 0x55555555) c -= 1;
-            return c;
-        }
-
-        exports.countTrailingZeros = countTrailingZeros;
+function countTrailingZeros(v) {
+  var c = 32;
+  v &= -v;
+  if (v) c--;
+  if (v & 0x0000FFFF) c -= 16;
+  if (v & 0x00FF00FF) c -= 8;
+  if (v & 0x0F0F0F0F) c -= 4;
+  if (v & 0x33333333) c -= 2;
+  if (v & 0x55555555) c -= 1;
+  return c;
+}
+exports.countTrailingZeros = countTrailingZeros;
 
 //Rounds to next power of 2
-        exports.nextPow2 = function (v) {
-            v += v === 0;
-            --v;
-            v |= v >>> 1;
-            v |= v >>> 2;
-            v |= v >>> 4;
-            v |= v >>> 8;
-            v |= v >>> 16;
-            return v + 1;
-        }
+exports.nextPow2 = function(v) {
+  v += v === 0;
+  --v;
+  v |= v >>> 1;
+  v |= v >>> 2;
+  v |= v >>> 4;
+  v |= v >>> 8;
+  v |= v >>> 16;
+  return v + 1;
+}
 
 //Rounds down to previous power of 2
-        exports.prevPow2 = function (v) {
-            v |= v >>> 1;
-            v |= v >>> 2;
-            v |= v >>> 4;
-            v |= v >>> 8;
-            v |= v >>> 16;
-            return v - (v >>> 1);
-        }
+exports.prevPow2 = function(v) {
+  v |= v >>> 1;
+  v |= v >>> 2;
+  v |= v >>> 4;
+  v |= v >>> 8;
+  v |= v >>> 16;
+  return v - (v>>>1);
+}
 
 //Computes parity of word
-        exports.parity = function (v) {
-            v ^= v >>> 16;
-            v ^= v >>> 8;
-            v ^= v >>> 4;
-            v &= 0xf;
-            return (0x6996 >>> v) & 1;
-        }
+exports.parity = function(v) {
+  v ^= v >>> 16;
+  v ^= v >>> 8;
+  v ^= v >>> 4;
+  v &= 0xf;
+  return (0x6996 >>> v) & 1;
+}
 
-        var REVERSE_TABLE = new Array(256);
+var REVERSE_TABLE = new Array(256);
 
-        (function (tab) {
-            for (var i = 0; i < 256; ++i) {
-                var v = i, r = i, s = 7;
-                for (v >>>= 1; v; v >>>= 1) {
-                    r <<= 1;
-                    r |= v & 1;
-                    --s;
-                }
-                tab[i] = (r << s) & 0xff;
-            }
-        })(REVERSE_TABLE);
+(function(tab) {
+  for(var i=0; i<256; ++i) {
+    var v = i, r = i, s = 7;
+    for (v >>>= 1; v; v >>>= 1) {
+      r <<= 1;
+      r |= v & 1;
+      --s;
+    }
+    tab[i] = (r << s) & 0xff;
+  }
+})(REVERSE_TABLE);
 
 //Reverse bits in a 32 bit word
-        exports.reverse = function (v) {
-            return (REVERSE_TABLE[v & 0xff] << 24) |
-                (REVERSE_TABLE[(v >>> 8) & 0xff] << 16) |
-                (REVERSE_TABLE[(v >>> 16) & 0xff] << 8) |
-                REVERSE_TABLE[(v >>> 24) & 0xff];
-        }
+exports.reverse = function(v) {
+  return  (REVERSE_TABLE[ v         & 0xff] << 24) |
+          (REVERSE_TABLE[(v >>> 8)  & 0xff] << 16) |
+          (REVERSE_TABLE[(v >>> 16) & 0xff] << 8)  |
+           REVERSE_TABLE[(v >>> 24) & 0xff];
+}
 
 //Interleave bits of 2 coordinates with 16 bits.  Useful for fast quadtree codes
-        exports.interleave2 = function (x, y) {
-            x &= 0xFFFF;
-            x = (x | (x << 8)) & 0x00FF00FF;
-            x = (x | (x << 4)) & 0x0F0F0F0F;
-            x = (x | (x << 2)) & 0x33333333;
-            x = (x | (x << 1)) & 0x55555555;
+exports.interleave2 = function(x, y) {
+  x &= 0xFFFF;
+  x = (x | (x << 8)) & 0x00FF00FF;
+  x = (x | (x << 4)) & 0x0F0F0F0F;
+  x = (x | (x << 2)) & 0x33333333;
+  x = (x | (x << 1)) & 0x55555555;
 
-            y &= 0xFFFF;
-            y = (y | (y << 8)) & 0x00FF00FF;
-            y = (y | (y << 4)) & 0x0F0F0F0F;
-            y = (y | (y << 2)) & 0x33333333;
-            y = (y | (y << 1)) & 0x55555555;
+  y &= 0xFFFF;
+  y = (y | (y << 8)) & 0x00FF00FF;
+  y = (y | (y << 4)) & 0x0F0F0F0F;
+  y = (y | (y << 2)) & 0x33333333;
+  y = (y | (y << 1)) & 0x55555555;
 
-            return x | (y << 1);
-        }
+  return x | (y << 1);
+}
 
 //Extracts the nth interleaved component
-        exports.deinterleave2 = function (v, n) {
-            v = (v >>> n) & 0x55555555;
-            v = (v | (v >>> 1)) & 0x33333333;
-            v = (v | (v >>> 2)) & 0x0F0F0F0F;
-            v = (v | (v >>> 4)) & 0x00FF00FF;
-            v = (v | (v >>> 16)) & 0x000FFFF;
-            return (v << 16) >> 16;
-        }
+exports.deinterleave2 = function(v, n) {
+  v = (v >>> n) & 0x55555555;
+  v = (v | (v >>> 1))  & 0x33333333;
+  v = (v | (v >>> 2))  & 0x0F0F0F0F;
+  v = (v | (v >>> 4))  & 0x00FF00FF;
+  v = (v | (v >>> 16)) & 0x000FFFF;
+  return (v << 16) >> 16;
+}
 
 
 //Interleave bits of 3 coordinates, each with 10 bits.  Useful for fast octree codes
-        exports.interleave3 = function (x, y, z) {
-            x &= 0x3FF;
-            x = (x | (x << 16)) & 4278190335;
-            x = (x | (x << 8)) & 251719695;
-            x = (x | (x << 4)) & 3272356035;
-            x = (x | (x << 2)) & 1227133513;
+exports.interleave3 = function(x, y, z) {
+  x &= 0x3FF;
+  x  = (x | (x<<16)) & 4278190335;
+  x  = (x | (x<<8))  & 251719695;
+  x  = (x | (x<<4))  & 3272356035;
+  x  = (x | (x<<2))  & 1227133513;
 
-            y &= 0x3FF;
-            y = (y | (y << 16)) & 4278190335;
-            y = (y | (y << 8)) & 251719695;
-            y = (y | (y << 4)) & 3272356035;
-            y = (y | (y << 2)) & 1227133513;
-            x |= (y << 1);
-
-            z &= 0x3FF;
-            z = (z | (z << 16)) & 4278190335;
-            z = (z | (z << 8)) & 251719695;
-            z = (z | (z << 4)) & 3272356035;
-            z = (z | (z << 2)) & 1227133513;
-
-            return x | (z << 2);
-        }
+  y &= 0x3FF;
+  y  = (y | (y<<16)) & 4278190335;
+  y  = (y | (y<<8))  & 251719695;
+  y  = (y | (y<<4))  & 3272356035;
+  y  = (y | (y<<2))  & 1227133513;
+  x |= (y << 1);
+  
+  z &= 0x3FF;
+  z  = (z | (z<<16)) & 4278190335;
+  z  = (z | (z<<8))  & 251719695;
+  z  = (z | (z<<4))  & 3272356035;
+  z  = (z | (z<<2))  & 1227133513;
+  
+  return x | (z << 2);
+}
 
 //Extracts nth interleaved component of a 3-tuple
-        exports.deinterleave3 = function (v, n) {
-            v = (v >>> n) & 1227133513;
-            v = (v | (v >>> 2)) & 3272356035;
-            v = (v | (v >>> 4)) & 251719695;
-            v = (v | (v >>> 8)) & 4278190335;
-            v = (v | (v >>> 16)) & 0x3FF;
-            return (v << 22) >> 22;
-        }
+exports.deinterleave3 = function(v, n) {
+  v = (v >>> n)       & 1227133513;
+  v = (v | (v>>>2))   & 3272356035;
+  v = (v | (v>>>4))   & 251719695;
+  v = (v | (v>>>8))   & 4278190335;
+  v = (v | (v>>>16))  & 0x3FF;
+  return (v<<22)>>22;
+}
 
 //Computes next combination in colexicographic order (this is mistakenly called nextPermutation on the bit twiddling hacks page)
-        exports.nextCombination = function (v) {
-            var t = v | (v - 1);
-            return (t + 1) | (((~t & -~t) - 1) >>> (countTrailingZeros(v) + 1));
+exports.nextCombination = function(v) {
+  var t = v | (v - 1);
+  return (t + 1) | (((~t & -~t) - 1) >>> (countTrailingZeros(v) + 1));
+}
+
+
+},{}],2:[function(require,module,exports){
+"use strict"
+
+var dup = require("dup")
+var solve = require("robust-linear-solve")
+
+function dot(a, b) {
+  var s = 0.0
+  var d = a.length
+  for(var i=0; i<d; ++i) {
+    s += a[i] * b[i]
+  }
+  return s
+}
+
+function barycentricCircumcenter(points) {
+  var N = points.length
+  if(N === 0) {
+    return []
+  }
+  
+  var D = points[0].length
+  var A = dup([points.length+1, points.length+1], 1.0)
+  var b = dup([points.length+1], 1.0)
+  A[N][N] = 0.0
+  for(var i=0; i<N; ++i) {
+    for(var j=0; j<=i; ++j) {
+      A[j][i] = A[i][j] = 2.0 * dot(points[i], points[j])
+    }
+    b[i] = dot(points[i], points[i])
+  }
+  var x = solve(A, b)
+
+  var denom = 0.0
+  var h = x[N+1]
+  for(var i=0; i<h.length; ++i) {
+    denom += h[i]
+  }
+
+  var y = new Array(N)
+  for(var i=0; i<N; ++i) {
+    var h = x[i]
+    var numer = 0.0
+    for(var j=0; j<h.length; ++j) {
+      numer += h[j]
+    }
+    y[i] =  numer / denom
+  }
+
+  return y
+}
+
+function circumcenter(points) {
+  if(points.length === 0) {
+    return []
+  }
+  var D = points[0].length
+  var result = dup([D])
+  var weights = barycentricCircumcenter(points)
+  for(var i=0; i<points.length; ++i) {
+    for(var j=0; j<D; ++j) {
+      result[j] += points[i][j] * weights[i]
+    }
+  }
+  return result
+}
+
+circumcenter.barycenetric = barycentricCircumcenter
+module.exports = circumcenter
+},{"dup":4,"robust-linear-solve":17}],3:[function(require,module,exports){
+"use strict"
+
+var ch = require("incremental-convex-hull")
+var uniq = require("uniq")
+
+module.exports = triangulate
+
+function LiftedPoint(p, i) {
+  this.point = p
+  this.index = i
+}
+
+function compareLifted(a, b) {
+  var ap = a.point
+  var bp = b.point
+  var d = ap.length
+  for(var i=0; i<d; ++i) {
+    var s = bp[i] - ap[i]
+    if(s) {
+      return s
+    }
+  }
+  return 0
+}
+
+function triangulate1D(n, points, includePointAtInfinity) {
+  if(n === 1) {
+    if(includePointAtInfinity) {
+      return [ [-1, 0] ]
+    } else {
+      return []
+    }
+  }
+  var lifted = points.map(function(p, i) {
+    return [ p[0], i ]
+  })
+  lifted.sort(function(a,b) {
+    return a[0] - b[0]
+  })
+  var cells = new Array(n - 1)
+  for(var i=1; i<n; ++i) {
+    var a = lifted[i-1]
+    var b = lifted[i]
+    cells[i-1] = [ a[1], b[1] ]
+  }
+  if(includePointAtInfinity) {
+    cells.push(
+      [ -1, cells[0][1], ],
+      [ cells[n-1][1], -1 ])
+  }
+  return cells
+}
+
+function triangulate(points, includePointAtInfinity) {
+  var n = points.length
+  if(n === 0) {
+    return []
+  }
+  
+  var d = points[0].length
+  if(d < 1) {
+    return []
+  }
+
+  //Special case:  For 1D we can just sort the points
+  if(d === 1) {
+    return triangulate1D(n, points, includePointAtInfinity)
+  }
+  
+  //Lift points, sort
+  var lifted = new Array(n)
+  var upper = 1.0
+  for(var i=0; i<n; ++i) {
+    var p = points[i]
+    var x = new Array(d+1)
+    var l = 0.0
+    for(var j=0; j<d; ++j) {
+      var v = p[j]
+      x[j] = v
+      l += v * v
+    }
+    x[d] = l
+    lifted[i] = new LiftedPoint(x, i)
+    upper = Math.max(l, upper)
+  }
+  uniq(lifted, compareLifted)
+  
+  //Double points
+  n = lifted.length
+
+  //Create new list of points
+  var dpoints = new Array(n + d + 1)
+  var dindex = new Array(n + d + 1)
+
+  //Add steiner points at top
+  var u = (d+1) * (d+1) * upper
+  var y = new Array(d+1)
+  for(var i=0; i<=d; ++i) {
+    y[i] = 0.0
+  }
+  y[d] = u
+
+  dpoints[0] = y.slice()
+  dindex[0] = -1
+
+  for(var i=0; i<=d; ++i) {
+    var x = y.slice()
+    x[i] = 1
+    dpoints[i+1] = x
+    dindex[i+1] = -1
+  }
+
+  //Copy rest of the points over
+  for(var i=0; i<n; ++i) {
+    var h = lifted[i]
+    dpoints[i + d + 1] = h.point
+    dindex[i + d + 1] =  h.index
+  }
+
+  //Construct convex hull
+  var hull = ch(dpoints, false)
+  if(includePointAtInfinity) {
+    hull = hull.filter(function(cell) {
+      var count = 0
+      for(var j=0; j<=d; ++j) {
+        var v = dindex[cell[j]]
+        if(v < 0) {
+          if(++count >= 2) {
+            return false
+          }
         }
-
-
-    }, {}],
-    2: [function (require, module, exports) {
-        "use strict"
-
-        var dup = require("dup")
-        var solve = require("robust-linear-solve")
-
-        function dot(a, b) {
-            var s = 0.0
-            var d = a.length
-            for (var i = 0; i < d; ++i) {
-                s += a[i] * b[i]
-            }
-            return s
+        cell[j] = v
+      }
+      return true
+    })
+  } else {
+    hull = hull.filter(function(cell) {
+      for(var i=0; i<=d; ++i) {
+        var v = dindex[cell[i]]
+        if(v < 0) {
+          return false
         }
+        cell[i] = v
+      }
+      return true
+    })
+  }
 
-        function barycentricCircumcenter(points) {
-            var N = points.length
-            if (N === 0) {
-                return []
-            }
+  if(d & 1) {
+    for(var i=0; i<hull.length; ++i) {
+      var h = hull[i]
+      var x = h[0]
+      h[0] = h[1]
+      h[1] = x
+    }
+  }
 
-            var D = points[0].length
-            var A = dup([points.length + 1, points.length + 1], 1.0)
-            var b = dup([points.length + 1], 1.0)
-            A[N][N] = 0.0
-            for (var i = 0; i < N; ++i) {
-                for (var j = 0; j <= i; ++j) {
-                    A[j][i] = A[i][j] = 2.0 * dot(points[i], points[j])
-                }
-                b[i] = dot(points[i], points[i])
-            }
-            var x = solve(A, b)
+  return hull
+}
+},{"incremental-convex-hull":5,"uniq":26}],4:[function(require,module,exports){
+"use strict"
 
-            var denom = 0.0
-            var h = x[N + 1]
-            for (var i = 0; i < h.length; ++i) {
-                denom += h[i]
-            }
+function dupe_array(count, value, i) {
+  var c = count[i]|0
+  if(c <= 0) {
+    return []
+  }
+  var result = new Array(c), j
+  if(i === count.length-1) {
+    for(j=0; j<c; ++j) {
+      result[j] = value
+    }
+  } else {
+    for(j=0; j<c; ++j) {
+      result[j] = dupe_array(count, value, i+1)
+    }
+  }
+  return result
+}
 
-            var y = new Array(N)
-            for (var i = 0; i < N; ++i) {
-                var h = x[i]
-                var numer = 0.0
-                for (var j = 0; j < h.length; ++j) {
-                    numer += h[j]
-                }
-                y[i] = numer / denom
-            }
+function dupe_number(count, value) {
+  var result, i
+  result = new Array(count)
+  for(i=0; i<count; ++i) {
+    result[i] = value
+  }
+  return result
+}
 
-            return y
-        }
+function dupe(count, value) {
+  if(typeof value === "undefined") {
+    value = 0
+  }
+  switch(typeof count) {
+    case "number":
+      if(count > 0) {
+        return dupe_number(count|0, value)
+      }
+    break
+    case "object":
+      if(typeof (count.length) === "number") {
+        return dupe_array(count, value, 0)
+      }
+    break
+  }
+  return []
+}
 
-        function circumcenter(points) {
-            if (points.length === 0) {
-                return []
-            }
-            var D = points[0].length
-            var result = dup([D])
-            var weights = barycentricCircumcenter(points)
-            for (var i = 0; i < points.length; ++i) {
-                for (var j = 0; j < D; ++j) {
-                    result[j] += points[i][j] * weights[i]
-                }
-            }
-            return result
-        }
-
-        circumcenter.barycenetric = barycentricCircumcenter
-        module.exports = circumcenter
-    }, {"dup": 4, "robust-linear-solve": 16}],
-    3: [function (require, module, exports) {
-        "use strict"
-
-        var ch = require("incremental-convex-hull")
-        var uniq = require("uniq")
-
-        module.exports = triangulate
-
-        function LiftedPoint(p, i) {
-            this.point = p
-            this.index = i
-        }
-
-        function compareLifted(a, b) {
-            var ap = a.point
-            var bp = b.point
-            var d = ap.length
-            for (var i = 0; i < d; ++i) {
-                var s = bp[i] - ap[i]
-                if (s) {
-                    return s
-                }
-            }
-            return 0
-        }
-
-        function triangulate1D(n, points, includePointAtInfinity) {
-            if (n === 1) {
-                if (includePointAtInfinity) {
-                    return [[-1, 0]]
-                } else {
-                    return []
-                }
-            }
-            var lifted = points.map(function (p, i) {
-                return [p[0], i]
-            })
-            lifted.sort(function (a, b) {
-                return a[0] - b[0]
-            })
-            var cells = new Array(n - 1)
-            for (var i = 1; i < n; ++i) {
-                var a = lifted[i - 1]
-                var b = lifted[i]
-                cells[i - 1] = [a[1], b[1]]
-            }
-            if (includePointAtInfinity) {
-                cells.push(
-                    [-1, cells[0][1],],
-                    [cells[n - 1][1], -1])
-            }
-            return cells
-        }
-
-        function triangulate(points, includePointAtInfinity) {
-            var n = points.length
-            if (n === 0) {
-                return []
-            }
-
-            var d = points[0].length
-            if (d < 1) {
-                return []
-            }
-
-            //Special case:  For 1D we can just sort the points
-            if (d === 1) {
-                return triangulate1D(n, points, includePointAtInfinity)
-            }
-
-            //Lift points, sort
-            var lifted = new Array(n)
-            var upper = 1.0
-            for (var i = 0; i < n; ++i) {
-                var p = points[i]
-                var x = new Array(d + 1)
-                var l = 0.0
-                for (var j = 0; j < d; ++j) {
-                    var v = p[j]
-                    x[j] = v
-                    l += v * v
-                }
-                x[d] = l
-                lifted[i] = new LiftedPoint(x, i)
-                upper = Math.max(l, upper)
-            }
-            uniq(lifted, compareLifted)
-
-            //Double points
-            n = lifted.length
-
-            //Create new list of points
-            var dpoints = new Array(n + d + 1)
-            var dindex = new Array(n + d + 1)
-
-            //Add steiner points at top
-            var u = (d + 1) * (d + 1) * upper
-            var y = new Array(d + 1)
-            for (var i = 0; i <= d; ++i) {
-                y[i] = 0.0
-            }
-            y[d] = u
-
-            dpoints[0] = y.slice()
-            dindex[0] = -1
-
-            for (var i = 0; i <= d; ++i) {
-                var x = y.slice()
-                x[i] = 1
-                dpoints[i + 1] = x
-                dindex[i + 1] = -1
-            }
-
-            //Copy rest of the points over
-            for (var i = 0; i < n; ++i) {
-                var h = lifted[i]
-                dpoints[i + d + 1] = h.point
-                dindex[i + d + 1] = h.index
-            }
-
-            //Construct convex hull
-            var hull = ch(dpoints, false)
-            if (includePointAtInfinity) {
-                hull = hull.filter(function (cell) {
-                    var count = 0
-                    for (var j = 0; j <= d; ++j) {
-                        var v = dindex[cell[j]]
-                        if (v < 0) {
-                            if (++count >= 2) {
-                                return false
-                            }
-                        }
-                        cell[j] = v
-                    }
-                    return true
-                })
-            } else {
-                hull = hull.filter(function (cell) {
-                    for (var i = 0; i <= d; ++i) {
-                        var v = dindex[cell[i]]
-                        if (v < 0) {
-                            return false
-                        }
-                        cell[i] = v
-                    }
-                    return true
-                })
-            }
-
-            if (d & 1) {
-                for (var i = 0; i < hull.length; ++i) {
-                    var h = hull[i]
-                    var x = h[0]
-                    h[0] = h[1]
-                    h[1] = x
-                }
-            }
-
-            return hull
-        }
-    }, {"incremental-convex-hull": 5, "uniq": 25}],
-    4: [function (require, module, exports) {
-        "use strict"
-
-        function dupe_array(count, value, i) {
-            var c = count[i] | 0
-            if (c <= 0) {
-                return []
-            }
-            var result = new Array(c), j
-            if (i === count.length - 1) {
-                for (j = 0; j < c; ++j) {
-                    result[j] = value
-                }
-            } else {
-                for (j = 0; j < c; ++j) {
-                    result[j] = dupe_array(count, value, i + 1)
-                }
-            }
-            return result
-        }
-
-        function dupe_number(count, value) {
-            var result, i
-            result = new Array(count)
-            for (i = 0; i < count; ++i) {
-                result[i] = value
-            }
-            return result
-        }
-
-        function dupe(count, value) {
-            if (typeof value === "undefined") {
-                value = 0
-            }
-            switch (typeof count) {
-                case "number":
-                    if (count > 0) {
-                        return dupe_number(count | 0, value)
-                    }
-                    break
-                case "object":
-                    if (typeof (count.length) === "number") {
-                        return dupe_array(count, value, 0)
-                    }
-                    break
-            }
-            return []
-        }
-
-        module.exports = dupe
-    }, {}],
-    5: [function (require, module, exports) {
-        "use strict"
+module.exports = dupe
+},{}],5:[function(require,module,exports){
+"use strict"
 
 //High level idea:
 // 1. Use Clarkson's incremental construction to find convex hull
 // 2. Point location in triangulation by jump and walk
 
-        module.exports = incrementalConvexHull
+module.exports = incrementalConvexHull
 
-        var orient = require("robust-orientation")
-        var compareCell = require("simplicial-complex").compareCells
+var orient = require("robust-orientation")
+var compareCell = require("simplicial-complex").compareCells
 
-        function compareInt(a, b) {
-            return a - b
-        }
+function compareInt(a, b) {
+  return a - b
+}
 
-        function Simplex(vertices, adjacent, boundary) {
-            this.vertices = vertices
-            this.adjacent = adjacent
-            this.boundary = boundary
-            this.lastVisited = -1
-        }
+function Simplex(vertices, adjacent, boundary) {
+  this.vertices = vertices
+  this.adjacent = adjacent
+  this.boundary = boundary
+  this.lastVisited = -1
+}
 
-        Simplex.prototype.flip = function () {
-            var t = this.vertices[0]
-            this.vertices[0] = this.vertices[1]
-            this.vertices[1] = t
-            var u = this.adjacent[0]
-            this.adjacent[0] = this.adjacent[1]
-            this.adjacent[1] = u
-        }
+Simplex.prototype.flip = function() {
+  var t = this.vertices[0]
+  this.vertices[0] = this.vertices[1]
+  this.vertices[1] = t
+  var u = this.adjacent[0]
+  this.adjacent[0] = this.adjacent[1]
+  this.adjacent[1] = u
+}
 
-        function GlueFacet(vertices, cell, index) {
-            this.vertices = vertices
-            this.cell = cell
-            this.index = index
-        }
+function GlueFacet(vertices, cell, index) {
+  this.vertices = vertices
+  this.cell = cell
+  this.index = index
+}
 
-        function compareGlue(a, b) {
-            return compareCell(a.vertices, b.vertices)
-        }
+function compareGlue(a, b) {
+  return compareCell(a.vertices, b.vertices)
+}
 
-        function bakeOrient(d) {
-            var code = ["function orient(){var tuple=this.tuple;return test("]
-            for (var i = 0; i <= d; ++i) {
-                if (i > 0) {
-                    code.push(",")
-                }
-                code.push("tuple[", i, "]")
-            }
-            code.push(")}return orient")
-            var proc = new Function("test", code.join(""))
-            var test = orient[d + 1]
-            if (!test) {
-                test = orient
-            }
-            return proc(test)
-        }
+function bakeOrient(d) {
+  var code = ["function orient(){var tuple=this.tuple;return test("]
+  for(var i=0; i<=d; ++i) {
+    if(i > 0) {
+      code.push(",")
+    }
+    code.push("tuple[", i, "]")
+  }
+  code.push(")}return orient")
+  var proc = new Function("test", code.join(""))
+  var test = orient[d+1]
+  if(!test) {
+    test = orient
+  }
+  return proc(test)
+}
 
-        var BAKED = []
+var BAKED = []
 
-        function Triangulation(dimension, vertices, simplices) {
-            this.dimension = dimension
-            this.vertices = vertices
-            this.simplices = simplices
-            this.interior = simplices.filter(function (c) {
-                return !c.boundary
-            })
+function Triangulation(dimension, vertices, simplices) {
+  this.dimension = dimension
+  this.vertices = vertices
+  this.simplices = simplices
+  this.interior = simplices.filter(function(c) {
+    return !c.boundary
+  })
 
-            this.tuple = new Array(dimension + 1)
-            for (var i = 0; i <= dimension; ++i) {
-                this.tuple[i] = this.vertices[i]
-            }
+  this.tuple = new Array(dimension+1)
+  for(var i=0; i<=dimension; ++i) {
+    this.tuple[i] = this.vertices[i]
+  }
 
-            var o = BAKED[dimension]
-            if (!o) {
-                o = BAKED[dimension] = bakeOrient(dimension)
-            }
-            this.orient = o
-        }
+  var o = BAKED[dimension]
+  if(!o) {
+    o = BAKED[dimension] = bakeOrient(dimension)
+  }
+  this.orient = o
+}
 
-        var proto = Triangulation.prototype
+var proto = Triangulation.prototype
 
 //Degenerate situation where we are on boundary, but coplanar to face
-        proto.handleBoundaryDegeneracy = function (cell, point) {
-            var d = this.dimension
-            var n = this.vertices.length - 1
-            var tuple = this.tuple
-            var verts = this.vertices
+proto.handleBoundaryDegeneracy = function(cell, point) {
+  var d = this.dimension
+  var n = this.vertices.length - 1
+  var tuple = this.tuple
+  var verts = this.vertices
 
-            //Dumb solution: Just do dfs from boundary cell until we find any peak, or terminate
-            var toVisit = [cell]
-            cell.lastVisited = -n
-            while (toVisit.length > 0) {
-                cell = toVisit.pop()
-                var cellVerts = cell.vertices
-                var cellAdj = cell.adjacent
-                for (var i = 0; i <= d; ++i) {
-                    var neighbor = cellAdj[i]
-                    if (!neighbor.boundary || neighbor.lastVisited <= -n) {
-                        continue
-                    }
-                    var nv = neighbor.vertices
-                    for (var j = 0; j <= d; ++j) {
-                        var vv = nv[j]
-                        if (vv < 0) {
-                            tuple[j] = point
-                        } else {
-                            tuple[j] = verts[vv]
-                        }
-                    }
-                    var o = this.orient()
-                    if (o > 0) {
-                        return neighbor
-                    }
-                    neighbor.lastVisited = -n
-                    if (o === 0) {
-                        toVisit.push(neighbor)
-                    }
-                }
-            }
-            return null
+  //Dumb solution: Just do dfs from boundary cell until we find any peak, or terminate
+  var toVisit = [ cell ]
+  cell.lastVisited = -n
+  while(toVisit.length > 0) {
+    cell = toVisit.pop()
+    var cellVerts = cell.vertices
+    var cellAdj = cell.adjacent
+    for(var i=0; i<=d; ++i) {
+      var neighbor = cellAdj[i]
+      if(!neighbor.boundary || neighbor.lastVisited <= -n) {
+        continue
+      }
+      var nv = neighbor.vertices
+      for(var j=0; j<=d; ++j) {
+        var vv = nv[j]
+        if(vv < 0) {
+          tuple[j] = point
+        } else {
+          tuple[j] = verts[vv]
         }
+      }
+      var o = this.orient()
+      if(o > 0) {
+        return neighbor
+      }
+      neighbor.lastVisited = -n
+      if(o === 0) {
+        toVisit.push(neighbor)
+      }
+    }
+  }
+  return null
+}
 
-        proto.walk = function (point, random) {
-            //Alias local properties
-            var n = this.vertices.length - 1
-            var d = this.dimension
-            var verts = this.vertices
-            var tuple = this.tuple
+proto.walk = function(point, random) {
+  //Alias local properties
+  var n = this.vertices.length - 1
+  var d = this.dimension
+  var verts = this.vertices
+  var tuple = this.tuple
 
-            //Compute initial jump cell
-            var initIndex = random ? (this.interior.length * Math.random()) | 0 : (this.interior.length - 1)
-            var cell = this.interior[initIndex]
+  //Compute initial jump cell
+  var initIndex = random ? (this.interior.length * Math.random())|0 : (this.interior.length-1)
+  var cell = this.interior[ initIndex ]
 
-            //Start walking
-            outerLoop:
-                while (!cell.boundary) {
-                    var cellVerts = cell.vertices
-                    var cellAdj = cell.adjacent
+  //Start walking
+outerLoop:
+  while(!cell.boundary) {
+    var cellVerts = cell.vertices
+    var cellAdj = cell.adjacent
 
-                    for (var i = 0; i <= d; ++i) {
-                        tuple[i] = verts[cellVerts[i]]
-                    }
-                    cell.lastVisited = n
+    for(var i=0; i<=d; ++i) {
+      tuple[i] = verts[cellVerts[i]]
+    }
+    cell.lastVisited = n
 
-                    //Find farthest adjacent cell
-                    for (var i = 0; i <= d; ++i) {
-                        var neighbor = cellAdj[i]
-                        if (neighbor.lastVisited >= n) {
-                            continue
-                        }
-                        var prev = tuple[i]
-                        tuple[i] = point
-                        var o = this.orient()
-                        tuple[i] = prev
-                        if (o < 0) {
-                            cell = neighbor
-                            continue outerLoop
-                        } else {
-                            if (!neighbor.boundary) {
-                                neighbor.lastVisited = n
-                            } else {
-                                neighbor.lastVisited = -n
-                            }
-                        }
-                    }
-                    return
-                }
-
-            return cell
+    //Find farthest adjacent cell
+    for(var i=0; i<=d; ++i) {
+      var neighbor = cellAdj[i]
+      if(neighbor.lastVisited >= n) {
+        continue
+      }
+      var prev = tuple[i]
+      tuple[i] = point
+      var o = this.orient()
+      tuple[i] = prev
+      if(o < 0) {
+        cell = neighbor
+        continue outerLoop
+      } else {
+        if(!neighbor.boundary) {
+          neighbor.lastVisited = n
+        } else {
+          neighbor.lastVisited = -n
         }
+      }
+    }
+    return
+  }
 
-        proto.addPeaks = function (point, cell) {
-            var n = this.vertices.length - 1
-            var d = this.dimension
-            var verts = this.vertices
-            var tuple = this.tuple
-            var interior = this.interior
-            var simplices = this.simplices
+  return cell
+}
 
-            //Walking finished at boundary, time to add peaks
-            var tovisit = [cell]
+proto.addPeaks = function(point, cell) {
+  var n = this.vertices.length - 1
+  var d = this.dimension
+  var verts = this.vertices
+  var tuple = this.tuple
+  var interior = this.interior
+  var simplices = this.simplices
 
-            //Stretch initial boundary cell into a peak
-            cell.lastVisited = n
-            cell.vertices[cell.vertices.indexOf(-1)] = n
-            cell.boundary = false
-            interior.push(cell)
+  //Walking finished at boundary, time to add peaks
+  var tovisit = [ cell ]
 
-            //Record a list of all new boundaries created by added peaks so we can glue them together when we are all done
-            var glueFacets = []
+  //Stretch initial boundary cell into a peak
+  cell.lastVisited = n
+  cell.vertices[cell.vertices.indexOf(-1)] = n
+  cell.boundary = false
+  interior.push(cell)
 
-            //Do a traversal of the boundary walking outward from starting peak
-            while (tovisit.length > 0) {
-                //Pop off peak and walk over adjacent cells
-                var cell = tovisit.pop()
-                var cellVerts = cell.vertices
-                var cellAdj = cell.adjacent
-                var indexOfN = cellVerts.indexOf(n)
-                if (indexOfN < 0) {
-                    continue
-                }
+  //Record a list of all new boundaries created by added peaks so we can glue them together when we are all done
+  var glueFacets = []
 
-                for (var i = 0; i <= d; ++i) {
-                    if (i === indexOfN) {
-                        continue
-                    }
+  //Do a traversal of the boundary walking outward from starting peak
+  while(tovisit.length > 0) {
+    //Pop off peak and walk over adjacent cells
+    var cell = tovisit.pop()
+    var cellVerts = cell.vertices
+    var cellAdj = cell.adjacent
+    var indexOfN = cellVerts.indexOf(n)
+    if(indexOfN < 0) {
+      continue
+    }
 
-                    //For each boundary neighbor of the cell
-                    var neighbor = cellAdj[i]
-                    if (!neighbor.boundary || neighbor.lastVisited >= n) {
-                        continue
-                    }
+    for(var i=0; i<=d; ++i) {
+      if(i === indexOfN) {
+        continue
+      }
 
-                    var nv = neighbor.vertices
+      //For each boundary neighbor of the cell
+      var neighbor = cellAdj[i]
+      if(!neighbor.boundary || neighbor.lastVisited >= n) {
+        continue
+      }
 
-                    //Test if neighbor is a peak
-                    if (neighbor.lastVisited !== -n) {
-                        //Compute orientation of p relative to each boundary peak
-                        var indexOfNeg1 = 0
-                        for (var j = 0; j <= d; ++j) {
-                            if (nv[j] < 0) {
-                                indexOfNeg1 = j
-                                tuple[j] = point
-                            } else {
-                                tuple[j] = verts[nv[j]]
-                            }
-                        }
-                        var o = this.orient()
+      var nv = neighbor.vertices
 
-                        //Test if neighbor cell is also a peak
-                        if (o > 0) {
-                            nv[indexOfNeg1] = n
-                            neighbor.boundary = false
-                            interior.push(neighbor)
-                            tovisit.push(neighbor)
-                            neighbor.lastVisited = n
-                            continue
-                        } else {
-                            neighbor.lastVisited = -n
-                        }
-                    }
-
-                    var na = neighbor.adjacent
-
-                    //Otherwise, replace neighbor with new face
-                    var vverts = cellVerts.slice()
-                    var vadj = cellAdj.slice()
-                    var ncell = new Simplex(vverts, vadj, true)
-                    simplices.push(ncell)
-
-                    //Connect to neighbor
-                    var opposite = na.indexOf(cell)
-                    if (opposite < 0) {
-                        continue
-                    }
-                    na[opposite] = ncell
-                    vadj[indexOfN] = neighbor
-
-                    //Connect to cell
-                    vverts[i] = -1
-                    vadj[i] = cell
-                    cellAdj[i] = ncell
-
-                    //Flip facet
-                    ncell.flip()
-
-                    //Add to glue list
-                    for (var j = 0; j <= d; ++j) {
-                        var uu = vverts[j]
-                        if (uu < 0 || uu === n) {
-                            continue
-                        }
-                        var nface = new Array(d - 1)
-                        var nptr = 0
-                        for (var k = 0; k <= d; ++k) {
-                            var vv = vverts[k]
-                            if (vv < 0 || k === j) {
-                                continue
-                            }
-                            nface[nptr++] = vv
-                        }
-                        glueFacets.push(new GlueFacet(nface, ncell, j))
-                    }
-                }
-            }
-
-            //Glue boundary facets together
-            glueFacets.sort(compareGlue)
-
-            for (var i = 0; i + 1 < glueFacets.length; i += 2) {
-                var a = glueFacets[i]
-                var b = glueFacets[i + 1]
-                var ai = a.index
-                var bi = b.index
-                if (ai < 0 || bi < 0) {
-                    continue
-                }
-                a.cell.adjacent[a.index] = b.cell
-                b.cell.adjacent[b.index] = a.cell
-            }
+      //Test if neighbor is a peak
+      if(neighbor.lastVisited !== -n) {      
+        //Compute orientation of p relative to each boundary peak
+        var indexOfNeg1 = 0
+        for(var j=0; j<=d; ++j) {
+          if(nv[j] < 0) {
+            indexOfNeg1 = j
+            tuple[j] = point
+          } else {
+            tuple[j] = verts[nv[j]]
+          }
         }
+        var o = this.orient()
 
-        proto.insert = function (point, random) {
-            //Add point
-            var verts = this.vertices
-            verts.push(point)
-
-            var cell = this.walk(point, random)
-            if (!cell) {
-                return
-            }
-
-            //Alias local properties
-            var d = this.dimension
-            var tuple = this.tuple
-
-            //Degenerate case: If point is coplanar to cell, then walk until we find a non-degenerate boundary
-            for (var i = 0; i <= d; ++i) {
-                var vv = cell.vertices[i]
-                if (vv < 0) {
-                    tuple[i] = point
-                } else {
-                    tuple[i] = verts[vv]
-                }
-            }
-            var o = this.orient(tuple)
-            if (o < 0) {
-                return
-            } else if (o === 0) {
-                cell = this.handleBoundaryDegeneracy(cell, point)
-                if (!cell) {
-                    return
-                }
-            }
-
-            //Add peaks
-            this.addPeaks(point, cell)
+        //Test if neighbor cell is also a peak
+        if(o > 0) {
+          nv[indexOfNeg1] = n
+          neighbor.boundary = false
+          interior.push(neighbor)
+          tovisit.push(neighbor)
+          neighbor.lastVisited = n
+          continue
+        } else {
+          neighbor.lastVisited = -n
         }
+      }
+
+      var na = neighbor.adjacent
+
+      //Otherwise, replace neighbor with new face
+      var vverts = cellVerts.slice()
+      var vadj = cellAdj.slice()
+      var ncell = new Simplex(vverts, vadj, true)
+      simplices.push(ncell)
+
+      //Connect to neighbor
+      var opposite = na.indexOf(cell)
+      if(opposite < 0) {
+        continue
+      }
+      na[opposite] = ncell
+      vadj[indexOfN] = neighbor
+
+      //Connect to cell
+      vverts[i] = -1
+      vadj[i] = cell
+      cellAdj[i] = ncell
+
+      //Flip facet
+      ncell.flip()
+
+      //Add to glue list
+      for(var j=0; j<=d; ++j) {
+        var uu = vverts[j]
+        if(uu < 0 || uu === n) {
+          continue
+        }
+        var nface = new Array(d-1)
+        var nptr = 0
+        for(var k=0; k<=d; ++k) {
+          var vv = vverts[k]
+          if(vv < 0 || k === j) {
+            continue
+          }
+          nface[nptr++] = vv
+        }
+        glueFacets.push(new GlueFacet(nface, ncell, j))
+      }
+    }
+  }
+
+  //Glue boundary facets together
+  glueFacets.sort(compareGlue)
+
+  for(var i=0; i+1<glueFacets.length; i+=2) {
+    var a = glueFacets[i]
+    var b = glueFacets[i+1]
+    var ai = a.index
+    var bi = b.index
+    if(ai < 0 || bi < 0) {
+      continue
+    }
+    a.cell.adjacent[a.index] = b.cell
+    b.cell.adjacent[b.index] = a.cell
+  }
+}
+
+proto.insert = function(point, random) {
+  //Add point
+  var verts = this.vertices
+  verts.push(point)
+
+  var cell = this.walk(point, random)
+  if(!cell) {
+    return
+  }
+
+  //Alias local properties
+  var d = this.dimension
+  var tuple = this.tuple
+
+  //Degenerate case: If point is coplanar to cell, then walk until we find a non-degenerate boundary
+  for(var i=0; i<=d; ++i) {
+    var vv = cell.vertices[i]
+    if(vv < 0) {
+      tuple[i] = point
+    } else {
+      tuple[i] = verts[vv]
+    }
+  }
+  var o = this.orient(tuple)
+  if(o < 0) {
+    return
+  } else if(o === 0) {
+    cell = this.handleBoundaryDegeneracy(cell, point)
+    if(!cell) {
+      return
+    }
+  }
+
+  //Add peaks
+  this.addPeaks(point, cell)
+}
 
 //Extract all boundary cells
-        proto.boundary = function () {
-            var d = this.dimension
-            var boundary = []
-            var cells = this.simplices
-            var nc = cells.length
-            for (var i = 0; i < nc; ++i) {
-                var c = cells[i]
-                if (c.boundary) {
-                    var bcell = new Array(d)
-                    var cv = c.vertices
-                    var ptr = 0
-                    var parity = 0
-                    for (var j = 0; j <= d; ++j) {
-                        if (cv[j] >= 0) {
-                            bcell[ptr++] = cv[j]
-                        } else {
-                            parity = j & 1
-                        }
-                    }
-                    if (parity === (d & 1)) {
-                        var t = bcell[0]
-                        bcell[0] = bcell[1]
-                        bcell[1] = t
-                    }
-                    boundary.push(bcell)
-                }
-            }
-            return boundary
+proto.boundary = function() {
+  var d = this.dimension
+  var boundary = []
+  var cells = this.simplices
+  var nc = cells.length
+  for(var i=0; i<nc; ++i) {
+    var c = cells[i]
+    if(c.boundary) {
+      var bcell = new Array(d)
+      var cv = c.vertices
+      var ptr = 0
+      var parity = 0
+      for(var j=0; j<=d; ++j) {
+        if(cv[j] >= 0) {
+          bcell[ptr++] = cv[j]
+        } else {
+          parity = j&1
         }
+      }
+      if(parity === (d&1)) {
+        var t = bcell[0]
+        bcell[0] = bcell[1]
+        bcell[1] = t
+      }
+      boundary.push(bcell)
+    }
+  }
+  return boundary
+}
 
-        function incrementalConvexHull(points, randomSearch) {
-            var n = points.length
-            if (n === 0) {
-                throw new Error("Must have at least d+1 points")
-            }
-            var d = points[0].length
-            if (n <= d) {
-                throw new Error("Must input at least d+1 points")
-            }
+function incrementalConvexHull(points, randomSearch) {
+  var n = points.length
+  if(n === 0) {
+    throw new Error("Must have at least d+1 points")
+  }
+  var d = points[0].length
+  if(n <= d) {
+    throw new Error("Must input at least d+1 points")
+  }
 
-            //FIXME: This could be degenerate, but need to select d+1 non-coplanar points to bootstrap process
-            var initialSimplex = points.slice(0, d + 1)
+  //FIXME: This could be degenerate, but need to select d+1 non-coplanar points to bootstrap process
+  var initialSimplex = points.slice(0, d+1)
 
-            //Make sure initial simplex is positively oriented
-            var o = orient.apply(void 0, initialSimplex)
-            if (o === 0) {
-                throw new Error("Input not in general position")
-            }
-            var initialCoords = new Array(d + 1)
-            for (var i = 0; i <= d; ++i) {
-                initialCoords[i] = i
-            }
-            if (o < 0) {
-                initialCoords[0] = 1
-                initialCoords[1] = 0
-            }
+  //Make sure initial simplex is positively oriented
+  var o = orient.apply(void 0, initialSimplex)
+  if(o === 0) {
+    throw new Error("Input not in general position")
+  }
+  var initialCoords = new Array(d+1)
+  for(var i=0; i<=d; ++i) {
+    initialCoords[i] = i
+  }
+  if(o < 0) {
+    initialCoords[0] = 1
+    initialCoords[1] = 0
+  }
 
-            //Create initial topological index, glue pointers together (kind of messy)
-            var initialCell = new Simplex(initialCoords, new Array(d + 1), false)
-            var boundary = initialCell.adjacent
-            var list = new Array(d + 2)
-            for (var i = 0; i <= d; ++i) {
-                var verts = initialCoords.slice()
-                for (var j = 0; j <= d; ++j) {
-                    if (j === i) {
-                        verts[j] = -1
-                    }
-                }
-                var t = verts[0]
-                verts[0] = verts[1]
-                verts[1] = t
-                var cell = new Simplex(verts, new Array(d + 1), true)
-                boundary[i] = cell
-                list[i] = cell
-            }
-            list[d + 1] = initialCell
-            for (var i = 0; i <= d; ++i) {
-                var verts = boundary[i].vertices
-                var adj = boundary[i].adjacent
-                for (var j = 0; j <= d; ++j) {
-                    var v = verts[j]
-                    if (v < 0) {
-                        adj[j] = initialCell
-                        continue
-                    }
-                    for (var k = 0; k <= d; ++k) {
-                        if (boundary[k].vertices.indexOf(v) < 0) {
-                            adj[j] = boundary[k]
-                        }
-                    }
-                }
-            }
-
-            //Initialize triangles
-            var triangles = new Triangulation(d, initialSimplex, list)
-
-            //Insert remaining points
-            var useRandom = !!randomSearch
-            for (var i = d + 1; i < n; ++i) {
-                triangles.insert(points[i], useRandom)
-            }
-
-            //Extract boundary cells
-            return triangles.boundary()
+  //Create initial topological index, glue pointers together (kind of messy)
+  var initialCell = new Simplex(initialCoords, new Array(d+1), false)
+  var boundary = initialCell.adjacent
+  var list = new Array(d+2)
+  for(var i=0; i<=d; ++i) {
+    var verts = initialCoords.slice()
+    for(var j=0; j<=d; ++j) {
+      if(j === i) {
+        verts[j] = -1
+      }
+    }
+    var t = verts[0]
+    verts[0] = verts[1]
+    verts[1] = t
+    var cell = new Simplex(verts, new Array(d+1), true)
+    boundary[i] = cell
+    list[i] = cell
+  }
+  list[d+1] = initialCell
+  for(var i=0; i<=d; ++i) {
+    var verts = boundary[i].vertices
+    var adj = boundary[i].adjacent
+    for(var j=0; j<=d; ++j) {
+      var v = verts[j]
+      if(v < 0) {
+        adj[j] = initialCell
+        continue
+      }
+      for(var k=0; k<=d; ++k) {
+        if(boundary[k].vertices.indexOf(v) < 0) {
+          adj[j] = boundary[k]
         }
-    }, {"robust-orientation": 17, "simplicial-complex": 21}],
-    6: [function (require, module, exports) {
-        /**
-         * Mnemonist Fixed Reverse Heap
-         * =============================
-         *
-         * Static heap implementation with fixed capacity. It's a "reverse" heap
-         * because it stores the elements in reverse so we can replace the worst
-         * item in logarithmic time. As such, one cannot pop this heap but can only
-         * consume it at the end. This structure is very efficient when trying to
-         * find the n smallest/largest items from a larger query (k nearest neigbors
-         * for instance).
-         */
-        var comparators = require('./utils/comparators.js'),
-            Heap = require('./heap.js');
-
-        var DEFAULT_COMPARATOR = comparators.DEFAULT_COMPARATOR,
-            reverseComparator = comparators.reverseComparator;
-
-        /**
-         * Helper functions.
-         */
-
-        /**
-         * Function used to sift up.
-         *
-         * @param {function} compare - Comparison function.
-         * @param {array}    heap    - Array storing the heap's data.
-         * @param {number}   size    - Heap's true size.
-         * @param {number}   i       - Index.
-         */
-        function siftUp(compare, heap, size, i) {
-            var endIndex = size,
-                startIndex = i,
-                item = heap[i],
-                childIndex = 2 * i + 1,
-                rightIndex;
-
-            while (childIndex < endIndex) {
-                rightIndex = childIndex + 1;
-
-                if (
-                    rightIndex < endIndex &&
-                    compare(heap[childIndex], heap[rightIndex]) >= 0
-                ) {
-                    childIndex = rightIndex;
-                }
-
-                heap[i] = heap[childIndex];
-                i = childIndex;
-                childIndex = 2 * i + 1;
-            }
-
-            heap[i] = item;
-            Heap.siftDown(compare, heap, startIndex, i);
-        }
-
-        /**
-         * Fully consumes the given heap.
-         *
-         * @param  {function} ArrayClass - Array class to use.
-         * @param  {function} compare    - Comparison function.
-         * @param  {array}    heap       - Array storing the heap's data.
-         * @param  {number}   size       - True size of the heap.
-         * @return {array}
-         */
-        function consume(ArrayClass, compare, heap, size) {
-            var l = size,
-                i = l;
-
-            var array = new ArrayClass(size),
-                lastItem,
-                item;
-
-            while (i > 0) {
-                lastItem = heap[--i];
-
-                if (i !== 0) {
-                    item = heap[0];
-                    heap[0] = lastItem;
-                    siftUp(compare, heap, --size, 0);
-                    lastItem = item;
-                }
-
-                array[i] = lastItem;
-            }
-
-            return array;
-        }
-
-        /**
-         * Binary Minimum FixedReverseHeap.
-         *
-         * @constructor
-         * @param {function} ArrayClass - The class of array to use.
-         * @param {function} comparator - Comparator function.
-         * @param {number}   capacity   - Maximum number of items to keep.
-         */
-        function FixedReverseHeap(ArrayClass, comparator, capacity) {
-
-            // Comparator can be omitted
-            if (arguments.length === 2) {
-                capacity = comparator;
-                comparator = null;
-            }
-
-            this.ArrayClass = ArrayClass;
-            this.capacity = capacity;
-
-            this.items = new ArrayClass(capacity);
-            this.clear();
-            this.comparator = comparator || DEFAULT_COMPARATOR;
-
-            if (typeof capacity !== 'number' && capacity <= 0)
-                throw new Error('mnemonist/FixedReverseHeap.constructor: capacity should be a number > 0.');
-
-            if (typeof this.comparator !== 'function')
-                throw new Error('mnemonist/FixedReverseHeap.constructor: given comparator should be a function.');
-
-            this.comparator = reverseComparator(this.comparator);
-        }
-
-        /**
-         * Method used to clear the heap.
-         *
-         * @return {undefined}
-         */
-        FixedReverseHeap.prototype.clear = function () {
-
-            // Properties
-            this.size = 0;
-        };
-
-        /**
-         * Method used to push an item into the heap.
-         *
-         * @param  {any}    item - Item to push.
-         * @return {number}
-         */
-        FixedReverseHeap.prototype.push = function (item) {
-
-            // Still some place
-            if (this.size < this.capacity) {
-                this.items[this.size] = item;
-                Heap.siftDown(this.comparator, this.items, 0, this.size);
-                this.size++;
-            }
-
-            // Heap is full, we need to replace worst item
-            else {
-
-                if (this.comparator(item, this.items[0]) > 0)
-                    Heap.replace(this.comparator, this.items, item);
-            }
-
-            return this.size;
-        };
-
-        /**
-         * Method used to peek the worst item in the heap.
-         *
-         * @return {any}
-         */
-        FixedReverseHeap.prototype.peek = function () {
-            return this.items[0];
-        };
-
-        /**
-         * Method used to consume the heap fully and return its items as a sorted array.
-         *
-         * @return {array}
-         */
-        FixedReverseHeap.prototype.consume = function () {
-            var items = consume(this.ArrayClass, this.comparator, this.items, this.size);
-            this.size = 0;
-
-            return items;
-        };
-
-        /**
-         * Method used to convert the heap to an array. Note that it basically clone
-         * the heap and consumes it completely. This is hardly performant.
-         *
-         * @return {array}
-         */
-        FixedReverseHeap.prototype.toArray = function () {
-            return consume(this.ArrayClass, this.comparator, this.items.slice(0, this.size), this.size);
-        };
-
-        /**
-         * Convenience known methods.
-         */
-        FixedReverseHeap.prototype.inspect = function () {
-            var proxy = this.toArray();
-
-            // Trick so that node displays the name of the constructor
-            Object.defineProperty(proxy, 'constructor', {
-                value: FixedReverseHeap,
-                enumerable: false
-            });
-
-            return proxy;
-        };
-
-        if (typeof Symbol !== 'undefined')
-            FixedReverseHeap.prototype[Symbol.for('nodejs.util.inspect.custom')] = FixedReverseHeap.prototype.inspect;
-
-        /**
-         * Exporting.
-         */
-        module.exports = FixedReverseHeap;
-
-    }, {"./heap.js": 7, "./utils/comparators.js": 10}],
-    7: [function (require, module, exports) {
-        /**
-         * Mnemonist Binary Heap
-         * ======================
-         *
-         * Binary heap implementation.
-         */
-        var forEach = require('obliterator/foreach'),
-            comparators = require('./utils/comparators.js'),
-            iterables = require('./utils/iterables.js');
-
-        var DEFAULT_COMPARATOR = comparators.DEFAULT_COMPARATOR,
-            reverseComparator = comparators.reverseComparator;
-
-        /**
-         * Heap helper functions.
-         */
-
-        /**
-         * Function used to sift down.
-         *
-         * @param {function} compare    - Comparison function.
-         * @param {array}    heap       - Array storing the heap's data.
-         * @param {number}   startIndex - Starting index.
-         * @param {number}   i          - Index.
-         */
-        function siftDown(compare, heap, startIndex, i) {
-            var item = heap[i],
-                parentIndex,
-                parent;
-
-            while (i > startIndex) {
-                parentIndex = (i - 1) >> 1;
-                parent = heap[parentIndex];
-
-                if (compare(item, parent) < 0) {
-                    heap[i] = parent;
-                    i = parentIndex;
-                    continue;
-                }
-
-                break;
-            }
-
-            heap[i] = item;
-        }
-
-        /**
-         * Function used to sift up.
-         *
-         * @param {function} compare - Comparison function.
-         * @param {array}    heap    - Array storing the heap's data.
-         * @param {number}   i       - Index.
-         */
-        function siftUp(compare, heap, i) {
-            var endIndex = heap.length,
-                startIndex = i,
-                item = heap[i],
-                childIndex = 2 * i + 1,
-                rightIndex;
-
-            while (childIndex < endIndex) {
-                rightIndex = childIndex + 1;
-
-                if (
-                    rightIndex < endIndex &&
-                    compare(heap[childIndex], heap[rightIndex]) >= 0
-                ) {
-                    childIndex = rightIndex;
-                }
-
-                heap[i] = heap[childIndex];
-                i = childIndex;
-                childIndex = 2 * i + 1;
-            }
-
-            heap[i] = item;
-            siftDown(compare, heap, startIndex, i);
-        }
-
-        /**
-         * Function used to push an item into a heap represented by a raw array.
-         *
-         * @param {function} compare - Comparison function.
-         * @param {array}    heap    - Array storing the heap's data.
-         * @param {any}      item    - Item to push.
-         */
-        function push(compare, heap, item) {
-            heap.push(item);
-            siftDown(compare, heap, 0, heap.length - 1);
-        }
-
-        /**
-         * Function used to pop an item from a heap represented by a raw array.
-         *
-         * @param  {function} compare - Comparison function.
-         * @param  {array}    heap    - Array storing the heap's data.
-         * @return {any}
-         */
-        function pop(compare, heap) {
-            var lastItem = heap.pop();
-
-            if (heap.length !== 0) {
-                var item = heap[0];
-                heap[0] = lastItem;
-                siftUp(compare, heap, 0);
-
-                return item;
-            }
-
-            return lastItem;
-        }
-
-        /**
-         * Function used to pop the heap then push a new value into it, thus "replacing"
-         * it.
-         *
-         * @param  {function} compare - Comparison function.
-         * @param  {array}    heap    - Array storing the heap's data.
-         * @param  {any}      item    - The item to push.
-         * @return {any}
-         */
-        function replace(compare, heap, item) {
-            if (heap.length === 0)
-                throw new Error('mnemonist/heap.replace: cannot pop an empty heap.');
-
-            var popped = heap[0];
-            heap[0] = item;
-            siftUp(compare, heap, 0);
-
-            return popped;
-        }
-
-        /**
-         * Function used to push an item in the heap then pop the heap and return the
-         * popped value.
-         *
-         * @param  {function} compare - Comparison function.
-         * @param  {array}    heap    - Array storing the heap's data.
-         * @param  {any}      item    - The item to push.
-         * @return {any}
-         */
-        function pushpop(compare, heap, item) {
-            var tmp;
-
-            if (heap.length !== 0 && compare(heap[0], item) < 0) {
-                tmp = heap[0];
-                heap[0] = item;
-                item = tmp;
-                siftUp(compare, heap, 0);
-            }
-
-            return item;
-        }
-
-        /**
-         * Converts and array into an abstract heap in linear time.
-         *
-         * @param {function} compare - Comparison function.
-         * @param {array}    array   - Target array.
-         */
-        function heapify(compare, array) {
-            var n = array.length,
-                l = n >> 1,
-                i = l;
-
-            while (--i >= 0)
-                siftUp(compare, array, i);
-        }
-
-        /**
-         * Fully consumes the given heap.
-         *
-         * @param  {function} compare - Comparison function.
-         * @param  {array}    heap    - Array storing the heap's data.
-         * @return {array}
-         */
-        function consume(compare, heap) {
-            var l = heap.length,
-                i = 0;
-
-            var array = new Array(l);
-
-            while (i < l)
-                array[i++] = pop(compare, heap);
-
-            return array;
-        }
-
-        /**
-         * Function used to retrieve the n smallest items from the given iterable.
-         *
-         * @param {function} compare  - Comparison function.
-         * @param {number}   n        - Number of top items to retrieve.
-         * @param {any}      iterable - Arbitrary iterable.
-         * @param {array}
-         */
-        function nsmallest(compare, n, iterable) {
-            if (arguments.length === 2) {
-                iterable = n;
-                n = compare;
-                compare = DEFAULT_COMPARATOR;
-            }
-
-            var reverseCompare = reverseComparator(compare);
-
-            var i, l, v;
-
-            var min = Infinity;
-
-            var result;
-
-            // If n is equal to 1, it's just a matter of finding the minimum
-            if (n === 1) {
-                if (iterables.isArrayLike(iterable)) {
-                    for (i = 0, l = iterable.length; i < l; i++) {
-                        v = iterable[i];
-
-                        if (min === Infinity || compare(v, min) < 0)
-                            min = v;
-                    }
-
-                    result = new iterable.constructor(1);
-                    result[0] = min;
-
-                    return result;
-                }
-
-                forEach(iterable, function (value) {
-                    if (min === Infinity || compare(value, min) < 0)
-                        min = value;
-                });
-
-                return [min];
-            }
-
-            if (iterables.isArrayLike(iterable)) {
-
-                // If n > iterable length, we just clone and sort
-                if (n >= iterable.length)
-                    return iterable.slice().sort(compare);
-
-                result = iterable.slice(0, n);
-                heapify(reverseCompare, result);
-
-                for (i = n, l = iterable.length; i < l; i++)
-                    if (reverseCompare(iterable[i], result[0]) > 0)
-                        replace(reverseCompare, result, iterable[i]);
-
-                // NOTE: if n is over some number, it becomes faster to consume the heap
-                return result.sort(compare);
-            }
-
-            // Correct for size
-            var size = iterables.guessLength(iterable);
-
-            if (size !== null && size < n)
-                n = size;
-
-            result = new Array(n);
-            i = 0;
-
-            forEach(iterable, function (value) {
-                if (i < n) {
-                    result[i] = value;
-                } else {
-                    if (i === n)
-                        heapify(reverseCompare, result);
-
-                    if (reverseCompare(value, result[0]) > 0)
-                        replace(reverseCompare, result, value);
-                }
-
-                i++;
-            });
-
-            if (result.length > i)
-                result.length = i;
-
-            // NOTE: if n is over some number, it becomes faster to consume the heap
-            return result.sort(compare);
-        }
-
-        /**
-         * Function used to retrieve the n largest items from the given iterable.
-         *
-         * @param {function} compare  - Comparison function.
-         * @param {number}   n        - Number of top items to retrieve.
-         * @param {any}      iterable - Arbitrary iterable.
-         * @param {array}
-         */
-        function nlargest(compare, n, iterable) {
-            if (arguments.length === 2) {
-                iterable = n;
-                n = compare;
-                compare = DEFAULT_COMPARATOR;
-            }
-
-            var reverseCompare = reverseComparator(compare);
-
-            var i, l, v;
-
-            var max = -Infinity;
-
-            var result;
-
-            // If n is equal to 1, it's just a matter of finding the maximum
-            if (n === 1) {
-                if (iterables.isArrayLike(iterable)) {
-                    for (i = 0, l = iterable.length; i < l; i++) {
-                        v = iterable[i];
-
-                        if (max === -Infinity || compare(v, max) > 0)
-                            max = v;
-                    }
-
-                    result = new iterable.constructor(1);
-                    result[0] = max;
-
-                    return result;
-                }
-
-                forEach(iterable, function (value) {
-                    if (max === -Infinity || compare(value, max) > 0)
-                        max = value;
-                });
-
-                return [max];
-            }
-
-            if (iterables.isArrayLike(iterable)) {
-
-                // If n > iterable length, we just clone and sort
-                if (n >= iterable.length)
-                    return iterable.slice().sort(reverseCompare);
-
-                result = iterable.slice(0, n);
-                heapify(compare, result);
-
-                for (i = n, l = iterable.length; i < l; i++)
-                    if (compare(iterable[i], result[0]) > 0)
-                        replace(compare, result, iterable[i]);
-
-                // NOTE: if n is over some number, it becomes faster to consume the heap
-                return result.sort(reverseCompare);
-            }
-
-            // Correct for size
-            var size = iterables.guessLength(iterable);
-
-            if (size !== null && size < n)
-                n = size;
-
-            result = new Array(n);
-            i = 0;
-
-            forEach(iterable, function (value) {
-                if (i < n) {
-                    result[i] = value;
-                } else {
-                    if (i === n)
-                        heapify(compare, result);
-
-                    if (compare(value, result[0]) > 0)
-                        replace(compare, result, value);
-                }
-
-                i++;
-            });
-
-            if (result.length > i)
-                result.length = i;
-
-            // NOTE: if n is over some number, it becomes faster to consume the heap
-            return result.sort(reverseCompare);
-        }
-
-        /**
-         * Binary Minimum Heap.
-         *
-         * @constructor
-         * @param {function} comparator - Comparator function to use.
-         */
-        function Heap(comparator) {
-            this.clear();
-            this.comparator = comparator || DEFAULT_COMPARATOR;
-
-            if (typeof this.comparator !== 'function')
-                throw new Error('mnemonist/Heap.constructor: given comparator should be a function.');
-        }
-
-        /**
-         * Method used to clear the heap.
-         *
-         * @return {undefined}
-         */
-        Heap.prototype.clear = function () {
-
-            // Properties
-            this.items = [];
-            this.size = 0;
-        };
-
-        /**
-         * Method used to push an item into the heap.
-         *
-         * @param  {any}    item - Item to push.
-         * @return {number}
-         */
-        Heap.prototype.push = function (item) {
-            push(this.comparator, this.items, item);
-            return ++this.size;
-        };
-
-        /**
-         * Method used to retrieve the "first" item of the heap.
-         *
-         * @return {any}
-         */
-        Heap.prototype.peek = function () {
-            return this.items[0];
-        };
-
-        /**
-         * Method used to retrieve & remove the "first" item of the heap.
-         *
-         * @return {any}
-         */
-        Heap.prototype.pop = function () {
-            if (this.size !== 0)
-                this.size--;
-
-            return pop(this.comparator, this.items);
-        };
-
-        /**
-         * Method used to pop the heap, then push an item and return the popped
-         * item.
-         *
-         * @param  {any} item - Item to push into the heap.
-         * @return {any}
-         */
-        Heap.prototype.replace = function (item) {
-            return replace(this.comparator, this.items, item);
-        };
-
-        /**
-         * Method used to push the heap, the pop it and return the pooped item.
-         *
-         * @param  {any} item - Item to push into the heap.
-         * @return {any}
-         */
-        Heap.prototype.pushpop = function (item) {
-            return pushpop(this.comparator, this.items, item);
-        };
-
-        /**
-         * Method used to consume the heap fully and return its items as a sorted array.
-         *
-         * @return {array}
-         */
-        Heap.prototype.consume = function () {
-            this.size = 0;
-            return consume(this.comparator, this.items);
-        };
-
-        /**
-         * Method used to convert the heap to an array. Note that it basically clone
-         * the heap and consumes it completely. This is hardly performant.
-         *
-         * @return {array}
-         */
-        Heap.prototype.toArray = function () {
-            return consume(this.comparator, this.items.slice());
-        };
-
-        /**
-         * Convenience known methods.
-         */
-        Heap.prototype.inspect = function () {
-            var proxy = this.toArray();
-
-            // Trick so that node displays the name of the constructor
-            Object.defineProperty(proxy, 'constructor', {
-                value: Heap,
-                enumerable: false
-            });
-
-            return proxy;
-        };
-
-        if (typeof Symbol !== 'undefined')
-            Heap.prototype[Symbol.for('nodejs.util.inspect.custom')] = Heap.prototype.inspect;
-
-        /**
-         * Binary Maximum Heap.
-         *
-         * @constructor
-         * @param {function} comparator - Comparator function to use.
-         */
-        function MaxHeap(comparator) {
-            this.clear();
-            this.comparator = comparator || DEFAULT_COMPARATOR;
-
-            if (typeof this.comparator !== 'function')
-                throw new Error('mnemonist/MaxHeap.constructor: given comparator should be a function.');
-
-            this.comparator = reverseComparator(this.comparator);
-        }
-
-        MaxHeap.prototype = Heap.prototype;
-
-        /**
-         * Static @.from function taking an arbitrary iterable & converting it into
-         * a heap.
-         *
-         * @param  {Iterable} iterable   - Target iterable.
-         * @param  {function} comparator - Custom comparator function.
-         * @return {Heap}
-         */
-        Heap.from = function (iterable, comparator) {
-            var heap = new Heap(comparator);
-
-            var items;
-
-            // If iterable is an array, we can be clever about it
-            if (iterables.isArrayLike(iterable))
-                items = iterable.slice();
-            else
-                items = iterables.toArray(iterable);
-
-            heapify(heap.comparator, items);
-            heap.items = items;
-            heap.size = items.length;
-
-            return heap;
-        };
-
-        MaxHeap.from = function (iterable, comparator) {
-            var heap = new MaxHeap(comparator);
-
-            var items;
-
-            // If iterable is an array, we can be clever about it
-            if (iterables.isArrayLike(iterable))
-                items = iterable.slice();
-            else
-                items = iterables.toArray(iterable);
-
-            heapify(heap.comparator, items);
-            heap.items = items;
-            heap.size = items.length;
-
-            return heap;
-        };
-
-        /**
-         * Exporting.
-         */
-        Heap.siftUp = siftUp;
-        Heap.siftDown = siftDown;
-        Heap.push = push;
-        Heap.pop = pop;
-        Heap.replace = replace;
-        Heap.pushpop = pushpop;
-        Heap.heapify = heapify;
-        Heap.consume = consume;
-
-        Heap.nsmallest = nsmallest;
-        Heap.nlargest = nlargest;
-
-        Heap.MinHeap = Heap;
-        Heap.MaxHeap = MaxHeap;
-
-        module.exports = Heap;
-
-    }, {"./utils/comparators.js": 10, "./utils/iterables.js": 11, "obliterator/foreach": 13}],
-    8: [function (require, module, exports) {
-        /**
-         * Mnemonist KDTree
-         * =================
-         *
-         * Low-level JavaScript implementation of a k-dimensional tree.
-         */
-        var iterables = require('./utils/iterables.js');
-        var typed = require('./utils/typed-arrays.js');
-        var createTupleComparator = require('./utils/comparators.js').createTupleComparator;
-        var FixedReverseHeap = require('./fixed-reverse-heap.js');
-        var inplaceQuickSortIndices = require('./sort/quick.js').inplaceQuickSortIndices;
-
-        /**
-         * Helper function used to compute the squared distance between a query point
-         * and an indexed points whose values are stored in a tree's axes.
-         *
-         * Note that squared distance is used instead of euclidean to avoid
-         * costly sqrt computations.
-         *
-         * @param  {number} dimensions - Number of dimensions.
-         * @param  {array}  axes       - Axes data.
-         * @param  {number} pivot      - Pivot.
-         * @param  {array}  point      - Query point.
-         * @return {number}
-         */
-        function squaredDistanceAxes(dimensions, axes, pivot, b) {
-            var d;
-
-            var dist = 0,
-                step;
-
-            for (d = 0; d < dimensions; d++) {
-                step = axes[d][pivot] - b[d];
-                dist += step * step;
-            }
-
-            return dist;
-        }
-
-        /**
-         * Helper function used to reshape input data into low-level axes data.
-         *
-         * @param  {number} dimensions - Number of dimensions.
-         * @param  {array}  data       - Data in the shape [label, [x, y, z...]]
-         * @return {object}
-         */
-        function reshapeIntoAxes(dimensions, data) {
-            var l = data.length;
-
-            var axes = new Array(dimensions),
-                labels = new Array(l),
-                axis;
-
-            var PointerArray = typed.getPointerArray(l);
-
-            var ids = new PointerArray(l);
-
-            var d, i, row;
-
-            var f = true;
-
-            for (d = 0; d < dimensions; d++) {
-                axis = new Float64Array(l);
-
-                for (i = 0; i < l; i++) {
-                    row = data[i];
-                    axis[i] = row[1][d];
-
-                    if (f) {
-                        labels[i] = row[0];
-                        ids[i] = i;
-                    }
-                }
-
-                f = false;
-                axes[d] = axis;
-            }
-
-            return {axes: axes, ids: ids, labels: labels};
-        }
-
-        /**
-         * Helper function used to build a kd-tree from axes data.
-         *
-         * @param  {number} dimensions - Number of dimensions.
-         * @param  {array}  axes       - Axes.
-         * @param  {array}  ids        - Indices to sort.
-         * @param  {array}  labels     - Point labels.
-         * @return {object}
-         */
-        function buildTree(dimensions, axes, ids, labels) {
-            var l = labels.length;
-
-            // NOTE: +1 because we need to keep 0 as null pointer
-            var PointerArray = typed.getPointerArray(l + 1);
-
-            // Building the tree
-            var pivots = new PointerArray(l),
-                lefts = new PointerArray(l),
-                rights = new PointerArray(l);
-
-            var stack = [[0, 0, ids.length, -1, 0]],
-                step,
-                parent,
-                direction,
-                median,
-                pivot,
-                lo,
-                hi;
-
-            var d, i = 0;
-
-            while (stack.length !== 0) {
-                step = stack.pop();
-
-                d = step[0];
-                lo = step[1];
-                hi = step[2];
-                parent = step[3];
-                direction = step[4];
-
-                inplaceQuickSortIndices(axes[d], ids, lo, hi);
-
-                l = hi - lo;
-                median = lo + (l >>> 1); // Fancy floor(l / 2)
-                pivot = ids[median];
-                pivots[i] = pivot;
-
-                if (parent > -1) {
-                    if (direction === 0)
-                        lefts[parent] = i + 1;
-                    else
-                        rights[parent] = i + 1;
-                }
-
-                d = (d + 1) % dimensions;
-
-                // Right
-                if (median !== lo && median !== hi - 1) {
-                    stack.push([d, median + 1, hi, i, 1]);
-                }
-
-                // Left
-                if (median !== lo) {
-                    stack.push([d, lo, median, i, 0]);
-                }
-
-                i++;
-            }
-
-            return {
-                axes: axes,
-                labels: labels,
-                pivots: pivots,
-                lefts: lefts,
-                rights: rights
-            };
-        }
-
-        /**
-         * KDTree.
-         *
-         * @constructor
-         */
-        function KDTree(dimensions, build) {
-            this.dimensions = dimensions;
-            this.visited = 0;
-
-            this.axes = build.axes;
-            this.labels = build.labels;
-
-            this.pivots = build.pivots;
-            this.lefts = build.lefts;
-            this.rights = build.rights;
-
-            this.size = this.labels.length;
-        }
-
-        /**
-         * Method returning the query's nearest neighbor.
-         *
-         * @param  {array}  query - Query point.
-         * @return {any}
-         */
-        KDTree.prototype.nearestNeighbor = function (query) {
-            var bestDistance = Infinity,
-                best = null;
-
-            var dimensions = this.dimensions,
-                axes = this.axes,
-                pivots = this.pivots,
-                lefts = this.lefts,
-                rights = this.rights;
-
-            var visited = 0;
-
-            function recurse(d, node) {
-                visited++;
-
-                var left = lefts[node],
-                    right = rights[node],
-                    pivot = pivots[node];
-
-                var dist = squaredDistanceAxes(
-                    dimensions,
-                    axes,
-                    pivot,
-                    query
-                );
-
-                if (dist < bestDistance) {
-                    best = pivot;
-                    bestDistance = dist;
-
-                    if (dist === 0)
-                        return;
-                }
-
-                var dx = axes[d][pivot] - query[d];
-
-                d = (d + 1) % dimensions;
-
-                // Going the correct way?
-                if (dx > 0) {
-                    if (left !== 0)
-                        recurse(d, left - 1);
-                } else {
-                    if (right !== 0)
-                        recurse(d, right - 1);
-                }
-
-                // Going the other way?
-                if (dx * dx < bestDistance) {
-                    if (dx > 0) {
-                        if (right !== 0)
-                            recurse(d, right - 1);
-                    } else {
-                        if (left !== 0)
-                            recurse(d, left - 1);
-                    }
-                }
-            }
-
-            recurse(0, 0);
-
-            this.visited = visited;
-            return this.labels[best];
-        };
-
-        var KNN_HEAP_COMPARATOR_3 = createTupleComparator(3);
-        var KNN_HEAP_COMPARATOR_2 = createTupleComparator(2);
-
-        /**
-         * Method returning the query's k nearest neighbors.
-         *
-         * @param  {number} k     - Number of nearest neighbor to retrieve.
-         * @param  {array}  query - Query point.
-         * @return {array}
-         */
+      }
+    }
+  }
+
+  //Initialize triangles
+  var triangles = new Triangulation(d, initialSimplex, list)
+
+  //Insert remaining points
+  var useRandom = !!randomSearch
+  for(var i=d+1; i<n; ++i) {
+    triangles.insert(points[i], useRandom)
+  }
+  
+  //Extract boundary cells
+  return triangles.boundary()
+}
+},{"robust-orientation":18,"simplicial-complex":22}],6:[function(require,module,exports){
+/**
+ * Mnemonist Fixed Reverse Heap
+ * =============================
+ *
+ * Static heap implementation with fixed capacity. It's a "reverse" heap
+ * because it stores the elements in reverse so we can replace the worst
+ * item in logarithmic time. As such, one cannot pop this heap but can only
+ * consume it at the end. This structure is very efficient when trying to
+ * find the n smallest/largest items from a larger query (k nearest neigbors
+ * for instance).
+ */
+var comparators = require('./utils/comparators.js'),
+    Heap = require('./heap.js');
+
+var DEFAULT_COMPARATOR = comparators.DEFAULT_COMPARATOR,
+    reverseComparator = comparators.reverseComparator;
+
+/**
+ * Helper functions.
+ */
+
+/**
+ * Function used to sift up.
+ *
+ * @param {function} compare - Comparison function.
+ * @param {array}    heap    - Array storing the heap's data.
+ * @param {number}   size    - Heap's true size.
+ * @param {number}   i       - Index.
+ */
+function siftUp(compare, heap, size, i) {
+  var endIndex = size,
+      startIndex = i,
+      item = heap[i],
+      childIndex = 2 * i + 1,
+      rightIndex;
+
+  while (childIndex < endIndex) {
+    rightIndex = childIndex + 1;
+
+    if (
+      rightIndex < endIndex &&
+      compare(heap[childIndex], heap[rightIndex]) >= 0
+    ) {
+      childIndex = rightIndex;
+    }
+
+    heap[i] = heap[childIndex];
+    i = childIndex;
+    childIndex = 2 * i + 1;
+  }
+
+  heap[i] = item;
+  Heap.siftDown(compare, heap, startIndex, i);
+}
+
+/**
+ * Fully consumes the given heap.
+ *
+ * @param  {function} ArrayClass - Array class to use.
+ * @param  {function} compare    - Comparison function.
+ * @param  {array}    heap       - Array storing the heap's data.
+ * @param  {number}   size       - True size of the heap.
+ * @return {array}
+ */
+function consume(ArrayClass, compare, heap, size) {
+  var l = size,
+      i = l;
+
+  var array = new ArrayClass(size),
+      lastItem,
+      item;
+
+  while (i > 0) {
+    lastItem = heap[--i];
+
+    if (i !== 0) {
+      item = heap[0];
+      heap[0] = lastItem;
+      siftUp(compare, heap, --size, 0);
+      lastItem = item;
+    }
+
+    array[i] = lastItem;
+  }
+
+  return array;
+}
+
+/**
+ * Binary Minimum FixedReverseHeap.
+ *
+ * @constructor
+ * @param {function} ArrayClass - The class of array to use.
+ * @param {function} comparator - Comparator function.
+ * @param {number}   capacity   - Maximum number of items to keep.
+ */
+function FixedReverseHeap(ArrayClass, comparator, capacity) {
+
+  // Comparator can be omitted
+  if (arguments.length === 2) {
+    capacity = comparator;
+    comparator = null;
+  }
+
+  this.ArrayClass = ArrayClass;
+  this.capacity = capacity;
+
+  this.items = new ArrayClass(capacity);
+  this.clear();
+  this.comparator = comparator || DEFAULT_COMPARATOR;
+
+  if (typeof capacity !== 'number' && capacity <= 0)
+    throw new Error('mnemonist/FixedReverseHeap.constructor: capacity should be a number > 0.');
+
+  if (typeof this.comparator !== 'function')
+    throw new Error('mnemonist/FixedReverseHeap.constructor: given comparator should be a function.');
+
+  this.comparator = reverseComparator(this.comparator);
+}
+
+/**
+ * Method used to clear the heap.
+ *
+ * @return {undefined}
+ */
+FixedReverseHeap.prototype.clear = function() {
+
+  // Properties
+  this.size = 0;
+};
+
+/**
+ * Method used to push an item into the heap.
+ *
+ * @param  {any}    item - Item to push.
+ * @return {number}
+ */
+FixedReverseHeap.prototype.push = function(item) {
+
+  // Still some place
+  if (this.size < this.capacity) {
+    this.items[this.size] = item;
+    Heap.siftDown(this.comparator, this.items, 0, this.size);
+    this.size++;
+  }
+
+  // Heap is full, we need to replace worst item
+  else {
+
+    if (this.comparator(item, this.items[0]) > 0)
+      Heap.replace(this.comparator, this.items, item);
+  }
+
+  return this.size;
+};
+
+/**
+ * Method used to peek the worst item in the heap.
+ *
+ * @return {any}
+ */
+FixedReverseHeap.prototype.peek = function() {
+  return this.items[0];
+};
+
+/**
+ * Method used to consume the heap fully and return its items as a sorted array.
+ *
+ * @return {array}
+ */
+FixedReverseHeap.prototype.consume = function() {
+  var items = consume(this.ArrayClass, this.comparator, this.items, this.size);
+  this.size = 0;
+
+  return items;
+};
+
+/**
+ * Method used to convert the heap to an array. Note that it basically clone
+ * the heap and consumes it completely. This is hardly performant.
+ *
+ * @return {array}
+ */
+FixedReverseHeap.prototype.toArray = function() {
+  return consume(this.ArrayClass, this.comparator, this.items.slice(0, this.size), this.size);
+};
+
+/**
+ * Convenience known methods.
+ */
+FixedReverseHeap.prototype.inspect = function() {
+  var proxy = this.toArray();
+
+  // Trick so that node displays the name of the constructor
+  Object.defineProperty(proxy, 'constructor', {
+    value: FixedReverseHeap,
+    enumerable: false
+  });
+
+  return proxy;
+};
+
+if (typeof Symbol !== 'undefined')
+  FixedReverseHeap.prototype[Symbol.for('nodejs.util.inspect.custom')] = FixedReverseHeap.prototype.inspect;
+
+/**
+ * Exporting.
+ */
+module.exports = FixedReverseHeap;
+
+},{"./heap.js":7,"./utils/comparators.js":10}],7:[function(require,module,exports){
+/**
+ * Mnemonist Binary Heap
+ * ======================
+ *
+ * Binary heap implementation.
+ */
+var forEach = require('obliterator/foreach'),
+    comparators = require('./utils/comparators.js'),
+    iterables = require('./utils/iterables.js');
+
+var DEFAULT_COMPARATOR = comparators.DEFAULT_COMPARATOR,
+    reverseComparator = comparators.reverseComparator;
+
+/**
+ * Heap helper functions.
+ */
+
+/**
+ * Function used to sift down.
+ *
+ * @param {function} compare    - Comparison function.
+ * @param {array}    heap       - Array storing the heap's data.
+ * @param {number}   startIndex - Starting index.
+ * @param {number}   i          - Index.
+ */
+function siftDown(compare, heap, startIndex, i) {
+  var item = heap[i],
+      parentIndex,
+      parent;
+
+  while (i > startIndex) {
+    parentIndex = (i - 1) >> 1;
+    parent = heap[parentIndex];
+
+    if (compare(item, parent) < 0) {
+      heap[i] = parent;
+      i = parentIndex;
+      continue;
+    }
+
+    break;
+  }
+
+  heap[i] = item;
+}
+
+/**
+ * Function used to sift up.
+ *
+ * @param {function} compare - Comparison function.
+ * @param {array}    heap    - Array storing the heap's data.
+ * @param {number}   i       - Index.
+ */
+function siftUp(compare, heap, i) {
+  var endIndex = heap.length,
+      startIndex = i,
+      item = heap[i],
+      childIndex = 2 * i + 1,
+      rightIndex;
+
+  while (childIndex < endIndex) {
+    rightIndex = childIndex + 1;
+
+    if (
+      rightIndex < endIndex &&
+      compare(heap[childIndex], heap[rightIndex]) >= 0
+    ) {
+      childIndex = rightIndex;
+    }
+
+    heap[i] = heap[childIndex];
+    i = childIndex;
+    childIndex = 2 * i + 1;
+  }
+
+  heap[i] = item;
+  siftDown(compare, heap, startIndex, i);
+}
+
+/**
+ * Function used to push an item into a heap represented by a raw array.
+ *
+ * @param {function} compare - Comparison function.
+ * @param {array}    heap    - Array storing the heap's data.
+ * @param {any}      item    - Item to push.
+ */
+function push(compare, heap, item) {
+  heap.push(item);
+  siftDown(compare, heap, 0, heap.length - 1);
+}
+
+/**
+ * Function used to pop an item from a heap represented by a raw array.
+ *
+ * @param  {function} compare - Comparison function.
+ * @param  {array}    heap    - Array storing the heap's data.
+ * @return {any}
+ */
+function pop(compare, heap) {
+  var lastItem = heap.pop();
+
+  if (heap.length !== 0) {
+    var item = heap[0];
+    heap[0] = lastItem;
+    siftUp(compare, heap, 0);
+
+    return item;
+  }
+
+  return lastItem;
+}
+
+/**
+ * Function used to pop the heap then push a new value into it, thus "replacing"
+ * it.
+ *
+ * @param  {function} compare - Comparison function.
+ * @param  {array}    heap    - Array storing the heap's data.
+ * @param  {any}      item    - The item to push.
+ * @return {any}
+ */
+function replace(compare, heap, item) {
+  if (heap.length === 0)
+    throw new Error('mnemonist/heap.replace: cannot pop an empty heap.');
+
+  var popped = heap[0];
+  heap[0] = item;
+  siftUp(compare, heap, 0);
+
+  return popped;
+}
+
+/**
+ * Function used to push an item in the heap then pop the heap and return the
+ * popped value.
+ *
+ * @param  {function} compare - Comparison function.
+ * @param  {array}    heap    - Array storing the heap's data.
+ * @param  {any}      item    - The item to push.
+ * @return {any}
+ */
+function pushpop(compare, heap, item) {
+  var tmp;
+
+  if (heap.length !== 0 && compare(heap[0], item) < 0) {
+    tmp = heap[0];
+    heap[0] = item;
+    item = tmp;
+    siftUp(compare, heap, 0);
+  }
+
+  return item;
+}
+
+/**
+ * Converts and array into an abstract heap in linear time.
+ *
+ * @param {function} compare - Comparison function.
+ * @param {array}    array   - Target array.
+ */
+function heapify(compare, array) {
+  var n = array.length,
+      l = n >> 1,
+      i = l;
+
+  while (--i >= 0)
+    siftUp(compare, array, i);
+}
+
+/**
+ * Fully consumes the given heap.
+ *
+ * @param  {function} compare - Comparison function.
+ * @param  {array}    heap    - Array storing the heap's data.
+ * @return {array}
+ */
+function consume(compare, heap) {
+  var l = heap.length,
+      i = 0;
+
+  var array = new Array(l);
+
+  while (i < l)
+    array[i++] = pop(compare, heap);
+
+  return array;
+}
+
+/**
+ * Function used to retrieve the n smallest items from the given iterable.
+ *
+ * @param {function} compare  - Comparison function.
+ * @param {number}   n        - Number of top items to retrieve.
+ * @param {any}      iterable - Arbitrary iterable.
+ * @param {array}
+ */
+function nsmallest(compare, n, iterable) {
+  if (arguments.length === 2) {
+    iterable = n;
+    n = compare;
+    compare = DEFAULT_COMPARATOR;
+  }
+
+  var reverseCompare = reverseComparator(compare);
+
+  var i, l, v;
+
+  var min = Infinity;
+
+  var result;
+
+  // If n is equal to 1, it's just a matter of finding the minimum
+  if (n === 1) {
+    if (iterables.isArrayLike(iterable)) {
+      for (i = 0, l = iterable.length; i < l; i++) {
+        v = iterable[i];
+
+        if (min === Infinity || compare(v, min) < 0)
+          min = v;
+      }
+
+      result = new iterable.constructor(1);
+      result[0] = min;
+
+      return result;
+    }
+
+    forEach(iterable, function(value) {
+      if (min === Infinity || compare(value, min) < 0)
+        min = value;
+    });
+
+    return [min];
+  }
+
+  if (iterables.isArrayLike(iterable)) {
+
+    // If n > iterable length, we just clone and sort
+    if (n >= iterable.length)
+      return iterable.slice().sort(compare);
+
+    result = iterable.slice(0, n);
+    heapify(reverseCompare, result);
+
+    for (i = n, l = iterable.length; i < l; i++)
+      if (reverseCompare(iterable[i], result[0]) > 0)
+        replace(reverseCompare, result, iterable[i]);
+
+    // NOTE: if n is over some number, it becomes faster to consume the heap
+    return result.sort(compare);
+  }
+
+  // Correct for size
+  var size = iterables.guessLength(iterable);
+
+  if (size !== null && size < n)
+    n = size;
+
+  result = new Array(n);
+  i = 0;
+
+  forEach(iterable, function(value) {
+    if (i < n) {
+      result[i] = value;
+    }
+    else {
+      if (i === n)
+        heapify(reverseCompare, result);
+
+      if (reverseCompare(value, result[0]) > 0)
+        replace(reverseCompare, result, value);
+    }
+
+    i++;
+  });
+
+  if (result.length > i)
+    result.length = i;
+
+  // NOTE: if n is over some number, it becomes faster to consume the heap
+  return result.sort(compare);
+}
+
+/**
+ * Function used to retrieve the n largest items from the given iterable.
+ *
+ * @param {function} compare  - Comparison function.
+ * @param {number}   n        - Number of top items to retrieve.
+ * @param {any}      iterable - Arbitrary iterable.
+ * @param {array}
+ */
+function nlargest(compare, n, iterable) {
+  if (arguments.length === 2) {
+    iterable = n;
+    n = compare;
+    compare = DEFAULT_COMPARATOR;
+  }
+
+  var reverseCompare = reverseComparator(compare);
+
+  var i, l, v;
+
+  var max = -Infinity;
+
+  var result;
+
+  // If n is equal to 1, it's just a matter of finding the maximum
+  if (n === 1) {
+    if (iterables.isArrayLike(iterable)) {
+      for (i = 0, l = iterable.length; i < l; i++) {
+        v = iterable[i];
+
+        if (max === -Infinity || compare(v, max) > 0)
+          max = v;
+      }
+
+      result = new iterable.constructor(1);
+      result[0] = max;
+
+      return result;
+    }
+
+    forEach(iterable, function(value) {
+      if (max === -Infinity || compare(value, max) > 0)
+        max = value;
+    });
+
+    return [max];
+  }
+
+  if (iterables.isArrayLike(iterable)) {
+
+    // If n > iterable length, we just clone and sort
+    if (n >= iterable.length)
+      return iterable.slice().sort(reverseCompare);
+
+    result = iterable.slice(0, n);
+    heapify(compare, result);
+
+    for (i = n, l = iterable.length; i < l; i++)
+      if (compare(iterable[i], result[0]) > 0)
+        replace(compare, result, iterable[i]);
+
+    // NOTE: if n is over some number, it becomes faster to consume the heap
+    return result.sort(reverseCompare);
+  }
+
+  // Correct for size
+  var size = iterables.guessLength(iterable);
+
+  if (size !== null && size < n)
+    n = size;
+
+  result = new Array(n);
+  i = 0;
+
+  forEach(iterable, function(value) {
+    if (i < n) {
+      result[i] = value;
+    }
+    else {
+      if (i === n)
+        heapify(compare, result);
+
+      if (compare(value, result[0]) > 0)
+        replace(compare, result, value);
+    }
+
+    i++;
+  });
+
+  if (result.length > i)
+    result.length = i;
+
+  // NOTE: if n is over some number, it becomes faster to consume the heap
+  return result.sort(reverseCompare);
+}
+
+/**
+ * Binary Minimum Heap.
+ *
+ * @constructor
+ * @param {function} comparator - Comparator function to use.
+ */
+function Heap(comparator) {
+  this.clear();
+  this.comparator = comparator || DEFAULT_COMPARATOR;
+
+  if (typeof this.comparator !== 'function')
+    throw new Error('mnemonist/Heap.constructor: given comparator should be a function.');
+}
+
+/**
+ * Method used to clear the heap.
+ *
+ * @return {undefined}
+ */
+Heap.prototype.clear = function() {
+
+  // Properties
+  this.items = [];
+  this.size = 0;
+};
+
+/**
+ * Method used to push an item into the heap.
+ *
+ * @param  {any}    item - Item to push.
+ * @return {number}
+ */
+Heap.prototype.push = function(item) {
+  push(this.comparator, this.items, item);
+  return ++this.size;
+};
+
+/**
+ * Method used to retrieve the "first" item of the heap.
+ *
+ * @return {any}
+ */
+Heap.prototype.peek = function() {
+  return this.items[0];
+};
+
+/**
+ * Method used to retrieve & remove the "first" item of the heap.
+ *
+ * @return {any}
+ */
+Heap.prototype.pop = function() {
+  if (this.size !== 0)
+    this.size--;
+
+  return pop(this.comparator, this.items);
+};
+
+/**
+ * Method used to pop the heap, then push an item and return the popped
+ * item.
+ *
+ * @param  {any} item - Item to push into the heap.
+ * @return {any}
+ */
+Heap.prototype.replace = function(item) {
+  return replace(this.comparator, this.items, item);
+};
+
+/**
+ * Method used to push the heap, the pop it and return the pooped item.
+ *
+ * @param  {any} item - Item to push into the heap.
+ * @return {any}
+ */
+Heap.prototype.pushpop = function(item) {
+  return pushpop(this.comparator, this.items, item);
+};
+
+/**
+ * Method used to consume the heap fully and return its items as a sorted array.
+ *
+ * @return {array}
+ */
+Heap.prototype.consume = function() {
+  this.size = 0;
+  return consume(this.comparator, this.items);
+};
+
+/**
+ * Method used to convert the heap to an array. Note that it basically clone
+ * the heap and consumes it completely. This is hardly performant.
+ *
+ * @return {array}
+ */
+Heap.prototype.toArray = function() {
+  return consume(this.comparator, this.items.slice());
+};
+
+/**
+ * Convenience known methods.
+ */
+Heap.prototype.inspect = function() {
+  var proxy = this.toArray();
+
+  // Trick so that node displays the name of the constructor
+  Object.defineProperty(proxy, 'constructor', {
+    value: Heap,
+    enumerable: false
+  });
+
+  return proxy;
+};
+
+if (typeof Symbol !== 'undefined')
+  Heap.prototype[Symbol.for('nodejs.util.inspect.custom')] = Heap.prototype.inspect;
+
+/**
+ * Binary Maximum Heap.
+ *
+ * @constructor
+ * @param {function} comparator - Comparator function to use.
+ */
+function MaxHeap(comparator) {
+  this.clear();
+  this.comparator = comparator || DEFAULT_COMPARATOR;
+
+  if (typeof this.comparator !== 'function')
+    throw new Error('mnemonist/MaxHeap.constructor: given comparator should be a function.');
+
+  this.comparator = reverseComparator(this.comparator);
+}
+
+MaxHeap.prototype = Heap.prototype;
+
+/**
+ * Static @.from function taking an arbitrary iterable & converting it into
+ * a heap.
+ *
+ * @param  {Iterable} iterable   - Target iterable.
+ * @param  {function} comparator - Custom comparator function.
+ * @return {Heap}
+ */
+Heap.from = function(iterable, comparator) {
+  var heap = new Heap(comparator);
+
+  var items;
+
+  // If iterable is an array, we can be clever about it
+  if (iterables.isArrayLike(iterable))
+    items = iterable.slice();
+  else
+    items = iterables.toArray(iterable);
+
+  heapify(heap.comparator, items);
+  heap.items = items;
+  heap.size = items.length;
+
+  return heap;
+};
+
+MaxHeap.from = function(iterable, comparator) {
+  var heap = new MaxHeap(comparator);
+
+  var items;
+
+  // If iterable is an array, we can be clever about it
+  if (iterables.isArrayLike(iterable))
+    items = iterable.slice();
+  else
+    items = iterables.toArray(iterable);
+
+  heapify(heap.comparator, items);
+  heap.items = items;
+  heap.size = items.length;
+
+  return heap;
+};
+
+/**
+ * Exporting.
+ */
+Heap.siftUp = siftUp;
+Heap.siftDown = siftDown;
+Heap.push = push;
+Heap.pop = pop;
+Heap.replace = replace;
+Heap.pushpop = pushpop;
+Heap.heapify = heapify;
+Heap.consume = consume;
+
+Heap.nsmallest = nsmallest;
+Heap.nlargest = nlargest;
+
+Heap.MinHeap = Heap;
+Heap.MaxHeap = MaxHeap;
+
+module.exports = Heap;
+
+},{"./utils/comparators.js":10,"./utils/iterables.js":11,"obliterator/foreach":13}],8:[function(require,module,exports){
+/**
+ * Mnemonist KDTree
+ * =================
+ *
+ * Low-level JavaScript implementation of a k-dimensional tree.
+ */
+var iterables = require('./utils/iterables.js');
+var typed = require('./utils/typed-arrays.js');
+var createTupleComparator = require('./utils/comparators.js').createTupleComparator;
+var FixedReverseHeap = require('./fixed-reverse-heap.js');
+var inplaceQuickSortIndices = require('./sort/quick.js').inplaceQuickSortIndices;
+
+/**
+ * Helper function used to compute the squared distance between a query point
+ * and an indexed points whose values are stored in a tree's axes.
+ *
+ * Note that squared distance is used instead of euclidean to avoid
+ * costly sqrt computations.
+ *
+ * @param  {number} dimensions - Number of dimensions.
+ * @param  {array}  axes       - Axes data.
+ * @param  {number} pivot      - Pivot.
+ * @param  {array}  point      - Query point.
+ * @return {number}
+ */
+function squaredDistanceAxes(dimensions, axes, pivot, b) {
+  var d;
+
+  var dist = 0,
+      step;
+
+  for (d = 0; d < dimensions; d++) {
+    step = axes[d][pivot] - b[d];
+    dist += step * step;
+  }
+
+  return dist;
+}
+
+/**
+ * Helper function used to reshape input data into low-level axes data.
+ *
+ * @param  {number} dimensions - Number of dimensions.
+ * @param  {array}  data       - Data in the shape [label, [x, y, z...]]
+ * @return {object}
+ */
+function reshapeIntoAxes(dimensions, data) {
+  var l = data.length;
+
+  var axes = new Array(dimensions),
+      labels = new Array(l),
+      axis;
+
+  var PointerArray = typed.getPointerArray(l);
+
+  var ids = new PointerArray(l);
+
+  var d, i, row;
+
+  var f = true;
+
+  for (d = 0; d < dimensions; d++) {
+    axis = new Float64Array(l);
+
+    for (i = 0; i < l; i++) {
+      row = data[i];
+      axis[i] = row[1][d];
+
+      if (f) {
+        labels[i] = row[0];
+        ids[i] = i;
+      }
+    }
+
+    f = false;
+    axes[d] = axis;
+  }
+
+  return {axes: axes, ids: ids, labels: labels};
+}
+
+/**
+ * Helper function used to build a kd-tree from axes data.
+ *
+ * @param  {number} dimensions - Number of dimensions.
+ * @param  {array}  axes       - Axes.
+ * @param  {array}  ids        - Indices to sort.
+ * @param  {array}  labels     - Point labels.
+ * @return {object}
+ */
+function buildTree(dimensions, axes, ids, labels) {
+  var l = labels.length;
+
+  // NOTE: +1 because we need to keep 0 as null pointer
+  var PointerArray = typed.getPointerArray(l + 1);
+
+  // Building the tree
+  var pivots = new PointerArray(l),
+      lefts = new PointerArray(l),
+      rights = new PointerArray(l);
+
+  var stack = [[0, 0, ids.length, -1, 0]],
+      step,
+      parent,
+      direction,
+      median,
+      pivot,
+      lo,
+      hi;
+
+  var d, i = 0;
+
+  while (stack.length !== 0) {
+    step = stack.pop();
+
+    d = step[0];
+    lo = step[1];
+    hi = step[2];
+    parent = step[3];
+    direction = step[4];
+
+    inplaceQuickSortIndices(axes[d], ids, lo, hi);
+
+    l = hi - lo;
+    median = lo + (l >>> 1); // Fancy floor(l / 2)
+    pivot = ids[median];
+    pivots[i] = pivot;
+
+    if (parent > -1) {
+      if (direction === 0)
+        lefts[parent] = i + 1;
+      else
+        rights[parent] = i + 1;
+    }
+
+    d = (d + 1) % dimensions;
+
+    // Right
+    if (median !== lo && median !== hi - 1) {
+      stack.push([d, median + 1, hi, i, 1]);
+    }
+
+    // Left
+    if (median !== lo) {
+      stack.push([d, lo, median, i, 0]);
+    }
+
+    i++;
+  }
+
+  return {
+    axes: axes,
+    labels: labels,
+    pivots: pivots,
+    lefts: lefts,
+    rights: rights
+  };
+}
+
+/**
+ * KDTree.
+ *
+ * @constructor
+ */
+function KDTree(dimensions, build) {
+  this.dimensions = dimensions;
+  this.visited = 0;
+
+  this.axes = build.axes;
+  this.labels = build.labels;
+
+  this.pivots = build.pivots;
+  this.lefts = build.lefts;
+  this.rights = build.rights;
+
+  this.size = this.labels.length;
+}
+
+/**
+ * Method returning the query's nearest neighbor.
+ *
+ * @param  {array}  query - Query point.
+ * @return {any}
+ */
+KDTree.prototype.nearestNeighbor = function(query) {
+  var bestDistance = Infinity,
+      best = null;
+
+  var dimensions = this.dimensions,
+      axes = this.axes,
+      pivots = this.pivots,
+      lefts = this.lefts,
+      rights = this.rights;
+
+  var visited = 0;
+
+  function recurse(d, node) {
+    visited++;
+
+    var left = lefts[node],
+        right = rights[node],
+        pivot = pivots[node];
+
+    var dist = squaredDistanceAxes(
+      dimensions,
+      axes,
+      pivot,
+      query
+    );
+
+    if (dist < bestDistance) {
+      best = pivot;
+      bestDistance = dist;
+
+      if (dist === 0)
+        return;
+    }
+
+    var dx = axes[d][pivot] - query[d];
+
+    d = (d + 1) % dimensions;
+
+    // Going the correct way?
+    if (dx > 0) {
+      if (left !== 0)
+        recurse(d, left - 1);
+    }
+    else {
+      if (right !== 0)
+        recurse(d, right - 1);
+    }
+
+    // Going the other way?
+    if (dx * dx < bestDistance) {
+      if (dx > 0) {
+        if (right !== 0)
+          recurse(d, right - 1);
+      }
+      else {
+        if (left !== 0)
+          recurse(d, left - 1);
+      }
+    }
+  }
+
+  recurse(0, 0);
+
+  this.visited = visited;
+  return this.labels[best];
+};
+
+var KNN_HEAP_COMPARATOR_3 = createTupleComparator(3);
+var KNN_HEAP_COMPARATOR_2 = createTupleComparator(2);
+
+/**
+ * Method returning the query's k nearest neighbors.
+ *
+ * @param  {number} k     - Number of nearest neighbor to retrieve.
+ * @param  {array}  query - Query point.
+ * @return {array}
+ */
 
 // TODO: can do better by improving upon static-kdtree here
-        KDTree.prototype.kNearestNeighbors = function (k, query) {
-            if (k <= 0)
-                throw new Error('mnemonist/kd-tree.kNearestNeighbors: k should be a positive number.');
+KDTree.prototype.kNearestNeighbors = function(k, query) {
+  if (k <= 0)
+    throw new Error('mnemonist/kd-tree.kNearestNeighbors: k should be a positive number.');
 
-            k = Math.min(k, this.size);
+  k = Math.min(k, this.size);
 
-            if (k === 1)
-                return [this.nearestNeighbor(query)];
+  if (k === 1)
+    return [this.nearestNeighbor(query)];
 
-            var heap = new FixedReverseHeap(Array, KNN_HEAP_COMPARATOR_3, k);
+  var heap = new FixedReverseHeap(Array, KNN_HEAP_COMPARATOR_3, k);
 
-            var dimensions = this.dimensions,
-                axes = this.axes,
-                pivots = this.pivots,
-                lefts = this.lefts,
-                rights = this.rights;
+  var dimensions = this.dimensions,
+      axes = this.axes,
+      pivots = this.pivots,
+      lefts = this.lefts,
+      rights = this.rights;
 
-            var visited = 0;
+  var visited = 0;
 
-            function recurse(d, node) {
-                var left = lefts[node],
-                    right = rights[node],
-                    pivot = pivots[node];
+  function recurse(d, node) {
+    var left = lefts[node],
+        right = rights[node],
+        pivot = pivots[node];
 
-                var dist = squaredDistanceAxes(
-                    dimensions,
-                    axes,
-                    pivot,
-                    query
-                );
+    var dist = squaredDistanceAxes(
+      dimensions,
+      axes,
+      pivot,
+      query
+    );
 
-                heap.push([dist, visited++, pivot]);
+    heap.push([dist, visited++, pivot]);
 
-                var point = query[d],
-                    split = axes[d][pivot],
-                    dx = point - split;
+    var point = query[d],
+        split = axes[d][pivot],
+        dx = point - split;
 
-                d = (d + 1) % dimensions;
+    d = (d + 1) % dimensions;
 
-                // Going the correct way?
-                if (point < split) {
-                    if (left !== 0) {
-                        recurse(d, left - 1);
-                    }
-                } else {
-                    if (right !== 0) {
-                        recurse(d, right - 1);
-                    }
-                }
+    // Going the correct way?
+    if (point < split) {
+      if (left !== 0) {
+        recurse(d, left - 1);
+      }
+    }
+    else {
+      if (right !== 0) {
+        recurse(d, right - 1);
+      }
+    }
 
-                // Going the other way?
-                if (dx * dx < heap.peek()[0] || heap.size < k) {
-                    if (point < split) {
-                        if (right !== 0) {
-                            recurse(d, right - 1);
-                        }
-                    } else {
-                        if (left !== 0) {
-                            recurse(d, left - 1);
-                        }
-                    }
-                }
-            }
-
-            recurse(0, 0);
-
-            this.visited = visited;
-
-            var best = heap.consume();
-
-            for (var i = 0; i < best.length; i++)
-                best[i] = this.labels[best[i][2]];
-
-            return best;
-        };
-
-        /**
-         * Method returning the query's k nearest neighbors by linear search.
-         *
-         * @param  {number} k     - Number of nearest neighbor to retrieve.
-         * @param  {array}  query - Query point.
-         * @return {array}
-         */
-        KDTree.prototype.linearKNearestNeighbors = function (k, query) {
-            if (k <= 0)
-                throw new Error('mnemonist/kd-tree.kNearestNeighbors: k should be a positive number.');
-
-            k = Math.min(k, this.size);
-
-            var heap = new FixedReverseHeap(Array, KNN_HEAP_COMPARATOR_2, k);
-
-            var i, l, dist;
-
-            for (i = 0, l = this.size; i < l; i++) {
-                dist = squaredDistanceAxes(
-                    this.dimensions,
-                    this.axes,
-                    this.pivots[i],
-                    query
-                );
-
-                heap.push([dist, i]);
-            }
-
-            var best = heap.consume();
-
-            for (i = 0; i < best.length; i++)
-                best[i] = this.labels[this.pivots[best[i][1]]];
-
-            return best;
-        };
-
-        /**
-         * Convenience known methods.
-         */
-        KDTree.prototype.inspect = function () {
-            var dummy = new Map();
-
-            dummy.dimensions = this.dimensions;
-
-            Object.defineProperty(dummy, 'constructor', {
-                value: KDTree,
-                enumerable: false
-            });
-
-            var i, j, point;
-
-            for (i = 0; i < this.size; i++) {
-                point = new Array(this.dimensions);
-
-                for (j = 0; j < this.dimensions; j++)
-                    point[j] = this.axes[j][i];
-
-                dummy.set(this.labels[i], point);
-            }
-
-            return dummy;
-        };
-
-        if (typeof Symbol !== 'undefined')
-            KDTree.prototype[Symbol.for('nodejs.util.inspect.custom')] = KDTree.prototype.inspect;
-
-        /**
-         * Static @.from function taking an arbitrary iterable & converting it into
-         * a structure.
-         *
-         * @param  {Iterable} iterable   - Target iterable.
-         * @param  {number}   dimensions - Space dimensions.
-         * @return {KDTree}
-         */
-        KDTree.from = function (iterable, dimensions) {
-            var data = iterables.toArray(iterable);
-
-            var reshaped = reshapeIntoAxes(dimensions, data);
-
-            var result = buildTree(dimensions, reshaped.axes, reshaped.ids, reshaped.labels);
-
-            return new KDTree(dimensions, result);
-        };
-
-        /**
-         * Static @.from function building a KDTree from given axes.
-         *
-         * @param  {Iterable} iterable   - Target iterable.
-         * @param  {number}   dimensions - Space dimensions.
-         * @return {KDTree}
-         */
-        KDTree.fromAxes = function (axes, labels) {
-            if (!labels)
-                labels = typed.indices(axes[0].length);
-
-            var dimensions = axes.length;
-
-            var result = buildTree(axes.length, axes, typed.indices(labels.length), labels);
-
-            return new KDTree(dimensions, result);
-        };
-
-        /**
-         * Exporting.
-         */
-        module.exports = KDTree;
-
-    }, {
-        "./fixed-reverse-heap.js": 6,
-        "./sort/quick.js": 9,
-        "./utils/comparators.js": 10,
-        "./utils/iterables.js": 11,
-        "./utils/typed-arrays.js": 12
-    }],
-    9: [function (require, module, exports) {
-        /**
-         * Mnemonist Quick Sort
-         * =====================
-         *
-         * Quick sort related functions.
-         * Adapted from: https://alienryderflex.com/quicksort/
-         */
-        var LOS = new Float64Array(64),
-            HIS = new Float64Array(64);
-
-        function inplaceQuickSort(array, lo, hi) {
-            var p, i, l, r, swap;
-
-            LOS[0] = lo;
-            HIS[0] = hi;
-            i = 0;
-
-            while (i >= 0) {
-                l = LOS[i];
-                r = HIS[i] - 1;
-
-                if (l < r) {
-                    p = array[l];
-
-                    while (l < r) {
-                        while (array[r] >= p && l < r)
-                            r--;
-
-                        if (l < r)
-                            array[l++] = array[r];
-
-                        while (array[l] <= p && l < r)
-                            l++;
-
-                        if (l < r)
-                            array[r--] = array[l];
-                    }
-
-                    array[l] = p;
-                    LOS[i + 1] = l + 1;
-                    HIS[i + 1] = HIS[i];
-                    HIS[i++] = l;
-
-                    if (HIS[i] - LOS[i] > HIS[i - 1] - LOS[i - 1]) {
-                        swap = LOS[i];
-                        LOS[i] = LOS[i - 1];
-                        LOS[i - 1] = swap;
-
-                        swap = HIS[i];
-                        HIS[i] = HIS[i - 1];
-                        HIS[i - 1] = swap;
-                    }
-                } else {
-                    i--;
-                }
-            }
-
-            return array;
+    // Going the other way?
+    if (dx * dx < heap.peek()[0] || heap.size < k) {
+      if (point < split) {
+        if (right !== 0) {
+          recurse(d, right - 1);
         }
-
-        exports.inplaceQuickSort = inplaceQuickSort;
-
-        function inplaceQuickSortIndices(array, indices, lo, hi) {
-            var p, i, l, r, t, swap;
-
-            LOS[0] = lo;
-            HIS[0] = hi;
-            i = 0;
-
-            while (i >= 0) {
-                l = LOS[i];
-                r = HIS[i] - 1;
-
-                if (l < r) {
-                    t = indices[l];
-                    p = array[t];
-
-                    while (l < r) {
-                        while (array[indices[r]] >= p && l < r)
-                            r--;
-
-                        if (l < r)
-                            indices[l++] = indices[r];
-
-                        while (array[indices[l]] <= p && l < r)
-                            l++;
-
-                        if (l < r)
-                            indices[r--] = indices[l];
-                    }
-
-                    indices[l] = t;
-                    LOS[i + 1] = l + 1;
-                    HIS[i + 1] = HIS[i];
-                    HIS[i++] = l;
-
-                    if (HIS[i] - LOS[i] > HIS[i - 1] - LOS[i - 1]) {
-                        swap = LOS[i];
-                        LOS[i] = LOS[i - 1];
-                        LOS[i - 1] = swap;
-
-                        swap = HIS[i];
-                        HIS[i] = HIS[i - 1];
-                        HIS[i - 1] = swap;
-                    }
-                } else {
-                    i--;
-                }
-            }
-
-            return indices;
+      }
+      else {
+        if (left !== 0) {
+          recurse(d, left - 1);
         }
+      }
+    }
+  }
 
-        exports.inplaceQuickSortIndices = inplaceQuickSortIndices;
+  recurse(0, 0);
 
-    }, {}],
-    10: [function (require, module, exports) {
-        /**
-         * Mnemonist Heap Comparators
-         * ===========================
-         *
-         * Default comparators & functions dealing with comparators reversing etc.
-         */
-        var DEFAULT_COMPARATOR = function (a, b) {
-            if (a < b)
-                return -1;
-            if (a > b)
-                return 1;
+  this.visited = visited;
 
-            return 0;
-        };
+  var best = heap.consume();
 
-        var DEFAULT_REVERSE_COMPARATOR = function (a, b) {
-            if (a < b)
-                return 1;
-            if (a > b)
-                return -1;
+  for (var i = 0; i < best.length; i++)
+    best[i] = this.labels[best[i][2]];
 
-            return 0;
-        };
+  return best;
+};
 
-        /**
-         * Function used to reverse a comparator.
-         */
-        function reverseComparator(comparator) {
-            return function (a, b) {
-                return comparator(b, a);
-            };
-        }
+/**
+ * Method returning the query's k nearest neighbors by linear search.
+ *
+ * @param  {number} k     - Number of nearest neighbor to retrieve.
+ * @param  {array}  query - Query point.
+ * @return {array}
+ */
+KDTree.prototype.linearKNearestNeighbors = function(k, query) {
+  if (k <= 0)
+    throw new Error('mnemonist/kd-tree.kNearestNeighbors: k should be a positive number.');
 
-        /**
-         * Function returning a tuple comparator.
-         */
-        function createTupleComparator(size) {
-            if (size === 2) {
-                return function (a, b) {
-                    if (a[0] < b[0])
-                        return -1;
+  k = Math.min(k, this.size);
 
-                    if (a[0] > b[0])
-                        return 1;
+  var heap = new FixedReverseHeap(Array, KNN_HEAP_COMPARATOR_2, k);
 
-                    if (a[1] < b[1])
-                        return -1;
+  var i, l, dist;
 
-                    if (a[1] > b[1])
-                        return 1;
+  for (i = 0, l = this.size; i < l; i++) {
+    dist = squaredDistanceAxes(
+      this.dimensions,
+      this.axes,
+      this.pivots[i],
+      query
+    );
 
-                    return 0;
-                };
-            }
+    heap.push([dist, i]);
+  }
 
-            return function (a, b) {
-                var i = 0;
+  var best = heap.consume();
 
-                while (i < size) {
-                    if (a[i] < b[i])
-                        return -1;
+  for (i = 0; i < best.length; i++)
+    best[i] = this.labels[this.pivots[best[i][1]]];
 
-                    if (a[i] > b[i])
-                        return 1;
+  return best;
+};
 
-                    i++;
-                }
+/**
+ * Convenience known methods.
+ */
+KDTree.prototype.inspect = function() {
+  var dummy = new Map();
 
-                return 0;
-            };
-        }
+  dummy.dimensions = this.dimensions;
 
-        /**
-         * Exporting.
-         */
-        exports.DEFAULT_COMPARATOR = DEFAULT_COMPARATOR;
-        exports.DEFAULT_REVERSE_COMPARATOR = DEFAULT_REVERSE_COMPARATOR;
-        exports.reverseComparator = reverseComparator;
-        exports.createTupleComparator = createTupleComparator;
+  Object.defineProperty(dummy, 'constructor', {
+    value: KDTree,
+    enumerable: false
+  });
 
-    }, {}],
-    11: [function (require, module, exports) {
-        /**
-         * Mnemonist Iterable Function
-         * ============================
-         *
-         * Harmonized iteration helpers over mixed iterable targets.
-         */
-        var forEach = require('obliterator/foreach');
+  var i, j, point;
 
-        var typed = require('./typed-arrays.js');
+  for (i = 0; i < this.size; i++) {
+    point = new Array(this.dimensions);
 
-        /**
-         * Function used to determine whether the given object supports array-like
-         * random access.
-         *
-         * @param  {any} target - Target object.
-         * @return {boolean}
-         */
-        function isArrayLike(target) {
-            return Array.isArray(target) || typed.isTypedArray(target);
-        }
+    for (j = 0; j < this.dimensions; j++)
+      point[j] = this.axes[j][i];
 
-        /**
-         * Function used to guess the length of the structure over which we are going
-         * to iterate.
-         *
-         * @param  {any} target - Target object.
-         * @return {number|undefined}
-         */
-        function guessLength(target) {
-            if (typeof target.length === 'number')
-                return target.length;
+    dummy.set(this.labels[i], point);
+  }
 
-            if (typeof target.size === 'number')
-                return target.size;
+  return dummy;
+};
 
-            return;
-        }
+if (typeof Symbol !== 'undefined')
+  KDTree.prototype[Symbol.for('nodejs.util.inspect.custom')] = KDTree.prototype.inspect;
 
-        /**
-         * Function used to convert an iterable to an array.
-         *
-         * @param  {any}   target - Iteration target.
-         * @return {array}
-         */
-        function toArray(target) {
-            var l = guessLength(target);
+/**
+ * Static @.from function taking an arbitrary iterable & converting it into
+ * a structure.
+ *
+ * @param  {Iterable} iterable   - Target iterable.
+ * @param  {number}   dimensions - Space dimensions.
+ * @return {KDTree}
+ */
+KDTree.from = function(iterable, dimensions) {
+  var data = iterables.toArray(iterable);
 
-            var array = typeof l === 'number' ? new Array(l) : [];
+  var reshaped = reshapeIntoAxes(dimensions, data);
 
-            var i = 0;
+  var result = buildTree(dimensions, reshaped.axes, reshaped.ids, reshaped.labels);
 
-            // TODO: we could optimize when given target is array like
-            forEach(target, function (value) {
-                array[i++] = value;
-            });
+  return new KDTree(dimensions, result);
+};
 
-            return array;
-        }
+/**
+ * Static @.from function building a KDTree from given axes.
+ *
+ * @param  {Iterable} iterable   - Target iterable.
+ * @param  {number}   dimensions - Space dimensions.
+ * @return {KDTree}
+ */
+KDTree.fromAxes = function(axes, labels) {
+  if (!labels)
+    labels = typed.indices(axes[0].length);
 
-        /**
-         * Same as above but returns a supplementary indices array.
-         *
-         * @param  {any}   target - Iteration target.
-         * @return {array}
-         */
-        function toArrayWithIndices(target) {
-            var l = guessLength(target);
+  var dimensions = axes.length;
 
-            var IndexArray = typeof l === 'number' ?
-                typed.getPointerArray(l) :
-                Array;
+  var result = buildTree(axes.length, axes, typed.indices(labels.length), labels);
 
-            var array = typeof l === 'number' ? new Array(l) : [];
-            var indices = typeof l === 'number' ? new IndexArray(l) : [];
+  return new KDTree(dimensions, result);
+};
 
-            var i = 0;
+/**
+ * Exporting.
+ */
+module.exports = KDTree;
 
-            // TODO: we could optimize when given target is array like
-            forEach(target, function (value) {
-                array[i] = value;
-                indices[i] = i++;
-            });
+},{"./fixed-reverse-heap.js":6,"./sort/quick.js":9,"./utils/comparators.js":10,"./utils/iterables.js":11,"./utils/typed-arrays.js":12}],9:[function(require,module,exports){
+/**
+ * Mnemonist Quick Sort
+ * =====================
+ *
+ * Quick sort related functions.
+ * Adapted from: https://alienryderflex.com/quicksort/
+ */
+var LOS = new Float64Array(64),
+    HIS = new Float64Array(64);
 
-            return [array, indices];
-        }
+function inplaceQuickSort(array, lo, hi) {
+  var p, i, l, r, swap;
 
-        /**
-         * Exporting.
-         */
-        exports.isArrayLike = isArrayLike;
-        exports.guessLength = guessLength;
-        exports.toArray = toArray;
-        exports.toArrayWithIndices = toArrayWithIndices;
+  LOS[0] = lo;
+  HIS[0] = hi;
+  i = 0;
 
-    }, {"./typed-arrays.js": 12, "obliterator/foreach": 13}],
-    12: [function (require, module, exports) {
-        /**
-         * Mnemonist Typed Array Helpers
-         * ==============================
-         *
-         * Miscellaneous helpers related to typed arrays.
-         */
+  while (i >= 0) {
+    l = LOS[i];
+    r = HIS[i] - 1;
 
-        /**
-         * When using an unsigned integer array to store pointers, one might want to
-         * choose the optimal word size in regards to the actual numbers of pointers
-         * to store.
-         *
-         * This helpers does just that.
-         *
-         * @param  {number} size - Expected size of the array to map.
-         * @return {TypedArray}
-         */
-        var MAX_8BIT_INTEGER = Math.pow(2, 8) - 1,
-            MAX_16BIT_INTEGER = Math.pow(2, 16) - 1,
-            MAX_32BIT_INTEGER = Math.pow(2, 32) - 1;
+    if (l < r) {
+      p = array[l];
 
-        var MAX_SIGNED_8BIT_INTEGER = Math.pow(2, 7) - 1,
-            MAX_SIGNED_16BIT_INTEGER = Math.pow(2, 15) - 1,
-            MAX_SIGNED_32BIT_INTEGER = Math.pow(2, 31) - 1;
+      while (l < r) {
+        while (array[r] >= p && l < r)
+          r--;
 
-        exports.getPointerArray = function (size) {
-            var maxIndex = size - 1;
+        if (l < r)
+          array[l++] = array[r];
 
-            if (maxIndex <= MAX_8BIT_INTEGER)
-                return Uint8Array;
+        while (array[l] <= p && l < r)
+          l++;
 
-            if (maxIndex <= MAX_16BIT_INTEGER)
-                return Uint16Array;
+        if (l < r)
+          array[r--] = array[l];
+      }
 
-            if (maxIndex <= MAX_32BIT_INTEGER)
-                return Uint32Array;
+      array[l] = p;
+      LOS[i + 1] = l + 1;
+      HIS[i + 1] = HIS[i];
+      HIS[i++] = l;
 
-            throw new Error('mnemonist: Pointer Array of size > 4294967295 is not supported.');
-        };
+      if (HIS[i] - LOS[i] > HIS[i - 1] - LOS[i - 1]) {
+        swap = LOS[i];
+        LOS[i] = LOS[i - 1];
+        LOS[i - 1] = swap;
 
-        exports.getSignedPointerArray = function (size) {
-            var maxIndex = size - 1;
+        swap = HIS[i];
+        HIS[i] = HIS[i - 1];
+        HIS[i - 1] = swap;
+      }
+    }
+    else {
+      i--;
+    }
+  }
 
-            if (maxIndex <= MAX_SIGNED_8BIT_INTEGER)
-                return Int8Array;
+  return array;
+}
 
-            if (maxIndex <= MAX_SIGNED_16BIT_INTEGER)
-                return Int16Array;
+exports.inplaceQuickSort = inplaceQuickSort;
 
-            if (maxIndex <= MAX_SIGNED_32BIT_INTEGER)
-                return Int32Array;
+function inplaceQuickSortIndices(array, indices, lo, hi) {
+  var p, i, l, r, t, swap;
 
-            return Float64Array;
-        };
+  LOS[0] = lo;
+  HIS[0] = hi;
+  i = 0;
 
-        /**
-         * Function returning the minimal type able to represent the given number.
-         *
-         * @param  {number} value - Value to test.
-         * @return {TypedArrayClass}
-         */
-        exports.getNumberType = function (value) {
+  while (i >= 0) {
+    l = LOS[i];
+    r = HIS[i] - 1;
 
-            // <= 32 bits itnteger?
-            if (value === (value | 0)) {
+    if (l < r) {
+      t = indices[l];
+      p = array[t];
 
-                // Negative
-                if (Math.sign(value) === -1) {
-                    if (value <= 127 && value >= -128)
-                        return Int8Array;
+      while (l < r) {
+        while (array[indices[r]] >= p && l < r)
+          r--;
 
-                    if (value <= 32767 && value >= -32768)
-                        return Int16Array;
+        if (l < r)
+          indices[l++] = indices[r];
 
-                    return Int32Array;
-                } else {
+        while (array[indices[l]] <= p && l < r)
+          l++;
 
-                    if (value <= 255)
-                        return Uint8Array;
+        if (l < r)
+          indices[r--] = indices[l];
+      }
 
-                    if (value <= 65535)
-                        return Uint16Array;
+      indices[l] = t;
+      LOS[i + 1] = l + 1;
+      HIS[i + 1] = HIS[i];
+      HIS[i++] = l;
 
-                    return Uint32Array;
-                }
-            }
+      if (HIS[i] - LOS[i] > HIS[i - 1] - LOS[i - 1]) {
+        swap = LOS[i];
+        LOS[i] = LOS[i - 1];
+        LOS[i - 1] = swap;
 
-            // 53 bits integer & floats
-            // NOTE: it's kinda hard to tell whether we could use 32bits or not...
-            return Float64Array;
-        };
+        swap = HIS[i];
+        HIS[i] = HIS[i - 1];
+        HIS[i - 1] = swap;
+      }
+    }
+    else {
+      i--;
+    }
+  }
 
-        /**
-         * Function returning the minimal type able to represent the given array
-         * of JavaScript numbers.
-         *
-         * @param  {array}    array  - Array to represent.
-         * @param  {function} getter - Optional getter.
-         * @return {TypedArrayClass}
-         */
-        var TYPE_PRIORITY = {
-            Uint8Array: 1,
-            Int8Array: 2,
-            Uint16Array: 3,
-            Int16Array: 4,
-            Uint32Array: 5,
-            Int32Array: 6,
-            Float32Array: 7,
-            Float64Array: 8
-        };
+  return indices;
+}
+
+exports.inplaceQuickSortIndices = inplaceQuickSortIndices;
+
+},{}],10:[function(require,module,exports){
+/**
+ * Mnemonist Heap Comparators
+ * ===========================
+ *
+ * Default comparators & functions dealing with comparators reversing etc.
+ */
+var DEFAULT_COMPARATOR = function(a, b) {
+  if (a < b)
+    return -1;
+  if (a > b)
+    return 1;
+
+  return 0;
+};
+
+var DEFAULT_REVERSE_COMPARATOR = function(a, b) {
+  if (a < b)
+    return 1;
+  if (a > b)
+    return -1;
+
+  return 0;
+};
+
+/**
+ * Function used to reverse a comparator.
+ */
+function reverseComparator(comparator) {
+  return function(a, b) {
+    return comparator(b, a);
+  };
+}
+
+/**
+ * Function returning a tuple comparator.
+ */
+function createTupleComparator(size) {
+  if (size === 2) {
+    return function(a, b) {
+      if (a[0] < b[0])
+        return -1;
+
+      if (a[0] > b[0])
+        return 1;
+
+      if (a[1] < b[1])
+        return -1;
+
+      if (a[1] > b[1])
+        return 1;
+
+      return 0;
+    };
+  }
+
+  return function(a, b) {
+    var i = 0;
+
+    while (i < size) {
+      if (a[i] < b[i])
+        return -1;
+
+      if (a[i] > b[i])
+        return 1;
+
+      i++;
+    }
+
+    return 0;
+  };
+}
+
+/**
+ * Exporting.
+ */
+exports.DEFAULT_COMPARATOR = DEFAULT_COMPARATOR;
+exports.DEFAULT_REVERSE_COMPARATOR = DEFAULT_REVERSE_COMPARATOR;
+exports.reverseComparator = reverseComparator;
+exports.createTupleComparator = createTupleComparator;
+
+},{}],11:[function(require,module,exports){
+/**
+ * Mnemonist Iterable Function
+ * ============================
+ *
+ * Harmonized iteration helpers over mixed iterable targets.
+ */
+var forEach = require('obliterator/foreach');
+
+var typed = require('./typed-arrays.js');
+
+/**
+ * Function used to determine whether the given object supports array-like
+ * random access.
+ *
+ * @param  {any} target - Target object.
+ * @return {boolean}
+ */
+function isArrayLike(target) {
+  return Array.isArray(target) || typed.isTypedArray(target);
+}
+
+/**
+ * Function used to guess the length of the structure over which we are going
+ * to iterate.
+ *
+ * @param  {any} target - Target object.
+ * @return {number|undefined}
+ */
+function guessLength(target) {
+  if (typeof target.length === 'number')
+    return target.length;
+
+  if (typeof target.size === 'number')
+    return target.size;
+
+  return;
+}
+
+/**
+ * Function used to convert an iterable to an array.
+ *
+ * @param  {any}   target - Iteration target.
+ * @return {array}
+ */
+function toArray(target) {
+  var l = guessLength(target);
+
+  var array = typeof l === 'number' ? new Array(l) : [];
+
+  var i = 0;
+
+  // TODO: we could optimize when given target is array like
+  forEach(target, function(value) {
+    array[i++] = value;
+  });
+
+  return array;
+}
+
+/**
+ * Same as above but returns a supplementary indices array.
+ *
+ * @param  {any}   target - Iteration target.
+ * @return {array}
+ */
+function toArrayWithIndices(target) {
+  var l = guessLength(target);
+
+  var IndexArray = typeof l === 'number' ?
+    typed.getPointerArray(l) :
+    Array;
+
+  var array = typeof l === 'number' ? new Array(l) : [];
+  var indices = typeof l === 'number' ? new IndexArray(l) : [];
+
+  var i = 0;
+
+  // TODO: we could optimize when given target is array like
+  forEach(target, function(value) {
+    array[i] = value;
+    indices[i] = i++;
+  });
+
+  return [array, indices];
+}
+
+/**
+ * Exporting.
+ */
+exports.isArrayLike = isArrayLike;
+exports.guessLength = guessLength;
+exports.toArray = toArray;
+exports.toArrayWithIndices = toArrayWithIndices;
+
+},{"./typed-arrays.js":12,"obliterator/foreach":13}],12:[function(require,module,exports){
+/**
+ * Mnemonist Typed Array Helpers
+ * ==============================
+ *
+ * Miscellaneous helpers related to typed arrays.
+ */
+
+/**
+ * When using an unsigned integer array to store pointers, one might want to
+ * choose the optimal word size in regards to the actual numbers of pointers
+ * to store.
+ *
+ * This helpers does just that.
+ *
+ * @param  {number} size - Expected size of the array to map.
+ * @return {TypedArray}
+ */
+var MAX_8BIT_INTEGER = Math.pow(2, 8) - 1,
+    MAX_16BIT_INTEGER = Math.pow(2, 16) - 1,
+    MAX_32BIT_INTEGER = Math.pow(2, 32) - 1;
+
+var MAX_SIGNED_8BIT_INTEGER = Math.pow(2, 7) - 1,
+    MAX_SIGNED_16BIT_INTEGER = Math.pow(2, 15) - 1,
+    MAX_SIGNED_32BIT_INTEGER = Math.pow(2, 31) - 1;
+
+exports.getPointerArray = function(size) {
+  var maxIndex = size - 1;
+
+  if (maxIndex <= MAX_8BIT_INTEGER)
+    return Uint8Array;
+
+  if (maxIndex <= MAX_16BIT_INTEGER)
+    return Uint16Array;
+
+  if (maxIndex <= MAX_32BIT_INTEGER)
+    return Uint32Array;
+
+  throw new Error('mnemonist: Pointer Array of size > 4294967295 is not supported.');
+};
+
+exports.getSignedPointerArray = function(size) {
+  var maxIndex = size - 1;
+
+  if (maxIndex <= MAX_SIGNED_8BIT_INTEGER)
+    return Int8Array;
+
+  if (maxIndex <= MAX_SIGNED_16BIT_INTEGER)
+    return Int16Array;
+
+  if (maxIndex <= MAX_SIGNED_32BIT_INTEGER)
+    return Int32Array;
+
+  return Float64Array;
+};
+
+/**
+ * Function returning the minimal type able to represent the given number.
+ *
+ * @param  {number} value - Value to test.
+ * @return {TypedArrayClass}
+ */
+exports.getNumberType = function(value) {
+
+  // <= 32 bits itnteger?
+  if (value === (value | 0)) {
+
+    // Negative
+    if (Math.sign(value) === -1) {
+      if (value <= 127 && value >= -128)
+        return Int8Array;
+
+      if (value <= 32767 && value >= -32768)
+        return Int16Array;
+
+      return Int32Array;
+    }
+    else {
+
+      if (value <= 255)
+        return Uint8Array;
+
+      if (value <= 65535)
+        return Uint16Array;
+
+      return Uint32Array;
+    }
+  }
+
+  // 53 bits integer & floats
+  // NOTE: it's kinda hard to tell whether we could use 32bits or not...
+  return Float64Array;
+};
+
+/**
+ * Function returning the minimal type able to represent the given array
+ * of JavaScript numbers.
+ *
+ * @param  {array}    array  - Array to represent.
+ * @param  {function} getter - Optional getter.
+ * @return {TypedArrayClass}
+ */
+var TYPE_PRIORITY = {
+  Uint8Array: 1,
+  Int8Array: 2,
+  Uint16Array: 3,
+  Int16Array: 4,
+  Uint32Array: 5,
+  Int32Array: 6,
+  Float32Array: 7,
+  Float64Array: 8
+};
 
 // TODO: make this a one-shot for one value
-        exports.getMinimalRepresentation = function (array, getter) {
-            var maxType = null,
-                maxPriority = 0,
-                p,
-                t,
-                v,
-                i,
-                l;
+exports.getMinimalRepresentation = function(array, getter) {
+  var maxType = null,
+      maxPriority = 0,
+      p,
+      t,
+      v,
+      i,
+      l;
 
-            for (i = 0, l = array.length; i < l; i++) {
-                v = getter ? getter(array[i]) : array[i];
-                t = exports.getNumberType(v);
-                p = TYPE_PRIORITY[t.name];
+  for (i = 0, l = array.length; i < l; i++) {
+    v = getter ? getter(array[i]) : array[i];
+    t = exports.getNumberType(v);
+    p = TYPE_PRIORITY[t.name];
 
-                if (p > maxPriority) {
-                    maxPriority = p;
-                    maxType = t;
-                }
-            }
+    if (p > maxPriority) {
+      maxPriority = p;
+      maxType = t;
+    }
+  }
 
-            return maxType;
-        };
+  return maxType;
+};
 
-        /**
-         * Function returning whether the given value is a typed array.
-         *
-         * @param  {any} value - Value to test.
-         * @return {boolean}
-         */
-        exports.isTypedArray = function (value) {
-            return typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(value);
-        };
+/**
+ * Function returning whether the given value is a typed array.
+ *
+ * @param  {any} value - Value to test.
+ * @return {boolean}
+ */
+exports.isTypedArray = function(value) {
+  return typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(value);
+};
 
-        /**
-         * Function used to concat byte arrays.
-         *
-         * @param  {...ByteArray}
-         * @return {ByteArray}
-         */
-        exports.concat = function () {
-            var length = 0,
-                i,
-                o,
-                l;
+/**
+ * Function used to concat byte arrays.
+ *
+ * @param  {...ByteArray}
+ * @return {ByteArray}
+ */
+exports.concat = function() {
+  var length = 0,
+      i,
+      o,
+      l;
 
-            for (i = 0, l = arguments.length; i < l; i++)
-                length += arguments[i].length;
+  for (i = 0, l = arguments.length; i < l; i++)
+    length += arguments[i].length;
 
-            var array = new (arguments[0].constructor)(length);
+  var array = new (arguments[0].constructor)(length);
 
-            for (i = 0, o = 0; i < l; i++) {
-                array.set(arguments[i], o);
-                o += arguments[i].length;
-            }
+  for (i = 0, o = 0; i < l; i++) {
+    array.set(arguments[i], o);
+    o += arguments[i].length;
+  }
 
-            return array;
-        };
+  return array;
+};
 
-        /**
-         * Function used to initialize a byte array of indices.
-         *
-         * @param  {number}    length - Length of target.
-         * @return {ByteArray}
-         */
-        exports.indices = function (length) {
-            var PointerArray = exports.getPointerArray(length);
+/**
+ * Function used to initialize a byte array of indices.
+ *
+ * @param  {number}    length - Length of target.
+ * @return {ByteArray}
+ */
+exports.indices = function(length) {
+  var PointerArray = exports.getPointerArray(length);
 
-            var array = new PointerArray(length);
+  var array = new PointerArray(length);
 
-            for (var i = 0; i < length; i++)
-                array[i] = i;
+  for (var i = 0; i < length; i++)
+    array[i] = i;
 
-            return array;
-        };
+  return array;
+};
 
-    }, {}],
-    13: [function (require, module, exports) {
-        /**
-         * Obliterator ForEach Function
-         * =============================
-         *
-         * Helper function used to easily iterate over mixed values.
-         */
+},{}],13:[function(require,module,exports){
+/**
+ * Obliterator ForEach Function
+ * =============================
+ *
+ * Helper function used to easily iterate over mixed values.
+ */
+var support = require('./support.js');
 
-        /**
-         * Constants.
-         */
-        var ARRAY_BUFFER_SUPPORT = typeof ArrayBuffer !== 'undefined',
-            SYMBOL_SUPPORT = typeof Symbol !== 'undefined';
+var ARRAY_BUFFER_SUPPORT = support.ARRAY_BUFFER_SUPPORT;
+var SYMBOL_SUPPORT = support.SYMBOL_SUPPORT;
 
-        /**
-         * Function able to iterate over almost any iterable JS value.
-         *
-         * @param  {any}      iterable - Iterable value.
-         * @param  {function} callback - Callback function.
-         */
-        function forEach(iterable, callback) {
-            var iterator, k, i, l, s;
+/**
+ * Function able to iterate over almost any iterable JS value.
+ *
+ * @param  {any}      iterable - Iterable value.
+ * @param  {function} callback - Callback function.
+ */
+module.exports = function forEach(iterable, callback) {
+  var iterator, k, i, l, s;
 
-            if (!iterable)
-                throw new Error('obliterator/forEach: invalid iterable.');
+  if (!iterable) throw new Error('obliterator/forEach: invalid iterable.');
 
-            if (typeof callback !== 'function')
-                throw new Error('obliterator/forEach: expecting a callback.');
+  if (typeof callback !== 'function')
+    throw new Error('obliterator/forEach: expecting a callback.');
 
-            // The target is an array or a string or function arguments
-            if (
-                Array.isArray(iterable) ||
-                (ARRAY_BUFFER_SUPPORT && ArrayBuffer.isView(iterable)) ||
-                typeof iterable === 'string' ||
-                iterable.toString() === '[object Arguments]'
-            ) {
-                for (i = 0, l = iterable.length; i < l; i++)
-                    callback(iterable[i], i);
-                return;
-            }
+  // The target is an array or a string or function arguments
+  if (
+    Array.isArray(iterable) ||
+    (ARRAY_BUFFER_SUPPORT && ArrayBuffer.isView(iterable)) ||
+    typeof iterable === 'string' ||
+    iterable.toString() === '[object Arguments]'
+  ) {
+    for (i = 0, l = iterable.length; i < l; i++) callback(iterable[i], i);
+    return;
+  }
 
-            // The target has a #.forEach method
-            if (typeof iterable.forEach === 'function') {
-                iterable.forEach(callback);
-                return;
-            }
+  // The target has a #.forEach method
+  if (typeof iterable.forEach === 'function') {
+    iterable.forEach(callback);
+    return;
+  }
 
-            // The target is iterable
-            if (
-                SYMBOL_SUPPORT &&
-                Symbol.iterator in iterable &&
-                typeof iterable.next !== 'function'
-            ) {
-                iterable = iterable[Symbol.iterator]();
-            }
+  // The target is iterable
+  if (
+    SYMBOL_SUPPORT &&
+    Symbol.iterator in iterable &&
+    typeof iterable.next !== 'function'
+  ) {
+    iterable = iterable[Symbol.iterator]();
+  }
 
-            // The target is an iterator
-            if (typeof iterable.next === 'function') {
-                iterator = iterable;
-                i = 0;
+  // The target is an iterator
+  if (typeof iterable.next === 'function') {
+    iterator = iterable;
+    i = 0;
 
-                while ((s = iterator.next(), s.done !== true)) {
-                    callback(s.value, i);
-                    i++;
-                }
+    while (((s = iterator.next()), s.done !== true)) {
+      callback(s.value, i);
+      i++;
+    }
 
-                return;
-            }
+    return;
+  }
 
-            // The target is a plain object
-            for (k in iterable) {
-                if (iterable.hasOwnProperty(k)) {
-                    callback(iterable[k], k);
-                }
-            }
+  // The target is a plain object
+  for (k in iterable) {
+    if (iterable.hasOwnProperty(k)) {
+      callback(iterable[k], k);
+    }
+  }
 
-            return;
-        }
+  return;
+};
 
-        /**
-         * Same function as the above `forEach` but will yield `null` when the target
-         * does not have keys.
-         *
-         * @param  {any}      iterable - Iterable value.
-         * @param  {function} callback - Callback function.
-         */
-        forEach.forEachWithNullKeys = function (iterable, callback) {
-            var iterator, k, i, l, s;
+},{"./support.js":14}],14:[function(require,module,exports){
+exports.ARRAY_BUFFER_SUPPORT = typeof ArrayBuffer !== 'undefined';
+exports.SYMBOL_SUPPORT = typeof Symbol !== 'undefined';
 
-            if (!iterable)
-                throw new Error('obliterator/forEachWithNullKeys: invalid iterable.');
+},{}],15:[function(require,module,exports){
+"use strict"
 
-            if (typeof callback !== 'function')
-                throw new Error('obliterator/forEachWithNullKeys: expecting a callback.');
+module.exports = compressExpansion
 
-            // The target is an array or a string or function arguments
-            if (
-                Array.isArray(iterable) ||
-                (ARRAY_BUFFER_SUPPORT && ArrayBuffer.isView(iterable)) ||
-                typeof iterable === 'string' ||
-                iterable.toString() === '[object Arguments]'
-            ) {
-                for (i = 0, l = iterable.length; i < l; i++)
-                    callback(iterable[i], null);
-                return;
-            }
+function compressExpansion(e) {
+  var m = e.length
+  var Q = e[e.length-1]
+  var bottom = m
+  for(var i=m-2; i>=0; --i) {
+    var a = Q
+    var b = e[i]
+    Q = a + b
+    var bv = Q - a
+    var q = b - bv
+    if(q) {
+      e[--bottom] = Q
+      Q = q
+    }
+  }
+  var top = 0
+  for(var i=bottom; i<m; ++i) {
+    var a = e[i]
+    var b = Q
+    Q = a + b
+    var bv = Q - a
+    var q = b - bv
+    if(q) {
+      e[top++] = q
+    }
+  }
+  e[top++] = Q
+  e.length = top
+  return e
+}
+},{}],16:[function(require,module,exports){
+"use strict"
 
-            // The target is a Set
-            if (iterable instanceof Set) {
-                iterable.forEach(function (value) {
-                    callback(value, null);
-                });
-                return;
-            }
+var twoProduct = require("two-product")
+var robustSum = require("robust-sum")
+var robustScale = require("robust-scale")
+var compress = require("robust-compress")
 
-            // The target has a #.forEach method
-            if (typeof iterable.forEach === 'function') {
-                iterable.forEach(callback);
-                return;
-            }
+var NUM_EXPANDED = 6
 
-            // The target is iterable
-            if (
-                SYMBOL_SUPPORT &&
-                Symbol.iterator in iterable &&
-                typeof iterable.next !== 'function'
-            ) {
-                iterable = iterable[Symbol.iterator]();
-            }
+function cofactor(m, c) {
+  var result = new Array(m.length-1)
+  for(var i=1; i<m.length; ++i) {
+    var r = result[i-1] = new Array(m.length-1)
+    for(var j=0,k=0; j<m.length; ++j) {
+      if(j === c) {
+        continue
+      }
+      r[k++] = m[i][j]
+    }
+  }
+  return result
+}
 
-            // The target is an iterator
-            if (typeof iterable.next === 'function') {
-                iterator = iterable;
-                i = 0;
+function matrix(n) {
+  var result = new Array(n)
+  for(var i=0; i<n; ++i) {
+    result[i] = new Array(n)
+    for(var j=0; j<n; ++j) {
+      result[i][j] = ["m[", i, "][", j, "]"].join("")
+    }
+  }
+  return result
+}
 
-                while ((s = iterator.next(), s.done !== true)) {
-                    callback(s.value, null);
-                    i++;
-                }
+function sign(n) {
+  if(n & 1) {
+    return "-"
+  }
+  return ""
+}
 
-                return;
-            }
+function generateSum(expr) {
+  if(expr.length === 1) {
+    return expr[0]
+  } else if(expr.length === 2) {
+    return ["sum(", expr[0], ",", expr[1], ")"].join("")
+  } else {
+    var m = expr.length>>1
+    return ["sum(", generateSum(expr.slice(0, m)), ",", generateSum(expr.slice(m)), ")"].join("")
+  }
+}
 
-            // The target is a plain object
-            for (k in iterable) {
-                if (iterable.hasOwnProperty(k)) {
-                    callback(iterable[k], k);
-                }
-            }
+function determinant(m) {
+  if(m.length === 2) {
+    return ["sum(prod(", m[0][0], ",", m[1][1], "),prod(-", m[0][1], ",", m[1][0], "))"].join("")
+  } else {
+    var expr = []
+    for(var i=0; i<m.length; ++i) {
+      expr.push(["scale(", determinant(cofactor(m, i)), ",", sign(i), m[0][i], ")"].join(""))
+    }
+    return generateSum(expr)
+  }
+}
 
-            return;
-        };
+function compileDeterminant(n) {
+  var proc = new Function("sum", "scale", "prod", "compress", [
+    "function robustDeterminant",n, "(m){return compress(", 
+      determinant(matrix(n)),
+    ")};return robustDeterminant", n].join(""))
+  return proc(robustSum, robustScale, twoProduct, compress)
+}
 
-        /**
-         * Exporting.
-         */
-        module.exports = forEach;
+var CACHE = [
+  function robustDeterminant0() { return [0] },
+  function robustDeterminant1(m) { return [m[0][0]] }
+]
 
-    }, {}],
-    14: [function (require, module, exports) {
-        "use strict"
-
-        module.exports = compressExpansion
-
-        function compressExpansion(e) {
-            var m = e.length
-            var Q = e[e.length - 1]
-            var bottom = m
-            for (var i = m - 2; i >= 0; --i) {
-                var a = Q
-                var b = e[i]
-                Q = a + b
-                var bv = Q - a
-                var q = b - bv
-                if (q) {
-                    e[--bottom] = Q
-                    Q = q
-                }
-            }
-            var top = 0
-            for (var i = bottom; i < m; ++i) {
-                var a = e[i]
-                var b = Q
-                Q = a + b
-                var bv = Q - a
-                var q = b - bv
-                if (q) {
-                    e[top++] = q
-                }
-            }
-            e[top++] = Q
-            e.length = top
-            return e
-        }
-    }, {}],
-    15: [function (require, module, exports) {
-        "use strict"
-
-        var twoProduct = require("two-product")
-        var robustSum = require("robust-sum")
-        var robustScale = require("robust-scale")
-        var compress = require("robust-compress")
-
-        var NUM_EXPANDED = 6
-
-        function cofactor(m, c) {
-            var result = new Array(m.length - 1)
-            for (var i = 1; i < m.length; ++i) {
-                var r = result[i - 1] = new Array(m.length - 1)
-                for (var j = 0, k = 0; j < m.length; ++j) {
-                    if (j === c) {
-                        continue
-                    }
-                    r[k++] = m[i][j]
-                }
-            }
-            return result
-        }
-
-        function matrix(n) {
-            var result = new Array(n)
-            for (var i = 0; i < n; ++i) {
-                result[i] = new Array(n)
-                for (var j = 0; j < n; ++j) {
-                    result[i][j] = ["m[", i, "][", j, "]"].join("")
-                }
-            }
-            return result
-        }
-
-        function sign(n) {
-            if (n & 1) {
-                return "-"
-            }
-            return ""
-        }
-
-        function generateSum(expr) {
-            if (expr.length === 1) {
-                return expr[0]
-            } else if (expr.length === 2) {
-                return ["sum(", expr[0], ",", expr[1], ")"].join("")
-            } else {
-                var m = expr.length >> 1
-                return ["sum(", generateSum(expr.slice(0, m)), ",", generateSum(expr.slice(m)), ")"].join("")
-            }
-        }
-
-        function determinant(m) {
-            if (m.length === 2) {
-                return ["sum(prod(", m[0][0], ",", m[1][1], "),prod(-", m[0][1], ",", m[1][0], "))"].join("")
-            } else {
-                var expr = []
-                for (var i = 0; i < m.length; ++i) {
-                    expr.push(["scale(", determinant(cofactor(m, i)), ",", sign(i), m[0][i], ")"].join(""))
-                }
-                return generateSum(expr)
-            }
-        }
-
-        function compileDeterminant(n) {
-            var proc = new Function("sum", "scale", "prod", "compress", [
-                "function robustDeterminant", n, "(m){return compress(",
-                determinant(matrix(n)),
-                ")};return robustDeterminant", n].join(""))
-            return proc(robustSum, robustScale, twoProduct, compress)
-        }
-
-        var CACHE = [
-            function robustDeterminant0() {
-                return [0]
-            },
-            function robustDeterminant1(m) {
-                return [m[0][0]]
-            }
-        ]
-
-        function generateDispatch() {
-            while (CACHE.length < NUM_EXPANDED) {
-                CACHE.push(compileDeterminant(CACHE.length))
-            }
-            var procArgs = []
-            var code = ["function robustDeterminant(m){switch(m.length){"]
-            for (var i = 0; i < NUM_EXPANDED; ++i) {
-                procArgs.push("det" + i)
-                code.push("case ", i, ":return det", i, "(m);")
-            }
-            code.push("}\
+function generateDispatch() {
+  while(CACHE.length < NUM_EXPANDED) {
+    CACHE.push(compileDeterminant(CACHE.length))
+  }
+  var procArgs = []
+  var code = ["function robustDeterminant(m){switch(m.length){"]
+  for(var i=0; i<NUM_EXPANDED; ++i) {
+    procArgs.push("det" + i)
+    code.push("case ", i, ":return det", i, "(m);")
+  }
+  code.push("}\
 var det=CACHE[m.length];\
 if(!det)\
 det=CACHE[m.length]=gen(m.length);\
 return det(m);\
 }\
 return robustDeterminant")
-            procArgs.push("CACHE", "gen", code.join(""))
-            var proc = Function.apply(undefined, procArgs)
-            module.exports = proc.apply(undefined, CACHE.concat([CACHE, compileDeterminant]))
-            for (var i = 0; i < CACHE.length; ++i) {
-                module.exports[i] = CACHE[i]
-            }
+  procArgs.push("CACHE", "gen", code.join(""))
+  var proc = Function.apply(undefined, procArgs)
+  module.exports = proc.apply(undefined, CACHE.concat([CACHE, compileDeterminant]))
+  for(var i=0; i<CACHE.length; ++i) {
+    module.exports[i] = CACHE[i]
+  }
+}
+
+generateDispatch()
+},{"robust-compress":15,"robust-scale":19,"robust-sum":21,"two-product":23}],17:[function(require,module,exports){
+"use strict"
+
+var determinant = require("robust-determinant")
+
+var NUM_EXPAND = 6
+
+function generateSolver(n) {
+  var funcName = "robustLinearSolve" + n + "d"
+  var code = ["function ", funcName, "(A,b){return ["]
+  for(var i=0; i<n; ++i) {
+    code.push("det([")
+    for(var j=0; j<n; ++j) {
+      if(j > 0) {
+        code.push(",")
+      }
+      code.push("[")
+      for(var k=0; k<n; ++k) {
+        if(k > 0) {
+          code.push(",")
         }
-
-        generateDispatch()
-    }, {"robust-compress": 14, "robust-scale": 18, "robust-sum": 20, "two-product": 22}],
-    16: [function (require, module, exports) {
-        "use strict"
-
-        var determinant = require("robust-determinant")
-
-        var NUM_EXPAND = 6
-
-        function generateSolver(n) {
-            var funcName = "robustLinearSolve" + n + "d"
-            var code = ["function ", funcName, "(A,b){return ["]
-            for (var i = 0; i < n; ++i) {
-                code.push("det([")
-                for (var j = 0; j < n; ++j) {
-                    if (j > 0) {
-                        code.push(",")
-                    }
-                    code.push("[")
-                    for (var k = 0; k < n; ++k) {
-                        if (k > 0) {
-                            code.push(",")
-                        }
-                        if (k === i) {
-                            code.push("+b[", j, "]")
-                        } else {
-                            code.push("+A[", j, "][", k, "]")
-                        }
-                    }
-                    code.push("]")
-                }
-                code.push("]),")
-            }
-            code.push("det(A)]}return ", funcName)
-            var proc = new Function("det", code.join(""))
-            if (n < 6) {
-                return proc(determinant[n])
-            }
-            return proc(determinant)
+        if(k === i) {
+          code.push("+b[", j, "]")
+        } else {
+          code.push("+A[", j, "][", k, "]")
         }
+      }
+      code.push("]")
+    }
+    code.push("]),")
+  }
+  code.push("det(A)]}return ", funcName)
+  var proc = new Function("det", code.join(""))
+  if(n < 6) {
+    return proc(determinant[n])
+  }
+  return proc(determinant)
+}
 
-        function robustLinearSolve0d() {
-            return [0]
-        }
+function robustLinearSolve0d() {
+  return [ 0 ]
+}
 
-        function robustLinearSolve1d(A, b) {
-            return [[b[0]], [A[0][0]]]
-        }
+function robustLinearSolve1d(A, b) {
+  return [ [ b[0] ], [ A[0][0] ] ]
+}
 
-        var CACHE = [
-            robustLinearSolve0d,
-            robustLinearSolve1d
-        ]
+var CACHE = [
+  robustLinearSolve0d,
+  robustLinearSolve1d
+]
 
-        function generateDispatch() {
-            while (CACHE.length < NUM_EXPAND) {
-                CACHE.push(generateSolver(CACHE.length))
-            }
-            var procArgs = []
-            var code = ["function dispatchLinearSolve(A,b){switch(A.length){"]
-            for (var i = 0; i < NUM_EXPAND; ++i) {
-                procArgs.push("s" + i)
-                code.push("case ", i, ":return s", i, "(A,b);")
-            }
-            code.push("}var s=CACHE[A.length];if(!s)s=CACHE[A.length]=g(A.length);return s(A,b)}return dispatchLinearSolve")
-            procArgs.push("CACHE", "g", code.join(""))
-            var proc = Function.apply(undefined, procArgs)
-            module.exports = proc.apply(undefined, CACHE.concat([CACHE, generateSolver]))
-            for (var i = 0; i < NUM_EXPAND; ++i) {
-                module.exports[i] = CACHE[i]
-            }
-        }
+function generateDispatch() {
+  while(CACHE.length < NUM_EXPAND) {
+    CACHE.push(generateSolver(CACHE.length))
+  }
+  var procArgs = []
+  var code = ["function dispatchLinearSolve(A,b){switch(A.length){"]
+  for(var i=0; i<NUM_EXPAND; ++i) {
+    procArgs.push("s" + i)
+    code.push("case ", i, ":return s", i, "(A,b);")
+  }
+  code.push("}var s=CACHE[A.length];if(!s)s=CACHE[A.length]=g(A.length);return s(A,b)}return dispatchLinearSolve")
+  procArgs.push("CACHE", "g", code.join(""))
+  var proc = Function.apply(undefined, procArgs)
+  module.exports = proc.apply(undefined, CACHE.concat([CACHE, generateSolver]))
+  for(var i=0; i<NUM_EXPAND; ++i) {
+    module.exports[i] = CACHE[i]
+  }
+}
 
-        generateDispatch()
-    }, {"robust-determinant": 15}],
-    17: [function (require, module, exports) {
-        "use strict"
+generateDispatch()
+},{"robust-determinant":16}],18:[function(require,module,exports){
+"use strict"
 
-        var twoProduct = require("two-product")
-        var robustSum = require("robust-sum")
-        var robustScale = require("robust-scale")
-        var robustSubtract = require("robust-subtract")
+var twoProduct = require("two-product")
+var robustSum = require("robust-sum")
+var robustScale = require("robust-scale")
+var robustSubtract = require("robust-subtract")
 
-        var NUM_EXPAND = 5
+var NUM_EXPAND = 5
 
-        var EPSILON = 1.1102230246251565e-16
-        var ERRBOUND3 = (3.0 + 16.0 * EPSILON) * EPSILON
-        var ERRBOUND4 = (7.0 + 56.0 * EPSILON) * EPSILON
+var EPSILON     = 1.1102230246251565e-16
+var ERRBOUND3   = (3.0 + 16.0 * EPSILON) * EPSILON
+var ERRBOUND4   = (7.0 + 56.0 * EPSILON) * EPSILON
 
-        function orientation_3(sum, prod, scale, sub) {
-            return function orientation3Exact(m0, m1, m2) {
-                var p = sum(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])))
-                var n = sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0]))
-                var d = sub(p, n)
-                return d[d.length - 1]
-            }
-        }
+function orientation_3(sum, prod, scale, sub) {
+  return function orientation3Exact(m0, m1, m2) {
+    var p = sum(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])))
+    var n = sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0]))
+    var d = sub(p, n)
+    return d[d.length - 1]
+  }
+}
 
-        function orientation_4(sum, prod, scale, sub) {
-            return function orientation4Exact(m0, m1, m2, m3) {
-                var p = sum(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m3[2]))), sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m3[2]))))
-                var n = sum(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m3[2]))), sum(scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m2[2]))))
-                var d = sub(p, n)
-                return d[d.length - 1]
-            }
-        }
+function orientation_4(sum, prod, scale, sub) {
+  return function orientation4Exact(m0, m1, m2, m3) {
+    var p = sum(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m3[2]))), sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m3[2]))))
+    var n = sum(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m3[2]))), sum(scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m2[2]))))
+    var d = sub(p, n)
+    return d[d.length - 1]
+  }
+}
 
-        function orientation_5(sum, prod, scale, sub) {
-            return function orientation5Exact(m0, m1, m2, m3, m4) {
-                var p = sum(sum(sum(scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m2[2]), sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), -m3[2]), scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m4[2]))), m1[3]), sum(scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m1[2]), sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), -m3[2]), scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m4[2]))), -m2[3]), scale(sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m4[2]))), m3[3]))), sum(scale(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m3[2]))), -m4[3]), sum(scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m1[2]), sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), -m3[2]), scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m4[2]))), m0[3]), scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m3[2]), scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), m4[2]))), -m1[3])))), sum(sum(scale(sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m4[2]))), m3[3]), sum(scale(sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m3[2]))), -m4[3]), scale(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m3[2]))), m0[3]))), sum(scale(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m3[2]))), -m1[3]), sum(scale(sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m3[2]))), m2[3]), scale(sum(scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m2[2]))), -m3[3])))))
-                var n = sum(sum(sum(scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m2[2]), sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), -m3[2]), scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m4[2]))), m0[3]), scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m3[2]), scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), m4[2]))), -m2[3])), sum(scale(sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m4[2]))), m3[3]), scale(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m3[2]))), -m4[3]))), sum(sum(scale(sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m4[2]))), m0[3]), scale(sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m4[2]))), -m1[3])), sum(scale(sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m4[2]))), m2[3]), scale(sum(scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m2[2]))), -m4[3]))))
-                var d = sub(p, n)
-                return d[d.length - 1]
-            }
-        }
+function orientation_5(sum, prod, scale, sub) {
+  return function orientation5Exact(m0, m1, m2, m3, m4) {
+    var p = sum(sum(sum(scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m2[2]), sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), -m3[2]), scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m4[2]))), m1[3]), sum(scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m1[2]), sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), -m3[2]), scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m4[2]))), -m2[3]), scale(sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m4[2]))), m3[3]))), sum(scale(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m3[2]))), -m4[3]), sum(scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m1[2]), sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), -m3[2]), scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m4[2]))), m0[3]), scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m3[2]), scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), m4[2]))), -m1[3])))), sum(sum(scale(sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m4[2]))), m3[3]), sum(scale(sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m3[2]))), -m4[3]), scale(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m3[2]))), m0[3]))), sum(scale(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m3[2]))), -m1[3]), sum(scale(sum(scale(sum(prod(m1[1], m3[0]), prod(-m3[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m3[2]))), m2[3]), scale(sum(scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m2[2]))), -m3[3])))))
+    var n = sum(sum(sum(scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m2[2]), sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), -m3[2]), scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m4[2]))), m0[3]), scale(sum(scale(sum(prod(m3[1], m4[0]), prod(-m4[1], m3[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m3[2]), scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), m4[2]))), -m2[3])), sum(scale(sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m4[2]))), m3[3]), scale(sum(scale(sum(prod(m2[1], m3[0]), prod(-m3[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m3[0]), prod(-m3[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m3[2]))), -m4[3]))), sum(sum(scale(sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), m1[2]), sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), -m2[2]), scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m4[2]))), m0[3]), scale(sum(scale(sum(prod(m2[1], m4[0]), prod(-m4[1], m2[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m2[2]), scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), m4[2]))), -m1[3])), sum(scale(sum(scale(sum(prod(m1[1], m4[0]), prod(-m4[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m4[0]), prod(-m4[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m4[2]))), m2[3]), scale(sum(scale(sum(prod(m1[1], m2[0]), prod(-m2[1], m1[0])), m0[2]), sum(scale(sum(prod(m0[1], m2[0]), prod(-m2[1], m0[0])), -m1[2]), scale(sum(prod(m0[1], m1[0]), prod(-m1[1], m0[0])), m2[2]))), -m4[3]))))
+    var d = sub(p, n)
+    return d[d.length - 1]
+  }
+}
 
-        function orientation(n) {
-            var fn =
-                n === 3 ? orientation_3 :
-                    n === 4 ? orientation_4 : orientation_5
+function orientation(n) {
+  var fn =
+    n === 3 ? orientation_3 :
+    n === 4 ? orientation_4 : orientation_5
 
-            return fn(robustSum, twoProduct, robustScale, robustSubtract)
-        }
+  return fn(robustSum, twoProduct, robustScale, robustSubtract)
+}
 
-        var orientation3Exact = orientation(3)
-        var orientation4Exact = orientation(4)
+var orientation3Exact = orientation(3)
+var orientation4Exact = orientation(4)
 
-        var CACHED = [
-            function orientation0() {
-                return 0
-            },
-            function orientation1() {
-                return 0
-            },
-            function orientation2(a, b) {
-                return b[0] - a[0]
-            },
-            function orientation3(a, b, c) {
-                var l = (a[1] - c[1]) * (b[0] - c[0])
-                var r = (a[0] - c[0]) * (b[1] - c[1])
-                var det = l - r
-                var s
-                if (l > 0) {
-                    if (r <= 0) {
-                        return det
-                    } else {
-                        s = l + r
-                    }
-                } else if (l < 0) {
-                    if (r >= 0) {
-                        return det
-                    } else {
-                        s = -(l + r)
-                    }
-                } else {
-                    return det
-                }
-                var tol = ERRBOUND3 * s
-                if (det >= tol || det <= -tol) {
-                    return det
-                }
-                return orientation3Exact(a, b, c)
-            },
-            function orientation4(a, b, c, d) {
-                var adx = a[0] - d[0]
-                var bdx = b[0] - d[0]
-                var cdx = c[0] - d[0]
-                var ady = a[1] - d[1]
-                var bdy = b[1] - d[1]
-                var cdy = c[1] - d[1]
-                var adz = a[2] - d[2]
-                var bdz = b[2] - d[2]
-                var cdz = c[2] - d[2]
-                var bdxcdy = bdx * cdy
-                var cdxbdy = cdx * bdy
-                var cdxady = cdx * ady
-                var adxcdy = adx * cdy
-                var adxbdy = adx * bdy
-                var bdxady = bdx * ady
-                var det = adz * (bdxcdy - cdxbdy)
-                    + bdz * (cdxady - adxcdy)
-                    + cdz * (adxbdy - bdxady)
-                var permanent = (Math.abs(bdxcdy) + Math.abs(cdxbdy)) * Math.abs(adz)
-                    + (Math.abs(cdxady) + Math.abs(adxcdy)) * Math.abs(bdz)
-                    + (Math.abs(adxbdy) + Math.abs(bdxady)) * Math.abs(cdz)
-                var tol = ERRBOUND4 * permanent
-                if ((det > tol) || (-det > tol)) {
-                    return det
-                }
-                return orientation4Exact(a, b, c, d)
-            }
-        ]
+var CACHED = [
+  function orientation0() { return 0 },
+  function orientation1() { return 0 },
+  function orientation2(a, b) {
+    return b[0] - a[0]
+  },
+  function orientation3(a, b, c) {
+    var l = (a[1] - c[1]) * (b[0] - c[0])
+    var r = (a[0] - c[0]) * (b[1] - c[1])
+    var det = l - r
+    var s
+    if(l > 0) {
+      if(r <= 0) {
+        return det
+      } else {
+        s = l + r
+      }
+    } else if(l < 0) {
+      if(r >= 0) {
+        return det
+      } else {
+        s = -(l + r)
+      }
+    } else {
+      return det
+    }
+    var tol = ERRBOUND3 * s
+    if(det >= tol || det <= -tol) {
+      return det
+    }
+    return orientation3Exact(a, b, c)
+  },
+  function orientation4(a,b,c,d) {
+    var adx = a[0] - d[0]
+    var bdx = b[0] - d[0]
+    var cdx = c[0] - d[0]
+    var ady = a[1] - d[1]
+    var bdy = b[1] - d[1]
+    var cdy = c[1] - d[1]
+    var adz = a[2] - d[2]
+    var bdz = b[2] - d[2]
+    var cdz = c[2] - d[2]
+    var bdxcdy = bdx * cdy
+    var cdxbdy = cdx * bdy
+    var cdxady = cdx * ady
+    var adxcdy = adx * cdy
+    var adxbdy = adx * bdy
+    var bdxady = bdx * ady
+    var det = adz * (bdxcdy - cdxbdy)
+            + bdz * (cdxady - adxcdy)
+            + cdz * (adxbdy - bdxady)
+    var permanent = (Math.abs(bdxcdy) + Math.abs(cdxbdy)) * Math.abs(adz)
+                  + (Math.abs(cdxady) + Math.abs(adxcdy)) * Math.abs(bdz)
+                  + (Math.abs(adxbdy) + Math.abs(bdxady)) * Math.abs(cdz)
+    var tol = ERRBOUND4 * permanent
+    if ((det > tol) || (-det > tol)) {
+      return det
+    }
+    return orientation4Exact(a,b,c,d)
+  }
+]
 
-        function slowOrient(args) {
-            var proc = CACHED[args.length]
-            if (!proc) {
-                proc = CACHED[args.length] = orientation(args.length)
-            }
-            return proc.apply(undefined, args)
-        }
+function slowOrient(args) {
+  var proc = CACHED[args.length]
+  if(!proc) {
+    proc = CACHED[args.length] = orientation(args.length)
+  }
+  return proc.apply(undefined, args)
+}
 
-        function proc(slow, o0, o1, o2, o3, o4, o5) {
-            return function getOrientation(a0, a1, a2, a3, a4) {
-                switch (arguments.length) {
-                    case 0:
-                    case 1:
-                        return 0;
-                    case 2:
-                        return o2(a0, a1)
-                    case 3:
-                        return o3(a0, a1, a2)
-                    case 4:
-                        return o4(a0, a1, a2, a3)
-                    case 5:
-                        return o5(a0, a1, a2, a3, a4)
-                }
+function proc (slow, o0, o1, o2, o3, o4, o5) {
+  return function getOrientation(a0, a1, a2, a3, a4) {
+    switch (arguments.length) {
+      case 0:
+      case 1:
+        return 0;
+      case 2:
+        return o2(a0, a1)
+      case 3:
+        return o3(a0, a1, a2)
+      case 4:
+        return o4(a0, a1, a2, a3)
+      case 5:
+        return o5(a0, a1, a2, a3, a4)
+    }
 
-                var s = new Array(arguments.length)
-                for (var i = 0; i < arguments.length; ++i) {
-                    s[i] = arguments[i]
-                }
-                return slow(s)
-            }
-        }
+    var s = new Array(arguments.length)
+    for (var i = 0; i < arguments.length; ++i) {
+      s[i] = arguments[i]
+    }
+    return slow(s)
+  }
+}
 
-        function generateOrientationProc() {
-            while (CACHED.length <= NUM_EXPAND) {
-                CACHED.push(orientation(CACHED.length))
-            }
-            module.exports = proc.apply(undefined, [slowOrient].concat(CACHED))
-            for (var i = 0; i <= NUM_EXPAND; ++i) {
-                module.exports[i] = CACHED[i]
-            }
-        }
+function generateOrientationProc() {
+  while(CACHED.length <= NUM_EXPAND) {
+    CACHED.push(orientation(CACHED.length))
+  }
+  module.exports = proc.apply(undefined, [slowOrient].concat(CACHED))
+  for(var i=0; i<=NUM_EXPAND; ++i) {
+    module.exports[i] = CACHED[i]
+  }
+}
 
-        generateOrientationProc()
-    }, {"robust-scale": 18, "robust-subtract": 19, "robust-sum": 20, "two-product": 22}],
-    18: [function (require, module, exports) {
-        "use strict"
+generateOrientationProc()
+},{"robust-scale":19,"robust-subtract":20,"robust-sum":21,"two-product":23}],19:[function(require,module,exports){
+"use strict"
 
-        var twoProduct = require("two-product")
-        var twoSum = require("two-sum")
+var twoProduct = require("two-product")
+var twoSum = require("two-sum")
 
-        module.exports = scaleLinearExpansion
+module.exports = scaleLinearExpansion
 
-        function scaleLinearExpansion(e, scale) {
-            var n = e.length
-            if (n === 1) {
-                var ts = twoProduct(e[0], scale)
-                if (ts[0]) {
-                    return ts
-                }
-                return [ts[1]]
-            }
-            var g = new Array(2 * n)
-            var q = [0.1, 0.1]
-            var t = [0.1, 0.1]
-            var count = 0
-            twoProduct(e[0], scale, q)
-            if (q[0]) {
-                g[count++] = q[0]
-            }
-            for (var i = 1; i < n; ++i) {
-                twoProduct(e[i], scale, t)
-                var pq = q[1]
-                twoSum(pq, t[0], q)
-                if (q[0]) {
-                    g[count++] = q[0]
-                }
-                var a = t[1]
-                var b = q[1]
-                var x = a + b
-                var bv = x - a
-                var y = b - bv
-                q[1] = x
-                if (y) {
-                    g[count++] = y
-                }
-            }
-            if (q[1]) {
-                g[count++] = q[1]
-            }
-            if (count === 0) {
-                g[count++] = 0.0
-            }
-            g.length = count
-            return g
-        }
-    }, {"two-product": 22, "two-sum": 23}],
-    19: [function (require, module, exports) {
-        "use strict"
+function scaleLinearExpansion(e, scale) {
+  var n = e.length
+  if(n === 1) {
+    var ts = twoProduct(e[0], scale)
+    if(ts[0]) {
+      return ts
+    }
+    return [ ts[1] ]
+  }
+  var g = new Array(2 * n)
+  var q = [0.1, 0.1]
+  var t = [0.1, 0.1]
+  var count = 0
+  twoProduct(e[0], scale, q)
+  if(q[0]) {
+    g[count++] = q[0]
+  }
+  for(var i=1; i<n; ++i) {
+    twoProduct(e[i], scale, t)
+    var pq = q[1]
+    twoSum(pq, t[0], q)
+    if(q[0]) {
+      g[count++] = q[0]
+    }
+    var a = t[1]
+    var b = q[1]
+    var x = a + b
+    var bv = x - a
+    var y = b - bv
+    q[1] = x
+    if(y) {
+      g[count++] = y
+    }
+  }
+  if(q[1]) {
+    g[count++] = q[1]
+  }
+  if(count === 0) {
+    g[count++] = 0.0
+  }
+  g.length = count
+  return g
+}
+},{"two-product":23,"two-sum":24}],20:[function(require,module,exports){
+"use strict"
 
-        module.exports = robustSubtract
+module.exports = robustSubtract
 
 //Easy case: Add two scalars
-        function scalarScalar(a, b) {
-            var x = a + b
-            var bv = x - a
-            var av = x - bv
-            var br = b - bv
-            var ar = a - av
-            var y = ar + br
-            if (y) {
-                return [y, x]
-            }
-            return [x]
-        }
+function scalarScalar(a, b) {
+  var x = a + b
+  var bv = x - a
+  var av = x - bv
+  var br = b - bv
+  var ar = a - av
+  var y = ar + br
+  if(y) {
+    return [y, x]
+  }
+  return [x]
+}
 
-        function robustSubtract(e, f) {
-            var ne = e.length | 0
-            var nf = f.length | 0
-            if (ne === 1 && nf === 1) {
-                return scalarScalar(e[0], -f[0])
-            }
-            var n = ne + nf
-            var g = new Array(n)
-            var count = 0
-            var eptr = 0
-            var fptr = 0
-            var abs = Math.abs
-            var ei = e[eptr]
-            var ea = abs(ei)
-            var fi = -f[fptr]
-            var fa = abs(fi)
-            var a, b
-            if (ea < fa) {
-                b = ei
-                eptr += 1
-                if (eptr < ne) {
-                    ei = e[eptr]
-                    ea = abs(ei)
-                }
-            } else {
-                b = fi
-                fptr += 1
-                if (fptr < nf) {
-                    fi = -f[fptr]
-                    fa = abs(fi)
-                }
-            }
-            if ((eptr < ne && ea < fa) || (fptr >= nf)) {
-                a = ei
-                eptr += 1
-                if (eptr < ne) {
-                    ei = e[eptr]
-                    ea = abs(ei)
-                }
-            } else {
-                a = fi
-                fptr += 1
-                if (fptr < nf) {
-                    fi = -f[fptr]
-                    fa = abs(fi)
-                }
-            }
-            var x = a + b
-            var bv = x - a
-            var y = b - bv
-            var q0 = y
-            var q1 = x
-            var _x, _bv, _av, _br, _ar
-            while (eptr < ne && fptr < nf) {
-                if (ea < fa) {
-                    a = ei
-                    eptr += 1
-                    if (eptr < ne) {
-                        ei = e[eptr]
-                        ea = abs(ei)
-                    }
-                } else {
-                    a = fi
-                    fptr += 1
-                    if (fptr < nf) {
-                        fi = -f[fptr]
-                        fa = abs(fi)
-                    }
-                }
-                b = q0
-                x = a + b
-                bv = x - a
-                y = b - bv
-                if (y) {
-                    g[count++] = y
-                }
-                _x = q1 + x
-                _bv = _x - q1
-                _av = _x - _bv
-                _br = x - _bv
-                _ar = q1 - _av
-                q0 = _ar + _br
-                q1 = _x
-            }
-            while (eptr < ne) {
-                a = ei
-                b = q0
-                x = a + b
-                bv = x - a
-                y = b - bv
-                if (y) {
-                    g[count++] = y
-                }
-                _x = q1 + x
-                _bv = _x - q1
-                _av = _x - _bv
-                _br = x - _bv
-                _ar = q1 - _av
-                q0 = _ar + _br
-                q1 = _x
-                eptr += 1
-                if (eptr < ne) {
-                    ei = e[eptr]
-                }
-            }
-            while (fptr < nf) {
-                a = fi
-                b = q0
-                x = a + b
-                bv = x - a
-                y = b - bv
-                if (y) {
-                    g[count++] = y
-                }
-                _x = q1 + x
-                _bv = _x - q1
-                _av = _x - _bv
-                _br = x - _bv
-                _ar = q1 - _av
-                q0 = _ar + _br
-                q1 = _x
-                fptr += 1
-                if (fptr < nf) {
-                    fi = -f[fptr]
-                }
-            }
-            if (q0) {
-                g[count++] = q0
-            }
-            if (q1) {
-                g[count++] = q1
-            }
-            if (!count) {
-                g[count++] = 0.0
-            }
-            g.length = count
-            return g
-        }
-    }, {}],
-    20: [function (require, module, exports) {
-        "use strict"
+function robustSubtract(e, f) {
+  var ne = e.length|0
+  var nf = f.length|0
+  if(ne === 1 && nf === 1) {
+    return scalarScalar(e[0], -f[0])
+  }
+  var n = ne + nf
+  var g = new Array(n)
+  var count = 0
+  var eptr = 0
+  var fptr = 0
+  var abs = Math.abs
+  var ei = e[eptr]
+  var ea = abs(ei)
+  var fi = -f[fptr]
+  var fa = abs(fi)
+  var a, b
+  if(ea < fa) {
+    b = ei
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+      ea = abs(ei)
+    }
+  } else {
+    b = fi
+    fptr += 1
+    if(fptr < nf) {
+      fi = -f[fptr]
+      fa = abs(fi)
+    }
+  }
+  if((eptr < ne && ea < fa) || (fptr >= nf)) {
+    a = ei
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+      ea = abs(ei)
+    }
+  } else {
+    a = fi
+    fptr += 1
+    if(fptr < nf) {
+      fi = -f[fptr]
+      fa = abs(fi)
+    }
+  }
+  var x = a + b
+  var bv = x - a
+  var y = b - bv
+  var q0 = y
+  var q1 = x
+  var _x, _bv, _av, _br, _ar
+  while(eptr < ne && fptr < nf) {
+    if(ea < fa) {
+      a = ei
+      eptr += 1
+      if(eptr < ne) {
+        ei = e[eptr]
+        ea = abs(ei)
+      }
+    } else {
+      a = fi
+      fptr += 1
+      if(fptr < nf) {
+        fi = -f[fptr]
+        fa = abs(fi)
+      }
+    }
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    }
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+  }
+  while(eptr < ne) {
+    a = ei
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    }
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+    }
+  }
+  while(fptr < nf) {
+    a = fi
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    } 
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+    fptr += 1
+    if(fptr < nf) {
+      fi = -f[fptr]
+    }
+  }
+  if(q0) {
+    g[count++] = q0
+  }
+  if(q1) {
+    g[count++] = q1
+  }
+  if(!count) {
+    g[count++] = 0.0  
+  }
+  g.length = count
+  return g
+}
+},{}],21:[function(require,module,exports){
+"use strict"
 
-        module.exports = linearExpansionSum
+module.exports = linearExpansionSum
 
 //Easy case: Add two scalars
-        function scalarScalar(a, b) {
-            var x = a + b
-            var bv = x - a
-            var av = x - bv
-            var br = b - bv
-            var ar = a - av
-            var y = ar + br
-            if (y) {
-                return [y, x]
-            }
-            return [x]
-        }
+function scalarScalar(a, b) {
+  var x = a + b
+  var bv = x - a
+  var av = x - bv
+  var br = b - bv
+  var ar = a - av
+  var y = ar + br
+  if(y) {
+    return [y, x]
+  }
+  return [x]
+}
 
-        function linearExpansionSum(e, f) {
-            var ne = e.length | 0
-            var nf = f.length | 0
-            if (ne === 1 && nf === 1) {
-                return scalarScalar(e[0], f[0])
-            }
-            var n = ne + nf
-            var g = new Array(n)
-            var count = 0
-            var eptr = 0
-            var fptr = 0
-            var abs = Math.abs
-            var ei = e[eptr]
-            var ea = abs(ei)
-            var fi = f[fptr]
-            var fa = abs(fi)
-            var a, b
-            if (ea < fa) {
-                b = ei
-                eptr += 1
-                if (eptr < ne) {
-                    ei = e[eptr]
-                    ea = abs(ei)
-                }
-            } else {
-                b = fi
-                fptr += 1
-                if (fptr < nf) {
-                    fi = f[fptr]
-                    fa = abs(fi)
-                }
-            }
-            if ((eptr < ne && ea < fa) || (fptr >= nf)) {
-                a = ei
-                eptr += 1
-                if (eptr < ne) {
-                    ei = e[eptr]
-                    ea = abs(ei)
-                }
-            } else {
-                a = fi
-                fptr += 1
-                if (fptr < nf) {
-                    fi = f[fptr]
-                    fa = abs(fi)
-                }
-            }
-            var x = a + b
-            var bv = x - a
-            var y = b - bv
-            var q0 = y
-            var q1 = x
-            var _x, _bv, _av, _br, _ar
-            while (eptr < ne && fptr < nf) {
-                if (ea < fa) {
-                    a = ei
-                    eptr += 1
-                    if (eptr < ne) {
-                        ei = e[eptr]
-                        ea = abs(ei)
-                    }
-                } else {
-                    a = fi
-                    fptr += 1
-                    if (fptr < nf) {
-                        fi = f[fptr]
-                        fa = abs(fi)
-                    }
-                }
-                b = q0
-                x = a + b
-                bv = x - a
-                y = b - bv
-                if (y) {
-                    g[count++] = y
-                }
-                _x = q1 + x
-                _bv = _x - q1
-                _av = _x - _bv
-                _br = x - _bv
-                _ar = q1 - _av
-                q0 = _ar + _br
-                q1 = _x
-            }
-            while (eptr < ne) {
-                a = ei
-                b = q0
-                x = a + b
-                bv = x - a
-                y = b - bv
-                if (y) {
-                    g[count++] = y
-                }
-                _x = q1 + x
-                _bv = _x - q1
-                _av = _x - _bv
-                _br = x - _bv
-                _ar = q1 - _av
-                q0 = _ar + _br
-                q1 = _x
-                eptr += 1
-                if (eptr < ne) {
-                    ei = e[eptr]
-                }
-            }
-            while (fptr < nf) {
-                a = fi
-                b = q0
-                x = a + b
-                bv = x - a
-                y = b - bv
-                if (y) {
-                    g[count++] = y
-                }
-                _x = q1 + x
-                _bv = _x - q1
-                _av = _x - _bv
-                _br = x - _bv
-                _ar = q1 - _av
-                q0 = _ar + _br
-                q1 = _x
-                fptr += 1
-                if (fptr < nf) {
-                    fi = f[fptr]
-                }
-            }
-            if (q0) {
-                g[count++] = q0
-            }
-            if (q1) {
-                g[count++] = q1
-            }
-            if (!count) {
-                g[count++] = 0.0
-            }
-            g.length = count
-            return g
-        }
-    }, {}],
-    21: [function (require, module, exports) {
-        "use strict";
-        "use restrict";
+function linearExpansionSum(e, f) {
+  var ne = e.length|0
+  var nf = f.length|0
+  if(ne === 1 && nf === 1) {
+    return scalarScalar(e[0], f[0])
+  }
+  var n = ne + nf
+  var g = new Array(n)
+  var count = 0
+  var eptr = 0
+  var fptr = 0
+  var abs = Math.abs
+  var ei = e[eptr]
+  var ea = abs(ei)
+  var fi = f[fptr]
+  var fa = abs(fi)
+  var a, b
+  if(ea < fa) {
+    b = ei
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+      ea = abs(ei)
+    }
+  } else {
+    b = fi
+    fptr += 1
+    if(fptr < nf) {
+      fi = f[fptr]
+      fa = abs(fi)
+    }
+  }
+  if((eptr < ne && ea < fa) || (fptr >= nf)) {
+    a = ei
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+      ea = abs(ei)
+    }
+  } else {
+    a = fi
+    fptr += 1
+    if(fptr < nf) {
+      fi = f[fptr]
+      fa = abs(fi)
+    }
+  }
+  var x = a + b
+  var bv = x - a
+  var y = b - bv
+  var q0 = y
+  var q1 = x
+  var _x, _bv, _av, _br, _ar
+  while(eptr < ne && fptr < nf) {
+    if(ea < fa) {
+      a = ei
+      eptr += 1
+      if(eptr < ne) {
+        ei = e[eptr]
+        ea = abs(ei)
+      }
+    } else {
+      a = fi
+      fptr += 1
+      if(fptr < nf) {
+        fi = f[fptr]
+        fa = abs(fi)
+      }
+    }
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    }
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+  }
+  while(eptr < ne) {
+    a = ei
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    }
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+    }
+  }
+  while(fptr < nf) {
+    a = fi
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    } 
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+    fptr += 1
+    if(fptr < nf) {
+      fi = f[fptr]
+    }
+  }
+  if(q0) {
+    g[count++] = q0
+  }
+  if(q1) {
+    g[count++] = q1
+  }
+  if(!count) {
+    g[count++] = 0.0  
+  }
+  g.length = count
+  return g
+}
+},{}],22:[function(require,module,exports){
+"use strict"; "use restrict";
 
-        var bits = require("bit-twiddle")
-            , UnionFind = require("union-find")
+var bits      = require("bit-twiddle")
+  , UnionFind = require("union-find")
 
 //Returns the dimension of a cell complex
-        function dimension(cells) {
-            var d = 0
-                , max = Math.max
-            for (var i = 0, il = cells.length; i < il; ++i) {
-                d = max(d, cells[i].length)
-            }
-            return d - 1
-        }
-
-        exports.dimension = dimension
+function dimension(cells) {
+  var d = 0
+    , max = Math.max
+  for(var i=0, il=cells.length; i<il; ++i) {
+    d = max(d, cells[i].length)
+  }
+  return d-1
+}
+exports.dimension = dimension
 
 //Counts the number of vertices in faces
-        function countVertices(cells) {
-            var vc = -1
-                , max = Math.max
-            for (var i = 0, il = cells.length; i < il; ++i) {
-                var c = cells[i]
-                for (var j = 0, jl = c.length; j < jl; ++j) {
-                    vc = max(vc, c[j])
-                }
-            }
-            return vc + 1
-        }
-
-        exports.countVertices = countVertices
+function countVertices(cells) {
+  var vc = -1
+    , max = Math.max
+  for(var i=0, il=cells.length; i<il; ++i) {
+    var c = cells[i]
+    for(var j=0, jl=c.length; j<jl; ++j) {
+      vc = max(vc, c[j])
+    }
+  }
+  return vc+1
+}
+exports.countVertices = countVertices
 
 //Returns a deep copy of cells
-        function cloneCells(cells) {
-            var ncells = new Array(cells.length)
-            for (var i = 0, il = cells.length; i < il; ++i) {
-                ncells[i] = cells[i].slice(0)
-            }
-            return ncells
-        }
-
-        exports.cloneCells = cloneCells
+function cloneCells(cells) {
+  var ncells = new Array(cells.length)
+  for(var i=0, il=cells.length; i<il; ++i) {
+    ncells[i] = cells[i].slice(0)
+  }
+  return ncells
+}
+exports.cloneCells = cloneCells
 
 //Ranks a pair of cells up to permutation
-        function compareCells(a, b) {
-            var n = a.length
-                , t = a.length - b.length
-                , min = Math.min
-            if (t) {
-                return t
-            }
-            switch (n) {
-                case 0:
-                    return 0;
-                case 1:
-                    return a[0] - b[0];
-                case 2:
-                    var d = a[0] + a[1] - b[0] - b[1]
-                    if (d) {
-                        return d
-                    }
-                    return min(a[0], a[1]) - min(b[0], b[1])
-                case 3:
-                    var l1 = a[0] + a[1]
-                        , m1 = b[0] + b[1]
-                    d = l1 + a[2] - (m1 + b[2])
-                    if (d) {
-                        return d
-                    }
-                    var l0 = min(a[0], a[1])
-                        , m0 = min(b[0], b[1])
-                        , d = min(l0, a[2]) - min(m0, b[2])
-                    if (d) {
-                        return d
-                    }
-                    return min(l0 + a[2], l1) - min(m0 + b[2], m1)
-
-                //TODO: Maybe optimize n=4 as well?
-
-                default:
-                    var as = a.slice(0)
-                    as.sort()
-                    var bs = b.slice(0)
-                    bs.sort()
-                    for (var i = 0; i < n; ++i) {
-                        t = as[i] - bs[i]
-                        if (t) {
-                            return t
-                        }
-                    }
-                    return 0
-            }
+function compareCells(a, b) {
+  var n = a.length
+    , t = a.length - b.length
+    , min = Math.min
+  if(t) {
+    return t
+  }
+  switch(n) {
+    case 0:
+      return 0;
+    case 1:
+      return a[0] - b[0];
+    case 2:
+      var d = a[0]+a[1]-b[0]-b[1]
+      if(d) {
+        return d
+      }
+      return min(a[0],a[1]) - min(b[0],b[1])
+    case 3:
+      var l1 = a[0]+a[1]
+        , m1 = b[0]+b[1]
+      d = l1+a[2] - (m1+b[2])
+      if(d) {
+        return d
+      }
+      var l0 = min(a[0], a[1])
+        , m0 = min(b[0], b[1])
+        , d  = min(l0, a[2]) - min(m0, b[2])
+      if(d) {
+        return d
+      }
+      return min(l0+a[2], l1) - min(m0+b[2], m1)
+    
+    //TODO: Maybe optimize n=4 as well?
+    
+    default:
+      var as = a.slice(0)
+      as.sort()
+      var bs = b.slice(0)
+      bs.sort()
+      for(var i=0; i<n; ++i) {
+        t = as[i] - bs[i]
+        if(t) {
+          return t
         }
+      }
+      return 0
+  }
+}
+exports.compareCells = compareCells
 
-        exports.compareCells = compareCells
-
-        function compareZipped(a, b) {
-            return compareCells(a[0], b[0])
-        }
+function compareZipped(a, b) {
+  return compareCells(a[0], b[0])
+}
 
 //Puts a cell complex into normal order for the purposes of findCell queries
-        function normalize(cells, attr) {
-            if (attr) {
-                var len = cells.length
-                var zipped = new Array(len)
-                for (var i = 0; i < len; ++i) {
-                    zipped[i] = [cells[i], attr[i]]
-                }
-                zipped.sort(compareZipped)
-                for (var i = 0; i < len; ++i) {
-                    cells[i] = zipped[i][0]
-                    attr[i] = zipped[i][1]
-                }
-                return cells
-            } else {
-                cells.sort(compareCells)
-                return cells
-            }
-        }
-
-        exports.normalize = normalize
+function normalize(cells, attr) {
+  if(attr) {
+    var len = cells.length
+    var zipped = new Array(len)
+    for(var i=0; i<len; ++i) {
+      zipped[i] = [cells[i], attr[i]]
+    }
+    zipped.sort(compareZipped)
+    for(var i=0; i<len; ++i) {
+      cells[i] = zipped[i][0]
+      attr[i] = zipped[i][1]
+    }
+    return cells
+  } else {
+    cells.sort(compareCells)
+    return cells
+  }
+}
+exports.normalize = normalize
 
 //Removes all duplicate cells in the complex
-        function unique(cells) {
-            if (cells.length === 0) {
-                return []
-            }
-            var ptr = 1
-                , len = cells.length
-            for (var i = 1; i < len; ++i) {
-                var a = cells[i]
-                if (compareCells(a, cells[i - 1])) {
-                    if (i === ptr) {
-                        ptr++
-                        continue
-                    }
-                    cells[ptr++] = a
-                }
-            }
-            cells.length = ptr
-            return cells
-        }
-
-        exports.unique = unique;
+function unique(cells) {
+  if(cells.length === 0) {
+    return []
+  }
+  var ptr = 1
+    , len = cells.length
+  for(var i=1; i<len; ++i) {
+    var a = cells[i]
+    if(compareCells(a, cells[i-1])) {
+      if(i === ptr) {
+        ptr++
+        continue
+      }
+      cells[ptr++] = a
+    }
+  }
+  cells.length = ptr
+  return cells
+}
+exports.unique = unique;
 
 //Finds a cell in a normalized cell complex
-        function findCell(cells, c) {
-            var lo = 0
-                , hi = cells.length - 1
-                , r = -1
-            while (lo <= hi) {
-                var mid = (lo + hi) >> 1
-                    , s = compareCells(cells[mid], c)
-                if (s <= 0) {
-                    if (s === 0) {
-                        r = mid
-                    }
-                    lo = mid + 1
-                } else if (s > 0) {
-                    hi = mid - 1
-                }
-            }
-            return r
-        }
-
-        exports.findCell = findCell;
+function findCell(cells, c) {
+  var lo = 0
+    , hi = cells.length-1
+    , r  = -1
+  while (lo <= hi) {
+    var mid = (lo + hi) >> 1
+      , s   = compareCells(cells[mid], c)
+    if(s <= 0) {
+      if(s === 0) {
+        r = mid
+      }
+      lo = mid + 1
+    } else if(s > 0) {
+      hi = mid - 1
+    }
+  }
+  return r
+}
+exports.findCell = findCell;
 
 //Builds an index for an n-cell.  This is more general than dual, but less efficient
-        function incidence(from_cells, to_cells) {
-            var index = new Array(from_cells.length)
-            for (var i = 0, il = index.length; i < il; ++i) {
-                index[i] = []
-            }
-            var b = []
-            for (var i = 0, n = to_cells.length; i < n; ++i) {
-                var c = to_cells[i]
-                var cl = c.length
-                for (var k = 1, kn = (1 << cl); k < kn; ++k) {
-                    b.length = bits.popCount(k)
-                    var l = 0
-                    for (var j = 0; j < cl; ++j) {
-                        if (k & (1 << j)) {
-                            b[l++] = c[j]
-                        }
-                    }
-                    var idx = findCell(from_cells, b)
-                    if (idx < 0) {
-                        continue
-                    }
-                    while (true) {
-                        index[idx++].push(i)
-                        if (idx >= from_cells.length || compareCells(from_cells[idx], b) !== 0) {
-                            break
-                        }
-                    }
-                }
-            }
-            return index
+function incidence(from_cells, to_cells) {
+  var index = new Array(from_cells.length)
+  for(var i=0, il=index.length; i<il; ++i) {
+    index[i] = []
+  }
+  var b = []
+  for(var i=0, n=to_cells.length; i<n; ++i) {
+    var c = to_cells[i]
+    var cl = c.length
+    for(var k=1, kn=(1<<cl); k<kn; ++k) {
+      b.length = bits.popCount(k)
+      var l = 0
+      for(var j=0; j<cl; ++j) {
+        if(k & (1<<j)) {
+          b[l++] = c[j]
         }
-
-        exports.incidence = incidence
+      }
+      var idx=findCell(from_cells, b)
+      if(idx < 0) {
+        continue
+      }
+      while(true) {
+        index[idx++].push(i)
+        if(idx >= from_cells.length || compareCells(from_cells[idx], b) !== 0) {
+          break
+        }
+      }
+    }
+  }
+  return index
+}
+exports.incidence = incidence
 
 //Computes the dual of the mesh.  This is basically an optimized version of buildIndex for the situation where from_cells is just the list of vertices
-        function dual(cells, vertex_count) {
-            if (!vertex_count) {
-                return incidence(unique(skeleton(cells, 0)), cells, 0)
-            }
-            var res = new Array(vertex_count)
-            for (var i = 0; i < vertex_count; ++i) {
-                res[i] = []
-            }
-            for (var i = 0, len = cells.length; i < len; ++i) {
-                var c = cells[i]
-                for (var j = 0, cl = c.length; j < cl; ++j) {
-                    res[c[j]].push(i)
-                }
-            }
-            return res
-        }
-
-        exports.dual = dual
+function dual(cells, vertex_count) {
+  if(!vertex_count) {
+    return incidence(unique(skeleton(cells, 0)), cells, 0)
+  }
+  var res = new Array(vertex_count)
+  for(var i=0; i<vertex_count; ++i) {
+    res[i] = []
+  }
+  for(var i=0, len=cells.length; i<len; ++i) {
+    var c = cells[i]
+    for(var j=0, cl=c.length; j<cl; ++j) {
+      res[c[j]].push(i)
+    }
+  }
+  return res
+}
+exports.dual = dual
 
 //Enumerates all cells in the complex
-        function explode(cells) {
-            var result = []
-            for (var i = 0, il = cells.length; i < il; ++i) {
-                var c = cells[i]
-                    , cl = c.length | 0
-                for (var j = 1, jl = (1 << cl); j < jl; ++j) {
-                    var b = []
-                    for (var k = 0; k < cl; ++k) {
-                        if ((j >>> k) & 1) {
-                            b.push(c[k])
-                        }
-                    }
-                    result.push(b)
-                }
-            }
-            return normalize(result)
+function explode(cells) {
+  var result = []
+  for(var i=0, il=cells.length; i<il; ++i) {
+    var c = cells[i]
+      , cl = c.length|0
+    for(var j=1, jl=(1<<cl); j<jl; ++j) {
+      var b = []
+      for(var k=0; k<cl; ++k) {
+        if((j >>> k) & 1) {
+          b.push(c[k])
         }
-
-        exports.explode = explode
+      }
+      result.push(b)
+    }
+  }
+  return normalize(result)
+}
+exports.explode = explode
 
 //Enumerates all of the n-cells of a cell complex
-        function skeleton(cells, n) {
-            if (n < 0) {
-                return []
-            }
-            var result = []
-                , k0 = (1 << (n + 1)) - 1
-            for (var i = 0; i < cells.length; ++i) {
-                var c = cells[i]
-                for (var k = k0; k < (1 << c.length); k = bits.nextCombination(k)) {
-                    var b = new Array(n + 1)
-                        , l = 0
-                    for (var j = 0; j < c.length; ++j) {
-                        if (k & (1 << j)) {
-                            b[l++] = c[j]
-                        }
-                    }
-                    result.push(b)
-                }
-            }
-            return normalize(result)
+function skeleton(cells, n) {
+  if(n < 0) {
+    return []
+  }
+  var result = []
+    , k0     = (1<<(n+1))-1
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var k=k0; k<(1<<c.length); k=bits.nextCombination(k)) {
+      var b = new Array(n+1)
+        , l = 0
+      for(var j=0; j<c.length; ++j) {
+        if(k & (1<<j)) {
+          b[l++] = c[j]
         }
-
-        exports.skeleton = skeleton;
+      }
+      result.push(b)
+    }
+  }
+  return normalize(result)
+}
+exports.skeleton = skeleton;
 
 //Computes the boundary of all cells, does not remove duplicates
-        function boundary(cells) {
-            var res = []
-            for (var i = 0, il = cells.length; i < il; ++i) {
-                var c = cells[i]
-                for (var j = 0, cl = c.length; j < cl; ++j) {
-                    var b = new Array(c.length - 1)
-                    for (var k = 0, l = 0; k < cl; ++k) {
-                        if (k !== j) {
-                            b[l++] = c[k]
-                        }
-                    }
-                    res.push(b)
-                }
-            }
-            return normalize(res)
+function boundary(cells) {
+  var res = []
+  for(var i=0,il=cells.length; i<il; ++i) {
+    var c = cells[i]
+    for(var j=0,cl=c.length; j<cl; ++j) {
+      var b = new Array(c.length-1)
+      for(var k=0, l=0; k<cl; ++k) {
+        if(k !== j) {
+          b[l++] = c[k]
         }
-
-        exports.boundary = boundary;
+      }
+      res.push(b)
+    }
+  }
+  return normalize(res)
+}
+exports.boundary = boundary;
 
 //Computes connected components for a dense cell complex
-        function connectedComponents_dense(cells, vertex_count) {
-            var labels = new UnionFind(vertex_count)
-            for (var i = 0; i < cells.length; ++i) {
-                var c = cells[i]
-                for (var j = 0; j < c.length; ++j) {
-                    for (var k = j + 1; k < c.length; ++k) {
-                        labels.link(c[j], c[k])
-                    }
-                }
-            }
-            var components = []
-                , component_labels = labels.ranks
-            for (var i = 0; i < component_labels.length; ++i) {
-                component_labels[i] = -1
-            }
-            for (var i = 0; i < cells.length; ++i) {
-                var l = labels.find(cells[i][0])
-                if (component_labels[l] < 0) {
-                    component_labels[l] = components.length
-                    components.push([cells[i].slice(0)])
-                } else {
-                    components[component_labels[l]].push(cells[i].slice(0))
-                }
-            }
-            return components
-        }
+function connectedComponents_dense(cells, vertex_count) {
+  var labels = new UnionFind(vertex_count)
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var j=0; j<c.length; ++j) {
+      for(var k=j+1; k<c.length; ++k) {
+        labels.link(c[j], c[k])
+      }
+    }
+  }
+  var components = []
+    , component_labels = labels.ranks
+  for(var i=0; i<component_labels.length; ++i) {
+    component_labels[i] = -1
+  }
+  for(var i=0; i<cells.length; ++i) {
+    var l = labels.find(cells[i][0])
+    if(component_labels[l] < 0) {
+      component_labels[l] = components.length
+      components.push([cells[i].slice(0)])
+    } else {
+      components[component_labels[l]].push(cells[i].slice(0))
+    }
+  }
+  return components
+}
 
 //Computes connected components for a sparse graph
-        function connectedComponents_sparse(cells) {
-            var vertices = unique(normalize(skeleton(cells, 0)))
-                , labels = new UnionFind(vertices.length)
-            for (var i = 0; i < cells.length; ++i) {
-                var c = cells[i]
-                for (var j = 0; j < c.length; ++j) {
-                    var vj = findCell(vertices, [c[j]])
-                    for (var k = j + 1; k < c.length; ++k) {
-                        labels.link(vj, findCell(vertices, [c[k]]))
-                    }
-                }
-            }
-            var components = []
-                , component_labels = labels.ranks
-            for (var i = 0; i < component_labels.length; ++i) {
-                component_labels[i] = -1
-            }
-            for (var i = 0; i < cells.length; ++i) {
-                var l = labels.find(findCell(vertices, [cells[i][0]]));
-                if (component_labels[l] < 0) {
-                    component_labels[l] = components.length
-                    components.push([cells[i].slice(0)])
-                } else {
-                    components[component_labels[l]].push(cells[i].slice(0))
-                }
-            }
-            return components
-        }
+function connectedComponents_sparse(cells) {
+  var vertices  = unique(normalize(skeleton(cells, 0)))
+    , labels    = new UnionFind(vertices.length)
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var j=0; j<c.length; ++j) {
+      var vj = findCell(vertices, [c[j]])
+      for(var k=j+1; k<c.length; ++k) {
+        labels.link(vj, findCell(vertices, [c[k]]))
+      }
+    }
+  }
+  var components        = []
+    , component_labels  = labels.ranks
+  for(var i=0; i<component_labels.length; ++i) {
+    component_labels[i] = -1
+  }
+  for(var i=0; i<cells.length; ++i) {
+    var l = labels.find(findCell(vertices, [cells[i][0]]));
+    if(component_labels[l] < 0) {
+      component_labels[l] = components.length
+      components.push([cells[i].slice(0)])
+    } else {
+      components[component_labels[l]].push(cells[i].slice(0))
+    }
+  }
+  return components
+}
 
 //Computes connected components for a cell complex
-        function connectedComponents(cells, vertex_count) {
-            if (vertex_count) {
-                return connectedComponents_dense(cells, vertex_count)
+function connectedComponents(cells, vertex_count) {
+  if(vertex_count) {
+    return connectedComponents_dense(cells, vertex_count)
+  }
+  return connectedComponents_sparse(cells)
+}
+exports.connectedComponents = connectedComponents
+
+},{"bit-twiddle":1,"union-find":25}],23:[function(require,module,exports){
+"use strict"
+
+module.exports = twoProduct
+
+var SPLITTER = +(Math.pow(2, 27) + 1.0)
+
+function twoProduct(a, b, result) {
+  var x = a * b
+
+  var c = SPLITTER * a
+  var abig = c - a
+  var ahi = c - abig
+  var alo = a - ahi
+
+  var d = SPLITTER * b
+  var bbig = d - b
+  var bhi = d - bbig
+  var blo = b - bhi
+
+  var err1 = x - (ahi * bhi)
+  var err2 = err1 - (alo * bhi)
+  var err3 = err2 - (ahi * blo)
+
+  var y = alo * blo - err3
+
+  if(result) {
+    result[0] = y
+    result[1] = x
+    return result
+  }
+
+  return [ y, x ]
+}
+},{}],24:[function(require,module,exports){
+"use strict"
+
+module.exports = fastTwoSum
+
+function fastTwoSum(a, b, result) {
+	var x = a + b
+	var bv = x - a
+	var av = x - bv
+	var br = b - bv
+	var ar = a - av
+	if(result) {
+		result[0] = ar + br
+		result[1] = x
+		return result
+	}
+	return [ar+br, x]
+}
+},{}],25:[function(require,module,exports){
+"use strict"; "use restrict";
+
+module.exports = UnionFind;
+
+function UnionFind(count) {
+  this.roots = new Array(count);
+  this.ranks = new Array(count);
+  
+  for(var i=0; i<count; ++i) {
+    this.roots[i] = i;
+    this.ranks[i] = 0;
+  }
+}
+
+var proto = UnionFind.prototype
+
+Object.defineProperty(proto, "length", {
+  "get": function() {
+    return this.roots.length
+  }
+})
+
+proto.makeSet = function() {
+  var n = this.roots.length;
+  this.roots.push(n);
+  this.ranks.push(0);
+  return n;
+}
+
+proto.find = function(x) {
+  var x0 = x
+  var roots = this.roots;
+  while(roots[x] !== x) {
+    x = roots[x]
+  }
+  while(roots[x0] !== x) {
+    var y = roots[x0]
+    roots[x0] = x
+    x0 = y
+  }
+  return x;
+}
+
+proto.link = function(x, y) {
+  var xr = this.find(x)
+    , yr = this.find(y);
+  if(xr === yr) {
+    return;
+  }
+  var ranks = this.ranks
+    , roots = this.roots
+    , xd    = ranks[xr]
+    , yd    = ranks[yr];
+  if(xd < yd) {
+    roots[xr] = yr;
+  } else if(yd < xd) {
+    roots[yr] = xr;
+  } else {
+    roots[yr] = xr;
+    ++ranks[xr];
+  }
+}
+},{}],26:[function(require,module,exports){
+"use strict"
+
+function unique_pred(list, compare) {
+  var ptr = 1
+    , len = list.length
+    , a=list[0], b=list[0]
+  for(var i=1; i<len; ++i) {
+    b = a
+    a = list[i]
+    if(compare(a, b)) {
+      if(i === ptr) {
+        ptr++
+        continue
+      }
+      list[ptr++] = a
+    }
+  }
+  list.length = ptr
+  return list
+}
+
+function unique_eq(list) {
+  var ptr = 1
+    , len = list.length
+    , a=list[0], b = list[0]
+  for(var i=1; i<len; ++i, b=a) {
+    b = a
+    a = list[i]
+    if(a !== b) {
+      if(i === ptr) {
+        ptr++
+        continue
+      }
+      list[ptr++] = a
+    }
+  }
+  list.length = ptr
+  return list
+}
+
+function unique(list, compare, sorted) {
+  if(list.length === 0) {
+    return list
+  }
+  if(compare) {
+    if(!sorted) {
+      list.sort(compare)
+    }
+    return unique_pred(list, compare)
+  }
+  if(!sorted) {
+    list.sort()
+  }
+  return unique_eq(list)
+}
+
+module.exports = unique
+
+},{}],27:[function(require,module,exports){
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+    const _voronoi = require("./voronoi.js");
+    const KDTree = require('mnemonist/kd-tree');
+
+    /**
+     * Lightweight wrapper around Voronoi diagram results, providing helpers to access faces and dual triangles.
+     *
+     * Instances are produced by {@link Snap.voronoi} and expose a familiar API to iterate over Voronoi polygons,
+     * query Delaunay triangles, and bridge between both representations.  The wrapper keeps the original input
+     * points alongside derived structures so downstream code can be purely geometric without re-shaping data.
+     *
+     * Typical usage pairs polygon queries with rendering helpers, for example highlighting the Voronoi cell of a
+     * selected anchor or generating adjacency graphs for interaction design.
+     *
+     * @constructor
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Input points used to build the Voronoi diagram.
+     * @param {Array<Array<number>>} cells Voronoi cell definitions referencing indices in {@link positions}.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} positions Coordinates of Voronoi vertices.
+     * @param {Array<Array<number>>} triangles Delaunay triangles backing the Voronoi diagram (may contain -1 for infinity).
+     */
+    function Voronoi(points, cells, positions, triangles) {
+        this.cells = cells;
+        this.positions = positions;
+        this.triangles = triangles;
+        this.points = points;
+        this.length = cells.length;
+    }
+
+    /**
+     * Gets a Voronoi polygon for a specific point or all polygons when no index is provided.
+     *
+     * The polygons are returned as raw coordinate arrays so they can be rendered directly with Snap paths
+     * or consumed by computational geometry utilities.  When called without arguments the method eagerly
+     * materialises every cell in order, which is handy when building hit-testing structures or exporting
+     * the entire diagram to JSON.
+     *
+     * @param {number} [index] Target point index. Omit to retrieve polygons for all input points.
+     * @returns {Array<Array<number>>|Array<Array<Array<number>>>|undefined} Polygon vertices or list of polygons, or `undefined` when index is out of range.
+     * @example
+     * const vor = Snap.voronoi([[0, 0], [50, 20], [20, 80]]);
+     * const polygon = vor.getPolygon(1); // -> [[...x,y], ...]
+     * const allPolygons = vor.getPolygon();
+     */
+    Voronoi.prototype.getPolygon = function (index) {
+
+        if (index === undefined) {
+            const ret = [];
+            for (let i = 0; i < this.length; ++i) {
+                ret.push(this.getPolygon(i))
             }
-            return connectedComponents_sparse(cells)
+            return ret;
         }
 
-        exports.connectedComponents = connectedComponents
+        if (index >= this.length) return;
+        let cell = this.cells[index];
+        cell = cell.filter((v) => v !== -1)
+        const map = cell.map((p_inx) => {
+            return this.positions[p_inx]
+        });
+        return map;
+    }
 
-    }, {"bit-twiddle": 1, "union-find": 24}],
-    22: [function (require, module, exports) {
-        "use strict"
+    /**
+     * Gets a triangle from the dual Delaunay triangulation.
+     *
+     * The dual triangles share vertices with the input point cloud, making them ideal for mesh-based
+     * interpolation, proximity graphs, or debugging the Voronoi construction. Infinite triangles (those
+     * touching the super triangle introduced by the triangulation algorithm) are filtered out so the
+     * returned coordinates are always safe to render.
+     *
+     * @param {number} [index] Triangle index to return. When omitted, returns all finite triangles.
+     * @returns {Array<Array<number>>|Array<Array<Array<number>>>|null} Triangle vertex coordinates, list of triangles, or `null` for invalid/degenerate indices.
+     * @example
+     * const triangles = vor.getTriangle();
+     * triangles.forEach(tri => paper.polygon(tri.flat()));
+     */
+    Voronoi.prototype.getTriangle = function (index) {
 
-        module.exports = twoProduct
-
-        var SPLITTER = +(Math.pow(2, 27) + 1.0)
-
-        function twoProduct(a, b, result) {
-            var x = a * b
-
-            var c = SPLITTER * a
-            var abig = c - a
-            var ahi = c - abig
-            var alo = a - ahi
-
-            var d = SPLITTER * b
-            var bbig = d - b
-            var bhi = d - bbig
-            var blo = b - bhi
-
-            var err1 = x - (ahi * bhi)
-            var err2 = err1 - (alo * bhi)
-            var err3 = err2 - (ahi * blo)
-
-            var y = alo * blo - err3
-
-            if (result) {
-                result[0] = y
-                result[1] = x
-                return result
+        if (index === undefined) {
+            const ret = [];
+            for (let i = 0; i < this.triangles.length; ++i) {
+                const t = this.getTriangle(i);
+                if (t) ret.push(t);
             }
-
-            return [y, x]
-        }
-    }, {}],
-    23: [function (require, module, exports) {
-        "use strict"
-
-        module.exports = fastTwoSum
-
-        function fastTwoSum(a, b, result) {
-            var x = a + b
-            var bv = x - a
-            var av = x - bv
-            var br = b - bv
-            var ar = a - av
-            if (result) {
-                result[0] = ar + br
-                result[1] = x
-                return result
-            }
-            return [ar + br, x]
-        }
-    }, {}],
-    24: [function (require, module, exports) {
-        "use strict";
-        "use restrict";
-
-        module.exports = UnionFind;
-
-        function UnionFind(count) {
-            this.roots = new Array(count);
-            this.ranks = new Array(count);
-
-            for (var i = 0; i < count; ++i) {
-                this.roots[i] = i;
-                this.ranks[i] = 0;
-            }
+            return ret;
         }
 
-        var proto = UnionFind.prototype
+        // Check if index is valid
+        if (index < 0 || index >= this.triangles.length) return null;
 
-        Object.defineProperty(proto, "length", {
-            "get": function () {
-                return this.roots.length
+        const triangle = this.triangles[index];
+
+        // Check if this is an infinite triangle (containing -1)
+        if (triangle.includes(-1)) return null;
+
+        // Map triangle indices to actual positions
+        return triangle.map(pointIndex => this.points[pointIndex]);
+    };
+
+    /**
+     * Collects all finite triangles incident to a given point index.
+     *
+     * This helper is useful when estimating local curvature around an anchor, extracting
+     * neighbor relationships, or computing Laplacian smoothing weights because it returns
+     * only the bounded triangles that share the selected point.
+     *
+     * @param {number} point_index Target point index within {@link Voronoi#points}.
+     * @returns {Array<Array<Array<number>>>} Array of triangles touching the point.
+     * @example
+     * const incident = vor.getPointTriangles(2);
+     * const neighbours = new Set(incident.flat().map(([x, y]) => `${x},${y}`));
+     */
+    Voronoi.prototype.getPointTriangles = function (point_index) {
+        // Check if point_index is valid
+        if (point_index < 0 || point_index >= this.points.length) return [];
+
+        const result = [];
+
+        // Iterate through all triangles
+        for (let i = 0; i < this.triangles.length; i++) {
+            const triangle = this.triangles[i];
+
+            // If the triangle contains our point and is finite, add it to results
+            if (triangle.includes(point_index) && !triangle.includes(-1)) {
+                result.push(this.getTriangle(i));
             }
+        }
+
+        return result;
+    };
+
+    Snap.registerClass("Voronoi", Voronoi);
+
+    /**
+     * Builds a Voronoi diagram for the supplied points.
+     *
+     * Behind the scenes the function delegates to the lightweight {@link module:voronoi} implementation and
+     * then wraps the result in a {@link Voronoi} helper so callers can seamlessly transition between the
+     * Voronoi and Delaunay representations. Both array-based (`[[x, y], ...]`) and object-based (`[{x, y}]`)
+     * coordinate collections are accepted and automatically normalised.
+     *
+     * Typical use cases include:
+     * - Highlighting the Voronoi cell beneath the pointer for interaction heavy UIs.
+     * - Computing adjacency graphs for mesh editing or path finding.
+     * - Exporting diagram data to downstream data visualisation pipelines.
+     *
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points 2D points as `[x, y]` tuples or `{x, y}` objects.
+     * @returns {Voronoi} Voronoi helper exposing convenience methods.
+     * @example
+     * const anchors = [{x: 10, y: 15}, {x: 80, y: 35}, {x: 50, y: 90}];
+     * const vor = Snap.voronoi(anchors);
+     * paper.path("M" + vor.getPolygon(0).join("L") + "Z").attr({fill: "rgba(0,0,0,0.1)"});
+     */
+    Snap.voronoi = function (points) {
+        const is_objPoint = points[0].hasOwnProperty("x");
+        if (is_objPoint) points = toArrayPoints(points);
+        const vor = _voronoi(points);
+        if (is_objPoint) vor.positions = toObjPoints(vor.positions);
+        return new Voronoi(points, vor.cells, vor.positions, vor.triangles);
+    };
+
+    /**
+     * Performs a stable merge sort using the supplied comparator.
+     *
+     * This internal helper powers geometric routines that require deterministic ordering, such as the
+     * divide-and-conquer closest-pair solver.  It operates on shallow copies of the input array so callers
+     * do not need to worry about mutating upstream data structures.
+     *
+     * @param {Array<*>} points Items to sort.
+     * @param {Function} comp Comparator returning a negative, zero, or positive value.
+     * @returns {Array<*>} Sorted copy of `points`.
+     */
+    function mergeSort(points, comp) {
+        if (points.length < 2) return points;
+
+        const n = points.length;
+        let i = 0,
+            j = 0;
+        const leftN = Math.floor(n / 2),
+            rightN = leftN;
+
+
+        const leftPart = mergeSort(points.slice(0, leftN), comp),
+            rightPart = mergeSort(points.slice(rightN), comp);
+
+        const sortedPart = [];
+
+        while ((i < leftPart.length) && (j < rightPart.length)) {
+            if (comp(leftPart[i], rightPart[j]) < 0) {
+                sortedPart.push(leftPart[i]);
+                i += 1;
+            } else {
+                sortedPart.push(rightPart[j]);
+                j += 1;
+            }
+        }
+        while (i < leftPart.length) {
+            sortedPart.push(leftPart[i]);
+            i += 1;
+        }
+        while (j < rightPart.length) {
+            sortedPart.push(rightPart[j]);
+            j += 1;
+        }
+        return sortedPart;
+    }
+
+    /**
+     * Converts `[x, y]` tuples to `{x, y}` objects.
+     *
+     * The plugin accepts both tuple and object shapes for coordinates.  Normalising them with this helper
+     * ensures downstream routines can rely on property access without branching on array indexes.
+     *
+     * @param {Array<Array<number>>} point_arrray Array of coordinate tuples.
+     * @returns {Array<{x:number,y:number}>} Converted object points.
+     */
+    function toObjPoints(point_arrray) {
+        return point_arrray.map((p) => {
+            return {x: p[0], y: p[1]}
+        })
+    }
+
+    /**
+     * Converts `{x, y}` points to `[x, y]` tuples.
+     *
+     * Symmetric companion to {@link toObjPoints}.  Some third-party computational geometry packages expect
+     * plain arrays, so this helper keeps interoperability friction-free.
+     *
+     * @param {Array<{x:number,y:number}>} point_arrray Array of object-based coordinates.
+     * @returns {Array<Array<number>>} Converted tuple points.
+     */
+    function toArrayPoints(point_arrray) {
+        return point_arrray.map((p) => {
+            return [p.x, p.y];
+        })
+    }
+
+    /**
+     * Recursive divide-and-conquer closest pair solver.
+     *
+     * This is the workhorse behind {@link Snap.closestPair}.  It expects the input to be pre-sorted on both
+     * axes and recursively partitions the point set, checking only a constant window of candidates in the
+     * merge step.  The implementation follows the classic $\Theta(n \log n)$ algorithm.
+     *
+     * @private
+     * @param {Array<{x:number,y:number}>} Px Points sorted by the X axis.
+     * @param {Array<{x:number,y:number}>} Py Points sorted by the Y axis.
+     * @returns {{distance:number, pair:Array<{x:number,y:number}>}} Closest pair information.
+     */
+    function _closestPair(Px, Py) {
+        let d;
+        if (Px.length < 2) return {distance: Infinity, pair: [{x: 0, y: 0}, {x: 0, y: 0}]};
+        if (Px.length < 3) {
+            //find euclid distance
+            d = Math.sqrt(Math.pow(Math.abs(Px[1].x - Px[0].x), 2) + Math.pow(Math.abs(Px[1].y - Px[0].y), 2));
+            return {
+                distance: d,
+                pair: [Px[0], Px[1]]
+            };
+        }
+
+        const n = Px.length,
+            leftN = Math.floor(n / 2),
+            rightN = leftN;
+
+        const Xl = Px.slice(0, leftN),
+            Xr = Px.slice(rightN),
+            Xm = Xl[leftN - 1],
+            Yl = [],
+            Yr = [];
+        //separate Py
+        for (var i = 0; i < Py.length; i += 1) {
+            if (Py[i].x <= Xm.x)
+                Yl.push(Py[i]);
+            else
+                Yr.push(Py[i]);
+        }
+
+        const dLeft = _closestPair(Xl, Yl),
+            dRight = _closestPair(Xr, Yr);
+
+        let minDelta = dLeft.distance,
+            clPair = dLeft.pair;
+        if (dLeft.distance > dRight.distance) {
+            minDelta = dRight.distance;
+            clPair = dRight.pair;
+        }
+
+
+        //filter points around Xm within delta (minDelta)
+        const closeY = [];
+        for (i = 0; i < Py.length; i += 1) {
+            if (Math.abs(Py[i].x - Xm.x) < minDelta) closeY.push(Py[i]);
+        }
+        //find min within delta. 8 steps max
+        for (i = 0; i < closeY.length; i += 1) {
+            for (let j = i + 1; j < Math.min((i + 8), closeY.length); j += 1) {
+                d = Math.sqrt(Math.pow(Math.abs(closeY[j].x - closeY[i].x), 2) + Math.pow(Math.abs(closeY[j].y - closeY[i].y), 2));
+                if (d < minDelta) {
+                    minDelta = d;
+                    clPair = [closeY[i], closeY[j]]
+                }
+            }
+        }
+
+        return {
+            distance: minDelta,
+            pair: clPair
+        };
+    }
+
+    /**
+     * Finds the closest pair of 2D points using a divide-and-conquer strategy.
+     *
+     * The helper accepts heterogeneous inputs and returns both the minimal distance and the participating points.
+     * Typical scenarios include collision avoidance for draggable anchors, proximity-based snapping, or
+     * pre-filtering segments before executing more expensive geometric tests.
+     *
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Input points.
+     * @returns {{distance:number, pair:Array<{x:number,y:number}>}} Closest pair data.
+     * @example
+     * const {distance, pair} = Snap.closestPair([[10, 20], [35, 25], [18, 24]]);
+     * console.log(distance); // -> shortest separation
+     * console.log(pair);     // -> the two closest anchors as {x, y} objects
+     */
+    Snap.closestPair = function (points) {
+        if (Array.isArray(points[0])) points = toObjPoints(points);
+        const sortX = function (a, b) {
+            return (a.x < b.x) ? -1 : ((a.x > b.x) ? 1 : 0);
+        };
+        const sortY = function (a, b) {
+            return (a.y < b.y) ? -1 : ((a.y > b.y) ? 1 : 0);
+        };
+        const Px = mergeSort(points, sortX);
+        const Py = mergeSort(points, sortY);
+
+        return _closestPair(Px, Py);
+    };
+
+
+    // function Node(obj, dimension, parent) {
+    //     this.obj = obj;
+    //     this.left = null;
+    //     this.right = null;
+    //     this.parent = parent;
+    //     this.dimension = dimension;
+    // }
+    //
+    // function KD_Tree(points, metric, dimensions) {
+    //     if (Array.isArray(points[0])) points = toObjPoints(points);
+    //     metric = metric || function (a, b) {
+    //         return Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2);
+    //     }
+    //     dimensions = dimensions || ["x", "y"]
+    //
+    //     var self = this;
+    //
+    //     function buildTree(points, depth, parent) {
+    //         var dim = depth % dimensions.length,
+    //             median,
+    //             node;
+    //
+    //         if (points.length === 0) {
+    //             return null;
+    //         }
+    //         if (points.length === 1) {
+    //             return new Node(points[0], dim, parent);
+    //         }
+    //
+    //         points.sort(function (a, b) {
+    //             return a[dimensions[dim]] - b[dimensions[dim]];
+    //         });
+    //
+    //         median = Math.floor(points.length / 2);
+    //         node = new Node(points[median], dim, parent);
+    //         node.left = buildTree(points.slice(0, median), depth + 1, node);
+    //         node.right = buildTree(points.slice(median + 1), depth + 1, node);
+    //
+    //         return node;
+    //     }
+    //
+    //     // Reloads a serialied tree
+    //     function loadTree(data) {
+    //         // Just need to restore the `parent` parameter
+    //         self.root = data;
+    //
+    //         function restoreParent(root) {
+    //             if (root.left) {
+    //                 root.left.parent = root;
+    //                 restoreParent(root.left);
+    //             }
+    //
+    //             if (root.right) {
+    //                 root.right.parent = root;
+    //                 restoreParent(root.right);
+    //             }
+    //         }
+    //
+    //         restoreParent(self.root);
+    //     }
+    //
+    //     // If points is not an array, assume we're loading a pre-built tree
+    //     if (!Array.isArray(points)) loadTree(points, metric, dimensions);
+    //     else this.root = buildTree(points, 0, null);
+    //
+    //     // Convert to a JSON serializable structure; this just requires removing
+    //     // the `parent` property
+    //     this.toJSON = function (src) {
+    //         if (!src) src = this.root;
+    //         var dest = new Node(src.obj, src.dimension, null);
+    //         if (src.left) dest.left = self.toJSON(src.left);
+    //         if (src.right) dest.right = self.toJSON(src.right);
+    //         return dest;
+    //     };
+    //
+    //     this.insert = function (point) {
+    //         function innerSearch(node, parent) {
+    //
+    //             if (node === null) {
+    //                 return parent;
+    //             }
+    //
+    //             var dimension = dimensions[node.dimension];
+    //             if (point[dimension] < node.obj[dimension]) {
+    //                 return innerSearch(node.left, node);
+    //             } else {
+    //                 return innerSearch(node.right, node);
+    //             }
+    //         }
+    //
+    //         var insertPosition = innerSearch(this.root, null),
+    //             newNode,
+    //             dimension;
+    //
+    //         if (insertPosition === null) {
+    //             this.root = new Node(point, 0, null);
+    //             return;
+    //         }
+    //
+    //         newNode = new Node(point, (insertPosition.dimension + 1) % dimensions.length, insertPosition);
+    //         dimension = dimensions[insertPosition.dimension];
+    //
+    //         if (point[dimension] < insertPosition.obj[dimension]) {
+    //             insertPosition.left = newNode;
+    //         } else {
+    //             insertPosition.right = newNode;
+    //         }
+    //     };
+    //
+    //     this.remove = function (point) {
+    //         var node;
+    //
+    //         function nodeSearch(node) {
+    //             if (node === null) {
+    //                 return null;
+    //             }
+    //
+    //             if (node.obj === point) {
+    //                 return node;
+    //             }
+    //
+    //             var dimension = dimensions[node.dimension];
+    //
+    //             if (point[dimension] < node.obj[dimension]) {
+    //                 return nodeSearch(node.left, node);
+    //             } else {
+    //                 return nodeSearch(node.right, node);
+    //             }
+    //         }
+    //
+    //         function removeNode(node) {
+    //             var nextNode,
+    //                 nextObj,
+    //                 pDimension;
+    //
+    //             function findMin(node, dim) {
+    //                 var dimension,
+    //                     own,
+    //                     left,
+    //                     right,
+    //                     min;
+    //
+    //                 if (node === null) {
+    //                     return null;
+    //                 }
+    //
+    //                 dimension = dimensions[dim];
+    //
+    //                 if (node.dimension === dim) {
+    //                     if (node.left !== null) {
+    //                         return findMin(node.left, dim);
+    //                     }
+    //                     return node;
+    //                 }
+    //
+    //                 own = node.obj[dimension];
+    //                 left = findMin(node.left, dim);
+    //                 right = findMin(node.right, dim);
+    //                 min = node;
+    //
+    //                 if (left !== null && left.obj[dimension] < own) {
+    //                     min = left;
+    //                 }
+    //                 if (right !== null && right.obj[dimension] < min.obj[dimension]) {
+    //                     min = right;
+    //                 }
+    //                 return min;
+    //             }
+    //
+    //             if (node.left === null && node.right === null) {
+    //                 if (node.parent === null) {
+    //                     self.root = null;
+    //                     return;
+    //                 }
+    //
+    //                 pDimension = dimensions[node.parent.dimension];
+    //
+    //                 if (node.obj[pDimension] < node.parent.obj[pDimension]) {
+    //                     node.parent.left = null;
+    //                 } else {
+    //                     node.parent.right = null;
+    //                 }
+    //                 return;
+    //             }
+    //
+    //             // If the right subtree is not empty, swap with the minimum element on the
+    //             // node's dimension. If it is empty, we swap the left and right subtrees and
+    //             // do the same.
+    //             if (node.right !== null) {
+    //                 nextNode = findMin(node.right, node.dimension);
+    //                 nextObj = nextNode.obj;
+    //                 removeNode(nextNode);
+    //                 node.obj = nextObj;
+    //             } else {
+    //                 nextNode = findMin(node.left, node.dimension);
+    //                 nextObj = nextNode.obj;
+    //                 removeNode(nextNode);
+    //                 node.right = node.left;
+    //                 node.left = null;
+    //                 node.obj = nextObj;
+    //             }
+    //
+    //         }
+    //
+    //         node = nodeSearch(self.root);
+    //
+    //         if (node === null) {
+    //             return;
+    //         }
+    //
+    //         removeNode(node);
+    //     };
+    //
+    //     this.nearest = function (point, maxNodes, maxDistance) {
+    //         maxNodes = maxNodes || 1;
+    //         if (Array.isArray(point)){
+    //             let _p = point;
+    //             point = {};
+    //             _p.forEach((v,i)=>{
+    //                 point[dimensions[i]] = v;
+    //             })
+    //         }
+    //         var i,
+    //             result,
+    //             bestNodes;
+    //
+    //         bestNodes = new BinaryHeap(
+    //             function (e) {
+    //                 return -e[1];
+    //             }
+    //         );
+    //
+    //         function nearestSearch(node) {
+    //             var bestChild,
+    //                 dimension = dimensions[node.dimension],
+    //                 ownDistance = metric(point, node.obj),
+    //                 linearPoint = {},
+    //                 linearDistance,
+    //                 otherChild,
+    //                 i;
+    //
+    //             function saveNode(node, distance) {
+    //                 bestNodes.push([node, distance]);
+    //                 if (bestNodes.size() > maxNodes) {
+    //                     bestNodes.pop();
+    //                 }
+    //             }
+    //
+    //             for (i = 0; i < dimensions.length; i += 1) {
+    //                 if (i === node.dimension) {
+    //                     linearPoint[dimensions[i]] = point[dimensions[i]];
+    //                 } else {
+    //                     linearPoint[dimensions[i]] = node.obj[dimensions[i]];
+    //                 }
+    //             }
+    //
+    //             linearDistance = metric(linearPoint, node.obj);
+    //
+    //             if (node.right === null && node.left === null) {
+    //                 if (bestNodes.size() < maxNodes || ownDistance < bestNodes.peek()[1]) {
+    //                     saveNode(node, ownDistance);
+    //                 }
+    //                 return;
+    //             }
+    //
+    //             if (node.right === null) {
+    //                 bestChild = node.left;
+    //             } else if (node.left === null) {
+    //                 bestChild = node.right;
+    //             } else {
+    //                 if (point[dimension] < node.obj[dimension]) {
+    //                     bestChild = node.left;
+    //                 } else {
+    //                     bestChild = node.right;
+    //                 }
+    //             }
+    //
+    //             nearestSearch(bestChild);
+    //
+    //             if (bestNodes.size() < maxNodes || ownDistance < bestNodes.peek()[1]) {
+    //                 saveNode(node, ownDistance);
+    //             }
+    //
+    //             if (bestNodes.size() < maxNodes || Math.abs(linearDistance) < bestNodes.peek()[1]) {
+    //                 if (bestChild === node.left) {
+    //                     otherChild = node.right;
+    //                 } else {
+    //                     otherChild = node.left;
+    //                 }
+    //                 if (otherChild !== null) {
+    //                     nearestSearch(otherChild);
+    //                 }
+    //             }
+    //         }
+    //
+    //         if (maxDistance) {
+    //             for (i = 0; i < maxNodes; i += 1) {
+    //                 bestNodes.push([null, maxDistance]);
+    //             }
+    //         }
+    //
+    //         if (self.root)
+    //             nearestSearch(self.root);
+    //
+    //         result = [];
+    //
+    //         for (i = 0; i < Math.min(maxNodes, bestNodes.content.length); i += 1) {
+    //             if (bestNodes.content[i][0]) {
+    //                 result.push([bestNodes.content[i][0].obj, bestNodes.content[i][1]]);
+    //             }
+    //         }
+    //         return result;
+    //     };
+    //
+    //     this.balanceFactor = function () {
+    //         function height(node) {
+    //             if (node === null) {
+    //                 return 0;
+    //             }
+    //             return Math.max(height(node.left), height(node.right)) + 1;
+    //         }
+    //
+    //         function count(node) {
+    //             if (node === null) {
+    //                 return 0;
+    //             }
+    //             return count(node.left) + count(node.right) + 1;
+    //         }
+    //
+    //         return height(self.root) / (Math.log(count(self.root)) / Math.log(2));
+    //     };
+    // }
+
+    /**
+     * Attaches the original point descriptors to the KDTree instance for downstream lookups.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Original point payloads.
+     */
+    KDTree.prototype.attachPoints = function (points) {
+        this.points = points;
+    }
+
+    /**
+     * Finds the nearest neighbours while reporting axis-aligned offsets and Euclidean distance.
+     * @deprecated This overload is superseded by the streamlined variant defined later in this file.
+     * @param {Array<number>|{x:number,y:number}} point Query point.
+     * @param {number} [num=1] Number of neighbours to return.
+     * @param {boolean} [sqere_dist=false] When `true`, returns squared distance values.
+     * @returns {Array|Array[]} Array describing the nearest neighbour(s) with axis deltas.
+     */
+    KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
+        num = Math.floor(num || 1);
+        let points = this.nearest(point, num);
+
+        switch (this._ax) {
+            case 1:
+                if (num > 1) {
+                    return points.map((p) => [p,
+                        Math.abs((point[0] || point.x || 0) - (p[0] || p.x || 0)),
+                        dist(point, p)])
+                } else {
+                    return [points,
+                        Math.abs((point[0] || point.x || 0) - (points[0] || points.x || 0)),
+                        dist(point, points, sqere_dist)]
+                }
+            case 2:
+                if (num > 1) {
+                    return points.map((p) => [p,
+                        Math.abs((point[1] || point.y || 0) - (p[1] || p.y || 0)),
+                        dist(point, p)])
+                } else {
+                    return [points,
+                        Math.abs((point[1] || point.y || 0) - (points[1] || points.y || 0)),
+                        dist(point, points, sqere_dist)]
+                }
+            default:
+                if (num > 1) {
+                    return points.map((p) => [p, dist(point, p)])
+                } else {
+                    return [points, dist(point, points, sqere_dist)]
+                }
+        }
+    }
+
+
+    /**
+     * Computes the Euclidean or squared distance between two 2D points.
+     * @param {Array<number>|{x:number,y:number}} p1 First point.
+     * @param {Array<number>|{x:number,y:number}} p2 Second point.
+     * @param {boolean} [sq=false] When `true`, returns squared distance.
+     * @returns {number} Distance between `p1` and `p2`.
+     */
+    function dist(p1, p2, sq) {
+        if (sq) {
+            return Snap.len2(
+                p1.x || p1[0] || 0,
+                p1.y || p1[1] || 0,
+                p2.x || p2[0] || 0,
+                p2.y || p2[1] || 0,
+            )
+        } else {
+            return Snap.len(
+                p1.x || p1[0] || 0,
+                p1.y || p1[1] || 0,
+                p2.x || p2[0] || 0,
+                p2.y || p2[1] || 0,
+            )
+        }
+
+    }
+
+    /**
+     * Finds the nearest neighbours using the KDTree, returning only Euclidean distance metadata.
+     * @param {Array<number>|{x:number,y:number}} point Query point.
+     * @param {number} [num=1] Number of neighbours to retrieve.
+     * @param {boolean} [sqere_dist=false] When `true`, distances are squared.
+     * @returns {Array|Array[]} Nearest neighbour result.
+     */
+    KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
+        num = Math.floor(num || 1);
+        let points = this.nearest(point, num);
+
+        if (num > 1) {
+            return points.map((p) => [p, dist(point, p)])
+        } else {
+            return [points, dist(point, points, sqere_dist)]
+        }
+    }
+
+    /**
+     * Creates a KDTree helper for the given set of points.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Points to index.
+     * @param {('x'|'y'|1|undefined)} [dim] Optional axis restriction (`"x"`/`"y"` or `1`).
+  * @returns {KDTree} KDTree instance augmented with metadata.
+     */
+    Snap.kdTree = function (points, dim) {
+        let xs, ys, ax = [];
+        const x_only = dim === 1 || dim === "x";
+        const y_only = dim === 1 || dim === "y";
+        if (!dim || x_only) {
+            xs = points.map((p) => (p.hasOwnProperty("x") ? p.x : p[0]));
+            ax.push(xs)
+        }
+
+        if (!dim || y_only) {
+            ys = points.map((p) => (p.hasOwnProperty("y") ? p.y : p[1]));
+            ax.push(ys)
+        }
+
+        let kd = KDTree.fromAxes(ax)
+        kd._ax = (x_only) ? 1 : ((y_only) ? 2 : null)
+        kd.attachPoints(points);
+
+        return kd;
+    }
+
+    /**
+     * Builds a KDTree constrained to the X axis.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Points to index.
+  * @returns {KDTree} KDTree instance.
+     */
+    Snap.kdTreeX = function (points) {
+        return Snap.kdTree(points, "x");
+    }
+
+    /**
+     * Builds a KDTree constrained to the Y axis.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Points to index.
+  * @returns {KDTree} KDTree instance.
+     */
+    Snap.kdTreeY = function (points) {
+        return Snap.kdTree(points, "y");
+    }
+
+    // Binary heap implementation from:
+    // http://eloquentjavascript.net/appendix2.html
+
+    /**
+     * @class BinaryHeap
+     * @classdesc Minimal binary heap implementation parametrized by a scoring function.
+     * @param {Function} scoreFunction Function used to score items in the heap.
+     */
+    function BinaryHeap(scoreFunction) {
+        this.content = [];
+        this.scoreFunction = scoreFunction;
+    }
+
+    BinaryHeap.prototype = {
+        push: function (element) {
+            // Add the new element to the end of the array.
+            this.content.push(element);
+            // Allow it to bubble up.
+            this.bubbleUp(this.content.length - 1);
+        },
+
+        pop: function () {
+            // Store the first element so we can return it later.
+            var result = this.content[0];
+            // Get the element at the end of the array.
+            var end = this.content.pop();
+            // If there are any elements left, put the end element at the
+            // start, and let it sink down.
+            if (this.content.length > 0) {
+                this.content[0] = end;
+                this.sinkDown(0);
+            }
+            return result;
+        },
+
+        peek: function () {
+            return this.content[0];
+        },
+
+        remove: function (node) {
+            var len = this.content.length;
+            // To remove a value, we must search through the array to find
+            // it.
+            for (var i = 0; i < len; i++) {
+                if (this.content[i] == node) {
+                    // When it is found, the process seen in 'pop' is repeated
+                    // to fill up the hole.
+                    var end = this.content.pop();
+                    if (i != len - 1) {
+                        this.content[i] = end;
+                        if (this.scoreFunction(end) < this.scoreFunction(node))
+                            this.bubbleUp(i);
+                        else
+                            this.sinkDown(i);
+                    }
+                    return;
+                }
+            }
+            throw new Error("Node not found.");
+        },
+
+        size: function () {
+            return this.content.length;
+        },
+
+        bubbleUp: function (n) {
+            // Fetch the element that has to be moved.
+            var element = this.content[n];
+            // When at 0, an element can not go up any further.
+            while (n > 0) {
+                // Compute the parent element's index, and fetch it.
+                var parentN = Math.floor((n + 1) / 2) - 1,
+                    parent = this.content[parentN];
+                // Swap the elements if the parent is greater.
+                if (this.scoreFunction(element) < this.scoreFunction(parent)) {
+                    this.content[parentN] = element;
+                    this.content[n] = parent;
+                    // Update 'n' to continue at the new position.
+                    n = parentN;
+                }
+                // Found a parent that is less, no need to move it further.
+                else {
+                    break;
+                }
+            }
+        },
+
+        sinkDown: function (n) {
+            // Look up the target element and its score.
+            var length = this.content.length,
+                element = this.content[n],
+                elemScore = this.scoreFunction(element);
+
+            while (true) {
+                // Compute the indices of the child elements.
+                var child2N = (n + 1) * 2, child1N = child2N - 1;
+                // This is used to store the new position of the element,
+                // if any.
+                var swap = null;
+                // If the first child exists (is inside the array)...
+                if (child1N < length) {
+                    // Look it up and compute its score.
+                    var child1 = this.content[child1N],
+                        child1Score = this.scoreFunction(child1);
+                    // If the score is less than our element's, we need to swap.
+                    if (child1Score < elemScore)
+                        swap = child1N;
+                }
+                // Do the same checks for the other child.
+                if (child2N < length) {
+                    var child2 = this.content[child2N],
+                        child2Score = this.scoreFunction(child2);
+                    if (child2Score < (swap == null ? elemScore : child1Score)) {
+                        swap = child2N;
+                    }
+                }
+
+                // If the element needs to be moved, swap it, and continue.
+                if (swap != null) {
+                    this.content[n] = this.content[swap];
+                    this.content[swap] = element;
+                    n = swap;
+                }
+                // Otherwise, we are done.
+                else {
+                    break;
+                }
+            }
+        }
+    };
+
+    /**
+     * Creates a binary heap backed by the provided scoring function.
+     * @param {Function} score Score function returning numeric priority values.
+     * @returns {BinaryHeap}
+     */
+    Snap.binaryHeap = function (score) {
+        return new BinaryHeap(score);
+    }
+
+    /**
+     * Generates random point samples within the supplied bounds.
+     * @param {number} num Amount of random points.
+     * @param {Array<number>|number} x_dim Range `[min, max]` or max value for the X axis.
+     * @param {Array<number>|number} y_dim Range `[min, max]` or max value for the Y axis.
+     * @returns {Array<{x:number,y:number}>} Randomly generated points.
+     */
+    Snap.randomPoints = function (num, x_dim, y_dim) {
+        if (typeof x_dim === "number") x_dim = [0, x_dim];
+        if (typeof y_dim === "number") y_dim = [0, y_dim];
+        const res = [];
+        const min_x = x_dim[0];
+        const max_x = x_dim[1];
+        const min_y = y_dim[0];
+        const max_y = y_dim[1];
+        for (let i = 0; i < num; ++i) {
+            res.push({
+                x: min_x + Math.random() * (max_x - min_x),
+                y: min_y + Math.random() * (max_y - min_y),
+            })
+        }
+        return res;
+    }
+
+
+    /**
+     * Brute-force closest pair between two point sets.
+     * @private
+     * @param {Array<{x:number,y:number}>} ps1 First point set.
+     * @param {Array<{x:number,y:number}>} ps2 Second point set.
+     * @returns {{d:number,pair:Array<{x:number,y:number}>}} Closest pair descriptor.
+     */
+    function clPairs_BF(ps1, ps2) {
+        let d = Infinity,
+            p1, p2;
+        ps1.forEach((p) => {
+            ps2.forEach((q) => {
+                const dis = Snap.len2(p.x, p.y, q.x, q.y);
+                if (dis < d) {
+                    d = dis;
+                    p1 = p;
+                    p2 = q;
+                }
+            })
         })
 
-        proto.makeSet = function () {
-            var n = this.roots.length;
-            this.roots.push(n);
-            this.ranks.push(0);
-            return n;
+        return {d: Math.sqrt(d), pair: [p1, p2]};
+    }
+
+    /**
+     * KDTree-accelerated closest pair search between two point sets.
+     * @private
+     * @param {Array<{x:number,y:number}>} ps1 First point set.
+     * @param {Array<{x:number,y:number}>} ps2 Second point set.
+     * @returns {{d:number,pair:Array<{x:number,y:number}>}} Closest pair descriptor.
+     */
+    function clPairs_KD(ps1, ps2) {
+        let swap = false
+        if (ps2.length > ps1.length) {
+            [ps2, ps1] = [ps1, ps2];
+            swap = true;
         }
 
-        proto.find = function (x) {
-            var x0 = x
-            var roots = this.roots;
-            while (roots[x] !== x) {
-                x = roots[x]
-            }
-            while (roots[x0] !== x) {
-                var y = roots[x0]
-                roots[x0] = x
-                x0 = y
-            }
-            return x;
-        }
-
-        proto.link = function (x, y) {
-            var xr = this.find(x)
-                , yr = this.find(y);
-            if (xr === yr) {
-                return;
-            }
-            var ranks = this.ranks
-                , roots = this.roots
-                , xd = ranks[xr]
-                , yd = ranks[yr];
-            if (xd < yd) {
-                roots[xr] = yr;
-            } else if (yd < xd) {
-                roots[yr] = xr;
-            } else {
-                roots[yr] = xr;
-                ++ranks[xr];
-            }
-        }
-    }, {}],
-    25: [function (require, module, exports) {
-        "use strict"
-
-        function unique_pred(list, compare) {
-            var ptr = 1
-                , len = list.length
-                , a = list[0], b = list[0]
-            for (var i = 1; i < len; ++i) {
-                b = a
-                a = list[i]
-                if (compare(a, b)) {
-                    if (i === ptr) {
-                        ptr++
-                        continue
-                    }
-                    list[ptr++] = a
-                }
-            }
-            list.length = ptr
-            return list
-        }
-
-        function unique_eq(list) {
-            var ptr = 1
-                , len = list.length
-                , a = list[0], b = list[0]
-            for (var i = 1; i < len; ++i, b = a) {
-                b = a
-                a = list[i]
-                if (a !== b) {
-                    if (i === ptr) {
-                        ptr++
-                        continue
-                    }
-                    list[ptr++] = a
-                }
-            }
-            list.length = ptr
-            return list
-        }
-
-        function unique(list, compare, sorted) {
-            if (list.length === 0) {
-                return list
-            }
-            if (compare) {
-                if (!sorted) {
-                    list.sort(compare)
-                }
-                return unique_pred(list, compare)
-            }
-            if (!sorted) {
-                list.sort()
-            }
-            return unique_eq(list)
-        }
-
-        module.exports = unique
-
-    }, {}],
-    26: [function (require, module, exports) {
-        Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-            const _voronoi = require("./voronoi.js");
-            const KDTree = require('mnemonist/kd-tree');
-
-            function Voronoi(points, cells, positions, triangles) {
-                this.cells = cells;
-                this.positions = positions;
-                this.triangles = triangles;
-                this.points = points;
-                this.length = cells.length;
-            }
-
-            Voronoi.prototype.getPolygon = function (index) {
-
-                if (index === undefined) {
-                    const ret = [];
-                    for (let i = 0; i < this.length; ++i) {
-                        ret.push(this.getPolygon(i))
-                    }
-                    return ret;
-                }
-
-                if (index >= this.length) return;
-                let cell = this.cells[index];
-                cell = cell.filter((v) => v !== -1)
-                const map = cell.map((p_inx) => {
-                    return this.positions[p_inx]
-                });
-                return map;
-            }
-
-            Voronoi.prototype.getTriangle = function (index) {
-
-                if (index === undefined) {
-                    const ret = [];
-                    for (let i = 0; i < this.triangles.length; ++i) {
-                        const t = this.getTriangle(i);
-                        if (t) ret.push(t);
-                    }
-                    return ret;
-                }
-
-                // Check if index is valid
-                if (index < 0 || index >= this.triangles.length) return null;
-
-                const triangle = this.triangles[index];
-
-                // Check if this is an infinite triangle (containing -1)
-                if (triangle.includes(-1)) return null;
-
-                // Map triangle indices to actual positions
-                return triangle.map(pointIndex => this.points[pointIndex]);
-            };
-
-            Voronoi.prototype.getPointTriangles = function (point_index) {
-                // Check if point_index is valid
-                if (point_index < 0 || point_index >= this.points.length) return [];
-
-                const result = [];
-
-                // Iterate through all triangles
-                for (let i = 0; i < this.triangles.length; i++) {
-                    const triangle = this.triangles[i];
-
-                    // If the triangle contains our point and is finite, add it to results
-                    if (triangle.includes(point_index) && !triangle.includes(-1)) {
-                        result.push(this.getTriangle(i));
-                    }
-                }
-
-                return result;
-            };
-
-            Snap.registerClass("Voronoi", Voronoi);
-
-            Snap.voronoi = function (points) {
-                const is_objPoint = points[0].hasOwnProperty("x");
-                if (is_objPoint) points = toArrayPoints(points);
-                const vor = _voronoi(points);
-                if (is_objPoint) vor.positions = toObjPoints(vor.positions);
-                return new Voronoi(points, vor.cells, vor.positions, vor.triangles);
-            };
-
-            function mergeSort(points, comp) {
-                if (points.length < 2) return points;
-
-                const n = points.length;
-                let i = 0,
-                    j = 0;
-                const leftN = Math.floor(n / 2),
-                    rightN = leftN;
-
-
-                const leftPart = mergeSort(points.slice(0, leftN), comp),
-                    rightPart = mergeSort(points.slice(rightN), comp);
-
-                const sortedPart = [];
-
-                while ((i < leftPart.length) && (j < rightPart.length)) {
-                    if (comp(leftPart[i], rightPart[j]) < 0) {
-                        sortedPart.push(leftPart[i]);
-                        i += 1;
-                    } else {
-                        sortedPart.push(rightPart[j]);
-                        j += 1;
-                    }
-                }
-                while (i < leftPart.length) {
-                    sortedPart.push(leftPart[i]);
-                    i += 1;
-                }
-                while (j < rightPart.length) {
-                    sortedPart.push(rightPart[j]);
-                    j += 1;
-                }
-                return sortedPart;
-            }
-
-            function toObjPoints(point_arrray) {
-                return point_arrray.map((p) => {
-                    return {x: p[0], y: p[1]}
-                })
-            }
-
-            function toArrayPoints(point_arrray) {
-                return point_arrray.map((p) => {
-                    return [p.x, p.y];
-                })
-            }
-
-            function _closestPair(Px, Py) {
-                let d;
-                if (Px.length < 2) return {distance: Infinity, pair: [{x: 0, y: 0}, {x: 0, y: 0}]};
-                if (Px.length < 3) {
-                    //find euclid distance
-                    d = Math.sqrt(Math.pow(Math.abs(Px[1].x - Px[0].x), 2) + Math.pow(Math.abs(Px[1].y - Px[0].y), 2));
-                    return {
-                        distance: d,
-                        pair: [Px[0], Px[1]]
-                    };
-                }
-
-                const n = Px.length,
-                    leftN = Math.floor(n / 2),
-                    rightN = leftN;
-
-                const Xl = Px.slice(0, leftN),
-                    Xr = Px.slice(rightN),
-                    Xm = Xl[leftN - 1],
-                    Yl = [],
-                    Yr = [];
-                //separate Py
-                for (var i = 0; i < Py.length; i += 1) {
-                    if (Py[i].x <= Xm.x)
-                        Yl.push(Py[i]);
-                    else
-                        Yr.push(Py[i]);
-                }
-
-                const dLeft = _closestPair(Xl, Yl),
-                    dRight = _closestPair(Xr, Yr);
-
-                let minDelta = dLeft.distance,
-                    clPair = dLeft.pair;
-                if (dLeft.distance > dRight.distance) {
-                    minDelta = dRight.distance;
-                    clPair = dRight.pair;
-                }
-
-
-                //filter points around Xm within delta (minDelta)
-                const closeY = [];
-                for (i = 0; i < Py.length; i += 1) {
-                    if (Math.abs(Py[i].x - Xm.x) < minDelta) closeY.push(Py[i]);
-                }
-                //find min within delta. 8 steps max
-                for (i = 0; i < closeY.length; i += 1) {
-                    for (let j = i + 1; j < Math.min((i + 8), closeY.length); j += 1) {
-                        d = Math.sqrt(Math.pow(Math.abs(closeY[j].x - closeY[i].x), 2) + Math.pow(Math.abs(closeY[j].y - closeY[i].y), 2));
-                        if (d < minDelta) {
-                            minDelta = d;
-                            clPair = [closeY[i], closeY[j]]
-                        }
-                    }
-                }
-
-                return {
-                    distance: minDelta,
-                    pair: clPair
-                };
-            }
-
-            Snap.closestPair = function (points) {
-                if (Array.isArray(points[0])) points = toObjPoints(Px);
-                const sortX = function (a, b) {
-                    return (a.x < b.x) ? -1 : ((a.x > b.x) ? 1 : 0);
-                };
-                const sortY = function (a, b) {
-                    return (a.y < b.y) ? -1 : ((a.y > b.y) ? 1 : 0);
-                };
-                const Px = mergeSort(points, sortX);
-                const Py = mergeSort(points, sortY);
-
-                return _closestPair(Px, Py);
-            };
-
-
-            // function Node(obj, dimension, parent) {
-            //     this.obj = obj;
-            //     this.left = null;
-            //     this.right = null;
-            //     this.parent = parent;
-            //     this.dimension = dimension;
-            // }
-            //
-            // function KD_Tree(points, metric, dimensions) {
-            //     if (Array.isArray(points[0])) points = toObjPoints(points);
-            //     metric = metric || function (a, b) {
-            //         return Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2);
-            //     }
-            //     dimensions = dimensions || ["x", "y"]
-            //
-            //     var self = this;
-            //
-            //     function buildTree(points, depth, parent) {
-            //         var dim = depth % dimensions.length,
-            //             median,
-            //             node;
-            //
-            //         if (points.length === 0) {
-            //             return null;
-            //         }
-            //         if (points.length === 1) {
-            //             return new Node(points[0], dim, parent);
-            //         }
-            //
-            //         points.sort(function (a, b) {
-            //             return a[dimensions[dim]] - b[dimensions[dim]];
-            //         });
-            //
-            //         median = Math.floor(points.length / 2);
-            //         node = new Node(points[median], dim, parent);
-            //         node.left = buildTree(points.slice(0, median), depth + 1, node);
-            //         node.right = buildTree(points.slice(median + 1), depth + 1, node);
-            //
-            //         return node;
-            //     }
-            //
-            //     // Reloads a serialied tree
-            //     function loadTree(data) {
-            //         // Just need to restore the `parent` parameter
-            //         self.root = data;
-            //
-            //         function restoreParent(root) {
-            //             if (root.left) {
-            //                 root.left.parent = root;
-            //                 restoreParent(root.left);
-            //             }
-            //
-            //             if (root.right) {
-            //                 root.right.parent = root;
-            //                 restoreParent(root.right);
-            //             }
-            //         }
-            //
-            //         restoreParent(self.root);
-            //     }
-            //
-            //     // If points is not an array, assume we're loading a pre-built tree
-            //     if (!Array.isArray(points)) loadTree(points, metric, dimensions);
-            //     else this.root = buildTree(points, 0, null);
-            //
-            //     // Convert to a JSON serializable structure; this just requires removing
-            //     // the `parent` property
-            //     this.toJSON = function (src) {
-            //         if (!src) src = this.root;
-            //         var dest = new Node(src.obj, src.dimension, null);
-            //         if (src.left) dest.left = self.toJSON(src.left);
-            //         if (src.right) dest.right = self.toJSON(src.right);
-            //         return dest;
-            //     };
-            //
-            //     this.insert = function (point) {
-            //         function innerSearch(node, parent) {
-            //
-            //             if (node === null) {
-            //                 return parent;
-            //             }
-            //
-            //             var dimension = dimensions[node.dimension];
-            //             if (point[dimension] < node.obj[dimension]) {
-            //                 return innerSearch(node.left, node);
-            //             } else {
-            //                 return innerSearch(node.right, node);
-            //             }
-            //         }
-            //
-            //         var insertPosition = innerSearch(this.root, null),
-            //             newNode,
-            //             dimension;
-            //
-            //         if (insertPosition === null) {
-            //             this.root = new Node(point, 0, null);
-            //             return;
-            //         }
-            //
-            //         newNode = new Node(point, (insertPosition.dimension + 1) % dimensions.length, insertPosition);
-            //         dimension = dimensions[insertPosition.dimension];
-            //
-            //         if (point[dimension] < insertPosition.obj[dimension]) {
-            //             insertPosition.left = newNode;
-            //         } else {
-            //             insertPosition.right = newNode;
-            //         }
-            //     };
-            //
-            //     this.remove = function (point) {
-            //         var node;
-            //
-            //         function nodeSearch(node) {
-            //             if (node === null) {
-            //                 return null;
-            //             }
-            //
-            //             if (node.obj === point) {
-            //                 return node;
-            //             }
-            //
-            //             var dimension = dimensions[node.dimension];
-            //
-            //             if (point[dimension] < node.obj[dimension]) {
-            //                 return nodeSearch(node.left, node);
-            //             } else {
-            //                 return nodeSearch(node.right, node);
-            //             }
-            //         }
-            //
-            //         function removeNode(node) {
-            //             var nextNode,
-            //                 nextObj,
-            //                 pDimension;
-            //
-            //             function findMin(node, dim) {
-            //                 var dimension,
-            //                     own,
-            //                     left,
-            //                     right,
-            //                     min;
-            //
-            //                 if (node === null) {
-            //                     return null;
-            //                 }
-            //
-            //                 dimension = dimensions[dim];
-            //
-            //                 if (node.dimension === dim) {
-            //                     if (node.left !== null) {
-            //                         return findMin(node.left, dim);
-            //                     }
-            //                     return node;
-            //                 }
-            //
-            //                 own = node.obj[dimension];
-            //                 left = findMin(node.left, dim);
-            //                 right = findMin(node.right, dim);
-            //                 min = node;
-            //
-            //                 if (left !== null && left.obj[dimension] < own) {
-            //                     min = left;
-            //                 }
-            //                 if (right !== null && right.obj[dimension] < min.obj[dimension]) {
-            //                     min = right;
-            //                 }
-            //                 return min;
-            //             }
-            //
-            //             if (node.left === null && node.right === null) {
-            //                 if (node.parent === null) {
-            //                     self.root = null;
-            //                     return;
-            //                 }
-            //
-            //                 pDimension = dimensions[node.parent.dimension];
-            //
-            //                 if (node.obj[pDimension] < node.parent.obj[pDimension]) {
-            //                     node.parent.left = null;
-            //                 } else {
-            //                     node.parent.right = null;
-            //                 }
-            //                 return;
-            //             }
-            //
-            //             // If the right subtree is not empty, swap with the minimum element on the
-            //             // node's dimension. If it is empty, we swap the left and right subtrees and
-            //             // do the same.
-            //             if (node.right !== null) {
-            //                 nextNode = findMin(node.right, node.dimension);
-            //                 nextObj = nextNode.obj;
-            //                 removeNode(nextNode);
-            //                 node.obj = nextObj;
-            //             } else {
-            //                 nextNode = findMin(node.left, node.dimension);
-            //                 nextObj = nextNode.obj;
-            //                 removeNode(nextNode);
-            //                 node.right = node.left;
-            //                 node.left = null;
-            //                 node.obj = nextObj;
-            //             }
-            //
-            //         }
-            //
-            //         node = nodeSearch(self.root);
-            //
-            //         if (node === null) {
-            //             return;
-            //         }
-            //
-            //         removeNode(node);
-            //     };
-            //
-            //     this.nearest = function (point, maxNodes, maxDistance) {
-            //         maxNodes = maxNodes || 1;
-            //         if (Array.isArray(point)){
-            //             let _p = point;
-            //             point = {};
-            //             _p.forEach((v,i)=>{
-            //                 point[dimensions[i]] = v;
-            //             })
-            //         }
-            //         var i,
-            //             result,
-            //             bestNodes;
-            //
-            //         bestNodes = new BinaryHeap(
-            //             function (e) {
-            //                 return -e[1];
-            //             }
-            //         );
-            //
-            //         function nearestSearch(node) {
-            //             var bestChild,
-            //                 dimension = dimensions[node.dimension],
-            //                 ownDistance = metric(point, node.obj),
-            //                 linearPoint = {},
-            //                 linearDistance,
-            //                 otherChild,
-            //                 i;
-            //
-            //             function saveNode(node, distance) {
-            //                 bestNodes.push([node, distance]);
-            //                 if (bestNodes.size() > maxNodes) {
-            //                     bestNodes.pop();
-            //                 }
-            //             }
-            //
-            //             for (i = 0; i < dimensions.length; i += 1) {
-            //                 if (i === node.dimension) {
-            //                     linearPoint[dimensions[i]] = point[dimensions[i]];
-            //                 } else {
-            //                     linearPoint[dimensions[i]] = node.obj[dimensions[i]];
-            //                 }
-            //             }
-            //
-            //             linearDistance = metric(linearPoint, node.obj);
-            //
-            //             if (node.right === null && node.left === null) {
-            //                 if (bestNodes.size() < maxNodes || ownDistance < bestNodes.peek()[1]) {
-            //                     saveNode(node, ownDistance);
-            //                 }
-            //                 return;
-            //             }
-            //
-            //             if (node.right === null) {
-            //                 bestChild = node.left;
-            //             } else if (node.left === null) {
-            //                 bestChild = node.right;
-            //             } else {
-            //                 if (point[dimension] < node.obj[dimension]) {
-            //                     bestChild = node.left;
-            //                 } else {
-            //                     bestChild = node.right;
-            //                 }
-            //             }
-            //
-            //             nearestSearch(bestChild);
-            //
-            //             if (bestNodes.size() < maxNodes || ownDistance < bestNodes.peek()[1]) {
-            //                 saveNode(node, ownDistance);
-            //             }
-            //
-            //             if (bestNodes.size() < maxNodes || Math.abs(linearDistance) < bestNodes.peek()[1]) {
-            //                 if (bestChild === node.left) {
-            //                     otherChild = node.right;
-            //                 } else {
-            //                     otherChild = node.left;
-            //                 }
-            //                 if (otherChild !== null) {
-            //                     nearestSearch(otherChild);
-            //                 }
-            //             }
-            //         }
-            //
-            //         if (maxDistance) {
-            //             for (i = 0; i < maxNodes; i += 1) {
-            //                 bestNodes.push([null, maxDistance]);
-            //             }
-            //         }
-            //
-            //         if (self.root)
-            //             nearestSearch(self.root);
-            //
-            //         result = [];
-            //
-            //         for (i = 0; i < Math.min(maxNodes, bestNodes.content.length); i += 1) {
-            //             if (bestNodes.content[i][0]) {
-            //                 result.push([bestNodes.content[i][0].obj, bestNodes.content[i][1]]);
-            //             }
-            //         }
-            //         return result;
-            //     };
-            //
-            //     this.balanceFactor = function () {
-            //         function height(node) {
-            //             if (node === null) {
-            //                 return 0;
-            //             }
-            //             return Math.max(height(node.left), height(node.right)) + 1;
-            //         }
-            //
-            //         function count(node) {
-            //             if (node === null) {
-            //                 return 0;
-            //             }
-            //             return count(node.left) + count(node.right) + 1;
-            //         }
-            //
-            //         return height(self.root) / (Math.log(count(self.root)) / Math.log(2));
-            //     };
-            // }
-
-            KDTree.prototype.attachPoints = function (points) {
-                this.points = points;
-            }
-
-            KDTree.prototype.nearest = function (point, num) {
-                num = Math.floor(num || 1);
-
-                if (point.hasOwnProperty("x")) point = [point.x, point.y];
-
-                if (this._ax) {
-                    point = [point[this._ax - 1]];
-                }
-
-                let res;
-                if (num > 1) {
-                    res = this.kNearestNeighbors(num, point);
-                    res = res.map((i) => this.points[i]);
-                } else {
-                    res = this.nearestNeighbor(point);
-                    res = this.points[res];
-                }
-
-                return res;
-            }
-
-            function dist(p1, p2, sq) {
-                if (sq) {
-                    return Snap.len2(
-                        p1.x || p1[0] || 0,
-                        p1.y || p1[1] || 0,
-                        p2.x || p2[0] || 0,
-                        p2.y || p2[1] || 0,
-                    )
-                } else {
-                    return Snap.len(
-                        p1.x || p1[0] || 0,
-                        p1.y || p1[1] || 0,
-                        p2.x || p2[0] || 0,
-                        p2.y || p2[1] || 0,
-                    )
-                }
-
-            }
-
-            KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
-                num = Math.floor(num || 1);
-                let points = this.nearest(point, num);
-
-                switch (this._ax) {
-                    case 1:
-                        if (num > 1) {
-                            return points.map((p) => [p,
-                                Math.abs((point[0] || point.x || 0) - (p[0] || p.x || 0)),
-                                dist(point, p)])
-                        } else {
-                            return [points,
-                                Math.abs((point[0] || point.x || 0) - (points[0] || points.x || 0)),
-                                dist(point, points, sqere_dist)]
-                        }
-                    case 2:
-                       if (num > 1) {
-                            return points.map((p) => [p,
-                                Math.abs((point[1] || point.y || 0) - (p[1] || p.y || 0)),
-                                dist(point, p)])
-                        } else {
-                            return [points,
-                                Math.abs((point[1] || point.y || 0) - (points[1] || points.y || 0)),
-                                dist(point, points, sqere_dist)]
-                        }
-                    default:
-                        if (num > 1) {
-                            return points.map((p) => [p, dist(point, p)])
-                        } else {
-                            return [points, dist(point, points, sqere_dist)]
-                        }
-                }
-            }
-
-            Snap.kdTree = function (points, dim) {
-                let xs, ys, ax = [];
-                const x_only = dim === 1 || dim === "x";
-                const y_only = dim === 1 || dim === "y";
-                if (!dim || x_only) {
-                    xs = points.map((p) => (p.hasOwnProperty("x") ? p.x : p[0]));
-                    ax.push(xs)
-                }
-
-                if (!dim || y_only) {
-                    ys = points.map((p) => (p.hasOwnProperty("y") ? p.y : p[1]));
-                    ax.push(ys)
-                }
-
-                let kd = KDTree.fromAxes(ax)
-                kd._ax = (x_only) ? 1 : ((y_only) ? 2 : null)
-                kd.attachPoints(points);
-
-                return kd;
-            }
-
-            Snap.kdTreeX = function (points) {
-                return Snap.kdTree(points, "x");
-            }
-
-            Snap.kdTreeY = function (points) {
-                return Snap.kdTree(points, "y");
-            }
-
-            // Binary heap implementation from:
-            // http://eloquentjavascript.net/appendix2.html
-
-            function BinaryHeap(scoreFunction) {
-                this.content = [];
-                this.scoreFunction = scoreFunction;
-            }
-
-            BinaryHeap.prototype = {
-                push: function (element) {
-                    // Add the new element to the end of the array.
-                    this.content.push(element);
-                    // Allow it to bubble up.
-                    this.bubbleUp(this.content.length - 1);
-                },
-
-                pop: function () {
-                    // Store the first element so we can return it later.
-                    var result = this.content[0];
-                    // Get the element at the end of the array.
-                    var end = this.content.pop();
-                    // If there are any elements left, put the end element at the
-                    // start, and let it sink down.
-                    if (this.content.length > 0) {
-                        this.content[0] = end;
-                        this.sinkDown(0);
-                    }
-                    return result;
-                },
-
-                peek: function () {
-                    return this.content[0];
-                },
-
-                remove: function (node) {
-                    var len = this.content.length;
-                    // To remove a value, we must search through the array to find
-                    // it.
-                    for (var i = 0; i < len; i++) {
-                        if (this.content[i] == node) {
-                            // When it is found, the process seen in 'pop' is repeated
-                            // to fill up the hole.
-                            var end = this.content.pop();
-                            if (i != len - 1) {
-                                this.content[i] = end;
-                                if (this.scoreFunction(end) < this.scoreFunction(node))
-                                    this.bubbleUp(i);
-                                else
-                                    this.sinkDown(i);
-                            }
-                            return;
-                        }
-                    }
-                    throw new Error("Node not found.");
-                },
-
-                size: function () {
-                    return this.content.length;
-                },
-
-                bubbleUp: function (n) {
-                    // Fetch the element that has to be moved.
-                    var element = this.content[n];
-                    // When at 0, an element can not go up any further.
-                    while (n > 0) {
-                        // Compute the parent element's index, and fetch it.
-                        var parentN = Math.floor((n + 1) / 2) - 1,
-                            parent = this.content[parentN];
-                        // Swap the elements if the parent is greater.
-                        if (this.scoreFunction(element) < this.scoreFunction(parent)) {
-                            this.content[parentN] = element;
-                            this.content[n] = parent;
-                            // Update 'n' to continue at the new position.
-                            n = parentN;
-                        }
-                        // Found a parent that is less, no need to move it further.
-                        else {
-                            break;
-                        }
-                    }
-                },
-
-                sinkDown: function (n) {
-                    // Look up the target element and its score.
-                    var length = this.content.length,
-                        element = this.content[n],
-                        elemScore = this.scoreFunction(element);
-
-                    while (true) {
-                        // Compute the indices of the child elements.
-                        var child2N = (n + 1) * 2, child1N = child2N - 1;
-                        // This is used to store the new position of the element,
-                        // if any.
-                        var swap = null;
-                        // If the first child exists (is inside the array)...
-                        if (child1N < length) {
-                            // Look it up and compute its score.
-                            var child1 = this.content[child1N],
-                                child1Score = this.scoreFunction(child1);
-                            // If the score is less than our element's, we need to swap.
-                            if (child1Score < elemScore)
-                                swap = child1N;
-                        }
-                        // Do the same checks for the other child.
-                        if (child2N < length) {
-                            var child2 = this.content[child2N],
-                                child2Score = this.scoreFunction(child2);
-                            if (child2Score < (swap == null ? elemScore : child1Score)) {
-                                swap = child2N;
-                            }
-                        }
-
-                        // If the element needs to be moved, swap it, and continue.
-                        if (swap != null) {
-                            this.content[n] = this.content[swap];
-                            this.content[swap] = element;
-                            n = swap;
-                        }
-                        // Otherwise, we are done.
-                        else {
-                            break;
-                        }
-                    }
-                }
-            };
-
-            Snap.binaryHeap = function (score) {
-                return new BinaryHeap(score);
-            }
-
-            Snap.randomPoints = function (num, x_dim, y_dim) {
-                if (typeof x_dim === "number") x_dim = [0, x_dim];
-                if (typeof y_dim === "number") y_dim = [0, y_dim];
-                const res = [];
-                const min_x = x_dim[0];
-                const max_x = x_dim[1];
-                const min_y = y_dim[0];
-                const max_y = y_dim[1];
-                for (let i = 0; i < num; ++i) {
-                    res.push({
-                        x: min_x + Math.random() * (max_x - min_x),
-                        y: min_y + Math.random() * (max_y - min_y),
-                    })
-                }
-                return res;
-            }
-
-
-            function clPairs_BF(ps1, ps2) {
-                let d = Infinity,
-                    p1, p2;
-                ps1.forEach((p) => {
-                    ps2.forEach((q) => {
-                        const dis = Snap.len2(p.x, p.y, q.x, q.y);
-                        if (dis < d) {
-                            d = dis;
-                            p1 = p;
-                            p2 = q;
-                        }
-                    })
-                })
-
-                return {d: Math.sqrt(d), pair: [p1, p2]};
-            }
-
-            function clPairs_KD(ps1, ps2) {
-                let swap = false
-                if (ps2.length > ps1.length) {
-                    [ps2, ps1] = [ps1, ps2];
-                    swap = true;
-                }
-
-                let d = Infinity,
-                    p1, p2;
-                let kd = Snap.kdTree(ps1);
-                for (let i = 0, l = ps2.length, nr; i < l; ++i) {
-                    nr = kd.nearest_dist(ps2[i], 1, true);
-                    if (nr[1] < d) {
-                        d = nr[1];
-                        p1 = nr[0];
-                        p2 = ps2[i];
-                    }
-                }
-
-                return {d: Math.sqrt(d), pair: (swap) ? [p2, p1] : [p1, p2]};
-            }
-
-            Snap.nearPairs = function (set1, set2) {
-                if (set1.length * set2.length < 25000) {
-                    return clPairs_BF(set1, set2);
-                } else {
-                    return clPairs_KD(set1, set2);
-                }
-            }
-        });
-    }, {"./voronoi.js": 27, "mnemonist/kd-tree": 8}],
-    27: [function (require, module, exports) {
-        "use strict"
-
-        const triangulate = require("delaunay-triangulate");
-        const circumcenter = require("circumcenter");
-        const uniq = require("uniq");
-
-        module.exports = voronoi
-
-        function compareInt(a, b) {
-            return a - b
-        }
-
-        function voronoi1D(points) {
-            if (points.length === 1) {
-                return {
-                    cells: [[-1]],
-                    positions: []
-                }
-            }
-            const tagged = points.map(function (p, i) {
-                return [p[0], i]
-            });
-            tagged.sort(function (a, b) {
-                return a - b
-            })
-            const cells = new Array(points.length);
-            for (var i = 0; i < cells.length; ++i) {
-                cells[i] = [-1, -1]
-            }
-            const dualPoints = [];
-            for (let j = 1; j < tagged.length; ++j) {
-                var a = tagged[j - 1]
-                var b = tagged[j]
-                const center = 0.5 * (a[0] + b[0]);
-                const n = dualPoints.length;
-                dualPoints.push([center])
-                cells[a[1]][1] = n
-                cells[b[1]][0] = n
-            }
-            cells[tagged[0][1]][1] = 0
-            cells[tagged[tagged.length - 1][1]][0] = dualPoints.length - 1
-            return {
-                cells: cells,
-                positions: dualPoints
+        let d = Infinity,
+            p1, p2;
+        let kd = Snap.kdTree(ps1);
+        for (let i = 0, l = ps2.length, nr; i < l; ++i) {
+            nr = kd.nearest_dist(ps2[i], 1, true);
+            if (nr[1] < d) {
+                d = nr[1];
+                p1 = nr[0];
+                p2 = ps2[i];
             }
         }
 
+        return {d: Math.sqrt(d), pair: (swap) ? [p2, p1] : [p1, p2]};
+    }
 
-        function voronoi(points) {
-            const n = points.length;
-            if (n === 0) {
-                return {cells: [], positions: []}
-            }
-            const d = points[0].length;
-            if (d < 1) {
-                return {cells: [], positions: []}
-            }
-            if (d === 1) {
-                return voronoi1D(points)
-            }
-
-            //First delaunay triangulate all points including point at infinity
-            const cells = triangulate(points, true);
-
-            //Construct dual points
-            const stars = new Array(n);
-            for (var i = 0; i < n; ++i) {
-                stars[i] = []
-            }
-            const nc = cells.length;
-            const tuple = new Array(d + 1);
-            const cellIndex = new Array(nc);
-            const dualPoints = [];
-            for (var i = 0; i < nc; ++i) {
-                const verts = cells[i];
-                let skip = false;
-                for (var j = 0; j <= d; ++j) {
-                    const v = verts[j];
-                    if (v < 0) {
-                        cellIndex[i] = -1
-                        skip = true
-                    } else {
-                        stars[v].push(i)
-                        tuple[j] = points[v]
-                    }
-                }
-                if (skip) {
-                    continue
-                }
-                cellIndex[i] = dualPoints.length
-                dualPoints.push(circumcenter(tuple))
-            }
-
-            //Build dual cells
-            let dualCells;
-            if (d === 2) {
-                dualCells = new Array(n)
-                for (var i = 0; i < n; ++i) {
-                    const dual = stars[i];
-                    // Handle empty stars case
-                    if (dual.length === 0) {
-                        dualCells[i] = [];
-                        continue;
-                    }
-                    const c = [cellIndex[dual[0]]];
-                    var s = cells[dual[0]][(cells[dual[0]].indexOf(i) + 1) % 3]
-                    for (var j = 1; j < dual.length; ++j) {
-                        for (let k = 1; k < dual.length; ++k) {
-                            const x = (cells[dual[k]].indexOf(i) + 2) % 3;
-                            if (cells[dual[k]][x] === s) {
-                                c.push(cellIndex[dual[k]])
-                                s = cells[dual[k]][(x + 2) % 3]
-                                break
-                            }
-                        }
-                    }
-                    dualCells[i] = c
-                }
-            } else {
-                for (var i = 0; i < n; ++i) {
-                    var s = stars[i]
-                    for (var j = 0; j < s.length; ++j) {
-                        s[j] = cellIndex[s[j]]
-                    }
-                    uniq(s, compareInt)
-                }
-                dualCells = stars
-            }
-
-            //Return the resulting cells
-            return {
-                cells: dualCells,
-                positions: dualPoints,
-                triangles: cells
-            }
+    /**
+     * Chooses the most efficient algorithm to find the closest pair between two point sets.
+     * @param {Array<{x:number,y:number}>} set1 First point set.
+     * @param {Array<{x:number,y:number}>} set2 Second point set.
+     * @returns {{d:number,pair:Array<{x:number,y:number}>}} Closest pair descriptor.
+     */
+    Snap.nearPairs = function (set1, set2) {
+        if (set1.length * set2.length < 25000) {
+            return clPairs_BF(set1, set2);
+        } else {
+            return clPairs_KD(set1, set2);
         }
-    }, {"circumcenter": 2, "delaunay-triangulate": 3, "uniq": 25}]
-}, {}, [26]);
+    }
+});
+},{"./voronoi.js":28,"mnemonist/kd-tree":8}],28:[function(require,module,exports){
+"use strict"
+
+const triangulate = require("delaunay-triangulate");
+const circumcenter = require("circumcenter");
+const uniq = require("uniq");
+
+/** @type {Function} */
+module.exports = voronoi
+
+/**
+ * Numerical comparator optimized for integer values.
+ *
+ * Used to deduplicate Voronoi star indices when the geometry has a dimensionality greater than two.
+ * Keeping the comparator inline allows {@link module:uniq} to short-circuit quickly, reducing allocations
+ * in heavy diagram workloads.
+ *
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
+function compareInt(a, b) {
+  return a - b
+}
+
+/**
+ * Specialized Voronoi computation for the one-dimensional case.
+ *
+ * While uncommon, 1D inputs appear when snapping along a guide or evaluating parametric curves.  This
+ * helper arranges breakpoints along the line and computes midpoint separators without performing a full
+ * 2D triangulation.
+ *
+ * @param {Array<Array<number>>} points One-dimensional points expressed as `[x]` tuples.
+ * @returns {{cells:Array<Array<number>>, positions:Array<Array<number>>}} Voronoi descriptors for 1D.
+ * @example
+ * const {cells, positions} = voronoi1D([[0], [10], [35]]);
+ * // Each cell stores indices into `positions`, describing intervals on the line.
+ */
+function voronoi1D(points) {
+  if(points.length === 1) {
+    return {
+      cells: [ [-1] ],
+      positions: []
+    }
+  }
+  const tagged = points.map(function (p, i) {
+    return [p[0], i]
+  });
+  tagged.sort(function(a,b) {
+    return a-b
+  })
+  const cells = new Array(points.length);
+  for(var i=0; i<cells.length; ++i) {
+    cells[i] = [-1,-1]
+  }
+  const dualPoints = [];
+  for(let j=1; j<tagged.length; ++j) {
+    var a = tagged[j-1]
+    var b = tagged[j]
+    const center = 0.5 * (a[0] + b[0]);
+    const n = dualPoints.length;
+    dualPoints.push([center])
+    cells[a[1]][1] = n
+    cells[b[1]][0] = n
+  }
+  cells[tagged[0][1]][1] = 0
+  cells[tagged[tagged.length-1][1]][0] = dualPoints.length-1
+  return {
+    cells: cells,
+    positions: dualPoints
+  }
+}
+
+
+
+/**
+ * Computes Voronoi cells for the supplied point cloud.
+ *
+ * The routine wraps a Delaunay triangulation produced by {@link module:delaunay-triangulate} and derives the
+ * circumcentres that form the Voronoi vertices.  Degenerate simplices that reference the super triangle are
+ * marked with `-1` so callers can easily skip unbounded faces.  The resulting structure is designed to be fed
+ * into higher level helpers such as {@link Snap.voronoi}.
+ *
+ * @param {Array<Array<number>>} points Input points.
+ * @returns {{cells:Array<Array<number>>, positions:Array<Array<number>>, triangles:Array<Array<number>>}} Voronoi diagram representation.
+ * @example
+ * const {cells, positions} = voronoi([[0, 0], [50, 10], [25, 75]]);
+ * // cells -> index references into positions array forming each Voronoi face
+ */
+function voronoi(points) {
+  const n = points.length;
+  if(n === 0) {
+    return { cells: [], positions: [] }
+  }
+  const d = points[0].length;
+  if(d < 1) {
+    return { cells: [], positions: [] }
+  }
+  if(d === 1) {
+    return voronoi1D(points)
+  }
+
+  //First delaunay triangulate all points including point at infinity
+  const cells = triangulate(points, true);
+
+  //Construct dual points
+  const stars = new Array(n);
+  for(var i=0; i<n; ++i) {
+    stars[i] = []
+  }
+  const nc = cells.length;
+  const tuple = new Array(d + 1);
+  const cellIndex = new Array(nc);
+  const dualPoints = [];
+  for(var i=0; i<nc; ++i) {
+    const verts = cells[i];
+    let skip = false;
+    for(var j=0; j<=d; ++j) {
+      const v = verts[j];
+      if(v < 0) {
+        cellIndex[i] = -1
+        skip = true
+      } else {
+        stars[v].push(i)
+        tuple[j] = points[v]
+      }
+    }
+    if(skip) {
+      continue
+    }
+    cellIndex[i] = dualPoints.length
+    dualPoints.push(circumcenter(tuple))
+  }
+
+  //Build dual cells
+  let dualCells;
+  if(d === 2) {
+    dualCells = new Array(n)
+    for(var i=0; i<n; ++i) {
+      const dual = stars[i];
+
+      // Handle empty stars case
+      if(dual.length === 0) {
+        dualCells[i] = [];
+        continue;
+      }
+
+      const c = [cellIndex[dual[0]]];
+      var s = cells[dual[0]][(cells[dual[0]].indexOf(i)+1) % 3]
+      for(var j=1; j<dual.length; ++j) {
+        for(let k=1; k<dual.length; ++k) {
+          const x = (cells[dual[k]].indexOf(i) + 2) % 3;
+          if(cells[dual[k]][x] === s) {
+            c.push(cellIndex[dual[k]])
+            s = cells[dual[k]][(x+2)%3]
+            break
+          }
+        }
+      }
+      dualCells[i] = c
+    }
+  } else {
+    for(var i=0; i<n; ++i) {
+      var s = stars[i]
+      for(var j=0; j<s.length; ++j) {
+        s[j] = cellIndex[s[j]]
+      }
+      uniq(s, compareInt)
+    }
+    dualCells = stars
+  }
+
+  //Return the resulting cells
+  return {
+    cells: dualCells,
+    positions: dualPoints,
+    triangles: cells
+  }
+}
+},{"circumcenter":2,"delaunay-triangulate":3,"uniq":26}]},{},[27]);
 
 (function (root) {
     let Snap_ia = root.Snap_ia || root.Snap;
@@ -21005,18 +22330,18 @@ return robustDeterminant")
         Snap.FORCE_AFTER = '__force_after';
 
         /**
-         * Returns a bitmap position indicator of two element. As follows:
+         * Returns a bitmap position indicator of two elements. As follows:
          * Bits    Number    Meaning
-         000000    0    Elements are identical.
-         000001    1    The nodes are in different documents (or one is outside of a document).
-         000010    2    Node B precedes Node A.
-         000100    4    Node A precedes Node B.
-         001000    8    Node B contains Node A.
-         010000    16    Node A contains Node B.
-         Based on code from: Compare Position - MIT Licensed, John Resig
-         * @param a the first element
-         * @param b the second element (or this element)
-         * @return {number}
+         * 000000    0    Elements are identical.
+         * 000001    1    The nodes are in different documents (or one is outside of a document).
+         * 000010    2    Node B precedes Node A.
+         * 000100    4    Node A precedes Node B.
+         * 001000    8    Node B contains Node A.
+         * 010000    16    Node A contains Node B.
+         * Based on code from: Compare Position - MIT Licensed, John Resig.
+         * @param {Snap.Element|Node} a The first element.
+         * @param {Snap.Element|Node} b The second element (or this element).
+         * @returns {number} Bitmask describing the positional relationship.
          */
         Snap._compareDomPosition = function (a, b) {
             a = a.node || a;
@@ -21038,9 +22363,9 @@ return robustDeterminant")
          * Compares the observable position of two elements (above or below). Note that the observable position is opposite to the DOM order.
          * Care should be used when comparing an element to any parent group, because any element will be counted as
          * below the group.
-         * @param a The first element
-         * @param b the second
-         * @return {number} -1 if a is below b, 1 if a is above b, and 0 if the same.
+         * @param {Snap.Element} a The first element.
+         * @param {Snap.Element} b The second element.
+         * @returns {number} -1 if {@link a} is below {@link b}, 1 if above, and 0 if equal.
          */
         Snap.positionComparator = function (a, b) {
             const comp = Snap._compareDomPosition(a, b);
@@ -21055,14 +22380,32 @@ return robustDeterminant")
                 (comp & 2) ? 1 : 0;
         };
 
+        /**
+         * Inverse comparator helper that swaps the operands of {@link Snap.positionComparator}.
+         * @param {Snap.Element} a The first element.
+         * @param {Snap.Element} b The second element.
+         * @returns {number} Comparator result for {@link b} against {@link a}.
+         */
         Snap.positionComparator.inverse = function (a, b) {
             return Snap.positionComparator(b, a);
         };
 
+        /**
+         * Converts polar coordinates to their Cartesian representation.
+         * @param {number} r Radius of the vector.
+         * @param {number} phi Angle in radians.
+         * @returns {{x:number,y:number}} Cartesian point derived from the polar input.
+         */
         Snap.fromPolar = function (r, phi) {
             return {x: r * Math.cos(phi), y: r * Math.sin(phi)};
         };
 
+        /**
+         * Converts Cartesian coordinates to polar form.
+         * @param {number} x X component of the vector.
+         * @param {number} y Y component of the vector.
+         * @returns {{phi:number,r:number}} Polar representation where {@link phi} is in radians.
+         */
         Snap.toPolar = function (x, y) {
             return {
                 phi: (Math.atan2(y, x) + 2 * Math.PI) % 2 * Math.PI,
@@ -21070,11 +22413,23 @@ return robustDeterminant")
             };
         };
 
+        /**
+         * Converts polar coordinates expressed in degrees to a Cartesian vector.
+         * @param {number} r Radius of the vector.
+         * @param {number} phi Angle in degrees.
+         * @returns {{x:number,y:number}} Cartesian coordinates corresponding to the polar input.
+         */
         Snap.fromPolar_deg = function (r, phi) {
             let rad = Snap.rad(phi);
             return {x: r * Math.cos(rad), y: r * Math.sin(rad)};
         };
 
+        /**
+         * Converts Cartesian coordinates to polar form expressed in degrees.
+         * @param {number} x X component of the vector.
+         * @param {number} y Y component of the vector.
+         * @returns {{phi:number,r:number}} Polar representation where {@link phi} is in degrees.
+         */
         Snap.toPolar_deg = function (x, y) {
             return {
                 phi: Snap.deg(((Math.atan2(y, x) + 2 * Math.PI) % 2 * Math.PI)),
@@ -21082,6 +22437,12 @@ return robustDeterminant")
             };
         };
 
+        /**
+         * Normalizes the supplied vector.
+         * @param {number|{x:number,y:number}} x Either the X component or a vector object.
+         * @param {number} [y] Optional Y component when {@link x} is numeric.
+         * @returns {{x:number,y:number}} Unit vector pointing in the same direction; zero vector if magnitude is zero.
+         */
         Snap.normalize = function (x, y) {
             if (typeof x === 'object' && x.hasOwnProperty('x')) {
                 y = x.y;
@@ -21095,6 +22456,13 @@ return robustDeterminant")
 
         };
 
+        /**
+         * Returns an orthogonal vector for a given input vector.
+         * @param {number|{x:number,y:number}} x Either the X component or a vector object.
+         * @param {number} [y] Optional Y component when {@link x} is numeric.
+         * @param {boolean} [lefthand=false] Whether to compute the left-hand normal.
+         * @returns {{x:number,y:number}} Orthogonal vector.
+         */
         Snap.orthogonal = function (x, y, lefthand) {
             if (typeof x === 'object' && x.hasOwnProperty('x')) {
                 y = x.y;
@@ -21106,15 +22474,14 @@ return robustDeterminant")
                 return {x: -y, y: x};
             }
         };
-
-        Snap.v_c_mult = function (c, x, y) {
-            if (typeof x == 'object') {
-                y = x.y || x[1] || 0;
-                x = x.x || x[0] || 0;
-            }
-            return {x: c * x, y: c * y};
-        }
-
+        /**
+         * Adds two vectors together.
+         * @param {number|{x:number,y:number}} x1 X component or first vector.
+         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the second vector.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @returns {{x:number,y:number}} Vector sum of the inputs.
+         */
         Snap.v_add = function (x1, y1, x2, y2) {
             if (typeof y1 === 'object') {
                 x2 = y1.x || y1[0] || 0;
@@ -21127,6 +22494,14 @@ return robustDeterminant")
             return {x: x1 + x2, y: y1 + y2};
         }
 
+        /**
+         * Subtracts one vector from another.
+         * @param {number|{x:number,y:number}} x1 X component or minuend vector.
+         * @param {number|{x:number,y:number}} y1 Y component or subtrahend vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the subtrahend.
+         * @param {number} [y2] Optional Y component of the subtrahend.
+         * @returns {{x:number,y:number}} Difference of the vectors (x1 - x2, y1 - y2).
+         */
         Snap.v_subtract = function (x1, y1, x2, y2) {
             if (typeof y1 === 'object') {
                 x2 = y1.x || y1[0] || 0;
@@ -21139,6 +22514,14 @@ return robustDeterminant")
             return {x: x1 - x2, y: y1 - y2};
         }
 
+        /**
+         * Calculates the midpoint between two vectors.
+         * @param {number|{x:number,y:number}} x1 X component or first vector.
+         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the second vector.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @returns {{x:number,y:number}} Midpoint vector.
+         */
         Snap.v_mid = function (x1, y1, x2, y2) {
             if (typeof y1 === 'object') {
                 x2 = y1.x || y1[0] || 0;
@@ -21151,6 +22534,14 @@ return robustDeterminant")
             return {x: (x1 + x2) / 2, y: (y1 + y2) / 2};
         }
 
+        /**
+         * Computes the dot product between two vectors.
+         * @param {number|{x:number,y:number}} x1 X component or first vector.
+         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the second vector.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @returns {number} Dot product result.
+         */
         Snap.dot = function (x1, y1, x2, y2) {
             if (typeof y1 === 'object') {
                 x2 = y1.x || y1[0] || 0;
@@ -21163,6 +22554,14 @@ return robustDeterminant")
             return x1 * x2 + y1 * y2;
         }
 
+        /**
+         * Computes the 2D scalar cross product between two vectors.
+         * @param {number|{x:number,y:number}} x1 X component or first vector.
+         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the second vector.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @returns {number} Signed magnitude of the cross product.
+         */
         Snap.cross = function (x1, y1, x2, y2) {
             if (typeof y1 === 'object') {
                 x2 = y1.x || y1[0] || 0;
@@ -21175,6 +22574,14 @@ return robustDeterminant")
             return x1 * y2 - x2 * y1;
         }
 
+        /**
+         * Projects one vector onto another.
+         * @param {number|{x:number,y:number}} x1 X component or source vector.
+         * @param {number|{x:number,y:number}} y1 Y component or target vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the target vector.
+         * @param {number} [y2] Optional Y component of the target vector.
+         * @returns {{x:number,y:number}} Projection of the first vector onto the second.
+         */
         Snap.project = function (x1, y1, x2, y2) {
             if (typeof y1 === 'object') {
                 x2 = y1.x || y1[0] || 0;
@@ -21189,10 +22596,23 @@ return robustDeterminant")
             let scalar = dotProduct ? dotProduct / lengthSquared : 0;
             return {x: scalar * x2, y: scalar * y2};
         }
+        /**
+         * Returns the 2D zero vector.
+         * @returns {{x:number,y:number}} A vector with both coordinates equal to zero.
+         */
         Snap.zero = function () {
             return {x: 0, y: 0};
         }
 
+        /**
+         * Computes the vector from a point to the closest point on a line segment.
+         * @param {{x:number,y:number}|number[]} p The source point.
+         * @param {{x:number,y:number}|number[]} lp1 First point of the line segment.
+         * @param {{x:number,y:number}|number[]} lp2 Second point of the line segment.
+         * @param {boolean} [normalize=false] Whether to normalize the resulting vector.
+         * @param {number} [sq_error=1e-5] Squared error tolerance used when the segment length is negligible.
+         * @returns {{x:number,y:number}} Vector pointing from {@link p} toward the line.
+         */
         Snap.vectorPointToLine = function (p, lp1, lp2, normalize, sq_error) {
             sq_error = sq_error || 1e-5;
             if (Snap.len2(lp1.x, lp1.y, lp2.x, lp2.x) < sq_error) {
@@ -21233,12 +22653,11 @@ return robustDeterminant")
         };
 
         /**
-         * Checks if an angle is between to other angles, where an angle is
-         * between when it is withing the smaller segment of the other angles.
-         * @param a1 reference angle 1
-         * @param a2 reference angle 2
-         * @param target the target angle to check
-         * @returns {boolean}
+         * Checks if an angle lies between two other angles within the minor arc.
+         * @param {number} a1 Reference angle one, in degrees.
+         * @param {number} a2 Reference angle two, in degrees.
+         * @param {number} target The target angle to test, in degrees.
+         * @returns {boolean} True when {@link target} lies between {@link a1} and {@link a2}.
          */
         Snap.angle_between = function (a1, a2, target) {
             let dif_1_2 = (Math.abs(a1 - a2) + 360) % 360;
@@ -21251,6 +22670,13 @@ return robustDeterminant")
             return (dif_1_t + dif_2_t) <= dif_1_2 + 1e-12;
         };
 
+        /**
+         * Normalizes an angle to a specific range.
+         * @param {number} angle Angle to normalize.
+         * @param {boolean} [bwn_neg_pos=false] When true, normalizes between -180° and 180° (or -π and π when {@link rad} is true).
+         * @param {boolean} [rad=false] Treats the input angle as radians instead of degrees.
+         * @returns {number} Normalized angle in the same units as the input.
+         */
         Snap.angle_normalize = function (angle, bwn_neg_pos, rad) {
             if (rad) {
                 if (bwn_neg_pos) {
@@ -21269,6 +22695,13 @@ return robustDeterminant")
             }
         }
 
+        /**
+         * Finds the maximum safe distance from a point to the edges of an element's bounding box.
+         * @param {{x:number,y:number}} ct Point to evaluate.
+         * @param {Snap.Element} el Snap element providing the bounding box.
+         * @param {boolean} [top=false] When true, returns vertical distance to the top edge instead of the farthest corner.
+         * @returns {number} Non-negative distance value, zero when the point is outside the bbox.
+         */
         Snap.getSafeDistance = function (ct, el, top) {
             // if (top === undefined) top = false;
             const bbox = el.getBBox();
@@ -21281,6 +22714,12 @@ return robustDeterminant")
                 Snap.len(ct.x, ct.y, bbox.x2, bbox.y2));
         };
 
+        /**
+         * Computes the change-of-basis matrix for transforming coordinates from one group to another.
+         * @param {Snap.Element} from Source group element.
+         * @param {Snap.Element} to Destination group element.
+         * @returns {Snap.Matrix} Matrix that converts coordinates from {@link from} space into {@link to} space.
+         */
         Snap.groupToGroupChangeOfBase = function (from, to) {
             const fromMatrix = from.transform().totalMatrix;
             const toMatrix_inv = to.transform().totalMatrix.invert();
@@ -21288,12 +22727,10 @@ return robustDeterminant")
         }
 
         /**
-         * Helper function to determine whether there is an intersection between the two polygons described
-         * by the lists of vertices. Uses the Separating Axis Theorem
-         *
-         * @param a an array of connected points [{x:, y:}, {x:, y:},...] that form a closed polygon
-         * @param b an array of connected points [{x:, y:}, {x:, y:},...] that form a closed polygon
-         * @return true if there is any intersection between the 2 polygons, false otherwise
+         * Determines whether two polygons intersect using the Separating Axis Theorem.
+         * @param {Array<{x:number,y:number}>} a Polygon defined by connected vertices.
+         * @param {Array<{x:number,y:number}>} b Polygon defined by connected vertices.
+         * @returns {boolean} True if the polygons overlap, false otherwise.
          */
         Snap.polygonsIntersectConcave = function (a, b) {
             //todo use points
@@ -21352,6 +22789,12 @@ return robustDeterminant")
             return true;
         };
 
+        /**
+         * Generates an expanded polygon by offsetting each vertex outward by the supplied distance.
+         * @param {Array<{x:number,y:number}>} points Vertices of the original polygon (clockwise or counter-clockwise).
+         * @param {number} distance Offset distance applied to each vertex.
+         * @returns {Array<{x:number,y:number}>} Expanded polygon vertices.
+         */
         Snap.polygonExpand = function (points, distance) {
             const expandedPoints = [];
             const numPoints = points.length;
@@ -21402,8 +22845,19 @@ return robustDeterminant")
             }
 
             return expandedPoints;
-        }
-        Snap.load = function (url, callback, scope, data, filter, fail, fail_scope, _eve) {
+    }
+    /**
+     * Loads an external SVG fragment via Ajax and parses it into Snap fragments.
+    * @param {ResourceSpecifier} url Resource URL or tuple of URL and POST payload.
+     * @param {Function} callback Invoked with the parsed fragment (and raw text) on success.
+     * @param {Object} [scope] Scope for {@link callback}.
+     * @param {string} [data] Raw SVG markup to parse instead of performing a request.
+     * @param {Function} [filter] Optional filter passed to {@link Snap.parse}.
+     * @param {Function} [fail] Called when the request fails.
+     * @param {Object} [fail_scope] Scope for {@link fail}.
+     * @param {Function} [_eve] Eve event dispatcher instance.
+     */
+    Snap.load = function (url, callback, scope, data, filter, fail, fail_scope, _eve) {
             if (typeof scope === 'function') {
                 if (scope.isEve) {
                     _eve = scope;
@@ -21467,9 +22921,17 @@ return robustDeterminant")
                 }, undefined, fail, fail_scope);
             }
         };
-
-
-        function decode_json(json, decript = undefined, map = undefined, system = undefined) {
+    /**
+     * Decodes a compact JSON representation of an SVG tree into raw markup.
+     * @param {Object|string} json JSON describing the SVG structure.
+     * @param {Function} [decript] Optional mapper that decrypts the attribute map.
+     * @param {Object} [map] Lookup object translating compact tokens to attribute names.
+    * @param {AttributeKeyConfiguration} [system]
+    *  Custom key configuration describing where attributes, type, and children are stored.
+     * @returns {string} SVG/XML markup generated from the JSON input.
+     * @throws {Error} When a mapping table is not provided.
+     */
+    function decode_json(json, decript = undefined, map = undefined, system = undefined) {
             let attr = (system && (system.attr || system.attributes)) || "A";
             let type = (system && system.type) || "T";
             let children = (system && system.children) || "C";
@@ -21551,7 +23013,14 @@ return robustDeterminant")
 
         Snap.jsonToSvg = decode_json;
 
-        Snap.rgb2cmyk = function (r, g, b) {
+    /**
+     * Converts RGB components in the range [0, 1] to CMYK percentages.
+     * @param {number} r Red component normalized to [0, 1].
+     * @param {number} g Green component normalized to [0, 1].
+     * @param {number} b Blue component normalized to [0, 1].
+     * @returns {{c:number,m:number,y:number,k:number}} Corresponding CMYK values.
+     */
+    Snap.rgb2cmyk = function (r, g, b) {
             let computedC = 0;
             let computedM = 0;
             let computedY = 0;
@@ -21587,7 +23056,15 @@ return robustDeterminant")
             return {c: computedC, m: computedM, y: computedY, k: computedK};
         };
 
-        Snap.cmykToRgb = function (c, m, y, k) {
+    /**
+     * Converts CMYK values to 8-bit RGB components.
+     * @param {number} c Cyan component normalized to [0, 1].
+     * @param {number} m Magenta component normalized to [0, 1].
+     * @param {number} y Yellow component normalized to [0, 1].
+     * @param {number} k Key (black) component normalized to [0, 1].
+     * @returns {{r:number,g:number,b:number}} RGB components in the range [0, 255].
+     */
+    Snap.cmykToRgb = function (c, m, y, k) {
 
             let result = {r: 0, g: 0, b: 0};
 
@@ -21628,16 +23105,33 @@ return robustDeterminant")
 
         };
 
+        /**
+         * Converts a camelCase string into kebab-case.
+         * @param {string} str Input string.
+         * @returns {string} Hyphenated representation.
+         */
         Snap.camelToHyphen = function (str) {
             return str.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
         }
 
+        /**
+         * Converts dash or underscore delimited strings to camelCase.
+         * @param {string} str Input string.
+         * @returns {string} Camel-cased representation.
+         */
         Snap.toCamelCase = function (str) {
             return str.replace(/[-_]+([a-z])/gi, function ($1, letter) {
                 return letter.toUpperCase();
             });
         }
 
+        /**
+         * Polls a condition until it becomes true or the time limit elapses.
+         * @param {Function} condition Predicate returning a boolean-like value.
+         * @param {Function} callback Invoked once the condition succeeds.
+         * @param {TimeLimitSpecifier} [timelimit=1000] Maximum wait duration in milliseconds, optionally paired with a custom interval step.
+         * @param {Function} [fail_callback] Called when the time limit expires before success.
+         */
         Snap.waitFor = function (condition, callback, timelimit, fail_callback) {
             timelimit = timelimit || 1000;
             let step = 10;
@@ -21662,12 +23156,11 @@ return robustDeterminant")
 
 
         /**
-         * Validate url format
-         * @param url_string the url string
-         * @param relative whether to validate a relative string
-         * @return {boolean} true iff a valid url
+         * Validates a URL string for either absolute or relative formats.
+         * @param {string} url_string String to validate.
+         * @param {boolean} [relative=false] When true, enforces relative-path validation.
+         * @returns {boolean} True when {@link url_string} conforms to the requested format.
          */
-
         Snap.isUrl = function (url_string, relative) {
             if (relative) {
                 const pattern = /^(?!www\.|(?:http|ftp)s?:\/\/|[A-Za-z]:\\|\/\/)[^\s]*$/;
@@ -21682,6 +23175,11 @@ return robustDeterminant")
             }
         }
 
+        /**
+         * Determines whether the supplied object has no enumerable own properties.
+         * @param {Object} obj Object to inspect.
+         * @returns {boolean} True when the object has no own properties.
+         */
         Snap.isEmptyObject = function (obj) {
             for (var prop in obj) {
                 if (Object.prototype.hasOwnProperty.call(obj, prop)) {
@@ -21701,6 +23199,11 @@ return robustDeterminant")
             // '&quot;': '"',
             // '&#39;': "'"
         };
+        /**
+         * Normalizes Illustrator-generated identifiers into readable names.
+         * @param {string} str Raw name to sanitize.
+         * @returns {string} Cleaned identifier that is safe for use in Snap documents.
+         */
         Snap.AI_name_fix = function (str) {
             if (!str) return '';
             const result = str.replace(/_(x[0-9A-F]{2})_/g, function (_, b) {
@@ -21714,11 +23217,24 @@ return robustDeterminant")
 
         };
 
+        /**
+         * Returns a specific dimension from either a Snap element or raw bounding box object.
+         * @param {Snap.Element|{x:number,y:number,x2:number,y2:number,width:number,height:number}} el Element or bounding box.
+         * @param {string} dim Name of the dimension to extract (for example, "width" or "x").
+         * @returns {number} Numeric value of the requested dimension.
+         */
         Snap.dimFromElement = function (el, dim) {
             if (!Snap.is(el, 'Element')) return el;
             return el.getBBox()[dim];
         }
 
+        /**
+         * Evaluates dimension expressions with optional bounds and percentage handling.
+         * @param {string|number|Array} str Expression describing the dimension; array form is [expr, min?, max?].
+         * @param {number} space Base value used for percentage calculations.
+         * @param {boolean} [negative=false] Whether the result may be negative.
+         * @returns {number} Clamped dimension value.
+         */
         Snap.varDimension = function (str, space, negative) {
 
             if (typeof str === "number") return str;
@@ -21770,6 +23286,12 @@ return robustDeterminant")
     Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
         //Matrix Extentions
 
+    /**
+         * Applies the matrix to a point and returns the transformed coordinates.
+         * @param {{x:number,y:number}|number[]} point Source point.
+         * @param {Snap.Element} [node] Optional Snap element context.
+     * @returns {{x:number,y:number}} Transformed point.
+     */
         Snap.Matrix.prototype.apply = function (point, node) {
             let ret = {};
             ret.x = this.x(point.x || point[0] || 0, point.y || +point[1] || 0);
@@ -21777,7 +23299,18 @@ return robustDeterminant")
             return ret;
         };
 
-
+        /**
+         * Builds an affine transformation that maps two source points to two target points.
+         * @param {number} p1_x Source point 1 X coordinate.
+         * @param {number} p1_y Source point 1 Y coordinate.
+         * @param {number} p2_x Source point 2 X coordinate.
+         * @param {number} p2_y Source point 2 Y coordinate.
+         * @param {number} toP1_x Destination point 1 X coordinate.
+         * @param {number} toP1_y Destination point 1 Y coordinate.
+         * @param {number} toP2_x Destination point 2 X coordinate.
+         * @param {number} toP2_y Destination point 2 Y coordinate.
+         * @returns {Snap.Matrix|null} The matrix after it has been updated; `null` if the system can't be solved.
+         */
         Snap.Matrix.prototype.twoPointTransform = function (
             p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y) {
             const l1 = [p2_x - p1_x, p2_y - p1_y],
@@ -23714,8 +25247,8 @@ return robustDeterminant")
          * Gets the chain of element parents, ending with this, but not including the top SVG element.
          * @param callback is callback provided, taking an element and the order from below as arguments (el,i),
          *  it will return the result of the collback, as in array.map.
-         * @param include_top_sag if true, adds the top svg element as well
-         * @return {*[]}
+         * @param include_top_svg if true, adds the top svg element as well
+         * @return {Array<*>}
          */
         Element.prototype.getParentChain = function (
             callback, skip_current, toCoord, include_top_svg) {
@@ -25552,12 +27085,33 @@ return robustDeterminant")
         //Paper functions, require snap_extensions and element_extensions
         Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
             const paper_element_extension = {};
+            /**
+             * Registers a lazily executed Paper extension that can augment any SVG root.
+             * Extensions are executed later through {@link Snap.Paper#processExtensions}.
+             *
+             * @function Snap.Paper#addExtension
+             * @param {string} name Unique identifier for the extension.
+             * @param {function(Element):void} processor Callback that receives the root element to extend.
+             * @example
+             * paper.addExtension('highlight', (root) => {
+             *     root.addClass('is-highlighted');
+             * });
+             */
             let addExtension = function (name, processor) {
                 if (typeof processor === "function") paper_element_extension[name] = processor;
             };
             Paper.prototype.addExtension = addExtension;
             Paper.prototype.addExtension.skip = true;
 
+            /**
+             * Executes all registered extensions against the supplied SVG root. Each extension is invoked
+             * with the root element so that it can perform DOM manipulations or add helpers.
+             *
+             * @function Snap.Paper#processExtensions
+             * @param {Element} root Root SVG element that will receive all registered extensions.
+             * @example
+             * paper.processExtensions(paper.select('svg'));
+             */
             Paper.prototype.processExtensions = function (root) {
                 for (const name in paper_element_extension) {
                     paper_element_extension[name](root);
@@ -25566,6 +27120,16 @@ return robustDeterminant")
 
             Paper.prototype.processExtensions.skip = true;
 
+            /**
+             * Creates a `<clipPath>` element and optionally populates it with content or attributes.
+             *
+             * @function Snap.Paper#clipPath
+             * @param {Object|Snap.Element} [first] Attribute map or element to append immediately.
+             * @returns {Snap.Element} Newly created clipPath element.
+             * @example
+             * const clip = paper.clipPath({ id: 'avatarClip' });
+             * clip.add(paper.circle(50, 50, 40));
+             */
             Paper.prototype.clipPath = function (first) {
                 let attr;
                 const el = this.el('clipPath');
@@ -25577,6 +27141,17 @@ return robustDeterminant")
                 return el;
             };
 
+            /**
+             * Creates an SVG `<a>` anchor element and assigns optional href/target attributes.
+             *
+             * @function Snap.Paper#a
+             * @param {string} [href] Hyperlink reference (internal or external).
+             * @param {string} [target] Target attribute such as `_blank`.
+             * @returns {Snap.Element} Anchor element ready for child content.
+             * @example
+             * const link = paper.a('https://example.com', '_blank');
+             * link.add(paper.text(0, 0, 'Open example'));
+             */
             Paper.prototype.a = function (href, target) {
                 const el = this.el('a');
                 if (href || target) {
@@ -25588,6 +27163,20 @@ return robustDeterminant")
                 return el;
             };
 
+            /**
+             * Wraps an element (or text) with a styled rectangle and optional click handler to form a button.
+             *
+             * @function Snap.Paper#button
+             * @param {Snap.Element|string} el Element or string label to display inside the button.
+             * @param {number} [border=0] Padding around the element in SVG units.
+             * @param {function(MouseEvent):void} [action] Click handler assigned to the button group.
+             * @param {Object|string} [background_style] Style map or CSS string applied to the background rect.
+             * @param {Object|string} [style] Style map or CSS string applied to the wrapper group.
+             * @returns {Snap.Element} Group containing the clickable button and its background.
+            * @example
+            * const btn = paper.button('Save', 4, () => console.log('Saving...'));
+            * btn.addClass('ui-button');
+             */
             Paper.prototype.button = function (el, border, action, background_style, style) {
                 border = border || 0;
                 if (typeof el === 'string') {
@@ -25611,6 +27200,19 @@ return robustDeterminant")
                 return button;
             }
 
+            /**
+             * Creates a `<foreignObject>` container, injecting optional HTML markup into the node.
+             *
+             * @function Snap.Paper#foreignObject
+             * @param {number|Object} [x] X coordinate or attribute object.
+             * @param {number} [y] Y coordinate when numeric arguments are used.
+             * @param {number|string} [width] Width of the foreignObject.
+             * @param {number|string} [height] Height of the foreignObject.
+             * @param {string} [html] Inner HTML markup injected into the foreignObject.
+             * @returns {Snap.Element} The created foreignObject element.
+            * @example
+            * paper.foreignObject(10, 10, 120, 40, '<div>Inline HTML</div>');
+             */
             Paper.prototype.foreignObject = function (x, y, width, height, html) {
                 if (typeof width === 'string' && height === undefined && html ===
                     undefined) {
@@ -25634,6 +27236,22 @@ return robustDeterminant")
                 return el;
             };
 
+            /**
+             * Creates a managed foreignObject container whose inner `<div>` is exposed via `el.div` for
+             * easier manipulation. Accepts HTML, Snap elements, or arrays of elements.
+             *
+             * @function Snap.Paper#htmlInsert
+             * @param {number} x X coordinate.
+             * @param {number} y Y coordinate.
+             * @param {number|string} width Width of the container.
+             * @param {number|string} height Height of the container.
+             * @param {string|Snap.Element|Snap.Element[]} [html] Content injected into the inner div.
+             * @param {Object|string} [style] Style applied to the inner div.
+             * @returns {Snap.Element} ForeignObject element with an accessible `div` property.
+            * @example
+            * const widget = paper.htmlInsert(0, 0, 200, 100, '<p>Hello UI</p>');
+            * widget.div.addClass('widget-shell');
+             */
             Paper.prototype.htmlInsert = function (
                 x, y, width, height, html, style) {
                 const div = '<div xmlns="http://www.w3.org/1999/xhtml" class="IA_Designer_html"></div>';
@@ -25659,6 +27277,22 @@ return robustDeterminant")
                 return el;
             };
 
+            /**
+             * Creates a nested Snap canvas rendered inside a foreignObject, returning references to the
+             * embedded instance via `el.embeddedSvg`.
+             *
+             * @function Snap.Paper#embeddedSVG
+             * @param {number} x X coordinate of the container.
+             * @param {number} y Y coordinate of the container.
+             * @param {number} width Width of the embedded SVG viewport.
+             * @param {number} height Height of the embedded SVG viewport.
+             * @param {Snap.Element|Snap.Element[]} [element] Elements to add to the embedded canvas.
+             * @param {Snap.Element|Array<number>} [viewBox] Element or `[x, y, width, height]` defining the viewBox.
+             * @returns {Snap.Element} ForeignObject with `embeddedSvg` pointing to the inner Snap instance.
+             * @example
+             * const embedded = paper.embeddedSVG(0, 0, 200, 200);
+             * embedded.embeddedSvg.circle(100, 100, 40).attr({ fill: '#5bc0de' });
+             */
             Paper.prototype.embeddedSVG = function (
                 x, y, width, height, element, viewBox) {
                 if (viewBox && viewBox.getBBox) {
@@ -25681,6 +27315,21 @@ return robustDeterminant")
                 return el;
             };
 
+            /**
+             * Creates a `<canvas>` element inside a foreignObject and exposes the native node via `el.canvas`.
+             *
+             * @function Snap.Paper#canvas
+             * @param {number} x X coordinate of the foreignObject.
+             * @param {number} y Y coordinate of the foreignObject.
+             * @param {number} width Canvas width in pixels.
+             * @param {number} height Canvas height in pixels.
+             * @param {string} [id] Base id used for the foreignObject and canvas elements.
+             * @returns {Snap.Element} ForeignObject containing the created canvas element.
+             * @example
+             * const canvasFo = paper.canvas(0, 0, 300, 150, 'chart');
+             * const ctx = canvasFo.canvas.getContext('2d');
+             * ctx.fillRect(0, 0, 300, 150);
+             */
             Paper.prototype.canvas = function (x, y, width, height, id) {
                 id = id || String.rand(8, 'alpha');
                 const html = '<canvas id="' + id + '_canvas" ' +
@@ -25699,6 +27348,17 @@ return robustDeterminant")
                 return fo;
             };
 
+            /**
+             * Creates a simple HTML `<input type="text">` form inside a foreignObject.
+             *
+             * @function Snap.Paper#textInputBox
+             * @param {string} id Element id assigned to the wrapping div.
+             * @param {number} x X coordinate of the foreignObject.
+             * @param {number} y Y coordinate of the foreignObject.
+             * @param {number} width Width of the input container.
+             * @param {number} height Height of the input container.
+             * @returns {Snap.Element} ForeignObject containing the form markup.
+             */
             const textInputBox = function (id, x, y, width, height) {
                 const html = '<div id ="' + id +
                     '" xmlns="http://www.w3.org/1999/xhtml">' +
@@ -25711,17 +27371,47 @@ return robustDeterminant")
             textInputBox.skip = true;
             Paper.prototype.textInputBox = textInputBox;
 
-            Paper.prototype.point = function (
-                group, x, y, color, size, label, label_style) {
-                if (typeof group !== 'object' || !group.paper) {
-                    label_style = label;
-                    label = size;
-                    size = color;
-                    color = y;
-                    y = x;
-                    x = group;
-                    group = this;
-                }
+            /**
+             * Draws a screen-space constant point marker with optional label support.
+             *
+             * @function Snap.Paper#point
+             * @param {Snap.Element|number|number[]} group Target group or x coordinate.
+             * @param {number} [x] X coordinate when `group` is provided.
+             * @param {number} [y] Y coordinate when `group` is provided.
+             * @param {string|number} [color] Fill color or radius when numeric.
+             * @param {number|string} [size=1] Base radius expressed in screen pixels.
+             * @param {string|null} [label] Optional label text (use `null` to suppress).
+             * @param {Object} [label_style] Additional label styling options such as `dx`/`dy`.
+             * @returns {Snap.Element} Created marker element or wrapper group when labeled.
+             */
+            /**
+             * Draws an SVG grid made of horizontal and vertical lines. This helper is useful when you need the
+             * underlying line elements; for a rectangular cell grid see the later `Snap.Paper#grid` override.
+             *
+             * @name Snap.Paper#gridLines
+             * @private
+             * @param {number} x X coordinate of the grid origin.
+             * @param {number} y Y coordinate of the grid origin.
+             * @param {number} width Total width of the grid.
+             * @param {number} height Total height of the grid.
+             * @param {number|Object|Snap.Element} columns Column count, attribute map, or existing container element.
+             * @param {number} rows Number of rows (used when `columns` is numeric).
+             * @param {number} [stroke_width=1] Stroke width applied to grid lines.
+             * @param {Object} [style] Attribute map applied to the grid lines.
+             * @param {boolean} [elements=false] When truthy, returns separate horizontal/vertical collections.
+             * @returns {Snap.Element|Object} Grid group or object `{ lines, columns, rows }` when `elements` is true.
+             */
+            Paper.prototype.grid = function (
+                x,
+                y,
+                width,
+                height,
+                columns,
+                rows,
+                stroke_width,
+                style,
+                elements
+            ) {
                 if (typeof x === 'object') {
                     label_style = label;
                     label = size;
@@ -25772,17 +27462,29 @@ return robustDeterminant")
             Paper.prototype.getFromScreenDistance.skip = true;
 
             /**
-             * Overwrite all circles to be ellipses for geometric simplicity
-             * @param x
-             * @param y
-             * @param r
-             * @param attr
-             * @return {*}
+             * Draws a circle by delegating to {@link Snap.Paper#ellipse} so that width and height scale
+             * consistently when transforms are applied.
+             *
+             * @function Snap.Paper#circle
+             * @param {number} x X coordinate of the centre.
+             * @param {number} y Y coordinate of the centre.
+             * @param {number} r Circle radius.
+             * @param {Object} [attr] Attribute map for the circle element.
+             * @returns {Snap.Element} Created ellipse element representing the circle.
              */
             Paper.prototype.circle = function (x, y, r, attr) {
                 return this.ellipse(x, y, r, r, attr);
             };
 
+            /**
+             * Measures text by temporarily drawing it within the SVG, returning the associated bounding box.
+             *
+             * @function Snap.Paper#measureText
+             * @param {string} text Text to measure.
+             * @param {Object} [font_style] Attribute map (e.g. `font-size`, `font-family`).
+             * @param {Snap.Element} [group] Optional group to which the transient text is added.
+             * @returns {Snap.BBox} Bounding box of the rendered text.
+             */
             const measureText = function (text, font_style, group) {
                 const text_el = this.text(0, 0, text);
                 if (font_style) text_el.attr(font_style);
@@ -25794,6 +27496,18 @@ return robustDeterminant")
             measureText.skip = true;
             Paper.prototype.measureText = measureText;
 
+            /**
+             * Renders text containing newline characters as stacked tspans, with configurable spacing.
+             *
+             * @function Snap.Paper#multilineText
+             * @param {number} x X coordinate of the first baseline.
+             * @param {number} y Y coordinate of the first baseline.
+             * @param {string|string[]} text Text value or list of lines.
+             * @param {Object} [attr] Attribute map applied to the text element.
+             * @param {number} [linespace=1.2] Line spacing expressed in em units.
+             * @param {number} [first_tab=0] Initial horizontal offset for the first line.
+             * @returns {Snap.Element} Text element containing the generated tspans.
+             */
             Paper.prototype.multilineText = function (
                 x, y, text, attr, linespace, first_tab) {
                 linespace = linespace || 1.2;
@@ -25811,7 +27525,19 @@ return robustDeterminant")
                 return text_tab;
             };
 
-
+            /**
+             * Creates an image-based border using nine-slice scaling and optional background colour fill.
+             *
+             * @function Snap.Paper#borderImage
+             * @param {Snap.Element|string} image_url Image element or URL used for the border slices.
+             * @param {number} [border=0] Border width around the target rectangle.
+             * @param {number} x X coordinate of the top-left corner.
+             * @param {number} y Y coordinate of the top-left corner.
+             * @param {number} width Target width of the border frame.
+             * @param {number} height Target height of the border frame.
+             * @param {string} [color="white"] Background colour used if the source image contains transparency.
+             * @returns {Snap.Element} Group containing the tiled border graphics.
+             */
             Paper.prototype.borderImage = function (image_url, border, x, y, width, height, color) {
                 color = color || "white"
                 border = border || 0;
@@ -25895,12 +27621,6 @@ return robustDeterminant")
                     attributeOldValue: true,
                     // attributeFilter: attributeFilter,
                 });
-
-                group.registerRemoveFunction(() => {
-                    console.log("Disconnecting")
-                    border_image_observer.disconnect();
-                })
-
                 group._observer = border_image_observer;
                 group.isBorderImage = true;
 
@@ -26089,7 +27809,16 @@ return robustDeterminant")
         //Shape builders
         Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
-                /*Creates a circle from a center and a point on it*/
+                /**
+                 * Builds a circle from a centre point and a point lying on its circumference.
+                 *
+                 * @function Snap.Paper#circleCentPoint
+                 * @param {number|Object} x1 Centre x coordinate or `{x, y}` object.
+                 * @param {number|Object} y1 Centre y coordinate or `{x, y}` object when `x1` is numeric.
+                 * @param {number} x2 X coordinate of the circumference point.
+                 * @param {number} y2 Y coordinate of the circumference point.
+                 * @returns {Snap.Element} Circle element derived from the two points.
+                 */
                 Paper.prototype.circleCentPoint = function (x1, y1, x2, y2) {
                     if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
                         x2 = y1.x;
@@ -26106,6 +27835,16 @@ return robustDeterminant")
                 };
 
 
+                /**
+                 * Builds a circle from two points defining the endpoints of a diameter.
+                 *
+                 * @function Snap.Paper#circleTwoPoints
+                 * @param {number|Object} x1 First point x coordinate or `{x, y}` object.
+                 * @param {number|Object} y1 First point y coordinate or `{x, y}` object when `x1` is numeric.
+                 * @param {number} x2 Second point x coordinate.
+                 * @param {number} y2 Second point y coordinate.
+                 * @returns {Snap.Element} Circle passing through the two provided points.
+                 */
                 Paper.prototype.circleTwoPoints = function (x1, y1, x2, y2) {
                     if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
                         x2 = y1.x;
@@ -26121,6 +27860,18 @@ return robustDeterminant")
                     return this.circle((x1 + x2) / 2, (y1 + y2) / 2, Snap.len(x1, y1, x2, y2) / 2);
                 };
 
+                /**
+                 * Builds a circle that passes through three distinct points.
+                 *
+                 * @function Snap.Paper#circleThreePoints
+                 * @param {number|Object} x1 First point x coordinate or `{x, y}` object.
+                 * @param {number|Object} y1 First point y coordinate or `{x, y}` object when `x1` is numeric.
+                 * @param {number|Object} x2 Second point x coordinate or `{x, y}` object.
+                 * @param {number} y2 Second point y coordinate.
+                 * @param {number} x3 Third point x coordinate.
+                 * @param {number} y3 Third point y coordinate.
+                 * @returns {Snap.Element|null} Circle through the three points, or `null` if the points are colinear.
+                 */
                 Paper.prototype.circleThreePoints = function (x1, y1, x2, y2, x3, y3) {
 
                     if (typeof x2 === "object" && x2.hasOwnProperty("x")) {
@@ -26159,6 +27910,19 @@ return robustDeterminant")
                 };
 
 
+                /**
+                 * Constructs an ellipse from the general quadratic equation coefficients.
+                 *
+                 * @function Snap.Paper#ellipseFromEquation
+                 * @param {number} A Coefficient for $x^2$.
+                 * @param {number} B Coefficient for $xy$.
+                 * @param {number} C Coefficient for $y^2$.
+                 * @param {number} D Coefficient for $x$.
+                 * @param {number} E Coefficient for $y$.
+                 * @param {number} [F=-1] Constant term.
+                 * @param {boolean} [properties_only=false] When true, returns ellipse properties instead of an element.
+                 * @returns {Snap.Element|Object|null} Ellipse element or property object; `null` when coefficients do not represent an ellipse.
+                 */
                 Paper.prototype.ellipseFromEquation = function (A, B, C, D, E, F, properties_only) {
                     if (typeof F === "boolean") {
                         properties_only = F;
@@ -26259,6 +28023,21 @@ return robustDeterminant")
                     }
                 };
 
+                /**
+                 * Splits an annulus into equal angular segments and renders them as path elements.
+                 *
+                 * @function Snap.Paper#diskSegments
+                 * @param {number} num_segments Number of segments to generate.
+                 * @param {number} [angle] Angular span in radians; defaults to a full circle.
+                 * @param {number} [start_angle=0] Angle offset applied to the first segment.
+                 * @param {number} inner_rad Inner radius of the annulus.
+                 * @param {number} outer_rad Outer radius of the annulus.
+                 * @param {Object|Array|function} [style] Styling applied to each segment.
+                 * @param {string} [id] Base id assigned to generated segments.
+                 * @param {Snap.Element} [group] Group that receives the generated segments.
+                 * @param {string} [class_name] Class name appended to each path.
+                 * @returns {Snap.Element} Group containing all generated segments, or the last path when no group is supplied.
+                 */
                 Paper.prototype.diskSegments = function (num_segments, angle, start_angle, inner_rad, outer_rad, style, id, group, class_name) {
                     if (!group && num_segments > 1) {
                         group = this.g()
@@ -26304,6 +28083,16 @@ return robustDeterminant")
                     return (group) ? group : path;
                 };
 
+                /**
+                 * Creates a donut-shaped path by subtracting an inner circle from an outer circle.
+                 *
+                 * @function Snap.Paper#disk
+                 * @param {number} cx Centre x coordinate.
+                 * @param {number} cy Centre y coordinate.
+                 * @param {number} our_rad Outer radius of the disk.
+                 * @param {number} inner_rad Inner radius of the disk.
+                 * @returns {Snap.Element} Path element representing the disk with even-odd fill rule.
+                 */
                 Paper.prototype.disk = function (cx, cy, our_rad, inner_rad) {
                     const outer = this.circle(cx, cy, our_rad).toDefs();
                     const inner = this.circle(cx, cy, inner_rad).toDefs();
@@ -26316,6 +28105,19 @@ return robustDeterminant")
                     return this.path(d).attr({fillRule: "evenodd"});
                 };
 
+                /**
+                 * Places repeated symbols along an arc, rotating each instance to face outward.
+                 *
+                 * @function Snap.Paper#arcFan
+                 * @param {number} rad Radius of the arc.
+                 * @param {number} angle Total angular span in degrees.
+                 * @param {number} step Number of symbol placements along the arc.
+                 * @param {Snap.Element|Object} symbol Element or descriptor used to render each symbol.
+                 * @param {Object|Array|function} [style] Styling applied to the generated elements.
+                 * @param {string} [id] Base id assigned to the generated elements.
+                 * @param {Snap.Element} [group] Group that receives the generated elements.
+                 * @returns {Snap.Element} Group containing the repeated symbols.
+                 */
                 Paper.prototype.arcFan = function (rad, angle, step, symbol, style, id, group) {
                     if (!group) {
                         group = this.g()
@@ -26369,16 +28171,17 @@ return robustDeterminant")
                 };
 
                 /**
-                 * Creates a rectangular grid.
+                 * Creates a uniform rectangular grid of `<rect>` elements.
                  *
-                 * @param {number} width
-                 * @param {number} height
-                 * @param {number} rows
-                 * @param {number} cols
-                 * @param {function, object} style
-                 * @param {string} id
-                 * @param {Element} group
-                 * @return {*}
+                 * @function Snap.Paper#grid
+                 * @param {number} width Overall grid width.
+                 * @param {number} height Overall grid height.
+                 * @param {number} rows Number of rows.
+                 * @param {number} cols Number of columns.
+                 * @param {Object|function} [style] Style map or callback applied to each cell.
+                 * @param {string} [id] Base id assigned to generated cells.
+                 * @param {Snap.Element} [group] Group that receives the cells.
+                 * @returns {Snap.Element} Group containing all generated rectangles.
                  */
                 Paper.prototype.grid = function (width, height, rows, cols, style, id, group) {
                     if (!group) {
@@ -26414,6 +28217,17 @@ return robustDeterminant")
                     return group;
                 };
 
+                /**
+                 * Creates a zigzag polyline between two points or across a specified horizontal width.
+                 *
+                 * @function Snap.Paper#zigzag
+                 * @param {Object} p1 Starting point `{x, y}`.
+                 * @param {Object|number} p2_width Second point `{x, y}` or horizontal length in pixels.
+                 * @param {number} period Length of a single zigzag period.
+                 * @param {number} amplitude Vertical displacement from the centre line.
+                 * @param {boolean} [reverice=false] When true, inverts the initial zigzag direction.
+                 * @returns {Snap.Element} Polyline element representing the zigzag path.
+                 */
                 Paper.prototype.zigzag = function (p1, p2_width, period, amplitude, reverice) {
                     const p2 = (typeof p2_width === "number") ? {x: p1.x + p2_width, y: p1.y} : p2_width;
 

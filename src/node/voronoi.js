@@ -4,12 +4,37 @@ const triangulate = require("delaunay-triangulate");
 const circumcenter = require("circumcenter");
 const uniq = require("uniq");
 
+/** @type {Function} */
 module.exports = voronoi
 
+/**
+ * Numerical comparator optimized for integer values.
+ *
+ * Used to deduplicate Voronoi star indices when the geometry has a dimensionality greater than two.
+ * Keeping the comparator inline allows {@link module:uniq} to short-circuit quickly, reducing allocations
+ * in heavy diagram workloads.
+ *
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
 function compareInt(a, b) {
   return a - b
 }
 
+/**
+ * Specialized Voronoi computation for the one-dimensional case.
+ *
+ * While uncommon, 1D inputs appear when snapping along a guide or evaluating parametric curves.  This
+ * helper arranges breakpoints along the line and computes midpoint separators without performing a full
+ * 2D triangulation.
+ *
+ * @param {Array<Array<number>>} points One-dimensional points expressed as `[x]` tuples.
+ * @returns {{cells:Array<Array<number>>, positions:Array<Array<number>>}} Voronoi descriptors for 1D.
+ * @example
+ * const {cells, positions} = voronoi1D([[0], [10], [35]]);
+ * // Each cell stores indices into `positions`, describing intervals on the line.
+ */
 function voronoi1D(points) {
   if(points.length === 1) {
     return {
@@ -47,6 +72,20 @@ function voronoi1D(points) {
 
 
 
+/**
+ * Computes Voronoi cells for the supplied point cloud.
+ *
+ * The routine wraps a Delaunay triangulation produced by {@link module:delaunay-triangulate} and derives the
+ * circumcentres that form the Voronoi vertices.  Degenerate simplices that reference the super triangle are
+ * marked with `-1` so callers can easily skip unbounded faces.  The resulting structure is designed to be fed
+ * into higher level helpers such as {@link Snap.voronoi}.
+ *
+ * @param {Array<Array<number>>} points Input points.
+ * @returns {{cells:Array<Array<number>>, positions:Array<Array<number>>, triangles:Array<Array<number>>}} Voronoi diagram representation.
+ * @example
+ * const {cells, positions} = voronoi([[0, 0], [50, 10], [25, 75]]);
+ * // cells -> index references into positions array forming each Voronoi face
+ */
 function voronoi(points) {
   const n = points.length;
   if(n === 0) {

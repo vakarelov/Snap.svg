@@ -20,22 +20,21 @@
 
         const eve = eve_ia;
 
-        /*\
-         * Snap
-         [ method ]
-         **
-         * Creates a drawing surface or wraps existing SVG element.
-         **
-         - width (number|string) width of surface
-         - height (number|string) height of surface
-         * or
-         - DOM (SVGElement) element to be wrapped into Snap structure
-         * or
-         - array (array) array of elements (will return set of elements)
-         * or
-         - query (string) CSS query selector
-         = (object) @Element
-        \*/
+    /**
+     * Main Snap.svg factory function and namespace entry point.
+     * Creates a drawing surface, wraps existing SVG content, or returns utility objects
+     * depending on the argument type.
+     *
+     * @namespace Snap
+     * @function Snap
+     * @param {(number|string|SVGElement|Array.<Element>|string)} [width] Width of the new surface,
+     *        an existing SVG DOM node, an array of elements, or a CSS selector when combined with
+     *        the `height` parameter being `null` or `undefined`.
+     * @param {(number|string|Object)} [height] Height of the new surface or attribute map applied
+     *        when the first argument is an element creation string.
+     * @returns {(Snap.Element|Snap.Paper|Snap.Set|null)} Wrapped element, drawing paper, set of
+     *          elements, or `null` when a selector matches nothing.
+     */
         function Snap(w, h) {
             if (w) {
                 if (w.nodeType || (Snap._.glob.win.jQuery && w instanceof jQuery)) {
@@ -238,14 +237,14 @@
         const xmlns = 'http://www.w3.org/2000/svg';
         const hub = {};
         const hub_rem = {};
-        /*\
-     * Snap.url
-     [ method ]
-     **
-     * Wraps path into `"url('<path>')"`.
-     - value (string) path
-     = (string) wrapped path
-    \*/
+        /**
+         * Wraps an ID in a `url(#...)` reference.
+         *
+         * @function Snap.url
+         * @memberof Snap
+         * @param {string} value Fragment identifier.
+         * @returns {string} URL reference string.
+         */
         const URL = Snap.url = function (url) {
             return 'url(#' + url + ')';
         };
@@ -369,27 +368,23 @@
                 objectToString.call(o).slice(8, -1).toLowerCase() === type;
         }
 
-        /*\
-         * Snap.format
-         [ method ]
-         **
-         * Replaces construction of type `{<name>}` to the corresponding argument
-         **
-         - token (string) string to format
-         - json (object) object which properties are used as a replacement
-         = (string) formatted string
-         > Usage
-         | // this draws a rectangular shape equivalent to "M10,20h40v50h-40z"
-         | paper.path(Snap.format("M{x},{y}h{dim.width}v{dim.height}h{dim['negative width']}z", {
-         |     x: 10,
-         |     y: 20,
-         |     dim: {
-         |         width: 40,
-         |         height: 50,
-         |         "negative width": -40
-         |     }
-         | }));
-        \*/
+    /**
+     * Performs simple token replacement on strings using `{token}` placeholders.
+     *
+     * @function Snap.format
+     * @memberof Snap
+     * @param {string} token Template string containing `{name}` placeholders.
+     * @param {Object} json Object whose properties are used as replacements.
+     * @returns {string} Formatted string.
+     * @example
+     * const path = Snap.format("M{x},{y}h{width}v{height}h{negWidth}z", {
+     *   x: 10,
+     *   y: 20,
+     *   width: 40,
+     *   height: 50,
+     *   negWidth: -40
+     * });
+     */
         Snap.format = (function () {
             const tokenRegex = /\{([^\}]+)\}/g,
                 objNotationRegex = /(?:(?:^|\.)(.+?)(?=\[|\.|$|\()|\[('|")(.+?)\2\])(\(\))?/g, // matches .xxxxx or ["xxxxx"] to run over object properties
@@ -501,66 +496,65 @@
             return this.x + S + this.y + S + this.width + ' \xd7 ' + this.height;
         }
 
-        /*\
-         * Snap.rad
-         [ method ]
-         **
-         * Transform angle to radians
-         - deg (number) angle in degrees
-         = (number) angle in radians
-        \*/
+        /**
+         * Converts degrees to radians.
+         *
+         * @function Snap.rad
+         * @memberof Snap
+         * @param {number} deg Angle in degrees.
+         * @returns {number} Angle in radians.
+         */
         Snap.rad = rad;
-        /*\
-         * Snap.deg
-         [ method ]
-         **
-         * Transform angle to degrees
-         - rad (number) angle in radians
-         = (number) angle in degrees
-        \*/
+        /**
+         * Converts radians to degrees.
+         *
+         * @function Snap.deg
+         * @memberof Snap
+         * @param {number} rad Angle in radians.
+         * @returns {number} Angle in degrees.
+         */
         Snap.deg = deg;
-        /*\
-         * Snap.sin
-         [ method ]
-         **
-         * Equivalent to `Math.sin()` only works with degrees, not radians.
-         - angle (number) angle in degrees
-         = (number) sin
-        \*/
+        /**
+         * Calculates the sine of an angle specified in degrees.
+         *
+         * @function Snap.sin
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Sine of the angle.
+         */
         Snap.sin = function (angle) {
             return math.sin(Snap.rad(angle));
         };
-        /*\
-         * Snap.tan
-         [ method ]
-         **
-         * Equivalent to `Math.tan()` only works with degrees, not radians.
-         - angle (number) angle in degrees
-         = (number) tan
-        \*/
+        /**
+         * Calculates the tangent of an angle specified in degrees.
+         *
+         * @function Snap.tan
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Tangent of the angle.
+         */
         Snap.tan = function (angle) {
             return math.tan(Snap.rad(angle));
         };
-        /*\
-         * Snap.cotan
-         [ method ]
-         **
-         * Evaluates cotangent of angle.
-         - angle (number) angle in degrees
-         = (number) tan
-        \*/
+        /**
+         * Calculates the cotangent of an angle specified in degrees.
+         *
+         * @function Snap.cot
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Cotangent of the angle.
+         */
         Snap.cot = function (angle) {
             return 1 / Snap.tan(angle);
         };
-
-        /*\
-         * Snap.cos
-         [ method ]
-         **
-         * Equivalent to `Math.cos()` only works with degrees, not radians.
-         - angle (number) angle in degrees
-         = (number) cos
-        \*/
+        /**
+         * Calculates the cosine of an angle specified in degrees.
+         *
+         * @function Snap.cos
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Cosine of the angle.
+         */
         Snap.cos = function (angle) {
             return math.cos(Snap.rad(angle));
         };
@@ -1688,7 +1682,13 @@
         //     }
         // }
 
-        function Element(el) {
+    /**
+     * Wrapper around native SVG DOM nodes providing Snap.svg convenience helpers.
+     *
+     * @class Snap.Element
+     * @param {SVGElement} el Underlying DOM node.
+     */
+    function Element(el) {
             if (el.snap in hub) {
                 return hub[el.snap];
             }
@@ -1882,7 +1882,13 @@
             return new Fragment(f);
         };
 
-        function Fragment(frag) {
+    /**
+     * Lightweight container representing detached SVG content that can be inserted elsewhere.
+     *
+     * @class Snap.Fragment
+     * @param {DocumentFragment} frag Native document fragment produced by Snap.
+     */
+    function Fragment(frag) {
             this.node = frag;
         }
 
@@ -1922,7 +1928,15 @@
             return el;
         }
 
-        function Paper(w, h) {
+    /**
+     * Wrapper around an `<svg>` root node providing element creation helpers and utilities.
+     * Instances are created through {@link Snap} and mirror the behaviour of Snap.svg papers.
+     *
+     * @class Snap.Paper
+     * @param {(number|string|SVGElement)} w Width of the surface or an existing SVG element.
+     * @param {(number|string)} [h] Height of the surface when `w` is a numeric or string size.
+     */
+    function Paper(w, h) {
             let res,
                 // desc,
                 defs;
@@ -2028,13 +2042,12 @@
             attr && el.attr(attr);
             return el;
         };
-        /*\
-         * Element.children
-         [ method ]
-         **
-         * Returns array of all the children of the element.
-         = (array) array of Elements
-        \*/
+    /**
+     * Returns all child elements wrapped as Snap elements.
+     *
+     * @function Snap.Element#children
+     * @returns {Array.<Snap.Element>} Array of child elements.
+     */
         Element.prototype.children = function () {
             const out = [],
                 ch = this.node.childNodes;
@@ -2062,18 +2075,12 @@
             }
         }
 
-        /*\
-         * Element.toJSON
-         [ method ]
-         **
-         * Returns object representation of the given element and all its children.
-         = (object) in format
-         o {
-         o     type (string) this.type,
-         o     attr (object) attributes map,
-         o     childNodes (array) optional array of children in the same format
-         o }
-        \*/
+    /**
+     * Serialises the element and its descendants into a plain object tree.
+     *
+     * @function Snap.Element#toJSON
+     * @returns {Object} Element descriptor containing type, attributes, and child nodes.
+     */
         Element.prototype.toJSON = function () {
             const out = [];
             jsonFiller([this], out);
@@ -2116,7 +2123,7 @@
             if (cssAttr[has](css)) {
                 attr[att] = '';
                 $(this.node, attr);
-                if (this.type === 'jquery') {
+                if (this.type === 'jquery') { //we don't use jquery anymore. Just for backwords compatibility
                     this.node.css(style, value);
                 } else {
                     this.node.style[style] = value;
@@ -2130,6 +2137,7 @@
                 }
                 if (geomAttr[has](att)) this.clearCHull() //.c_hull = undefined;
             }
+            this.attrMonitor(att)
         });
         (function (proto) {
         }(Paper.prototype));
@@ -2302,18 +2310,15 @@
                 x: left,
             };
         };
-        /*\
-         * Snap.getElementByPoint
-         [ method ]
-         **
-         * Returns you topmost element under given point.
-         **
-         = (object) Snap element object
-         - x (number) x coordinate from the top left corner of the window
-         - y (number) y coordinate from the top left corner of the window
-         > Usage
-         | Snap.getElementByPoint(mouseX, mouseY).attr({stroke: "#f00"});
-        \*/
+    /**
+     * Returns the topmost element under the given window coordinates.
+     *
+     * @function Snap.getElementByPoint
+     * @memberof Snap
+     * @param {number} x X coordinate relative to the top-left corner of the viewport.
+     * @param {number} y Y coordinate relative to the top-left corner of the viewport.
+     * @returns {(Snap.Element|null)} Snap element wrapper or `null` when nothing is found.
+     */
         Snap.getElementByPoint = function (x, y) {
             const paper = this,
                 svg = paper.canvas;
@@ -2334,21 +2339,13 @@
             }
             return wrap(target);
         };
-        /*\
-         * Snap.plugin
-         [ method ]
-         **
-         * Let you write plugins. You pass in a function with five arguments, like this:
-         | Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
-         |     Snap.newmethod = function () {};
-         |     Element.prototype.newmethod = function () {};
-         |     Paper.prototype.newmethod = function () {};
-         | });
-         * Inside the function you have access to all main objects (and their
-         * prototypes). This allow you to extend anything you want.
-         **
-         - f (function) your plugin body
-        \*/
+        /**
+         * Registers a plugin function that receives the Snap namespace and key prototypes.
+         *
+         * @function Snap.plugin
+         * @memberof Snap
+         * @param {function(Snap, Snap.Element, Snap.Paper, Window, Snap.Fragment, Function)} f Plugin callback.
+         */
         Snap.plugin = function (f) {
             f(Snap, Element, Paper, glob, Fragment, eve);
         };

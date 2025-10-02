@@ -5,325 +5,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     const ERROR = 1e-12;
 
-    function BBox(x, y, width, height) {
-        if (x === null) {
-            x = y = width = height = 0;
-        }
-        if (Array.isArray(x)) {
-            this.y = +x[1] || 0;
-            this.width = +x[2] || 0;
-            this.height = +x[3] || 0;
-            this.x = +x[0] || 0;
-        } else if (typeof x === 'object' && typeof x.x === 'object') {  //bezeir bbox
-            this.x = x.x.min || 0;
-            this.y = x.y.min || 0;
-            this.width = x.x.size || 0;
-            this.height = x.y.size || 0;
-        } else if (typeof x === 'object'
-            && (typeof x.x === 'number' || typeof x.cx === 'number' || typeof x.x2 === 'number')
-            && (typeof x.y === 'number' || typeof x.cy === 'number' || typeof x.y2 === 'number')) {
-            this.width = +x.width || abs(+x.x - +x.x2) || 0;
-            this.height = +x.height || abs(+x.y - +x.y2) || 0;
-            if (typeof x.x === 'number') {
-                this.x = x.x;
-            } else if (typeof x.cx === 'number') {
-                this.x = x.cx - this.width / 2
-            } else {
-                this.x = x.x2 - this.width
-            }
-            if (typeof x.y === 'number') {
-                this.y = x.y;
-            } else if (typeof x.cy === 'number') {
-                this.y = x.cy - this.height / 2
-            } else {
-                this.y = x.y2 - this.height
-            }
-        } else { //ZERO box
-            this.x = +x || 0;
-            this.y = +y || 0;
-            this.width = +width || 0;
-            this.height = +height || 0;
-        }
+    const BBox = Snap.BBox || Snap._.BBox;
+    const box = Snap.box || Snap._.box;
 
-        this.h = this.height;
-        this.w = this.width;
-
-        this.x2 = this.x + this.width;
-        this.y2 = this.y + this.height;
-        this.cx = this.x + this.width / 2;
-        this.cy = this.y + this.height / 2;
+    if (!BBox || !box) {
+        throw new Error('Snap BBox extension must be loaded before the path extension.');
     }
-
-    BBox.prototype.clone = function () {
-        return new BBox(this.x, this.y, this.width, this.height);
-    };
-
-    BBox.prototype.r1 = function () {
-        return Math.min(this.width, this.height) / 2;
-    };
-
-    BBox.prototype.r2 = function () {
-        return Math.max(this.width, this.height) / 2;
-    };
-
-    BBox.prototype.r0 = function () {
-        return Math.sqrt(this.width * this.width + this.height * this.height) / 2;
-    };
-
-    BBox.prototype.diag = function () {
-        return Math.sqrt(this.width * this.width + this.height * this.height);
-    };
-
-    BBox.prototype.addBorder = function (border, get_new) {
-        if (get_new) {
-            const bbox = this.clone();
-            return bbox.addBorder(border);
-        }
-        if (!border) {
-            border = {x: 0, y: 0, x2: 0, y2: 0};
-        } else {
-            if (!isNaN(border)) {
-                border = {x: border, y: border, x2: border, y2: border};
-            }
-            if (Array.isArray(border)) {
-                if (border.length === 1) border[1] = border[0];
-                border = {
-                    x: border[0], y: border[1],
-                    x2: (border[2] == null) ? border[0] : border[2],
-                    y2: (border[3] == null) ? border[1] : border[3]
-                };
-            }
-        }
-        this.x -= border.x;
-        this.y -= border.y;
-        this.width += border.x + border.x2;
-        this.w = this.width;
-        this.height += border.y + border.y2;
-        this.h = this.height;
-        this.x2 = this.x + this.width;
-        this.y2 = this.y + this.height;
-        this.cx = this.x + this.width / 2;
-        this.cy = this.y + this.height / 2;
-
-        return this;
-    }
-
-    BBox.prototype.path = function () {
-        return rectPath(this.x, this.y, this.width, this.height);
-    };
-
-    BBox.prototype.rect = function (paper, radius, border) {
-        let rx, ry;
-        if (radius) {
-            if (!isNaN(radius)) {
-                rx = ry = radius;
-            } else {
-                rx = radius.rx || radius[0] || 0;
-                ry = radius.ry || radius[1] || rx;
-            }
-
-        }
-        const bb = (border) ? this.addBorder(border, true) : this;
-        return paper.rect(bb.x, bb.y, bb.width, bb.height, rx, ry);
-    };
-
-    BBox.prototype.vb = function () {
-        return [this.x, this.y, this.width, this.height].join(' ');
-    };
-
-    BBox.prototype.ration = function () {
-        return this.width / this.height;
-    };
-
-    BBox.prototype.contains = function (bbox_or_point, clearance) {
-        clearance = clearance || 0;
-        const x = bbox_or_point.x || bbox_or_point[0],
-            y = bbox_or_point.y || bbox_or_point[1],
-            x2 = (bbox_or_point.hasOwnProperty('x2')) ? bbox_or_point.x2 : x,
-            y2 = (bbox_or_point.hasOwnProperty('y2')) ? bbox_or_point.y2 : y;
-
-        const is_in = x >= this.x - clearance && x2 <= this.x2 + clearance
-            && y >= this.y - clearance && y2 <= this.y2 + clearance;
-        return is_in;
-    };
-
-    BBox.prototype.containsCircle = function (circle) {
-        return this.x <= circle.x - circle.r && this.y <= circle.y - circle.r &&
-            this.x2 >= circle.x + circle.r && this.y2 >= circle.y + circle.r;
-    };
-
-    BBox.prototype.center = function () {
-        return {x: this.cx, y: this.cy};
-    };
-
-    BBox.prototype.corner = function (count) {
-        count = count || 0;
-        switch (count) {
-            case 0:
-                return {x: this.x, y: this.y};
-            case 1:
-                return {x: this.x2, y: this.y};
-            case 2:
-                return {x: this.x2, y: this.y2};
-            case 3:
-                return {x: this.x, y: this.y2};
-        }
-    }
-
-    BBox.prototype.pointFromName = function (name) {
-        name = name.toLowerCase();
-        switch (name) {
-            case 'c':
-                return this.center();
-            case 'tl':
-                return this.corner(0);
-            case 'tr':
-                return this.corner(1);
-            case 'br':
-                return this.corner(2);
-            case 'bl':
-                return this.corner(3);
-            case 't':
-            case 'tc':
-                return {x: this.cx, y: this.y2};
-            case 'l':
-            case 'lc':
-                return {x: this.x, y: this.cy};
-            case 'r':
-            case 'rc':
-                return {x: this.x2, y: this.cy};
-            case 'b':
-            case 'bc':
-                return {x: this.cx, y: this.y2}
-        }
-        return null;
-    };
-
-    BBox.prototype.intersect = function (box) {
-        if (!box) return null;
-
-        const x = Math.max(this.x, box.x),
-            y = Math.max(this.y, box.y),
-            x2 = Math.min(this.x2, box.x2),
-            y2 = Math.min(this.y2, box.y2);
-
-        if (x >= x2 || y >= y2) {
-            return new BBox(Math.min(x, x2), Math.min(y, y2), 0, 0);
-        }
-
-        return new BBox(x, y, x2 - x, y2 - y);
-    };
-
-    BBox.prototype.isOverlap = function (box) {
-        if (!box) return false;
-
-        const x = Math.max(this.x, box.x),
-            y = Math.max(this.y, box.y),
-            x2 = Math.min(this.x2, box.x2),
-            y2 = Math.min(this.y2, box.y2);
-
-        return x < x2 && y < y2;
-
-    }
-
-    BBox.prototype.union = function (box) {
-        if (!box) return this;
-        const x = Math.min(this.x, box.x),
-            y = Math.min(this.y, box.y),
-            x2 = Math.max(this.x2, box.x2),
-            y2 = Math.max(this.y2, box.y2);
-
-        return new BBox(x, y, x2 - x, y2 - y);
-    };
-
-    BBox.prototype.setCorner = function (x, y) {
-        this.x = x;
-        this.y = y;
-        this.x2 = this.x + this.width;
-        this.y2 = this.y + this.height;
-        this.cx = x + this.width / 2;
-        this.cy = y + this.height / 2;
-        return this;
-    };
-
-    /**
-     * Translates the box by x and y units
-     * @param  x an number or matrix. If matrix, only the f and e values are used
-     * @param  y
-     */
-    BBox.prototype.translate = function (x, y) {
-        if (typeof x === 'object' && x.hasOwnProperty('e') &&
-            x.hasOwnProperty('f')) {
-            y = x.f;
-            x = x.e;
-        }
-
-        this.x += x;
-        this.x2 += x;
-        this.cx += x;
-        this.y += y;
-        this.y2 += y;
-        this.cy += y;
-
-        return this;
-    };
-
-    /**
-     * Scales the box by sx and sy factors arpound center (cx,cy).
-     * @param sx
-     * @param sy
-     * @param cx
-     * @param cy
-     */
-    BBox.prototype.scale = function (sx, sy, cx, cy) {
-        if (sy == null) sy = sx;
-        if (cx == null) cx = sx;
-        if (cy == null) cy = sy;
-        this.w = this.width *= sx;
-        this.h = this.height *= sy;
-
-        this.x = cx - (cx - this.x) * sx;
-        this.y = cy - (cy - this.y) * sy;
-        this.x2 = this.x + this.width;
-        this.y2 = this.y + this.height;
-        this.cx = this.x + this.width / 2;
-        this.cy = this.y + this.height / 2;
-    }
-
-    BBox.prototype.getBBox = function () {
-        return this;
-    };
-
-    /**
-     * Returns a new bbox with the same first corner, that contains the rotation of this bbox at a given angle.
-     * A property "old_corner" is added to the new bbox, giving the coord of the first corner of the rotates bbox.
-     * @param angle
-     * @return {BBox}
-     */
-    BBox.prototype.getBBoxRot = function (angle) {
-        const rotation = Snap.matrix().rotate(angle);
-        let min_x = 0, max_x = -Infinity, min_y = 0, max_y = -Infinity;
-        [
-            {x: this.width, y: 0}, {x: 0, y: this.height},
-            {
-                x: this.width,
-                y: this.height,
-            }].forEach((p) => {
-            p = rotation.apply(p);
-            min_x = Math.min(min_x, p.x);
-            min_y = Math.min(min_y, p.y);
-            max_x = Math.max(max_x, p.x);
-            max_y = Math.max(max_y, p.y);
-        });
-
-        const bbox = new BBox(this.x, this.y, max_x - min_x, max_y - min_y);
-        bbox.old_corner = {x: this.x - min_x, y: this.y - min_y};
-        return bbox;
-    };
-
-    BBox.prototype.getBBox = function () {
-        return this;
-    };
 
 //Snap begins here
     Snap._.transform2matrixStrict = function transform2matrixStrict(tstr) {
@@ -428,19 +115,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         });
         return p[ps];
-    }
-
-    function box(x, y, width, height) {
-        if (x instanceof BBox) {
-            return x;
-        }
-        if (Array.isArray(x) && x.length === 4) {
-            return new BBox(+x[0], +x[1], +x[2], +x[3]);
-        }
-        if (typeof x === 'object') {
-            return new BBox(x);
-        }
-        return new BBox(+x, +y, +width, +height);
     }
 
     function toString(path) {
@@ -2262,6 +1936,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     PathPoint.SMOOTH = 'smooth'; //2;
     PathPoint.SYMMETRIC = 'symmetric'; //3;
 
+    /**
+     * Describes a single anchor point within a path segment, including the
+     * control handles that precede and follow it.
+     *
+     * @param {{x:number,y:number}|PathPoint} center
+     *        The anchor point position, or an existing {@link PathPoint} to clone.
+     * @param {{x:number,y:number}} [before]
+     *        Handle leading into the point (a.k.a. the "previous" handle).
+     * @param {{x:number,y:number}} [after]
+     *        Handle exiting the point (a.k.a. the "next" handle).
+     * @param {string} [ending]
+     *        Optional ending flag describing how the point terminates a segment.
+     */
     function PathPoint(center, before, after, ending) {
         let type, bezier;
         if (center instanceof PathPoint) {
@@ -2321,6 +2008,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this.getType() === PathPoint.SYMMETRIC;
     }
 
+    /**
+     * Annotates a collection of {@link PathPoint}s with arc-length metadata.
+     *
+     * @param {PathPoint[]} pathPoints
+     *        Ordered list of points describing the path.
+     * @param {Snap.PolyBezier[]|Array} [beziers]
+     *        Optional cached Bézier segments. When omitted they are recomputed.
+     * @param {boolean} [close=false]
+     *        When `true`, a synthetic closing point mirroring the first anchor is appended.
+     * @param {Object} [data]
+     *        Extra key/value pairs replicated onto each point for downstream consumers.
+     */
     PathPoint.prototype.addMeasurements = function (pathPoints, beziers, close, data) {
         beziers = beziers || Snap.path.toBeziers(pathPoints);
         const total_length = beziers.reduce((len, bz) => len + bz.length(), 0);
@@ -2372,15 +2071,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     /**
-     * Computes new bezier tangent control points around a point to make the curve
-     * @param center the main point.
-     * @param after the after control point
-     * @param before the before control point
-     * @param symmetric whether to make the control tangents points symmetric
-     * @param modify_points if true, the before and after points objects are modified, instead of new points being returned.
-     * @returns {undefined|*[]} If modify_points is true, nothing is returend, otherwise, array [new_after, new_before]
-     * is returned.
-     * TODO: implement auto-smooth, as in: https://stackoverflow.com/questions/61564459/algorithm-behind-inkscapes-auto-smooth-nodes
+     * Recomputes tangent handles to smooth the curve through a {@link PathPoint}.
+     *
+     * @param {{x:number,y:number}} center
+     *        The anchor to be smoothed.
+     * @param {{x:number,y:number}} after
+     *        The outgoing handle from the anchor.
+     * @param {{x:number,y:number}} before
+     *        The incoming handle to the anchor.
+     * @param {boolean} [symmetric=false]
+     *        When `true`, both handles are forced to be symmetric.
+     * @param {boolean} [modify_points=false]
+     *        When `true`, the original handle objects are mutated in place.
+     * @returns {(Array|undefined)}
+     *          Returns `[new_after, new_before]` unless `modify_points` is `true`, in which case the handles are mutated and `undefined` is returned.
+     * @todo Implement auto-smooth heuristics similar to Inkscape.
      */
     Snap.path.smoothCorner = function (center, after, before, symmetric, modify_points) {
         const type = Snap.path.getPointType(center, after, before);
@@ -2491,6 +2196,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return result;
     }
 
+    /**
+     * Generates {@link PathPoint} descriptors for the element's path data.
+     *
+     * @returns {PathPoint[]}
+     *          Ordered points enriched with control handles and segment metadata.
+     */
     elproto.getSegmentAnalysis = function () {
         let path_str = getPath[this.type](this);
 
@@ -2556,6 +2267,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return joins;
     };
 
+    /**
+     * Builds cubic Bézier curve descriptions from path analysis points.
+     *
+     * When called with no arguments, it will attempt to call `getSegmentAnalysis()`
+     * on the current context (`this`). Passing a truthy non-array first argument is
+     * treated as the `segmented` flag, matching the legacy API behaviour.
+     *
+     * @param {(PathPoint[]|{getSegmentAnalysis:Function}|boolean)} [anals]
+     *        Optional segment analysis result or boolean shorthand for `segmented`.
+     * @param {boolean} [segmented=false]
+     *        When `true`, the returned array is chunked per logical path segment.
+     * @returns {Array<Array|Object>|undefined}
+     *          An array of cubic Bézier descriptors, or nested arrays when segmented.
+     */
     function toBeziers(anals, segmented) {
         if (anals && !Array.isArray(anals) && !anals.getSegmentAnalysis) {
             segmented = anals;
@@ -2587,10 +2312,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     elproto.toBeziers = toBeziers;
     Snap.path.toBeziers = toBeziers
 
+    /**
+     * Converts the current path element into a {@link Snap.polyBezier} instance.
+     *
+     * @returns {Snap.PolyBezier}
+     *          A poly-bézier representation of the element suitable for tessellation.
+     */
     elproto.toPolyBezier = function () {
         return Snap.polyBezier(this.toBeziers());
     };
 
+    /**
+     * Computes a cubic Bézier curve that interpolates four third-points.
+     *
+     * @param {{x:number,y:number}} p1 The start point of the curve.
+     * @param {{x:number,y:number}} p2 The first interior control point.
+     * @param {{x:number,y:number}} p3 The second interior control point.
+     * @param {{x:number,y:number}} p4 The end point of the curve.
+     * @returns {Array<{x:number,y:number}>}
+     *          Array describing the resulting cubic Bézier points.
+     */
     function cubicFromThirdPoints(p1, p2, p3, p4) {
         let m = [
             [1, 0, 0, 0],

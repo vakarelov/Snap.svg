@@ -2,6 +2,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const _voronoi = require("./voronoi.js");
     const KDTree = require('mnemonist/kd-tree');
 
+    /**
+     * Lightweight wrapper around Voronoi diagram results, providing helpers to access faces and dual triangles.
+     *
+     * Instances are produced by {@link Snap.voronoi} and expose a familiar API to iterate over Voronoi polygons,
+     * query Delaunay triangles, and bridge between both representations.  The wrapper keeps the original input
+     * points alongside derived structures so downstream code can be purely geometric without re-shaping data.
+     *
+     * Typical usage pairs polygon queries with rendering helpers, for example highlighting the Voronoi cell of a
+     * selected anchor or generating adjacency graphs for interaction design.
+     *
+     * @constructor
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Input points used to build the Voronoi diagram.
+     * @param {Array<Array<number>>} cells Voronoi cell definitions referencing indices in {@link positions}.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} positions Coordinates of Voronoi vertices.
+     * @param {Array<Array<number>>} triangles Delaunay triangles backing the Voronoi diagram (may contain -1 for infinity).
+     */
     function Voronoi(points, cells, positions, triangles) {
         this.cells = cells;
         this.positions = positions;
@@ -10,6 +26,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.length = cells.length;
     }
 
+    /**
+     * Gets a Voronoi polygon for a specific point or all polygons when no index is provided.
+     *
+     * The polygons are returned as raw coordinate arrays so they can be rendered directly with Snap paths
+     * or consumed by computational geometry utilities.  When called without arguments the method eagerly
+     * materialises every cell in order, which is handy when building hit-testing structures or exporting
+     * the entire diagram to JSON.
+     *
+     * @param {number} [index] Target point index. Omit to retrieve polygons for all input points.
+     * @returns {Array<Array<number>>|Array<Array<Array<number>>>|undefined} Polygon vertices or list of polygons, or `undefined` when index is out of range.
+     * @example
+     * const vor = Snap.voronoi([[0, 0], [50, 20], [20, 80]]);
+     * const polygon = vor.getPolygon(1); // -> [[...x,y], ...]
+     * const allPolygons = vor.getPolygon();
+     */
     Voronoi.prototype.getPolygon = function (index) {
 
         if (index === undefined) {
@@ -29,6 +60,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return map;
     }
 
+    /**
+     * Gets a triangle from the dual Delaunay triangulation.
+     *
+     * The dual triangles share vertices with the input point cloud, making them ideal for mesh-based
+     * interpolation, proximity graphs, or debugging the Voronoi construction. Infinite triangles (those
+     * touching the super triangle introduced by the triangulation algorithm) are filtered out so the
+     * returned coordinates are always safe to render.
+     *
+     * @param {number} [index] Triangle index to return. When omitted, returns all finite triangles.
+     * @returns {Array<Array<number>>|Array<Array<Array<number>>>|null} Triangle vertex coordinates, list of triangles, or `null` for invalid/degenerate indices.
+     * @example
+     * const triangles = vor.getTriangle();
+     * triangles.forEach(tri => paper.polygon(tri.flat()));
+     */
     Voronoi.prototype.getTriangle = function (index) {
 
         if (index === undefined) {
@@ -52,6 +97,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return triangle.map(pointIndex => this.points[pointIndex]);
     };
 
+    /**
+     * Collects all finite triangles incident to a given point index.
+     *
+     * This helper is useful when estimating local curvature around an anchor, extracting
+     * neighbor relationships, or computing Laplacian smoothing weights because it returns
+     * only the bounded triangles that share the selected point.
+     *
+     * @param {number} point_index Target point index within {@link Voronoi#points}.
+     * @returns {Array<Array<Array<number>>>} Array of triangles touching the point.
+     * @example
+     * const incident = vor.getPointTriangles(2);
+     * const neighbours = new Set(incident.flat().map(([x, y]) => `${x},${y}`));
+     */
     Voronoi.prototype.getPointTriangles = function (point_index) {
         // Check if point_index is valid
         if (point_index < 0 || point_index >= this.points.length) return [];
@@ -73,6 +131,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     Snap.registerClass("Voronoi", Voronoi);
 
+    /**
+     * Builds a Voronoi diagram for the supplied points.
+     *
+     * Behind the scenes the function delegates to the lightweight {@link module:voronoi} implementation and
+     * then wraps the result in a {@link Voronoi} helper so callers can seamlessly transition between the
+     * Voronoi and Delaunay representations. Both array-based (`[[x, y], ...]`) and object-based (`[{x, y}]`)
+     * coordinate collections are accepted and automatically normalised.
+     *
+     * Typical use cases include:
+     * - Highlighting the Voronoi cell beneath the pointer for interaction heavy UIs.
+     * - Computing adjacency graphs for mesh editing or path finding.
+     * - Exporting diagram data to downstream data visualisation pipelines.
+     *
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points 2D points as `[x, y]` tuples or `{x, y}` objects.
+     * @returns {Voronoi} Voronoi helper exposing convenience methods.
+     * @example
+     * const anchors = [{x: 10, y: 15}, {x: 80, y: 35}, {x: 50, y: 90}];
+     * const vor = Snap.voronoi(anchors);
+     * paper.path("M" + vor.getPolygon(0).join("L") + "Z").attr({fill: "rgba(0,0,0,0.1)"});
+     */
     Snap.voronoi = function (points) {
         const is_objPoint = points[0].hasOwnProperty("x");
         if (is_objPoint) points = toArrayPoints(points);
@@ -81,6 +159,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new Voronoi(points, vor.cells, vor.positions, vor.triangles);
     };
 
+    /**
+     * Performs a stable merge sort using the supplied comparator.
+     *
+     * This internal helper powers geometric routines that require deterministic ordering, such as the
+     * divide-and-conquer closest-pair solver.  It operates on shallow copies of the input array so callers
+     * do not need to worry about mutating upstream data structures.
+     *
+     * @param {Array<*>} points Items to sort.
+     * @param {Function} comp Comparator returning a negative, zero, or positive value.
+     * @returns {Array<*>} Sorted copy of `points`.
+     */
     function mergeSort(points, comp) {
         if (points.length < 2) return points;
 
@@ -116,18 +205,48 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return sortedPart;
     }
 
+    /**
+     * Converts `[x, y]` tuples to `{x, y}` objects.
+     *
+     * The plugin accepts both tuple and object shapes for coordinates.  Normalising them with this helper
+     * ensures downstream routines can rely on property access without branching on array indexes.
+     *
+     * @param {Array<Array<number>>} point_arrray Array of coordinate tuples.
+     * @returns {Array<{x:number,y:number}>} Converted object points.
+     */
     function toObjPoints(point_arrray) {
         return point_arrray.map((p) => {
             return {x: p[0], y: p[1]}
         })
     }
 
+    /**
+     * Converts `{x, y}` points to `[x, y]` tuples.
+     *
+     * Symmetric companion to {@link toObjPoints}.  Some third-party computational geometry packages expect
+     * plain arrays, so this helper keeps interoperability friction-free.
+     *
+     * @param {Array<{x:number,y:number}>} point_arrray Array of object-based coordinates.
+     * @returns {Array<Array<number>>} Converted tuple points.
+     */
     function toArrayPoints(point_arrray) {
         return point_arrray.map((p) => {
             return [p.x, p.y];
         })
     }
 
+    /**
+     * Recursive divide-and-conquer closest pair solver.
+     *
+     * This is the workhorse behind {@link Snap.closestPair}.  It expects the input to be pre-sorted on both
+     * axes and recursively partitions the point set, checking only a constant window of candidates in the
+     * merge step.  The implementation follows the classic $\Theta(n \log n)$ algorithm.
+     *
+     * @private
+     * @param {Array<{x:number,y:number}>} Px Points sorted by the X axis.
+     * @param {Array<{x:number,y:number}>} Py Points sorted by the Y axis.
+     * @returns {{distance:number, pair:Array<{x:number,y:number}>}} Closest pair information.
+     */
     function _closestPair(Px, Py) {
         let d;
         if (Px.length < 2) return {distance: Infinity, pair: [{x: 0, y: 0}, {x: 0, y: 0}]};
@@ -190,8 +309,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
     }
 
+    /**
+     * Finds the closest pair of 2D points using a divide-and-conquer strategy.
+     *
+     * The helper accepts heterogeneous inputs and returns both the minimal distance and the participating points.
+     * Typical scenarios include collision avoidance for draggable anchors, proximity-based snapping, or
+     * pre-filtering segments before executing more expensive geometric tests.
+     *
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Input points.
+     * @returns {{distance:number, pair:Array<{x:number,y:number}>}} Closest pair data.
+     * @example
+     * const {distance, pair} = Snap.closestPair([[10, 20], [35, 25], [18, 24]]);
+     * console.log(distance); // -> shortest separation
+     * console.log(pair);     // -> the two closest anchors as {x, y} objects
+     */
     Snap.closestPair = function (points) {
-        if (Array.isArray(points[0])) points = toObjPoints(Px);
+        if (Array.isArray(points[0])) points = toObjPoints(points);
         const sortX = function (a, b) {
             return (a.x < b.x) ? -1 : ((a.x > b.x) ? 1 : 0);
         };
@@ -538,10 +671,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     //     };
     // }
 
+    /**
+     * Attaches the original point descriptors to the KDTree instance for downstream lookups.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Original point payloads.
+     */
     KDTree.prototype.attachPoints = function (points) {
         this.points = points;
     }
 
+    /**
+     * Finds the nearest neighbours while reporting axis-aligned offsets and Euclidean distance.
+     * @deprecated This overload is superseded by the streamlined variant defined later in this file.
+     * @param {Array<number>|{x:number,y:number}} point Query point.
+     * @param {number} [num=1] Number of neighbours to return.
+     * @param {boolean} [sqere_dist=false] When `true`, returns squared distance values.
+     * @returns {Array|Array[]} Array describing the nearest neighbour(s) with axis deltas.
+     */
     KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
         num = Math.floor(num || 1);
         let points = this.nearest(point, num);
@@ -577,6 +722,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
 
+    /**
+     * Computes the Euclidean or squared distance between two 2D points.
+     * @param {Array<number>|{x:number,y:number}} p1 First point.
+     * @param {Array<number>|{x:number,y:number}} p2 Second point.
+     * @param {boolean} [sq=false] When `true`, returns squared distance.
+     * @returns {number} Distance between `p1` and `p2`.
+     */
     function dist(p1, p2, sq) {
         if (sq) {
             return Snap.len2(
@@ -596,6 +748,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     }
 
+    /**
+     * Finds the nearest neighbours using the KDTree, returning only Euclidean distance metadata.
+     * @param {Array<number>|{x:number,y:number}} point Query point.
+     * @param {number} [num=1] Number of neighbours to retrieve.
+     * @param {boolean} [sqere_dist=false] When `true`, distances are squared.
+     * @returns {Array|Array[]} Nearest neighbour result.
+     */
     KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
         num = Math.floor(num || 1);
         let points = this.nearest(point, num);
@@ -607,6 +766,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     }
 
+    /**
+     * Creates a KDTree helper for the given set of points.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Points to index.
+     * @param {('x'|'y'|1|undefined)} [dim] Optional axis restriction (`"x"`/`"y"` or `1`).
+    * @returns {KDTree} KDTree instance augmented with metadata.
+     */
     Snap.kdTree = function (points, dim) {
         let xs, ys, ax = [];
         const x_only = dim === 1 || dim === "x";
@@ -628,10 +793,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return kd;
     }
 
+    /**
+     * Builds a KDTree constrained to the X axis.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Points to index.
+    * @returns {KDTree} KDTree instance.
+     */
     Snap.kdTreeX = function (points) {
         return Snap.kdTree(points, "x");
     }
 
+    /**
+     * Builds a KDTree constrained to the Y axis.
+     * @param {Array<Array<number>>|Array<{x:number,y:number}>} points Points to index.
+    * @returns {KDTree} KDTree instance.
+     */
     Snap.kdTreeY = function (points) {
         return Snap.kdTree(points, "y");
     }
@@ -639,6 +814,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     // Binary heap implementation from:
     // http://eloquentjavascript.net/appendix2.html
 
+    /**
+     * @class BinaryHeap
+     * @classdesc Minimal binary heap implementation parametrized by a scoring function.
+     * @param {Function} scoreFunction Function used to score items in the heap.
+     */
     function BinaryHeap(scoreFunction) {
         this.content = [];
         this.scoreFunction = scoreFunction;
@@ -762,10 +942,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     };
 
+    /**
+     * Creates a binary heap backed by the provided scoring function.
+     * @param {Function} score Score function returning numeric priority values.
+     * @returns {BinaryHeap}
+     */
     Snap.binaryHeap = function (score) {
         return new BinaryHeap(score);
     }
 
+    /**
+     * Generates random point samples within the supplied bounds.
+     * @param {number} num Amount of random points.
+     * @param {Array<number>|number} x_dim Range `[min, max]` or max value for the X axis.
+     * @param {Array<number>|number} y_dim Range `[min, max]` or max value for the Y axis.
+     * @returns {Array<{x:number,y:number}>} Randomly generated points.
+     */
     Snap.randomPoints = function (num, x_dim, y_dim) {
         if (typeof x_dim === "number") x_dim = [0, x_dim];
         if (typeof y_dim === "number") y_dim = [0, y_dim];
@@ -784,6 +976,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
 
+    /**
+     * Brute-force closest pair between two point sets.
+     * @private
+     * @param {Array<{x:number,y:number}>} ps1 First point set.
+     * @param {Array<{x:number,y:number}>} ps2 Second point set.
+     * @returns {{d:number,pair:Array<{x:number,y:number}>}} Closest pair descriptor.
+     */
     function clPairs_BF(ps1, ps2) {
         let d = Infinity,
             p1, p2;
@@ -801,6 +1000,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return {d: Math.sqrt(d), pair: [p1, p2]};
     }
 
+    /**
+     * KDTree-accelerated closest pair search between two point sets.
+     * @private
+     * @param {Array<{x:number,y:number}>} ps1 First point set.
+     * @param {Array<{x:number,y:number}>} ps2 Second point set.
+     * @returns {{d:number,pair:Array<{x:number,y:number}>}} Closest pair descriptor.
+     */
     function clPairs_KD(ps1, ps2) {
         let swap = false
         if (ps2.length > ps1.length) {
@@ -823,6 +1029,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return {d: Math.sqrt(d), pair: (swap) ? [p2, p1] : [p1, p2]};
     }
 
+    /**
+     * Chooses the most efficient algorithm to find the closest pair between two point sets.
+     * @param {Array<{x:number,y:number}>} set1 First point set.
+     * @param {Array<{x:number,y:number}>} set2 Second point set.
+     * @returns {{d:number,pair:Array<{x:number,y:number}>}} Closest pair descriptor.
+     */
     Snap.nearPairs = function (set1, set2) {
         if (set1.length * set2.length < 25000) {
             return clPairs_BF(set1, set2);

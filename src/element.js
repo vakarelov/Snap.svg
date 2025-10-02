@@ -16,7 +16,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             max = Math.max,
             INITIAL_BBOX = 'initial_bbox';
 
-        Snap.joinBBoxes = function (bboxes) {
+    /**
+     * Computes the minimal bounding box that encloses every box from the provided collection.
+     * @param {Snap.BBox[]} bboxes Collection of bounding boxes to merge.
+     * @returns {Snap.BBox|undefined} A Snap-ified bounding box describing the union of all input boxes, or
+     * `undefined` when no input boxes are provided.
+     */
+    Snap.joinBBoxes = function (bboxes) {
             const len = bboxes.length;
             if (len == 1) return bboxes[0];
             if (!Snap.path) return;
@@ -38,9 +44,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return Snap.box(box);
         };
 
-        Snap.bBoxFromPoints = boxFromPoints;
+    /**
+     * Converts a list of points into an axis-aligned bounding box in the current coordinate system.
+     * @function
+     * @name Snap.bBoxFromPoints
+    * @param {Point2DList} points Points that should be enclosed in the resulting bounding box.
+     * @param {Snap.Matrix} [matrix] Optional matrix to apply to every point before evaluating the box.
+     * @returns {Snap.BBox} Bounding box that contains the transformed point cloud.
+     */
+    Snap.bBoxFromPoints = boxFromPoints;
 
-        const clip_path_box_helper = function (box, clip_path, matrix) {
+    /**
+     * Intersects a bounding box with a clip-path region, optionally applying an additional matrix to the clip-path.
+     * @param {Snap.BBox|null} box Bounding box to adjust by the clip-path.
+     * @param {Element|null} clip_path Clip-path element that constrains the box.
+     * @param {Snap.Matrix} [matrix] Transformation applied to the clip-path before the intersection is computed.
+     * @returns {Snap.BBox|null} Intersected bounding box or `null` when no box is supplied.
+     */
+    const clip_path_box_helper = function (box, clip_path, matrix) {
             if (box && clip_path) {
                 if (matrix && !matrix.isIdentity()) {
                     const old_trans = clip_path.attr('transform');
@@ -54,7 +75,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return box;
         };
 
-        elproto.getPoints = function (use_local_transform, skip_hidden) {
+    /**
+     * Collects representative points for the element's geometry.
+     * @param {boolean} [use_local_transform=false] When true, applies the element's local matrix to the returned points.
+     * @param {boolean} [skip_hidden=false] When true, ignores children with `display: none`.
+    * @returns {Point2DList} Array of points that describe the element footprint.
+     */
+    elproto.getPoints = function (use_local_transform, skip_hidden) {
             let result = [];
             let rx, ry, matrix;
             switch (this.type) {
@@ -159,7 +186,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return result;
         };
 
-        elproto.getCHull = function (with_transform, skip_hidden) {
+    /**
+     * Builds the convex hull for an element, optionally applying its current transform.
+     * @param {boolean} [with_transform=false] When true, returns the hull in global coordinates.
+     * @param {boolean} [skip_hidden=false] When true, excludes hidden descendants while computing the hull.
+    * @returns {(Point2DList|null)} Array of hull vertices ordered clockwise, or `null` for unresolved targets.
+     */
+    elproto.getCHull = function (with_transform, skip_hidden) {
 
             let el = this.getUseTarget();
             if (!el) return null;
@@ -198,7 +231,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return points;
         };
 
-        elproto.getUseTarget = function () {
+    /**
+     * Resolves the underlying element referenced by a `<use>` node.
+     * @returns {Element|null} Resolved target element or `null` when no referenced node is available.
+     */
+    elproto.getUseTarget = function () {
             if (this.type !== 'use') return this;
             if (this.use_target) {
                 return this.use_target;
@@ -214,14 +251,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return null;
         };
 
-        elproto.saveMatrix = function (m) {
+    /**
+     * Persists the provided matrix on the element instance for subsequent lookups.
+     * @param {Snap.Matrix} m Matrix to assign as the element's current transform cache.
+     */
+    elproto.saveMatrix = function (m) {
             this.matrix = m;
             if (this.type === 'image' && m.f) {
                 // console.log("saving matrix", this.getId(), m.toString())
             }
         }
 
-        function boxFromPoints(points, matrix) {
+    /**
+    * Generates a bounding box from a set of points, optionally applying a matrix prior to evaluation.
+    * @param {Point2DList} points Collection of 2D points to enclose.
+     * @param {Snap.Matrix} [matrix] Matrix used to transform the points before computing the bounds.
+     * @returns {Snap.BBox} Bounding box covering the (transformed) points.
+     */
+    function boxFromPoints(points, matrix) {
             let min_x = Infinity, max_x = -Infinity, min_y = Infinity,
                 max_y = -Infinity;
             if (matrix && !matrix.isIdentity()) {
@@ -237,31 +284,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return Snap.box(min_x, min_y, max_x - min_x, max_y - min_y);
         }
 
-        /*\
-                 * Element.getBBox
-                 [ method ]
-                 **
-                 * Returns the bounding box descriptor for the given element
-                 **
-                 = (object) bounding box descriptor:
-                 o {
-                 o     cx: (number) x of the center,
-                 o     cy: (number) x of the center,
-                 o     h: (number) height,
-                 o     height: (number) height,
-                 o     path: (string) path command for the box,
-                 o     r0: (number) radius of a circle that fully encloses the box,
-                 o     r1: (number) radius of the smallest circle that can be enclosed,
-                 o     r2: (number) radius of the largest circle that can be enclosed,
-                 o     vb: (string) box as a viewbox command,
-                 o     w: (number) width,
-                 o     width: (number) width,
-                 o     x2: (number) x of the right side,
-                 o     x: (number) x of the left side,
-                 o     y2: (number) y of the bottom edge,
-                 o     y: (number) y of the top edge
-                 o }
-                 \*/
+    /**
+     * Returns the bounding-box descriptor for the current element with optional control over caching, transforms, and
+     * clip-path intersection.
+     * The returned descriptor exposes the canonical {@link Snap.BBox} API enriched with helper fields such as `cx`,
+     * `cy`, `path`, `vb`, and circle radii (`r0`, `r1`, `r2`).
+     * @param {boolean|Element|Snap.Matrix|Object} [settings] When `true`, omits the local transform from the answer. A
+     * {@link Element} scopes the result relative to an ancestor. A {@link Snap.Matrix} explicitly defines the applied
+     * transform. An options object may contain `without_transform`, `cache_bbox`, `include_clip_path`, `approx`,
+     * `skip_hidden`, `relative_parent`, `relative_coord`, or `matrix` flags for fine-grained control.
+     * @returns {Snap.BBox|null} Bounding-box descriptor or `null` if it can't be resolved (e.g. hidden `<use>` target).
+     */
         elproto.getBBox = function (settings) {
             if (!this.paper) {
                 // console.log("No paper", this.getId());
@@ -300,7 +333,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             if (!matrix && relative_parent) {
-                matrix = Snap.matrix();
+                matrix = this.getLocalMatrix();
                 let p = this;
                 //get the transform between this and the relative_parent
                 while ((p = p.parent()) && p !== relative_parent && p.type !== 'svg') {
@@ -503,12 +536,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.getBBoxApprox = function (setting) {
+    /**
+     * Convenience wrapper around {@link Element#getBBox} that enforces approximate convex-hull evaluation.
+     * @param {Object} [setting={}] Optional settings forwarded to {@link Element#getBBox}.
+     * @returns {Snap.BBox|null} Approximate bounding box or `null` on failure.
+     */
+    elproto.getBBoxApprox = function (setting) {
             setting = setting || {};
             setting.approx = true;
             return this.getBBox(setting);
         };
-        elproto.getBBoxExact = function (settigns) {
+    /**
+     * Forces precise bounding-box computation for the element, ignoring cached approximations.
+     * @param {boolean|Object|Snap.Matrix} [settigns] Options forwarded to {@link Element#getBBox}.
+     * @returns {Snap.BBox|null} Exact bounding box or `null` on failure.
+     */
+    elproto.getBBoxExact = function (settigns) {
             if (settigns && typeof settigns === 'object' && settigns.isMatrix) {
                 return this.getBBox({approx: false, matrix: settigns});
             }
@@ -518,7 +561,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.getBBox(settigns);
         };
 
-        elproto.attrMonitor = function (attr, callback_val) {
+    /**
+     * Registers or triggers attribute change monitors on the element.
+     * @param {string|string[]} attr Attribute name or list of names to monitor.
+     * @param {Function} [callback_val] Callback invoked with the attribute's current value when changes occur. When
+     * omitted, previously registered callbacks for `attr` are executed immediately.
+     * @returns {Element} The current element for chaining.
+     */
+    elproto.attrMonitor = function (attr, callback_val) {
             if (typeof callback_val === 'function') {
                 if (!this._attr_monitor) {
                     this._attr_monitor = {};
@@ -539,7 +589,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.string;
         };
 
-        function extractTransform(el, tstr) {
+    /**
+     * Parses the transform attribute of an element, caching and returning the corresponding matrix.
+     * @param {Element} el Element whose transform should be extracted.
+     * @param {string|Array|Snap.Matrix} [tstr] Optional transform override in string, array, or matrix form.
+     * @returns {Snap.Matrix|undefined} Parsed matrix when no explicit transform is supplied.
+     */
+    function extractTransform(el, tstr) {
             if (tstr == null) {
                 var doReturn = true;
                 if (el.type == 'linearGradient' || el.type == 'radialGradient') {
@@ -583,7 +639,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        function extractTransformStrict(el, tstr) {
+    /**
+     * Strict transform parser that bypasses compatibility heuristics used by {@link extractTransform}.
+     * @param {Element} el Element whose transform should be parsed.
+     * @param {string|Array|Snap.Matrix} [tstr] Optional transform override.
+     * @returns {Snap.Matrix|undefined} Parsed matrix when reading from the DOM.
+     */
+    function extractTransformStrict(el, tstr) {
             if (tstr == null) {
                 var doReturn = true;
                 if (el.type == 'linearGradient' || el.type == 'radialGradient') {
@@ -615,7 +677,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        function clearParentCHull(el, efficient) {
+    /**
+     * Clears cached convex hull data for the element's ancestors.
+     * @param {Element} el Element whose parents should be invalidated.
+     * @param {boolean} [efficient=false] When true, stops once an ancestor without cached hull data is found.
+     */
+    function clearParentCHull(el, efficient) {
             let parent = el.parent();
             while (parent && parent.type !== 'svg') {
                 if (parent.c_hull) {
@@ -627,7 +694,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        elproto.clearCHull = function (force_top) {
+    /**
+     * Clears cached convex hull data for the element and optionally its ancestors.
+     * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
+     */
+    elproto.clearCHull = function (force_top) {
             force_top = true;
             this.c_hull = undefined;
             clearParentCHull(this, !force_top);
@@ -653,7 +724,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          o     toString (function) returns `string` property
          o }
          \*/
-        elproto.transform = function (tstr, do_update, matrix, apply) {
+    /**
+     * Gets or sets the element transform.
+     * @param {string|Snap.Matrix} [tstr] Transform string or matrix to apply. When omitted, returns a descriptor with
+     * the current transform matrices.
+     * @param {boolean} [do_update=false] When true, refreshes cached bounding boxes after applying the transform.
+     * @param {Snap.Matrix|boolean} [matrix] Optional matrix used for cache updates or a boolean forwarded as the
+     * `apply` flag.
+     * @param {boolean} [apply] Internal flag controlling partner propagation.
+     * @returns {Element|Object} Element for chaining when setting transforms, or an object with aggregate matrices when
+     * querying.
+     */
+    elproto.transform = function (tstr, do_update, matrix, apply) {
             if (typeof matrix === 'boolean') {
                 apply = matrix;
                 matrix = undefined;
@@ -765,7 +847,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this;
         };
 
-        function transform2matrix(tdata) {
+    /**
+     * Translates a parsed transform token array into a {@link Snap.Matrix} instance.
+     * @param {Array} tdata Result from {@link Snap._.svgTransform2string} parsing.
+     * @returns {Snap.Matrix} Matrix representing the combined transform.
+     */
+    function transform2matrix(tdata) {
             let m = new Snap.Matrix;
             if (tdata) {
                 for (var i = 0, l = tdata.length; i < l; ++i) {
@@ -788,7 +875,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return m;
         }
 
-        elproto.transToMatrix = function () {
+    /**
+     * Normalises the element's current transform attribute and saves it as a matrix.
+     */
+    elproto.transToMatrix = function () {
             let tstr = "";
             if (this.type === 'linearGradient' || this.type === 'radialGradient') {
                 tstr = this.node.getAttribute('gradientTransform') || "";
@@ -809,8 +899,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 // console.log("Fixing transform for", this.getId(), tstr, "to", m);
                 if (this.type === 'linearGradient' || this.type === 'radialGradient') {
                     this.node.setAttribute('gradientTransform', m); //getAttribute("gradientTransform");
+                    this.attrMonitor('gradientTransform')
                 } else if (this.type === 'pattern') {
                     this.node.setAttribute('patternTransform', m);
+                    this.attrMonitor('patternTransform')
                 } else {
                     // this.node.setAttribute('transform', m);
                     this.transform(m)
@@ -819,7 +911,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.updateBBoxCache = function (matrix, apply, _skip_parent) {
+    /**
+     * Updates the cached bounding box after a transformation or clears it when the new transform is incompatible.
+     * @param {Snap.Matrix} [matrix] Matrix describing the current transformation.
+     * @param {boolean|number} [apply] When `-1`, clears the cache entirely. Otherwise controls whether child caches are
+     * updated.
+     * @param {boolean} [_skip_parent=false] Skips parent cache updates when truthy.
+     */
+    elproto.updateBBoxCache = function (matrix, apply, _skip_parent) {
             //if apply is negative, erase all bbox catches
             if (apply === -1) {
                 this.eraseBBoxCache();
@@ -890,7 +989,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         };
 
-        elproto.expandParenBBoxCatch = function (bbox_circ, is_circle) {
+    /**
+     * Expands cached bounding boxes up the parent chain when the current element grows in size.
+     * @param {Snap.BBox|{x:number,y:number,r:number}} bbox_circ Bounding region describing the new extent.
+     * @param {boolean} [is_circle=false] Indicates that `bbox_circ` represents a circle definition.
+     */
+    elproto.expandParenBBoxCatch = function (bbox_circ, is_circle) {
             const parent = this.parent();
             if (!parent) return;
             let saved_bb = parent.attr('bbox');
@@ -923,7 +1027,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param bbox_circle a bbox or a circle region that contains the element. If provided, parent (and higher) bboxes
          * are erased only if region extrudes from the parent bbox. Otherwise, there is no need to remove.
          */
-        elproto.eraseParentBBoxCache = function (bbox_circle) {
+    /**
+     * Invalidates cached bounding boxes stored on parent elements.
+     * @param {Snap.BBox|{x:number,y:number,r:number}} [bbox_circle] Bounding region used to decide whether the parent
+     * caches still contain the element.
+     */
+    elproto.eraseParentBBoxCache = function (bbox_circle) {
             const parent = this.parent();
             if (!parent) return;
             let parent_bb = parent.attr('bbox');
@@ -961,7 +1070,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         };
 
-        elproto.eraseBBoxCache = function () {
+    /**
+     * Removes the cached bounding box from the element and, recursively, its children.
+     */
+    elproto.eraseBBoxCache = function () {
             this.attr({bbox: ''});
             this.removeData(INITIAL_BBOX);
             if (this.isGroupLike()) {
@@ -971,7 +1083,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.getLocalMatrix = function (strict) {
+    /**
+     * Retrieves the element's local matrix, parsing it from the DOM when not cached.
+     * @param {boolean} [strict=false] Enforces strict parsing semantics for the transform attribute.
+     * @returns {Snap.Matrix} Local transformation matrix.
+     */
+    elproto.getLocalMatrix = function (strict) {
             if (this.matrix) return this.matrix;
             if (strict) {
                 return extractTransformStrict(this);
@@ -980,21 +1097,34 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.getGlobalMatrix = function () {
+    /**
+     * Returns the element's current global transformation matrix using the DOM CTM API.
+     * @returns {Snap.Matrix} Global matrix representing the element's absolute transform.
+     */
+    elproto.getGlobalMatrix = function () {
             const ctm = this.node.getCTM ? this.node.getCTM() : null;
             let matrix = new Snap.Matrix(ctm);
             return matrix;
         }
 
-        elproto.setPartner = function (el_dom, strict) {
-            if (el_dom.paper || el_dom instanceof Element) {
+    /**
+     * Registers a DOM or Snap partner that should mirror this element's transformations and style updates.
+     * @param {Element|HTMLElement|Object} el_dom Partner reference (Snap element, DOM node, or jQuery-like wrapper).
+     * @param {boolean} [strict] Reserved flag for stricter partner synchronisation.
+     */
+    elproto.setPartner = function (el_dom, strict) {
+            if (el_dom.paper && this.paper === el_dom.paper
+                // || el_dom instanceof Element
+            ) {
                 const el_part = this._element_partner || [];
 
                 if (!el_part.includes(el_dom)) {
                     el_part.push(el_dom);
                 }
                 this._element_partner = el_part;
-            } else if (el_dom instanceof HTMLElement || el_dom.css) {
+            } else
+                // if (el_dom instanceof HTMLElement || el_dom.css)
+                {
                 const dom_part = this._dom_partner || [];
                 if (el_dom instanceof HTMLElement) el_dom = Snap(el_dom);
                 if (!dom_part.includes(el_dom)) {
@@ -1013,7 +1143,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // }
         };
 
-        elproto._updatePartnerChild = function (el, remove) {
+    /**
+     * Updates the registry of partner children when elements are added or removed.
+     * @param {Element} el Child element that was added or removed.
+     * @param {boolean} [remove=false] Indicates whether the child should be removed from the registry.
+     * @returns {Element} Current element for chaining.
+     */
+    elproto._updatePartnerChild = function (el, remove) {
             if (this.type === 'svg' || this.type === 'defs') return;
 
             if (remove) {
@@ -1042,7 +1178,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        elproto._propagateTransToPartnersChild = function (el, trans) {
+    /**
+     * Propagates transformation updates to partner children.
+     * @param {Element} el Partner child receiving the propagated transform.
+     * @param {Snap.Matrix} [trans] Matrix to apply; defaults to the current element's global matrix.
+     */
+    elproto._propagateTransToPartnersChild = function (el, trans) {
             if (!el) return;
             if (trans) {
                 let matrix = trans.clone().add(this.getLocalMatrix(true));
@@ -1052,7 +1193,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto._applyToPartner = function (matrix) {
+    /**
+     * Applies the provided matrix to each registered partner, keeping their transforms aligned.
+     * @param {Snap.Matrix} matrix Matrix to propagate.
+     */
+    elproto._applyToPartner = function (matrix) {
             const partners = this.getPartners();
             if (partners) {
                 const loc = this.getLocalMatrix();
@@ -1075,7 +1220,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
 
-        elproto.removePartner = function (el_type, remove_elements) {
+    /**
+     * Removes partner associations or optionally deletes the partner nodes themselves.
+     * @param {'dom'|'element'|Element|HTMLElement|Snap|boolean} [el_type] Partner type or specific partner reference.
+     * @param {boolean} [remove_elements=false] When true, removes the partner elements from the DOM/SVG tree.
+     */
+    elproto.removePartner = function (el_type, remove_elements) {
 
             if (typeof el_type === 'boolean') {
                 remove_elements = el_type;
@@ -1127,11 +1277,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.hasPartner = function () {
+    /**
+     * Determines whether any partners are currently registered with the element.
+     * @returns {boolean} True when at least one DOM or Snap partner exists.
+     */
+    elproto.hasPartner = function () {
             return !!(this._dom_partner || this._element_partner);
         };
 
-        elproto.getPartners = function (el_type) {
+    /**
+     * Returns registered partners filtered by type.
+     * @param {'dom'|'element'|'both'} [el_type] Desired partner category.
+     * @returns {Array|Object|undefined} Matching partners or `undefined` when none exist.
+     */
+    elproto.getPartners = function (el_type) {
             if (!el_type) {
                 return this._dom_partner || this._element_partner;
             } else if (el_type === 'dom') {
@@ -1143,7 +1302,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        elproto.setPartnerStyle = function (style_obj) {
+    /**
+     * Applies style updates to registered partners, mirroring key display-related properties.
+     * @param {Object} style_obj Style object whose `opacity` and `display` values are forwarded to partners.
+     */
+    elproto.setPartnerStyle = function (style_obj) {
             let obj = {};
             if (style_obj.hasOwnProperty(
                 'opacity')) obj.opacity = style_obj.opacity;
@@ -1155,26 +1318,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el && el.forEach((e) => e.attr(obj));
         };
 
-        /*\
-         * Element.parent
-         [ method ]
-         **
-         * Returns the element's parent
-         **
-         = (Element) the parent element
-         \*/
+        /**
+         * Returns the element's parent element.
+         * @returns {Element} Parent element wrapper.
+         */
         elproto.parent = function () {
             return wrap(this.node.parentNode);
         };
 
-        /*\
-         * Element.setPaper
-         [ method ]
-         **
-         * Sets the elements paper.
-         **
-         = (Element) this
-         \*/
+        /**
+         * Assigns a new paper instance to the element and all of its descendants.
+         * @param {Paper} paper Target paper instance.
+         * @param {boolean} [force=false] When true, reassigns even if the paper is unchanged.
+         * @returns {Element} Current element for chaining.
+         */
         elproto.setPaper = function (paper, force) {
             if (!paper instanceof Paper ||
                 (!force && this.paper === paper)) return this;
@@ -1184,21 +1341,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this;
         };
 
-        /*\
-         * Element.append
-         [ method ]
-         **
-         * Appends the given element to current one
-         **
-         - el (Element|Set) element to append
-         = (Element) the parent element
-         \*/
-        /*\
-         * Element.add
-         [ method ]
-         **
-         * See @Element.append
-         \*/
+        /**
+         * Appends the provided element (or set) to the current element.
+         * @param {Element|Set|Array<Element>} el Element, set, or array to append.
+         * @returns {Element} Parent element for chaining.
+         */
         elproto.append = elproto.add = function (el) {
 
             if (el) {
@@ -1237,15 +1384,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.appendTo
-         [ method ]
-         **
-         * Appends the current element to the given one
-         **
-         - el (Element) parent element to append to
-         = (Element) the child element
-         \*/
+    /**
+     * Appends the current element to the specified parent.
+     * @param {Element} el Parent element that will receive this node.
+     * @returns {Element} Child element for chaining.
+     */
         elproto.appendTo = function (el) {
             if (el) {
                 clearParentCHull(this);
@@ -1254,15 +1397,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.prepend
-         [ method ]
-         **
-         * Prepends the given element to the current one
-         **
-         - el (Element) element to prepend
-         = (Element) the parent element
-         \*/
+    /**
+     * Prepends the specified element (or set) to the current element.
+     * @param {Element|Set} el Element to prepend.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.prepend = function (el) {
             if (el) {
                 clearParentCHull(this);
@@ -1289,29 +1428,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.prependTo
-         [ method ]
-         **
-         * Prepends the current element to the given one
-         **
-         - el (Element) parent element to prepend to
-         = (Element) the child element
-         \*/
+    /**
+     * Prepends this element to the specified parent.
+     * @param {Element} el Parent element to receive this node.
+     * @returns {Element} Child element for chaining.
+     */
         elproto.prependTo = function (el) {
             el = wrap(el);
             el.prepend(this);
             return this;
         };
-        /*\
-         * Element.before
-         [ method ]
-         **
-         * Inserts given element before the current one
-         **
-         - el (Element) element to insert
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the provided element before the current element.
+     * @param {Element|Set} el Element to insert.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.before = function (el) {
             clearParentCHull(this);
             if (el.type == 'set') {
@@ -1332,15 +1463,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.paper = this.paper;
             return this;
         };
-        /*\
-         * Element.after
-         [ method ]
-         **
-         * Inserts given element after the current one
-         **
-         - el (Element) element to insert
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the provided element after the current element.
+     * @param {Element} el Element to insert.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.after = function (el) {
             el = wrap(el);
             clearParentCHull(this);
@@ -1360,15 +1487,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.paper = this.paper;
             return this;
         };
-        /*\
-         * Element.insertBefore
-         [ method ]
-         **
-         * Inserts the element after the given one
-         **
-         - el (Element) element next to whom insert to
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the current element before the provided sibling.
+     * @param {Element} el Sibling element used as insertion point.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.insertBefore = function (el) {
             el = wrap(el);
             clearParentCHull(el);
@@ -1379,15 +1502,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.parent() && el.parent().add();
             return this;
         };
-        /*\
-         * Element.insertAfter
-         [ method ]
-         **
-         * Inserts the element after the given one
-         **
-         - el (Element) element next to whom insert to
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the current element after the provided sibling.
+     * @param {Element} el Sibling element used as insertion reference.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.insertAfter = function (el) {
             el = wrap(el);
             clearParentCHull(el);
@@ -1398,13 +1517,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.parent() && el.parent().add();
             return this;
         };
-        /*\
-         * Element.remove
-         [ method ]
-         **
-         * Removes element from the DOM
-         = (Element) the detached element
-         \*/
+    /**
+     * Removes the element from the DOM and detaches partner associations.
+     * @returns {Array<Element>} Collection of child elements that were detached alongside this element.
+     */
         elproto.remove = function () {
             clearParentCHull(this);
             const parent = this.parent();
@@ -1424,12 +1540,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // parent && parent.add();
             return this.getChildren();
         };
-        /*\
-         * Element.removeChildren
-         [ method ]
-         **
-         * Removes all children element from the DOM
-         \*/
+    /**
+     * Removes all child elements from the DOM.
+     */
         elproto.removeChildren = function () {
             this.getChildren().forEach(function (el) {
                 el.remove();
@@ -1489,7 +1602,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // });
         };
 
-        elproto.hasChildren = function () {
+    /**
+     * Determines whether the element contains any non-meta child nodes.
+     * @returns {boolean} True when at least one meaningful child exists.
+     */
+    elproto.hasChildren = function () {
             if (this.type !== 'g' || this.type !== 'svg' || this.type !== 'clipPath') {
                 return false;
             }
@@ -1507,28 +1624,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return false;
         };
 
-        /*\
-         * Element.select
-         [ method ]
-         **
-         * Gathers the nested @Element matching the given set of CSS selectors
-         **
-         - query (string) CSS svg_selector
-         = (Element) result of query selection
-         \*/
+        /**
+         * Returns the first descendant matching the provided CSS selector.
+         * @param {string} query CSS selector compatible with SVG.
+         * @returns {Element|null} Wrapped element or `null` when not found.
+         */
         elproto.select = function (query) {
             query = replaceNumericIdSelectors(query);
             return wrap(this.node.querySelector(query));
         };
-        /*\
-         * Element.selectAll
-         [ method ]
-         **
-         * Gathers nested @Element objects matching the given set of CSS selectors
-         **
-         - query (string) CSS svg_selector
-         = (Set|array) result of query selection
-         \*/
+        /**
+         * Returns all descendants matching the provided CSS selector.
+         * @param {string} query CSS selector compatible with SVG.
+         * @returns {Array<Element>|Set} Collection containing all matches.
+         */
         elproto.selectAll = function (query) {
             query = replaceNumericIdSelectors(query);
             const nodelist = this.node.querySelectorAll(query),
@@ -1539,7 +1648,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return set;
         };
 
-        function replaceNumericIdSelectors(cssQuery) {
+    /**
+     * Transforms numeric ID selectors into attribute selectors for SVG compatibility.
+     * @param {string} cssQuery Raw CSS selector string.
+     * @returns {string} Selector with numeric ID references translated.
+     */
+    function replaceNumericIdSelectors(cssQuery) {
             // Regular expression to match ID selectors starting with a number
             const regex = /#(\d[\w-]*)/g;
 
@@ -1549,16 +1663,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return modifiedQuery;
         }
 
-        /*\
-         * Element.asPX
-         [ method ]
-         **
-         * Returns given attribute of the element as a `px` value (not %, em, etc.)
-         **
-         - attr (string) attribute name
-         - value (string) #optional attribute value
-         = (Element) result of query selection
-         \*/
+    /**
+     * Resolves an attribute value into pixels.
+     * @param {string} attr Attribute name.
+     * @param {string|number} [value] Optional raw value; defaults to the current attribute.
+     * @returns {number} Attribute value converted to pixels.
+     */
         elproto.asPX = function (attr, value) {
             if (value == null) {
                 value = this.attr(attr);
@@ -1566,15 +1676,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return +unit2px(this, attr, value);
         };
 // SIERRA Element.use(): I suggest adding a note about how to access the original element the returned <use> instantiates. It's a part of SVG with which ordinary web developers may be least familiar.
-        /*\
-         * Element.use
-         [ method ]
-         **
-         * Creates a `<use>` element linked to the current element, or if css_ref is provided, creates a '<use>' element
-         * from it, and adds it to the current element. In the second case, the current element must have meaningful children.
-         **
-         = (Element) the `<use>` element
-         \*/
+    /**
+     * Creates a `<use>` element referencing this element or one matched by the provided selector and appends it.
+     * @param {string} [css_ref] CSS reference resolving to an element to clone.
+     * @param {number} [x] Optional x-offset applied to the generated `<use>`.
+     * @param {number} [y] Optional y-offset applied to the generated `<use>`.
+     * @returns {Element|undefined} The newly created `<use>` element, or `undefined` when the selector fails.
+     */
         elproto.addUse = function (css_ref, x, y) {
             let use,
                 id = this.node.id;
@@ -1615,7 +1723,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         elproto.use = elproto.addUse;
 
-        function fixids(el, id_rename_callback) {
+    /**
+     * Normalises IDs within a cloned subtree to avoid collisions.
+     * @param {Element} el Root element containing cloned nodes.
+     * @param {Function} [id_rename_callback] Callback returning the new ID for a given current ID.
+     */
+    function fixids(el, id_rename_callback) {
             const els = el.selectAll('*');
             let it;
             const url = /^\s*url\(("|'|)(.*)\1\)\s*$/,
@@ -1684,14 +1797,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        /*\
-         * Element.clone
-         [ method ]
-         **
-         * Creates a clone of the element and inserts it after the element
-         **
-         = (Element) the clone
-         \*/
+    /**
+     * Clones the element, optionally hiding it, renaming IDs, or performing a deep `use` expansion.
+     * @param {boolean} [hidden] When true, skips inserting the clone into the DOM.
+     * @param {Function} [id_rename_callback] Callback used to generate unique IDs for the clone and descendants.
+     * @param {boolean} [deep_copy=false] When true, expands `<use>` references into actual nodes.
+     * @returns {Element} Cloned element.
+     */
         elproto.clone = function (hidden, id_rename_callback, deep_copy) {
             if (typeof hidden === 'function') {
                 id_rename_callback = hidden;
@@ -1748,10 +1860,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
            legend: true,
            label: true
         };
+        /**
+         * Determines whether the element behaves like a grouping container.
+         * @returns {boolean} True for group-like elements.
+         */
         elproto.isGroupLike = function () {
             return !!groupLikeTest[this.type];
         };
 
+        /**
+         * Recursively expands `<use>` elements into standalone clones.
+         */
         elproto.removeUses = function () {
             if (this.isGroupLike()) {
                 this.getChildren().forEach(function (el) {
@@ -1794,42 +1913,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        /*\
-         * Element.toDefs
-         [ method ]
-         **
-         * Moves element to the shared `<defs>` area
-         **
-         = (Element) the element
-         \*/
+    /**
+     * Moves the element into the shared `<defs>` section.
+     * @returns {Element} Current element for chaining.
+     */
         elproto.toDefs = function () {
             const defs = getSomeDefs(this);
             defs.appendChild(this.node);
             return this;
         };
-        /*\
-         * Element.toPattern
-         [ method ]
-         **
-         * Creates a `<pattern>` element from the current element
-         **
-         * To create a pattern you have to specify the pattern rect:
-         - x (string|number)
-         - y (string|number)
-         - width (string|number)
-         - height (string|number)
-         = (Element) the `<pattern>` element
-         * You can use pattern later on as an argument for `fill` attribute:
-         | var p = paper.path("M10-5-10,15M15,0,0,15M0-5-20,15").attr({
-         |         fill: "none",
-         |         stroke: "#bada55",
-         |         strokeWidth: 5
-         |     }).pattern(0, 0, 10, 10),
-         |     c = paper.circle(200, 200, 100);
-         | c.attr({
-         |     fill: p
-         | });
-         \*/
+    /**
+     * Converts the current element into a reusable `<pattern>` definition.
+     * @param {number|Object} [x] X coordinate or bounding-box object.
+     * @param {number} [y]
+     * @param {number} [width]
+     * @param {number} [height]
+     * @returns {Element} Pattern element that now owns the node.
+     */
         elproto.pattern = elproto.toPattern = function (x, y, width, height) {
             const p = make('pattern', getSomeDefs(this));
             if (x == null) {
@@ -1853,25 +1953,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             p.node.appendChild(this.node);
             return p;
         };
-// SIERRA Element.marker(): clarify what a reference point is. E.g., helps you offset the object from its edge such as when centering it over a path.
-// SIERRA Element.marker(): I suggest the method should accept default reference point values.  Perhaps centered with (refX = width/2) and (refY = height/2)? Also, couldn't it assume the element's current _width_ and _height_? And please specify what _x_ and _y_ mean: offsets? If so, from where?  Couldn't they also be assigned default values?
-        /*\
-         * Element.marker
-         [ method ]
-         **
-         * Creates a `<marker>` element from the current element
-         **
-         * To create a marker you have to specify the bounding rect and reference point:
-         - x (number)
-         - y (number)
-         - width (number)
-         - height (number)
-         - refX (number)
-         - refY (number)
-         = (Element) the `<marker>` element
-         * You can specify the marker later as an argument for `marker-start`, `marker-end`, `marker-mid`, and `marker` attributes. The `marker` attribute places the marker at every point along the path, and `marker-mid` places them at every point except the start and end.
-         \*/
-// TODO add usage for markers
+
+        /**
+         * Converts the current element into a `<marker>` definition.
+         * @param {number|Object} [x] X coordinate or bounding-box-like descriptor containing marker data.
+         * @param {number} [y]
+         * @param {number} [width]
+         * @param {number} [height]
+         * @param {number} [refX]
+         * @param {number} [refY]
+         * @returns {Element} Marker element referencing the current node.
+         */
         elproto.marker = function (x, y, width, height, refX, refY) {
             const p = make('marker', getSomeDefs(this));
             if (x == null) {

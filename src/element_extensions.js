@@ -7,8 +7,14 @@
         //ELEMENT Functions
 
         let _ = {};
-
-        Element.prototype.getId = function () {
+    /**
+     * Ensures the element has an `id` attribute and returns it.
+     * If the attribute is missing it is generated from the internal Snap id.
+     *
+     * @function Snap.Element#getId
+     * @returns {string} Unique identifier associated with the element.
+     */
+    Element.prototype.getId = function () {
             let id = this.attr('id');
             if (!id) {
                 id = this.id;
@@ -16,18 +22,14 @@
             }
             return id;
         };
-
-        /**
-         * Sets the id of the element and adjusts any references of the object.
-         *
-         * @param {String | undefined} id the new id, if undefined a unique
-         * variation if the id is created.
-         * @param {Element | undefined} from_group a limiting group where to
-         * look for references. This is useful if the elements of the group have
-         * been added form another file and we need to change ids to avoid
-         * conflicts
-         * @return {Element} this
-         */
+    /**
+     * Sets the id of the element and adjusts any references of the object.
+     *
+     * @function Snap.Element#setIdFollowRefs
+     * @param {string} [id] Desired id; when omitted a unique suffix is appended to the existing id.
+     * @param {Snap.Element} [from_group] Optional ancestor used to narrow the reference search scope.
+     * @returns {Snap.Element} The element itself, allowing chaining.
+     */
         Element.prototype.setIdFollowRefs = function (id, from_group) {
             if (id instanceof Element) {
                 from_group = id;
@@ -126,18 +128,24 @@
 
             return this;
         };
-
+        /**
+         * Retrieves the top-level SVG root associated with the current element.
+         *
+         * @function Snap.Element#getTopSVG
+         * @returns {Snap.Element} Snap wrapper around the root `<svg>` element.
+         */
         Element.prototype.getTopSVG = function () {
             return Snap(this.paper.node);
         };
 
         /**
-         * Gets all elements that use the five element as a reference.
+         * Gets all elements that use the current element as a reference.
          * This is useful mainly for clipPath, mask, pattern, gradients or symbol element,
          * however, it can be used with any other element for a <use> tag.
-         * @param {Element | undefined} in_group optional group where to search
-         * for reference.
-         * @returns {Iterable} The element having the reference.
+         *
+         * @function Snap.Element#getReferringToMe
+         * @param {Snap.Element} [in_group] Optional container restricting where references are searched.
+         * @returns {Snap.Set} Collection of referencing elements.
          */
         Element.prototype.getReferringToMe = function (in_group) {
             in_group = in_group || this.paper;
@@ -200,8 +208,14 @@
             }
 
         };
-
-        Element.prototype.repositionInGroup = function (group) {
+    /**
+     * Reorders the element within the provided group to match the rendering order of the DOM node.
+     *
+     * @function Snap.Element#repositionInGroup
+     * @param {Snap.Element} group Group whose child order should be synchronized.
+     * @returns {Snap.Element} The element itself for chaining.
+     */
+    Element.prototype.repositionInGroup = function (group) {
             if (!group.isGroupLike() && group.type !== 'svg') return;
             if (this.parent() === group) return;
             const diffMatrix = this.transform().diffMatrix;
@@ -210,16 +224,31 @@
             group.add(this);
             this.addTransform(new_trans);
         };
-
-        Element.prototype.globalToLocal = function (globalPoint, coordTarget) {
+    /**
+     * Converts a coordinate from the global SVG space to the element's local coordinate system.
+     *
+     * @function Snap.Element#globalToLocal
+     * @param {{x:number,y:number}} globalPoint Point in SVG global coordinates.
+     * @param {Snap.Element} [coordTarget] Optional element whose coordinate system should be the result.
+     * @returns {{x:number,y:number}} Converted coordinates relative to the target element.
+     */
+    Element.prototype.globalToLocal = function (globalPoint, coordTarget) {
 
             let ctm = coordTarget.node.getCTM();
             const globalToLocal = ctm ? ctm.inverse().multiply(this.node.getCTM()) : this.node.getCTM();
             globalToLocal.e = globalToLocal.f = 0;
             return globalPoint.matrixTransform(globalToLocal);
         };
-
-        Element.prototype.getCursorPoint = function (x, y, coordTarget) {
+    /**
+     * Produces an SVG point from client (screen) coordinates, optionally in another element's system.
+     *
+     * @function Snap.Element#getCursorPoint
+     * @param {number} x Horizontal client coordinate (e.g., mouse event `clientX`).
+     * @param {number} y Vertical client coordinate (e.g., mouse event `clientY`).
+     * @param {Snap.Element} [coordTarget] Element whose coordinate system should be used for the result.
+     * @returns {{x:number,y:number}} Point expressed in the chosen coordinate system.
+     */
+    Element.prototype.getCursorPoint = function (x, y, coordTarget) {
             const pt = this.paper.node.createSVGPoint();
             coordTarget = coordTarget || this;
 
@@ -254,11 +283,12 @@
             return domPoint;
         };
 
-        /**
-         * Converts a screen distance to a distance in the local coord system of this element
-         * @param {number} d the distance
-         * @return {number}
-         */
+    /**
+     * Converts a screen-space distance to the distance in the element's local coordinate space.
+     *
+     * @param {number} d Distance expressed in CSS pixels.
+     * @returns {number} Equivalent SVG units for the current element.
+     */
         function fromScreenDistance(d) {
             if (this.type !== 'svg' && this.type !== 'g') return this.parent().getFromScreenDistance(d);
             let pt = this.paper.node.createSVGPoint();
@@ -273,10 +303,23 @@
             pt = pt.matrixTransform(matrix);
             return (pt.y) ? Math.sqrt(pt.x * pt.x + pt.y * pt.y) : Math.abs(pt.x);
         }
+    /**
+     * Returns the distance in local SVG units that corresponds to a screen-space measurement.
+     *
+     * @function Snap.Element#getFromScreenDistance
+     * @param {number} distance Distance in CSS pixels (for example, from a pointer delta).
+     * @returns {number} Equivalent distance in the element's coordinate system.
+     */
+    Element.prototype.getFromScreenDistance = fromScreenDistance;
 
-        Element.prototype.getFromScreenDistance = fromScreenDistance;
-
-        Element.prototype.getClientWidth = function (skip_style) {
+    /**
+     * Computes the rendered width of the element, following CSS if intrinsic width is unavailable.
+     *
+     * @function Snap.Element#getClientWidth
+     * @param {boolean} [skip_style=false] When true the computed CSS width is ignored.
+     * @returns {number} Width in pixels.
+     */
+    Element.prototype.getClientWidth = function (skip_style) {
             if (this.node.clientWidth) return this.node.clientWidth;
             if (!skip_style) {
                 let width = Snap.window().getComputedStyle(this.node).width;
@@ -296,8 +339,14 @@
                 return 0;
             }
         }
-
-        Element.prototype.getClientHeight = function (skip_style) {
+    /**
+     * Computes the rendered height of the element, falling back to CSS or parent dimensions when needed.
+     *
+     * @function Snap.Element#getClientHeight
+     * @param {boolean} [skip_style=false] When true the computed CSS height is ignored.
+     * @returns {number} Height in pixels.
+     */
+    Element.prototype.getClientHeight = function (skip_style) {
             if (this.node.clientHeight) return this.node.clientHeight;
             if (!skip_style) {
                 let height = Snap.window().getComputedStyle(this.node).height;
@@ -317,8 +366,14 @@
                 return 0;
             }
         }
-
-        Element.prototype.isInRect = function (rect) {
+    /**
+     * Determines whether the element overlaps the provided rectangle. Groups recurse into children.
+     *
+     * @function Snap.Element#isInRect
+     * @param {Snap.Element|DOMRect} rect Rectangle definition to test against.
+     * @returns {boolean} True when the element intersects the rectangle.
+     */
+    Element.prototype.isInRect = function (rect) {
             // var box = rect.node.getBBox(); //get a proper SVGRect element
             if (this.type == 'g') {
                 const children = this.getChildren();
@@ -335,8 +390,15 @@
                 return this.isOverlapRect(rect);
             }
         };
-
-        Element.prototype.getDirectionLine = function (sample, gui) {
+    /**
+     * Approximates the dominant direction of the element by sampling points along its outline.
+     *
+     * @function Snap.Element#getDirectionLine
+     * @param {number} [sample=100] Number of sampling points used along the path or polygon.
+     * @param {Object} [gui] Optional helper object used for visualization (expects `svgRoot`).
+     * @returns {Array<number>|null} `[angle, intercept]` pair in degrees and intercept, or `null` if undetermined.
+     */
+    Element.prototype.getDirectionLine = function (sample, gui) {
             if (!root.ss) return null;
             sample = sample || 100;
             let el = this;
@@ -378,8 +440,15 @@
 
             return line_slope_intersect;
         };
-
-        Element.prototype.setCursor = function (cursorStyle, apply_to_children) {
+    /**
+     * Updates the CSS cursor on the element and, optionally, on all descendants.
+     *
+     * @function Snap.Element#setCursor
+     * @param {string} cursorStyle CSS cursor value (for example `pointer` or `url(...)`).
+     * @param {boolean} [apply_to_children=false] When true the cursor is applied to all child elements.
+     * @returns {Snap.Element} The element itself for chaining.
+     */
+    Element.prototype.setCursor = function (cursorStyle, apply_to_children) {
             //todo: allow url.
             if (!cursorStyle) {
                 cursorStyle = 'default';

@@ -48,6 +48,34 @@
     };
     let lastTimeStamp;
 
+    /**
+     * @typedef {(number|number[])} AnimationValue
+     * @description Numeric value (or array of numeric values) animated by mina.
+     */
+
+    /**
+     * @callback MinaGetter
+     * @returns {number} Current master value that drives the animation timeline.
+     */
+
+    /**
+     * @callback MinaSetter
+     * @param {AnimationValue} value The interpolated value to apply.
+     * @returns {void}
+     */
+
+    /**
+     * @callback MinaEasing
+     * @param {number} t Normalized progress in the `[0, 1]` range.
+     * @returns {number} Eased progress value in the `[0, 1]` range.
+     */
+
+    /**
+     * Drives the global animation loop and updates all registered animations.
+     *
+     * @param {number} [timeStamp] High-resolution timestamp provided by `requestAnimationFrame`.
+     * @returns {void}
+     */
     function frame(timeStamp) {
         // Manual invokation?
         if (!timeStamp) {
@@ -102,10 +130,24 @@
         requestID = len ? requestAnimFrame(frame) : false;
     }
 
+    /**
+     * Generates a unique animation identifier.
+     *
+     * @returns {string}
+     */
     function ID() {
         return idprefix + (idgen++).toString(36);
     }
 
+    /**
+     * Computes a linear interpolation function for the supplied values.
+     *
+     * @param {AnimationValue} a Start value(s).
+     * @param {number} b Start timestamp.
+     * @param {AnimationValue} A End value(s).
+     * @param {number} B End timestamp.
+    * @returns {function(number): AnimationValue}
+     */
     function diff(a, b, A, B) {
         if (isArray(a)) {
             const res = [];
@@ -126,6 +168,13 @@
         return +new Date;
     };
 
+    /**
+     * Gets or sets the current status of an animation.
+     *
+     * @this {Animation}
+     * @param {number} [val] New normalized progress in the `[0, 1]` range.
+     * @returns {number|void}
+     */
     function sta(val) {
         if (val == null) {
             return this.s;
@@ -136,6 +185,13 @@
         this.s = val;
     }
 
+    /**
+     * Gets or sets the playback speed of an animation.
+     *
+     * @this {Animation}
+     * @param {number} [val] New speed multiplier.
+     * @returns {number|void}
+     */
     function speed(val) {
         if (val == null) {
             return this.spd;
@@ -143,6 +199,13 @@
         this.spd = val;
     }
 
+    /**
+     * Gets or sets the duration of an animation.
+     *
+     * @this {Animation}
+     * @param {number} [val] New duration in timeline units.
+     * @returns {number|void}
+     */
     function duration(val) {
         if (val == null) {
             return this.dur;
@@ -151,12 +214,24 @@
         this.dur = val;
     }
 
+    /**
+     * Stops the animation immediately and emits the appropriate event.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function stopit() {
         delete animations[this.id];
         this.update();
         eve(["snap", "mina", "stop", this.id], this);
     }
 
+    /**
+     * Pauses the animation, preserving the current timeline offset.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function pause() {
         if (this.pdif) {
             return;
@@ -166,6 +241,12 @@
         this.pdif = this.get() - this.b;
     }
 
+    /**
+     * Resumes a paused animation from its preserved timeline offset.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function resume() {
         if (!this.pdif) {
             return;
@@ -196,6 +277,12 @@
     //     this.set(res);
     // };
 
+    /**
+     * Applies the easing function and updates the animated value.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function update() {
         let chng = false;
         if (this._lastRev !== undefined && this._lastRev !== this.rev) {
@@ -237,11 +324,25 @@
         }
     }
 
+    /**
+     * Toggles the playback direction of the animation.
+     *
+     * @this {Animation}
+     * @param {boolean} [fast=false] When `true`, the animation attempts to reuse the current eased position for a smoother reversal.
+     * @returns {void}
+     */
     function reverse(fast) {
         this.rev = !this.rev;
         this.rev_fast = !!fast;
     }
 
+    /**
+     * Registers a callback that resolves once the animation reaches completion.
+     *
+     * @this {Animation}
+    * @param {function(Animation): void} [callback] Invoked with the animation when it finishes.
+     * @returns {Promise<void>} Promise that resolves when the animation finishes.
+     */
     function then(callback) {
         return new Promise((resolve, reject) => {
             if (typeof callback === "function") {
@@ -258,40 +359,18 @@
         });
     }
 
-    /*\
- * mina
- [ method ]
- **
- * Generic animation of numbers
- **
- - a (number) start _slave_ number
- - A (number) end _slave_ number
- - b (number) start _master_ number (start time in general case)
- - B (number) end _master_ number (end time in general case)
- - get (function) getter of _master_ number (see @mina.time)
- - set (function) setter of _slave_ number
- - easing (function) #optional easing function, default is @mina.linear
- = (object) animation descriptor
- o {
- o         id (string) animation id,
- o         start (number) start _slave_ number,
- o         end (number) end _slave_ number,
- o         b (number) start _master_ number,
- o         s (number) animation status (0..1),
- o         dur (number) animation duration,
- o         spd (number) animation speed,
- o         get (function) getter of _master_ number (see @mina.time),
- o         set (function) setter of _slave_ number,
- o         easing (function) easing function, default is @mina.linear,
- o         status (function) status getter/setter,
- o         speed (function) speed getter/setter,
- o         duration (function) duration getter/setter,
- o         stop (function) animation stopper
- o         pause (function) pauses the animation
- o         resume (function) resumes the animation
- o         update (function) calles setter with the right value of the animation
- o }
-\*/
+    /**
+     * Descriptor returned by {@link mina} that encapsulates an active animation.
+     *
+     * @class Animation
+     * @param {AnimationValue} a Starting value(s).
+     * @param {AnimationValue} A Ending value(s).
+     * @param {number} b Starting master value (typically, start time).
+     * @param {number} B Ending master value (typically, end time).
+     * @param {MinaGetter} get Retrieves the current master value.
+     * @param {MinaSetter} set Applies the interpolated slave value.
+     * @param {MinaEasing} [easing=mina.linear] Easing function that transforms progress.
+     */
     class Animation {
         constructor(a, A, b, B, get, set, easing) {
             this.id = ID();
@@ -315,12 +394,29 @@
             this.update = update;
             this.reverse = reverse;
             this.then = then;
+            /**
+             * Indicates whether the animation has finished.
+             *
+             * @returns {boolean}
+             */
             this.done = function () {
                 return this.status() === 1
             };
         }
     }
 
+    /**
+     * Creates a new animation descriptor and schedules it on the shared timeline.
+     *
+     * @param {AnimationValue} a Starting value(s).
+     * @param {AnimationValue} A Ending value(s).
+     * @param {number} b Start time or master value.
+     * @param {number} B End time or master value.
+     * @param {MinaGetter} get Getter invoked to retrieve the current master value.
+     * @param {MinaSetter} set Setter invoked with the interpolated value during updates.
+     * @param {MinaEasing} [easing=mina.linear] Optional easing function.
+     * @returns {Animation}
+     */
     function mina(a, A, b, B, get, set, easing) {
         const anim = new Animation(a, A, b, B, get, set, easing);
         animations[anim.id] = anim;
@@ -338,71 +434,62 @@
         return anim;
     }
 
+    /**
+     * Exposes the `Animation` constructor for advanced use cases.
+    * @type {Function}
+     */
     mina.Animation = Animation;
 
-    /*\
-     * mina.time
-     [ method ]
-     **
-     * Returns the current time. Equivalent to:
-     | function () {
-     |     return (new Date).getTime();
-     | }
-    \*/
+    /**
+     * Returns the current timestamp in milliseconds.
+     * Mirrors `Date.now()` and is primarily used as the default master getter.
+     *
+     * @returns {number}
+     */
     mina.time = timer;
-    /*\
-     * mina.getById
-     [ method ]
-     **
-     * Returns an animation by its id
-     - id (string) animation's id
-     = (object) See @mina
-    \*/
+    /**
+     * Retrieves an animation descriptor by its identifier.
+     *
+     * @param {string} id Animation identifier generated by {@link mina}.
+     * @returns {Animation|null} Registered animation or `null` if not found.
+     */
     mina.getById = function (id) {
         return animations[id] || null;
     };
 
-    /*\
-     * mina.linear
-     [ method ]
-     **
-     * Default linear easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Default linear easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.linear = function (n) {
         return n;
     };
-    /*\
-     * mina.easeout
-     [ method ]
-     **
-     * Easeout easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Exponential ease-out easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.easeout = function (n) {
         return Math.pow(n, 1.7);
     };
-    /*\
-     * mina.easein
-     [ method ]
-     **
-     * Easein easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Exponential ease-in easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.easein = function (n) {
         return Math.pow(n, .48);
     };
-    /*\
-     * mina.easeinout
-     [ method ]
-     **
-     * Easeinout easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Smooth ease-in-out easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.easeinout = function (n) {
         if (n == 1) {
             return 1;
@@ -415,14 +502,12 @@
             Y = Math.pow(Math.abs(y), 1 / 3) * (y < 0 ? -1 : 1), t = X + Y + .5;
         return (1 - t) * 3 * t * t + t * t * t;
     };
-    /*\
-     * mina.backin
-     [ method ]
-     **
-     * Backin easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Back-in easing that overshoots slightly before accelerating.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.backin = function (n) {
         if (n == 1) {
             return 1;
@@ -430,14 +515,12 @@
         const s = 1.70158;
         return n * n * ((s + 1) * n - s);
     };
-    /*\
-     * mina.backout
-     [ method ]
-     **
-     * Backout easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Back-out easing that overshoots the end value before settling.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.backout = function (n) {
         if (n == 0) {
             return 0;
@@ -446,14 +529,14 @@
         const s = 1.70158;
         return n * n * ((s + 1) * n + s) + 1;
     };
-    /*\
-     * mina.elastic
-     [ method ]
-     **
-     * Elastic easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Elastic easing with optional amplitude and period customization.
+     *
+     * @param {number} [amp=1] Amplitude of the overshoot.
+     * @param {number} [per=0.3] Period of oscillation.
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.elastic = function (amp, per, n) {
         if (per === undefined) {
             n = amp;
@@ -480,18 +563,23 @@
         // var k = _2PI / .3;
         // var ret = amp * Math.pow(2, -10 * n) * Math.sin((n - .075) * k) + 1;
     };
+    /**
+     * Creates a reusable elastic easing function with predefined parameters.
+     *
+     * @param {number} amp Amplitude passed to {@link mina.elastic}.
+     * @param {number} per Period passed to {@link mina.elastic}.
+     * @returns {MinaEasing}
+     */
     mina.elastic.withParams = function (amp, per) {
         return mina.elastic.bind(undefined, amp, per);
     };
 
-    /*\
-     * mina.bounce
-     [ method ]
-     **
-     * Bounce easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Bounce easing that simulates a ball dropping and settling.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.bounce = function (n) {
         const s = 7.5625, p = 2.75;
         let l;
@@ -523,6 +611,10 @@
     //
     // }
 
+    /**
+     * Flags functions that are not easing helpers so they are excluded from {@link mina.isEasing} checks.
+     * @type {Record<string, boolean>}
+     */
     const non_easing_functions = {
         Animation: true,
         getById: true,
@@ -536,10 +628,23 @@
         setInterval: true,
         trakSkippedFrames: true,
     };
+    /**
+     * Determines whether the provided key refers to a registered easing function.
+     *
+     * @param {string} name Property name on the mina namespace.
+     * @returns {boolean}
+     */
     mina.isEasing = function (name) {
         return mina.hasOwnProperty(name) && !non_easing_functions[name]
     };
 
+    /**
+     * Updates the global speed multiplier applied to all running animations.
+     *
+     * @param {number} [speed=1] Speed multiplier; values greater than `1` speed up animations.
+     * @param {number} [skip] Optional skip interval forwarded to {@link mina.setSkip}.
+     * @returns {void}
+     */
     mina.setSpeed = function (speed, skip) {
         if (speed) {
             global_speed = speed;
@@ -552,6 +657,12 @@
         if (skip) this.setSkip(skip);
     };
 
+    /**
+     * Sets the global step-skipping interval for all animations.
+     *
+     * @param {number} skip Number of frames to skip between updates.
+     * @returns {void}
+     */
     mina.setSkip = function (skip) {
         global_skip = Math.floor(+skip);
         Object.values(animations).forEach(function (anim) {
@@ -559,26 +670,62 @@
         });
     }
 
+    /**
+     * Schedules a timeout that respects the global mina speed multiplier.
+     *
+     * @param {Function} callback Handler to invoke.
+     * @param {number} deley Delay in milliseconds (affected by `setSpeed`).
+     * @param {...*} args Optional arguments forwarded to the callback.
+     * @returns {number}
+     */
     mina.setTimeout = function (callback, deley, ...args) {
         deley *= global_speed
         return setTimeout(callback, deley, ...args);
     }
 
+    /**
+     * Schedules an immediate or delayed callback aligned with the global speed multiplier.
+     *
+     * @param {Function} callback Handler to invoke.
+     * @param {number} deley Delay in milliseconds before execution.
+     * @param {...*} args Optional arguments forwarded to the callback.
+     * @returns {number|void}
+     */
     mina.setTimeoutNow = function (callback, deley, ...args) {
         deley *= global_speed
         return (deley) ? setTimeout(callback, deley, ...args) : callback(...args);
     }
 
+    /**
+     * Registers an interval timer that honors the global speed multiplier.
+     *
+     * @param {Function} callback Handler to invoke on each tick.
+     * @param {number} interval Interval duration in milliseconds.
+     * @param {...*} args Optional arguments forwarded to the callback.
+     * @returns {number}
+     */
     mina.setInterval = function (callback, interval, ...args) {
         interval *= global_speed;
         return setInterval(callback, interval, ...args);
     };
 
+    /**
+     * Enables detection of skipped frames by providing an expected frame duration.
+     *
+     * @param {number} [frame_time=18] Expected duration of each frame in milliseconds.
+     * @returns {void}
+     */
     mina.trakSkippedFrames = function (frame_time) {
         expectedFrameDuration = (frame_time === undefined) ? 18 // a bit longer than 60fps frame
             : +(frame_time || 0)
     }
 
+    /**
+     * Returns the last animation(s) registered or starts collecting the next batch.
+     *
+     * @param {boolean} [start_collecting=false] When `true`, clears the stored reference and begins collecting anew.
+     * @returns {Animation|Animation[]|undefined}
+     */
     mina.getLast = function (start_collecting) {
         if (start_collecting) {
             last = [];

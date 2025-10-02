@@ -14,26 +14,25 @@
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var proto = Paper.prototype,
         is = Snap.is;
-    /*\
-     * Paper.rect
-     [ method ]
+    /**
+     * Draws a rectangle on the paper.
      *
-     * Draws a rectangle
-     **
-     - x (number) x coordinate of the top left corner
-     - y (number) y coordinate of the top left corner
-     - width (number) width
-     - height (number) height
-     - rx (number) #optional horizontal radius for rounded corners, default is 0
-     - ry (number) #optional vertical radius for rounded corners, default is rx or 0
-     = (object) the `rect` element
-     **
-     > Usage
-     | // regular rectangle
-     | var c = paper.rect(10, 10, 50, 50);
-     | // rectangle with rounded corners
-     | var c = paper.rect(40, 40, 50, 50, 10);
-    \*/
+     * @function Snap.Paper#rect
+     * @param {number} x X coordinate of the top-left corner.
+     * @param {number} y Y coordinate of the top-left corner.
+     * @param {number} width Rectangle width.
+     * @param {number} height Rectangle height.
+     * @param {number|Array.<number>} [rx] Horizontal radius for rounded corners, or an `[rx, ry]` pair.
+     * @param {number} [ry] Vertical radius for rounded corners; defaults to `rx` when omitted.
+     * @param {Object} [attr] Attribute map applied to the created element.
+     * @returns {Snap.Element} The rectangle element.
+     * @example
+     * // Regular rectangle
+     * paper.rect(10, 10, 50, 50);
+     *
+     * // Rectangle with rounded corners
+     * paper.rect(40, 40, 50, 50, 10);
+     */
     proto.rect = function (x, y, w, h, rx, ry, attr) {
         if (is(rx, "object") && !Array.isArray(rx)) {
             attr = rx;
@@ -67,20 +66,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("rect", attr);
     };
-    /*\
-     * Paper.circle
-     [ method ]
-     **
-     * Draws a circle
-     **
-     - x (number) x coordinate of the centre
-     - y (number) y coordinate of the centre
-     - r (number) radius
-     = (object) the `circle` element
-     **
-     > Usage
-     | var c = paper.circle(50, 50, 40);
-    \*/
+
+    /**
+     * Draws a circle.
+     *
+     * @function Snap.Paper#circle
+     * @param {number} x X coordinate of the centre.
+     * @param {number} y Y coordinate of the centre.
+     * @param {number} r Circle radius.
+     * @param {Object} [attr] Attribute map for the circle element.
+     * @returns {Snap.Element} The circle element.
+     * @example
+     * paper.circle(50, 50, 40);
+     */
     proto.circle = function (cx, cy, r, attr) {
         if (is(cx, "object") && cx == "[object Object]") {
             attr = cx;
@@ -94,7 +92,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("circle", attr);
     };
-
     var preload = (function () {
         function onerror() {
             this.parentNode.removeChild(this);
@@ -115,24 +112,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
     }());
 
-    /*\
-     * Paper.image
-     [ method ]
-     **
-     * Places an image on the surface
-     **
-     - src (string) URI of the source image
-     - x (number) x offset position
-     - y (number) y offset position
-     - width (number) width of the image
-     - height (number) height of the image
-     = (object) the `image` element
-     * or
-     = (object) Snap element object with type `image`
-     **
-     > Usage
-     | var c = paper.image("apple.png", 10, 10, 80, 80);
-    \*/
+    /**
+     * Places an image on the surface.
+     *
+     * @function Snap.Paper#image
+     * @param {string|Object} src Image URL or attribute map containing at least a `src` property.
+     * @param {number} [x] Horizontal offset on the paper.
+     * @param {number} [y] Vertical offset on the paper.
+     * @param {number} [width] Image width.
+     * @param {number} [height] Image height.
+     * @param {Object} [attr] Additional attributes applied to the element.
+     * @returns {Snap.Element} The image element.
+     * @example
+     * paper.image("apple.png", 10, 10, 80, 80);
+     */
     proto.image = function (src, x, y, width, height, attr) {
         var el = this.el("image");
         if (is(src, "object") && "src" in src) {
@@ -163,21 +156,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return el;
     };
-    /*\
-     * Paper.ellipse
-     [ method ]
-     **
-     * Draws an ellipse
-     **
-     - x (number) x coordinate of the centre
-     - y (number) y coordinate of the centre
-     - rx (number) horizontal radius
-     - ry (number) vertical radius
-     = (object) the `ellipse` element
-     **
-     > Usage
-     | var c = paper.ellipse(50, 50, 40, 20);
-    \*/
+    /**
+     * Draws an ellipse.
+     *
+     * @function Snap.Paper#ellipse
+     * @param {number} x X coordinate of the centre.
+     * @param {number} y Y coordinate of the centre.
+     * @param {number} rx Horizontal radius.
+     * @param {number} ry Vertical radius.
+     * @param {Object} [attr] Attribute map for the element.
+     * @returns {Snap.Element} The ellipse element.
+     * @example
+     * paper.ellipse(50, 50, 40, 20);
+     */
     proto.ellipse = function (cx, cy, rx, ry, attr) {
         if (is(cx, "object") && cx == "[object Object]") {
             attr = cx;
@@ -193,36 +184,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this.el("ellipse", attr);
     };
 // SIERRA Paper.path(): Unclear from the link what a Catmull-Rom curveto is, and why it would make life any easier.
-    /*\
-     * Paper.path
-     [ method ]
-     **
-     * Creates a `<path>` element using the given string as the path's definition
-     - pathString (string) #optional path string in SVG format
-     * Path string consists of one-letter commands, followed by comma seprarated arguments in numerical form. Example:
-     | "M10,20L30,40"
-     * This example features two commands: `M`, with arguments `(10, 20)` and `L` with arguments `(30, 40)`. Uppercase letter commands express coordinates in absolute terms, while lowercase commands express them in relative terms from the most recently declared coordinates.
+    /**
+     * Creates a `<path>` element using the provided SVG path data string.
+     * The path data follows standard SVG syntax where single-letter commands are followed by
+     * comma- or space-separated numeric arguments (for example, `"M10,20L30,40"`).
      *
-     # <p>Here is short list of commands available, for more details see <a href="http://www.w3.org/TR/SVG/paths.html#PathData" title="Details of a path's data attribute's format are described in the SVG specification.">SVG path string format</a> or <a href="https://developer.mozilla.org/en/SVG/Tutorial/Paths">article about path strings at MDN</a>.</p>
-     # <table><thead><tr><th>Command</th><th>Name</th><th>Parameters</th></tr></thead><tbody>
-     # <tr><td>M</td><td>moveto</td><td>(x y)+</td></tr>
-     # <tr><td>Z</td><td>closepath</td><td>(none)</td></tr>
-     # <tr><td>L</td><td>lineto</td><td>(x y)+</td></tr>
-     # <tr><td>H</td><td>horizontal lineto</td><td>x+</td></tr>
-     # <tr><td>V</td><td>vertical lineto</td><td>y+</td></tr>
-     # <tr><td>C</td><td>curveto</td><td>(x1 y1 x2 y2 x y)+</td></tr>
-     # <tr><td>S</td><td>smooth curveto</td><td>(x2 y2 x y)+</td></tr>
-     # <tr><td>Q</td><td>quadratic Bézier curveto</td><td>(x1 y1 x y)+</td></tr>
-     # <tr><td>T</td><td>smooth quadratic Bézier curveto</td><td>(x y)+</td></tr>
-     # <tr><td>A</td><td>elliptical arc</td><td>(rx ry x-axis-rotation large-arc-flag sweep-flag x y)+</td></tr>
-     # <tr><td>R</td><td><a href="http://en.wikipedia.org/wiki/Catmull–Rom_spline#Catmull.E2.80.93Rom_spline">Catmull-Rom curveto</a>*</td><td>x1 y1 (x y)+</td></tr></tbody></table>
-     * * _Catmull-Rom curveto_ is a not standard SVG command and added to make life easier.
-     * Note: there is a special case when a path consists of only three commands: `M10,10R…z`. In this case the path connects back to its starting point.
-     > Usage
-     | var c = paper.path("M10 10L90 90");
-     | // draw a diagonal line:
-     | // move to 10,10, line to 90,90
-    \*/
+     * @function Snap.Paper#path
+     * @param {(string|Array|Object)} [pathString] SVG path string, an array of segments, or an
+     *        attribute map applied to the created element.
+     * @returns {Snap.Element} The resulting path element.
+     * @see <a href="http://www.w3.org/TR/SVG/paths.html#PathData">SVG path specification</a>
+     * @see <a href="https://developer.mozilla.org/en/SVG/Tutorial/Paths">MDN path tutorial</a>
+     * @example
+     * // Draw a diagonal line
+     * paper.path("M10 10L90 90");
+     */
     proto.path = function (d, attr) {
         attr = attr || {};
         if (is(d, "object") && !is(d, "array")) {
@@ -232,31 +208,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("path", attr);
     };
-    /*\
-     * Paper.g
-     [ method ]
-     **
-     * Creates a def_group element
-     **
-     - varargs (…) #optional elements to nest within the def_group
-     = (object) the `g` element
-     **
-     > Usage
-     | var c1 = paper.circle(),
-     |     c2 = paper.rect(),
-     |     g = paper.g(c2, c1); // note that the order of elements is different
-     * or
-     | var c1 = paper.circle(),
-     |     c2 = paper.rect(),
-     |     g = paper.g();
-     | g.add(c2, c1);
-    \*/
-    /*\
-     * Paper.def_group
-     [ method ]
-     **
-     * See @Paper.g
-    \*/
+    /**
+     * Creates an SVG `<g>` element on the paper and optionally nests the supplied elements within it.
+     * The last argument may be an attribute map applied to the created group.
+     *
+     * @function Snap.Paper#g
+     * @alias Snap.Paper#def_group
+     * @param {...(Snap.Element|Object)} elements Elements to append to the group. When the final argument
+     *        is a plain object without `type` or `paper` properties, it is treated as the attribute map.
+     * @returns {Snap.Element} The group element.
+     * @example
+     * const circle = paper.circle(10, 10, 5);
+     * const rect = paper.rect(0, 0, 20, 20);
+     * paper.g(circle, rect);
+     */
     proto.def_group = proto.g = function () {
         var attr,
             el = this.el("g");
@@ -275,23 +240,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return el;
     };
-    /*\
-     * Paper.svg
-     [ method ]
-     **
-     * Creates a nested SVG element.
-     - x (number) @optional X of the element
-     - y (number) @optional Y of the element
-     - width (number) @optional width of the element
-     - height (number) @optional height of the element
-     - vbx (number) @optional viewbox X
-     - vby (number) @optional viewbox Y
-     - vbw (number) @optional viewbox width
-     - vbh (number) @optional viewbox height
-     **
-     = (object) the `svg` element
-     **
-    \*/
+    /**
+     * Creates a nested `<svg>` element.
+     *
+     * @function Snap.Paper#svg
+     * @param {number} [x] X coordinate of the embedded SVG.
+     * @param {number} [y] Y coordinate of the embedded SVG.
+     * @param {number|string} [width] Viewport width.
+     * @param {number|string} [height] Viewport height.
+     * @param {number} [vbx] ViewBox x origin.
+     * @param {number} [vby] ViewBox y origin.
+     * @param {number} [vbw] ViewBox width.
+     * @param {number} [vbh] ViewBox height.
+     * @returns {Snap.Element} The nested SVG element.
+     */
     proto.svg = function (x, y, width, height, vbx, vby, vbw, vbh) {
         var attrs = {};
         if (is(x, "object") && y == null) {
@@ -316,15 +278,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this.el("svg", attrs);
     };
     proto.svg.skip = true;
-    /*\
-     * Paper.mask
-     [ method ]
-     **
-     * Equivalent in behaviour to @Paper.g, except it’s a mask.
-     **
-     = (object) the `mask` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<mask>` element, mirroring the behaviour of {@link Snap.Paper#g}.
+     * When a single plain object is supplied, it is treated as the attribute map; otherwise all
+     * parameters are added to the mask as children.
+     *
+     * @function Snap.Paper#mask
+     * @param {...(Snap.Element|Object)} nodes Elements to include in the mask or a terminating attribute map.
+     * @returns {Snap.Element} The mask element.
+     */
     proto.mask = function (first) {
         var attr,
             el = this.el("mask");
@@ -335,23 +297,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return el;
     };
-    /*\
-     * Paper.ptrn
-     [ method ]
-     **
-     * Equivalent in behaviour to @Paper.g, except it’s a pattern.
-     - x (number) @optional X of the element
-     - y (number) @optional Y of the element
-     - width (number) @optional width of the element
-     - height (number) @optional height of the element
-     - vbx (number) @optional viewbox X
-     - vby (number) @optional viewbox Y
-     - vbw (number) @optional viewbox width
-     - vbh (number) @optional viewbox height
-     **
-     = (object) the `pattern` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<pattern>` element, optionally configuring its position, size, and viewBox.
+     *
+     * @function Snap.Paper#ptrn
+     * @param {number} [x] X coordinate of the pattern.
+     * @param {number} [y] Y coordinate of the pattern.
+     * @param {number} [width] Width of the pattern tile.
+     * @param {number} [height] Height of the pattern tile.
+     * @param {number} [vx] ViewBox x origin.
+     * @param {number} [vy] ViewBox y origin.
+     * @param {number} [vw] ViewBox width.
+     * @param {number} [vh] ViewBox height.
+     * @param {Object} [attr] Attribute map applied to the pattern.
+     * @returns {Snap.Element} The pattern element.
+     */
     proto.ptrn = function (x, y, width, height, vx, vy, vw, vh, attr) {
         attr = arguments(arguments.length - 1);
         if (!is(attr, "object")) attr = {};
@@ -379,18 +339,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("pattern", attr);
     };
-    /*\
-     * Paper.use
-     [ method ]
-     **
-     * Creates a <use> element.
-     - id (string) @optional id of element to link
-     * or
-     - id (Element) @optional element to link
-     **
-     = (object) the `use` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<use>` element referencing an existing symbol or node.
+     *
+     * @function Snap.Paper#use
+     * @param {(string|Snap.Element|Object)} [id] ID of the element to reference, the element itself,
+     *        or an attribute map containing an `id` property. When omitted the method defers to the
+     *        {@link Snap.Element#use} behaviour.
+     * @param {Object} [attr] Additional attributes applied to the `<use>` element.
+     * @returns {Snap.Element} The `<use>` element.
+     */
     proto.use = function (id, attr) {
         if (id != null) {
             if (id instanceof Element) {
@@ -415,18 +373,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
     proto.use.skip = true;
 
-    /*\
-     * Paper.symbol
-     [ method ]
-     **
-     * Creates a <symbol> element.
-     - vbx (number) @optional viewbox X
-     - vby (number) @optional viewbox Y
-     - vbw (number) @optional viewbox width
-     - vbh (number) @optional viewbox height
-     = (object) the `symbol` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<symbol>` element.
+     *
+     * @function Snap.Paper#symbol
+     * @param {number} [vbx] ViewBox x origin.
+     * @param {number} [vby] ViewBox y origin.
+     * @param {number} [vbw] ViewBox width.
+     * @param {number} [vbh] ViewBox height.
+     * @param {Object} [attr] Additional attributes applied to the symbol.
+     * @returns {Snap.Element} The symbol element.
+     */
     proto.symbol = function (vx, vy, vw, vh, attr) {
         attr = attr || {};
         if (vx != null && vy != null && vw != null && vh != null) {
@@ -435,26 +392,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return this.el("symbol", attr);
     };
-    /*\
-     * Paper.text
-     [ method ]
-     **
-     * Draws a text string
-     **
-     - x (number) x coordinate position
-     - y (number) y coordinate position
-     - text (string|array) The text string to draw or array of strings to nest within separate `<tspan>` elements
-     = (object) the `text` element
-     **
-     > Usage
-     | var t1 = paper.text(50, 50, "Snap");
-     | var t2 = paper.text(50, 50, ["S","n","a","p"]);
-     | // Text path usage
-     | t1.attr({textpath: "M10,10L100,100"});
-     | // or
-     | var pth = paper.path("M10,10L100,100");
-     | t1.attr({textpath: pth});
-    \*/
+    /**
+     * Draws a text string.
+     *
+     * @function Snap.Paper#text
+     * @param {number} x X coordinate of the baseline origin.
+     * @param {number} y Y coordinate of the baseline origin.
+     * @param {(string|Array.<string>)} text Text content or an array of strings that become nested `<tspan>` elements.
+     * @param {Object} [attr] Attribute map for the text element.
+     * @returns {Snap.Element} The text element.
+     * @example
+     * const label = paper.text(50, 50, "Snap");
+     * label.attr({textpath: "M10,10L100,100"});
+     */
     proto.text = function (x, y, text, attr) {
         attr = attr || {};
         if (is(x, "object")) {
@@ -468,21 +418,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("text", attr);
     };
-    /*\
-     * Paper.line
-     [ method ]
-     **
-     * Draws a line
-     **
-     - x1 (number) x coordinate position of the start
-     - y1 (number) y coordinate position of the start
-     - x2 (number) x coordinate position of the end
-     - y2 (number) y coordinate position of the end
-     = (object) the `line` element
-     **
-     > Usage
-     | var t1 = paper.line(50, 50, 100, 100);
-    \*/
+    /**
+     * Draws a line segment between two points.
+     *
+     * @function Snap.Paper#line
+     * @param {number} x1 Start point X coordinate.
+     * @param {number} y1 Start point Y coordinate.
+     * @param {number} x2 End point X coordinate.
+     * @param {number} y2 End point Y coordinate.
+     * @param {Object} [attr] Attribute map for the line element.
+     * @returns {Snap.Element} The line element.
+     */
     proto.line = function (x1, y1, x2, y2, attr) {
         attr = attr || {};
         if (is(x1, "object")) {
@@ -520,33 +466,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return attr;
     }
 
-    /*\
-     * Paper.polyline
-     [ method ]
-     **
-     * Draws a polyline
-     **
-     - points (array) array of points
-     * or
-     - varargs (…) points
-     = (object) the `polyline` element
-     **
-     > Usage
-     | var p1 = paper.polyline([10, 10, 100, 100]);
-     | var p2 = paper.polyline(10, 10, 100, 100);
-    \*/
+    /**
+     * Draws a polyline through a list of coordinates.
+     *
+     * @function Snap.Paper#polyline
+     * @param {(Array.<number>|...number)} points Coordinate list. Provide either a flat array or individual arguments.
+     * @param {Object} [attr] Attribute map applied to the element.
+     * @returns {Snap.Element} The polyline element.
+     */
     proto.polyline = function (points, attr) {
         attr = point_args(Array.from(arguments));
         return this.el("polyline", attr);
     };
 
 
-    /*\
-         * Paper.polygon
-         [ method ]
-         **
-         * Draws a polygon. See @Paper.polyline
-        \*/
+    /**
+     * Draws a closed polygon by joining supplied coordinates.
+     *
+     * @function Snap.Paper#polygon
+     * @see Snap.Paper#polyline
+     * @param {(Array.<number>|...number)} points Coordinate list as an array or individual numbers.
+     * @param {Object} [attr] Attribute map for the polygon element.
+     * @returns {Snap.Element} The polygon element.
+     */
     proto.polygon = function (points, attr) {
         attr = point_args(Array.from(arguments));
         return this.el("polygon", attr);
@@ -555,28 +497,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     (function () {
         var $ = Snap._.$;
         // gradients' helpers
-        /*\
-         * Element.stops
-         [ method ]
-         **
-         * Only for gradients!
-         * Returns array of gradient stops elements.
-         = (array) the stops array.
-        \*/
+        /**
+         * Returns all gradient stop elements.
+         *
+         * @function Snap.Element#stops
+         * @memberof Snap.Element
+         * @returns {Snap.Set} Collection of `<stop>` elements.
+         */
         function Gstops() {
             return this.selectAll("stop");
         }
 
-        /*\
-         * Element.addStop
-         [ method ]
-         **
-         * Only for gradients!
-         * Adds another stop to the gradient.
-         - color (string) stops color
-         - offset (number) stops offset 0..100
-         = (object) gradient element
-        \*/
+        /**
+         * Adds a stop to the gradient.
+         *
+         * @function Snap.Element#addStop
+         * @memberof Snap.Element
+         * @param {string} color Stop colour.
+         * @param {number} offset Stop offset from `0` to `100`.
+         * @returns {Snap.Element} The gradient element.
+         */
         function GaddStop(color, offset) {
             var stop = $("stop"),
                 attr = {
@@ -619,17 +559,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        /*\
-         * Element.setStops
-         [ method ]
-         **
-         * Only for gradients!
-         * Updates stops of the gradient based on passed gradient descriptor. See @Ppaer.gradient
-         - str (string) gradient descriptor part after `()`.
-         = (object) gradient element
-         | var g = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
-         | g.setStops("#fff-#000-#f00-#fc0");
-        \*/
+    /**
+     * Updates gradient stops based on a descriptor string or parsed structure.
+     *
+     * @function Snap.Element#setStops
+     * @memberof Snap.Element
+     * @param {(string|Array)} str Gradient descriptor (after the `()` portion) or parsed stops array.
+     * @returns {Snap.Element} The gradient element.
+     * @example
+     * const grad = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
+     * grad.setStops("#fff-#000-#f00-#fc0");
+     */
         function GsetStops(str) {
             var grad = str,
                 stops = this.stops();
@@ -722,59 +662,54 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return el;
         }
 
-        /*\
-         * Paper.gradient
-         [ method ]
-         **
-         * Creates a gradient element
-         **
-         - gradient (string) gradient descriptor
-         > Gradient Descriptor
-         * The gradient descriptor is an expression formatted as
-         * follows: `<type>(<coords>)<colors>`.  The `<type>` can be
-         * either linear or radial.  The uppercase `L` or `R` letters
-         * indicate absolute coordinates offset from the SVG surface.
-         * Lowercase `l` or `r` letters indicate coordinates
-         * calculated relative to the element to which the gradient is
-         * applied.  Coordinates specify a linear gradient vector as
-         * `x1`, `y1`, `x2`, `y2`, or a radial gradient as `cx`, `cy`,
-         * `r` and optional `fx`, `fy` specifying a focal point away
-         * from the center of the circle. Specify `<colors>` as a list
-         * of dash-separated CSS color values.  Each color may be
-         * followed by a custom offset value, separated with a colon
-         * character.
-         > Examples
-         * Linear gradient, relative from top-left corner to bottom-right
-         * corner, from black through red to white:
-         | var g = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
-         * Linear gradient, absolute from (0, 0) to (100, 100), from black
-         * through red at 25% to white:
-         | var g = paper.gradient("L(0, 0, 100, 100)#000-#f00:25-#fff");
-         * Radial gradient, relative from the center of the element with radius
-         * half the width, from black to white:
-         | var g = paper.gradient("r(0.5, 0.5, 0.5)#000-#fff");
-         * To apply the gradient:
-         | paper.circle(50, 50, 40).attr({
-         |     fill: g
-         | });
-         = (object) the `gradient` element
-        \*/
+        /**
+         * Creates an SVG gradient element from a descriptor string.
+         * The descriptor has the format `<type>(<coords>)<stops>` where `type` is one of `l`, `L`,
+         * `r`, or `R` (lowercase for relative coordinates, uppercase for absolute). Coordinates define
+         * the gradient line or circle and stops are dash-separated colour values with optional
+         * `:offset` suffixes.
+         *
+         * @function Snap.Paper#gradient
+         * @param {string} str Gradient descriptor.
+         * @returns {Snap.Element} The gradient element.
+         * @example
+         * const grad = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
+         * paper.circle(50, 50, 40).attr({fill: grad});
+         */
         proto.gradient = function (str) {
             return gradient(this.defs, str);
         };
+        /**
+         * Creates a linear gradient with the given bounding coordinates.
+         * @function Snap.Paper#gradientLinear
+         * @param {number} x1 Start x coordinate.
+         * @param {number} y1 Start y coordinate.
+         * @param {number} x2 End x coordinate.
+         * @param {number} y2 End y coordinate.
+         * @returns {Snap.Element} The linear gradient element.
+         */
         proto.gradientLinear = function (x1, y1, x2, y2) {
             return gradientLinear(this.defs, x1, y1, x2, y2);
         };
+        /**
+         * Creates a radial gradient centred at the supplied coordinates.
+         * @function Snap.Paper#gradientRadial
+         * @param {number} cx Centre x coordinate.
+         * @param {number} cy Centre y coordinate.
+         * @param {number} r Radius of the gradient.
+         * @param {number} [fx] Optional focal x coordinate.
+         * @param {number} [fy] Optional focal y coordinate.
+         * @returns {Snap.Element} The radial gradient element.
+         */
         proto.gradientRadial = function (cx, cy, r, fx, fy) {
             return gradientRadial(this.defs, cx, cy, r, fx, fy);
         };
-        /*\
-         * Paper.toString
-         [ method ]
-         **
-         * Returns SVG code for the @Paper
-         = (string) SVG code for the @Paper
-        \*/
+    /**
+     * Serialises the paper to SVG markup.
+     *
+     * @function Snap.Paper#toString
+     * @returns {string} SVG markup representing the paper.
+     */
         proto.toString = function () {
             var doc = this.node.ownerDocument,
                 f = doc.createDocumentFragment(),
@@ -789,25 +724,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return res;
         };
         proto.toString.skip = true;
-        /*\
-         * Paper.toDataURL
-         [ method ]
-         **
-         * Returns SVG code for the @Paper as Data URI string.
-         = (string) Data URI string
-        \*/
+    /**
+     * Serialises the paper to a Data URI containing SVG markup.
+     *
+     * @function Snap.Paper#toDataURL
+     * @returns {string} Data URI string for the paper's SVG content.
+     */
         proto.toDataURL = function () {
             if (window && window.btoa) {
                 return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(this)));
             }
         };
         proto.toDataURL.skip = true;
-        /*\
-         * Paper.clear
-         [ method ]
-         **
-         * Removes all child nodes of the paper, except <defs>.
-        \*/
+    /**
+     * Removes all child nodes of the paper except its `<defs>` block.
+     *
+     * @function Snap.Paper#clear
+     */
         proto.clear = function () {
             var node = this.node.firstChild,
                 next;

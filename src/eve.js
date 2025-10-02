@@ -48,6 +48,42 @@
     const event_groups = {default: {n: {}}}; //default group allows adding listeners to local (grouped) events in the global context
 
     let events = event_groups.default;
+
+    // Global alias mappings for namespace translation
+    let namespace_aliases = undefined;
+
+    /*\
+     * translateNamespaceAlias
+     [ method ]
+     **
+     * Internal function to translate namespace aliases in event names.
+     * Translates the top-level namespace (first part before separator) if an alias exists.
+     **
+     - name (string|array) event name or array of event name parts
+     **
+     = (array|string) translated event name as array (or may return string if no aliases defind)
+    \*/
+    const translateNamespaceAlias = function(name) {
+        if (!namespace_aliases) return name;
+        if (isArray(name)) {
+            // Handle array format
+            if (name.length > 0 && namespace_aliases.hasOwnProperty(name[0])) {
+                const translated = name.slice(); // Create a copy
+                translated[0] = namespace_aliases[name[0]];
+                return translated;
+            }
+            return name;
+        } else {
+            // Handle string format
+            const nameParts = String(name).split(separator);
+            if (nameParts.length > 0 && namespace_aliases.hasOwnProperty(nameParts[0])) {
+                nameParts[0] = namespace_aliases[nameParts[0]];
+                return nameParts;
+            }
+            return nameParts;
+        }
+    };
+
     const getNext = function (event_list, name, group, skip_global) {
         if (event_list === undefined) {
             if (!skip_global && global_event.n.hasOwnProperty(name)) {
@@ -107,6 +143,10 @@
             } else {
                 group = group.id;
             }
+
+            // Apply namespace alias translation
+            name = translateNamespaceAlias(name);
+
             args = args || Array.prototype.slice.call(arguments, 3)
             const oldstop = stop,
                 listeners = eve.listeners(name, group),
@@ -206,6 +246,125 @@
 
     eve.isEve = true;
 
+    /*\
+     * eve.a
+     [ method ]
+
+     * Async version of eve that returns an array of promises from all listeners.
+     * All listener functions are wrapped to ensure they return promises.
+
+     - name (string) name of the *event*, dot (`.`) or slash (`/`) separated
+     - scope (object) context for the event handlers
+     - varargs (...) the rest of arguments will be sent to event handlers
+
+     = (array) array of promises from the listeners
+    \*/
+    eve.a = function (group, name, scope) {
+        let args;
+        if (Array.isArray(group) || typeof group === "string") {
+            args = Array.prototype.slice.call(arguments, 2)
+            scope = name;
+            name = group;
+            group = undefined;
+        } else {
+            group = group.id;
+        }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
+        args = args || Array.prototype.slice.call(arguments, 3)
+
+        const oldstop = stop,
+            listeners = eve.listeners(name, group),
+            promises = [],
+            ce = current_event;
+
+        promises.firstDefined = firstDefined;
+        promises.lastDefined = lastDefined;
+
+        if (typeof scope !== "undefined" && typeof scope !== "object") {
+            args.unshift(scope);
+            scope = undefined;
+        }
+
+        current_event = name;
+        stop = 0;
+
+        // Sort listeners by zIndex
+        listeners.sort(function_sort);
+
+        for (let i = 0, lim = listeners.length; i < lim; ++i) {
+            const l = listeners[i];
+            try {
+                // Universal wrapper to ensure all returns are promises
+                const result = l.apply(scope, args);
+                promises.push(Promise.resolve(result));
+            } catch (e) {
+                console.error(e.message, e, args, l);
+                eve("global.error", undefined, e, l, args);
+                promises.push(Promise.reject(e));
+            }
+            if (stop) {
+                break;
+            }
+        }
+
+        stop = oldstop;
+        current_event = ce;
+
+        // Log if enabled
+        if (eve._log) {
+            if (!group) group = "global";
+            if (!eve._log[group]) {
+                eve._log[group] = {};
+            }
+            name = (isArray(name)) ? name.join(separator) : name;
+            if (!eve._log[group][name]) {
+                eve._log[group][name] = [1, listeners.length];
+            } else {
+                eve._log[group][name][0]++;
+                eve._log[group][name][1] = Math.max(eve._log[group][name][1], listeners.length);
+            }
+        }
+
+        return promises;
+    };
+
+    /*\
+     * eve.all
+     [ method ]
+
+     * Async version that returns a single promise resolving to an array of all listener results.
+     * Waits for all promises to resolve before returning the results array.
+
+     - name (string) name of the *event*, dot (`.`) or slash (`/`) separated
+     - scope (object) context for the event handlers
+     - varargs (...) the rest of arguments will be sent to event handlers
+
+     = (Promise) promise that resolves to array of results from all listeners
+    \*/
+    eve.all = function (group, name, scope) {
+        const promises = eve.a.apply(this, arguments);
+
+        return Promise.all(promises).then(results => {
+            results.firstDefined = firstDefined;
+            results.lastDefined = lastDefined;
+            return results;
+        });
+    };
+
+    /*\
+     * eve.localEve
+     [ method ]
+     **
+     * Creates a local eve instance that operates within a specific event group.
+     * All events fired through this instance will be scoped to the specified group.
+     **
+     - group_id (string) identifier for the event group
+     **
+     = (function) local eve instance with all eve methods scoped to the group
+    \*/
     eve.localEve = function (group_id) {
         eve.setGroup(group_id);
         const ret_eve = function (name, scope) {
@@ -214,6 +373,18 @@
         }
 
         ret_eve.group = group_id;
+
+        // Add this inside the eve.localEve function, after the existing methods
+        ret_eve.a = function (name, scope) {
+            let args = [{id: group_id}, ...Array.prototype.slice.call(arguments)];
+            return eve.a.apply(undefined, args);
+        }
+
+        // Add this inside the eve.localEve function
+        ret_eve.all = function (name, scope) {
+            let args = [{id: group_id}, ...Array.prototype.slice.call(arguments)];
+            return eve.all.apply(undefined, args);
+        }
 
         ret_eve.on = function (name, f) {
             return eve.on(name, f, group_id);
@@ -244,6 +415,16 @@
 
         return ret_eve;
     }
+
+    /*\
+     * eve.logEvents
+     [ method ]
+     **
+     * Enables or disables event logging for debugging purposes.
+     * When enabled, tracks event firing statistics including call count and listener count.
+     **
+     - off (boolean) if true, disables logging; if false or undefined, enables logging
+    \*/
     eve.logEvents = function (off) {
         if (off) {
             delete eve._log;
@@ -268,6 +449,9 @@
      = (array) array of event handlers
     \*/
     eve.listeners = function (name, group, skip_global) {
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
         const names = isArray(name) ? name : name.split(separator);
         let e = undefined,
             item,
@@ -317,6 +501,15 @@
         }
     };
 
+    /*\
+     * eve.setGroup
+     [ method ]
+     **
+     * Sets the current active event group for subsequent event operations.
+     * If no group is specified, resets to the default group.
+     **
+     - group (string) #optional name of the event group to set as active
+    \*/
     eve.setGroup = function (group) {
         // if (!group) throw new Error("group must be defined");
 
@@ -333,6 +526,18 @@
         if (eve.hasOwnProperty("_events")) eve._events = events.n;
     };
 
+    /*\
+     * eve.fireInGroup
+     [ method ]
+     **
+     * Fires an event within a specific event group context.
+     * Temporarily switches to the specified group, fires the event, then restores the previous group.
+     **
+     - group (string) name of the event group to fire the event in
+     - varargs (...) event arguments to pass to eve()
+     **
+     = (array) array of returned values from the listeners
+    \*/
     eve.fireInGroup = function (group) {
         const args = Array.from(arguments).slice(1);
         if (!event_groups.hasOwnProperty(group)) {
@@ -346,11 +551,15 @@
     };
 
     /*\
-        * eve.addGlobalEventType
-        * Adds a global event type to the global event list.
-        * Be aware that this will not add the event to the local event list. Adding a global type may prevent local events
-        * starting with the same name from being triggered.
-     */
+     * eve.addGlobalEventType
+     [ method ]
+     **
+     * Adds a global event type to the global event list.
+     * Be aware that this will not add the event to the local event list. Adding a global type may prevent local events
+     * starting with the same name from being triggered.
+     **
+     - name (string) name of the global event type to add
+    \*/
     eve.addGlobalEventType = function (name) {
         if (!global_event.n.hasOwnProperty(name)) {
             global_event.n[name] = {n: {}};
@@ -396,6 +605,9 @@
         f.zIndex = xIndex_cur;
         xIndex_cur += 1e-12;
         const process_name = function (name) {
+            // Apply namespace alias translation for each name
+            name = translateNamespaceAlias(name);
+
             const names = isArray(name) ? name : Str(name).split(separator);
             let e, exist, n;
             for (var i = 0, ii = names.length; i < ii; ++i) {
@@ -509,6 +721,10 @@
             }
             return;
         }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
         names = isArray(name) ? name : Str(name).split(separator);
         var e,
             key,
@@ -587,16 +803,89 @@
         }
     };
 
+    /*\
+     * eve.alias
+     [ method ]
+     **
+     * Sets up namespace alias mappings for backward compatibility.
+     * Allows translating top-level event namespaces from one name to another.
+     * When an event is fired, registered, or removed with an aliased namespace,
+     * it will be automatically translated to the target namespace.
+     **
+     - aliases (object) object containing key-value pairs where keys are alias names
+     *   and values are the target namespace names they should be translated to
+     **
+     > Examples:
+     | // Set up aliases
+     | eve.alias({
+     |     "OLD_NAMESPACE": "new_namespace",
+     |     "LEGACY": "modern"
+     | });
+     |
+     | // These will be equivalent:
+     | eve.on("OLD_NAMESPACE.event.name", handler);
+     | eve.on("new_namespace.event.name", handler);
+     |
+     | eve("OLD_NAMESPACE.event.name", data);
+     | eve("new_namespace.event.name", data);
+    \*/
+    eve.alias = function(aliases) {
+        if (typeof aliases === 'object' && aliases !== null) {
+            namespace_aliases = namespace_aliases || {};
+            for (const aliasName in aliases) {
+                if (aliases.hasOwnProperty(aliasName)) {
+                    namespace_aliases[aliasName] = aliases[aliasName];
+                }
+            }
+        }
+    };
+
+    /*\
+     * eve.clearAliases
+     [ method ]
+     **
+     * Clears all namespace alias mappings.
+     **
+    \*/
+    eve.clearAliases = function() {
+        for (const key in namespace_aliases) {
+            if (namespace_aliases.hasOwnProperty(key)) {
+                delete namespace_aliases[key];
+            }
+        }
+    };
+
+    /*\
+     * eve.getAliases
+     [ method ]
+     **
+     * Returns a copy of the current namespace alias mappings.
+     **
+     = (object) copy of current alias mappings
+    \*/
+    eve.getAliases = function() {
+        const aliases = {};
+        if (namespace_aliases) for (const key in namespace_aliases) {
+            if (namespace_aliases.hasOwnProperty(key)) {
+                aliases[key] = namespace_aliases[key];
+            }
+        }
+        return aliases;
+    };
+
     /**
      * eve.is
      * [ method ]
-     * Checks if the given event is registered with the given function.
-     * @type {(function(*, *, *): (boolean))|*}
+    * Checks if the given event is registered with the given function.
+    * @type {function(*, *, *): boolean}
      */
     eve.is = function (name, f, group) {
         if (!name || typeof f !== 'function') {
             return false;
         }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
 
         let names = Array.isArray(name) ? (Array.isArray(name[0]) ? name : [name]) : String(name).split(comaseparator);
         if (names.length > 1) {
@@ -627,7 +916,7 @@
                     }
                 } else {
                     for (key in e) if (e.hasOwnProperty(key)) {
-                        if (isRegistered(key, f, group)) {
+                        if (eve.is(key, f, group)) {
                             return true;
                         }
                     }
@@ -648,8 +937,7 @@
         }
 
         return false;
-    }
-
+    };
 
     /*\
      * eve.once
@@ -709,6 +997,10 @@
             data = name;
             name = group.eve
         }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
         const container = {
             data: data,
             isFilter: true

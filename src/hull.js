@@ -1,40 +1,27 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-function _cross(o, a, b) {
-    return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+function _ccw(p1, p2, p3) {
+    return (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0]) <= 0;
 }
 
-function _upperTangent(pointset) {
-    const lower = [];
-    for (let l = 0; l < pointset.length; l++) {
-        while (lower.length >= 2 && (_cross(lower[lower.length - 2], lower[lower.length - 1], pointset[l]) <= 0)) {
-            lower.pop();
+function _tangent(pointset) {
+    const res = [];
+    for (let t = 0; t < pointset.length; t++) {
+        while (res.length > 1 && _ccw(res[res.length - 2], res[res.length - 1], pointset[t])) {
+            res.pop();
         }
-        lower.push(pointset[l]);
+        res.push(pointset[t]);
     }
-    lower.pop();
-    return lower;
-}
-
-function _lowerTangent(pointset) {
-    const reversed = pointset.reverse(),
-        upper = [];
-    for (let u = 0; u < reversed.length; u++) {
-        while (upper.length >= 2 && (_cross(upper[upper.length - 2], upper[upper.length - 1], reversed[u]) <= 0)) {
-            upper.pop();
-        }
-        upper.push(reversed[u]);
-    }
-    upper.pop();
-    return upper;
+    res.pop();
+    return res;
 }
 
 // pointset has to be sorted by X
 function convex(pointset) {
-    const upper = _upperTangent(pointset),
-          lower = _lowerTangent(pointset);
+    const upper = _tangent(pointset),
+          lower = _tangent(pointset.reverse());
     const convex = lower.concat(upper);
-    convex.push(pointset[0]);  
-    return convex;  
+    convex.push(pointset[0]);
+    return convex;
 }
 
 module.exports = convex;
@@ -46,25 +33,36 @@ module.exports = {
         if (format === undefined) {
             return pointset.slice();
         }
-        return pointset.map(function(pt) {
-            /*jslint evil: true */
-            const _getXY = new Function('pt', 'return [pt' + format[0] + ',' + 'pt' + format[1] + '];');
-            return _getXY(pt);
-        });
+
+        const xPropertyName = format[0].slice(1);
+        const yPropertyName = format[1].slice(1);
+        const _getXY = function(pt) {
+            return [pt[xPropertyName], pt[yPropertyName]];
+        };
+
+        return pointset.map(_getXY);
     },
 
     fromXy: function(pointset, format) {
         if (format === undefined) {
             return pointset.slice();
         }
+
+        const xPropertyName = format[0].slice(1);
+        const yPropertyName = format[1].slice(1);
+        const _getObj = function(pt) {
+            const obj = {};
+            obj[xPropertyName] = pt[0];
+            obj[yPropertyName] = pt[1];
+            return obj;
+        };
+
         return pointset.map(function(pt) {
-            /*jslint evil: true */
-            const _getObj = new Function('pt', 'const o = {}; o' + format[0] + '= pt[0]; o' + format[1] + '= pt[1]; return o;');
             return _getObj(pt);
         });
     }
 
-}
+};
 },{}],3:[function(require,module,exports){
 function Grid(points, cellSize) {
     this._cells = [];
@@ -153,11 +151,7 @@ function grid(points, cellSize) {
 
 module.exports = grid;
 },{}],4:[function(require,module,exports){
-/*
- (c) 2014-2020, Andrii Heonia
- Hull.js, a JavaScript library for concave hull generation by set of points.
- https://github.com/AndriiHeonia/hull
-*/
+/* The license text can be found in the LICENSE file */
 
 'use strict';
 
@@ -321,7 +315,8 @@ function hull(pointset, concavity, format) {
     const points = _filterDuplicates(_sortByX(formatUtil.toXy(pointset, format)));
 
     if (points.length < 4) {
-        return points.concat([points[0]]);
+        const concave = points.concat([points[0]]);
+        return format ? formatUtil.fromXy(concave, format) : concave;
     }
 
     const occupiedArea = _occupiedArea(points);
@@ -341,11 +336,7 @@ function hull(pointset, concavity, format) {
         convex, Math.pow(maxEdgeLen, 2),
         maxSearchArea, grid(innerPoints, cellSize), new Set());
 
-    if (format) {
-        return formatUtil.fromXy(concave, format);
-    } else {
-        return concave;
-    }
+    return format ? formatUtil.fromXy(concave, format) : concave;
 }
 
 const MAX_CONCAVE_ANGLE_COS = Math.cos(90 / (180 / Math.PI)); // angle = 90 deg
@@ -372,6 +363,15 @@ module.exports = intersect;
 },{}],6:[function(require,module,exports){
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const _hull = require("hull.js");
+    /**
+     * Computes a concave hull for a given set of points and proxies the call to the underlying hull.js implementation.
+     *
+    * @param {PointCollection} points - Collection of points.
+    *        Accepts an array of coordinate tuples, a flat numeric array, or point objects with `x`/`y`.
+     * @param {number} [concavity] - Maximum concavity allowed by hull.js. Use `Infinity` (or omit) for a convex hull.
+     * @param {"simple"|undefined} [format] - Optional hull.js format flag. When omitted the output matches the input shape.
+    * @returns {(Array.<NumberPair>|Point2DList|null)} The computed hull or `null` when the input is invalid.
+     */
     Snap.hull = function (points, concavity, format) {
         //filter incorrect pionts;
         points = points.filter(function (p){
@@ -399,6 +399,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return null;
     };
 
+    /**
+     * Convenience wrapper for `Snap.hull` that forces a convex hull by setting concavity to `Infinity`.
+     *
+    * @param {PointCollection} points - Collection of input points.
+     * @param {"simple"|undefined} [format] - Optional hull.js format flag.
+    * @returns {(Array.<NumberPair>|Point2DList|null)} Closed convex hull without the repeated last point.
+     */
     Snap.convexHull = function (points, format) {
         const hull = Snap.hull(points, Infinity, format);
         hull && hull.pop();

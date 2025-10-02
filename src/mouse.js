@@ -40,6 +40,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             mouseenter: 'pointerenter',
             mouseleave: 'pointerleave',
         },
+        /**
+         * Retrieves the current scroll offset for the specified axis.
+         *
+         * @param {"x"|"y"} xy Indicates which axis to measure.
+         * @param {Element|Snap|undefined} [el] Optional element used to resolve the owning document.
+         * @returns {number} The scroll offset in pixels for the requested axis.
+         */
         getScroll = function (xy, el) {
             const name = xy == "y" ? "scrollTop" : "scrollLeft",
                 doc = el && el.node ? el.node.ownerDocument : Snap.document();
@@ -58,6 +65,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         stopTouch = function () {
             return this.originalEvent.stopPropagation();
         },
+        /**
+         * Normalises DOM, touch, and pointer events for Snap elements.
+         *
+         * @param {HTMLElement|Document} obj A DOM node to attach the native listener to.
+         * @param {string} type The canonical mouse event name.
+         * @param {Function} fn The handler invoked with normalised coordinates.
+         * @param {Element} element The Snap element used as `this` when invoking the handler.
+         * @returns {Function} A disposer that removes the underlying native listeners.
+         */
         addEvent = function (obj, type, fn, element) {
             let realName = (supportsPointer && pointerMap[type])
                 ? pointerMap[type] : (supportsTouch && touchMap[type] ? touchMap[type] : type);
@@ -131,6 +147,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             };
         };
     let drag = [];
+    /**
+     * Handles the active drag gesture by relaying movement coordinates to registered listeners.
+     *
+     * @param {MouseEvent|TouchEvent} e The original DOM event.
+     */
     const dragMove = function (e) {
             let x = e.clientX,
                 y = e.clientY;
@@ -172,6 +193,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 // console.log("drag move", dragi.el.id, x, y);
             }
         },
+        /**
+         * Concludes all active drag gestures and removes the shared move/up listeners.
+         *
+         * @param {MouseEvent|TouchEvent} e The original DOM event that ended the drag.
+         */
         dragUp = function (e) {
             Snap.unmousemove(dragMove).unmouseup(dragUp);
             let i = drag.length,
@@ -184,192 +210,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             drag = [];
         };
-    /*\
-     * Element.click
-     [ method ]
-     **
-     * Adds a click event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unclick
-     [ method ]
-     **
-     * Removes a click event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.dblclick
-     [ method ]
-     **
-     * Adds a double click event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.undblclick
-     [ method ]
-     **
-     * Removes a double click event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mousedown
-     [ method ]
-     **
-     * Adds a mousedown event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmousedown
-     [ method ]
-     **
-     * Removes a mousedown event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mousemove
-     [ method ]
-     **
-     * Adds a mousemove event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmousemove
-     [ method ]
-     **
-     * Removes a mousemove event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mouseout
-     [ method ]
-     **
-     * Adds a mouseout event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmouseout
-     [ method ]
-     **
-     * Removes a mouseout event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mouseover
-     [ method ]
-     **
-     * Adds a mouseover event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmouseover
-     [ method ]
-     **
-     * Removes a mouseover event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mouseup
-     [ method ]
-     **
-     * Adds a mouseup event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmouseup
-     [ method ]
-     **
-     * Removes a mouseup event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchstart
-     [ method ]
-     **
-     * Adds a touchstart event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchstart
-     [ method ]
-     **
-     * Removes a touchstart event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchmove
-     [ method ]
-     **
-     * Adds a touchmove event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchmove
-     [ method ]
-     **
-     * Removes a touchmove event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchend
-     [ method ]
-     **
-     * Adds a touchend event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchend
-     [ method ]
-     **
-     * Removes a touchend event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchcancel
-     [ method ]
-     **
-     * Adds a touchcancel event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchcancel
-     [ method ]
-     **
-     * Removes a touchcancel event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
+    /**
+     * Generates pointer helper methods such as `element.click`, `element.mousemove`, and their
+     * corresponding `un*` counterparts. These helpers normalise mouse, touch, and pointer events,
+     * optionally invoke handlers with a custom scope, and expose the event coordinates adjusted for
+     * document scroll.
+     *
+     * Each generated method supports two calling conventions:
+     * - `element.eventName(handler, [scope], [data])` to bind a listener.
+     * - `element.eventName()` to trigger previously bound listeners for the same event type.
+     *
+     * @param {Function} fn The event handler. When omitted the previously registered handlers are invoked.
+     * @param {Object} [scope] Optional `this` context passed to the handler.
+     * @param {*} [data] Arbitrary data stored alongside the handler metadata.
+     * @returns {Element} The current element, allowing chaining.
+     *
+     * @example
+     * element.click(function (event, x, y) {
+     *     console.log("Clicked at", x, y);
+     * });
+     *
+     * @example
+     * element.unclick(handler);
+     */
     for (var i = events.length; i--;) {
         (function (eventName) {
             Snap[eventName] = elproto[eventName] = function (fn, scope, data) {
@@ -411,29 +274,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 };
         })(events[i]);
     }
-    /*\
-     * Element.hover
-     [ method ]
-     **
-     * Adds hover event handlers to the element
-     - f_in (function) handler for hover in
-     - f_out (function) handler for hover out
-     - icontext (object) #optional context for hover in handler
-     - ocontext (object) #optional context for hover out handler
-     = (object) @Element
-    \*/
+    /**
+     * Adds hover-in and hover-out handlers to the element using `mouseover` and `mouseout` events.
+     *
+     * @param {Function} f_in Handler executed when the pointer enters the element.
+     * @param {Function} f_out Handler executed when the pointer leaves the element.
+     * @param {Object} [scope_in] Optional context bound to the hover-in handler.
+     * @param {Object} [scope_out] Optional context bound to the hover-out handler.
+     * @returns {Element} The current element for chaining.
+     */
     elproto.hover = function (f_in, f_out, scope_in, scope_out) {
         return this.mouseover(f_in, scope_in).mouseout(f_out, scope_out || scope_in);
     };
-    /*\
-     * Element.unhover
-     [ method ]
-     **
-     * Removes hover event handlers from the element
-     - f_in (function) handler for hover in
-     - f_out (function) handler for hover out
-     = (object) @Element
-    \*/
+    /**
+     * Removes previously registered hover handlers from the element.
+     *
+     * @param {Function} f_in The hover-in handler to unregister.
+     * @param {Function} f_out The hover-out handler to unregister.
+     * @returns {Element} The current element for chaining.
+     */
     elproto.unhover = function (f_in, f_out) {
         return this.unmouseover(f_in).unmouseout(f_out);
     };
@@ -442,37 +301,30 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     // SIERRA Element.drag(): _x position of the mouse_: Where are the x/y values offset from?
     // SIERRA Element.drag(): much of this member's doc appears to be duplicated for some reason.
     // SIERRA Unclear about this sentence: _Additionally following drag events will be triggered: drag.start.<id> on start, drag.end.<id> on end and drag.move.<id> on every move._ Is there a global _drag_ object to which you can assign handlers keyed by an element's ID?
-    /*\
-     * Element.drag
-     [ method ]
-     **
-     * Adds event handlers for an element's drag gesture
-     **
-     - onmove (function) handler for moving
-     - onstart (function) handler for drag start
-     - onend (function) handler for drag end
-     - mcontext (object) #optional context for moving handler
-     - scontext (object) #optional context for drag start handler
-     - econtext (object) #optional context for drag end handler
-     * Additionaly following `drag` events are triggered: `drag.start.<id>` on start, 
-     * `drag.end.<id>` on end and `drag.move.<id>` on every move. When element is dragged over another element 
-     * `drag.over.<id>` fires as well.
+    /**
+     * Adds drag gesture handlers to the element.
      *
-     * Start event and start handler are called in specified context or in context of the element with following parameters:
-     o x (number) x position of the mouse
-     o y (number) y position of the mouse
-     o event (object) DOM event object
-     * Move event and move handler are called in specified context or in context of the element with following parameters:
-     o dx (number) shift by x from the start point
-     o dy (number) shift by y from the start point
-     o x (number) x position of the mouse
-     o y (number) y position of the mouse
-     o event (object) DOM event object
-     * End event and end handler are called in specified context or in context of the element with following parameters:
-     o event (object) DOM event object
-     = (object) @Element
-    \*/
-    elproto.drag = function (onmove, onstart, onend, move_scope, start_scope, end_scope) {
+     * Additional `drag` events are triggered for convenience:
+     * - `drag.start.<id>` when the gesture begins.
+     * - `drag.move.<id>` while the pointer moves.
+     * - `drag.end.<id>` when the gesture finishes.
+     * - `drag.over.<id>` when the element is dragged over another element.
+     *
+     * Handler invocation details:
+     * - The start handler receives `(x, y, event)` where `x` and `y` are the pointer coordinates.
+     * - The move handler receives `(dx, dy, x, y, event)` where `dx`/`dy` are deltas from the start point.
+     * - The end handler receives `(event)`.
+     *
+     * @param {Function} [onmove] Handler for pointer movement.
+     * @param {Function} [onstart] Handler fired when the drag starts.
+     * @param {Function} [onend] Handler fired when the drag ends.
+     * @param {Object} [move_scope] Optional context for the move handler.
+     * @param {Object} [start_scope] Optional context for the start handler.
+     * @param {Object} [end_scope] Optional context for the end handler.
+    * @param {AltClickEventSpecification} [alt_click_event] Optional alternate click trigger when the drag is extremely short. Accepts a timeout in milliseconds or `[event, timeout]` where `event` can be an event name or callback.
+     * @returns {Element} The current element to support chaining.
+     */
+    elproto.drag = function (onmove, onstart, onend, move_scope, start_scope, end_scope, alt_click_event) {
         const el = this;
         if (!arguments.length) {
             let origTransform;
@@ -485,9 +337,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
         }
 
+        let time;
+
         function start(e, x, y) {
             // (e.originalEvent || e).preventDefault();
-
+            if (alt_click_event) time = Date.now();
             el._drag.x = x;
             el._drag.y = y;
             el._drag.id = e.identifier;
@@ -496,11 +350,33 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             drag.push({el: el, move_scope: move_scope, start_scope: start_scope, end_scope: end_scope});
             onstart && eve.on("snap.drag.start." + el.id, onstart);
             onmove && eve.on("snap.drag.move." + el.id, onmove);
+            if (alt_click_event) {
+                eve.on("snap.drag.end." + el.id, () => {
+                    let cl_t = (typeof alt_click_event === "number") ? alt_click_event : 500;
+                    if (Array.isArray(alt_click_event)
+                        && typeof alt_click_event[1] === "number"
+                        && (typeof alt_click_event[0] === "string"
+                            || typeof alt_click_event[0] === "function")) {
+                        [alt_click_event, cl_t] = alt_click_event;
+                    }
+                    if (Date.now() - time < cl_t) {
+                        if (typeof alt_click_event === "string") {
+                            eve(alt_click_event)
+                        }
+                        if (typeof alt_click_event === "function") {
+                            alt_click_event()
+                        } else {
+                           el.node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+                        }
+                        eve("snap.drag.click." + el.id)
+                    }
+                })
+            }
             onend && eve.on("snap.drag.end." + el.id, onend);
             eve(["snap", "drag", "start", el.id], start_scope || move_scope || el, x, y, e);
         }
 
-       function init(e, x, y) {
+        function init(e, x, y) {
             // Prevent execution if more than one button or finger is pressed
             if ((e.touches && e.touches.length > 1) || (e.buttons && e.buttons > 1)) {
                 return;
@@ -527,12 +403,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     // elproto.onDragOver = function (f) {
     //     f ? eve.on("snap.drag.over." + this.id, f) : eve.unbind("snap.drag.over." + this.id);
     // };
-    /*\
-     * Element.undrag
-     [ method ]
-     **
-     * Removes all drag event handlers from the given element
-    \*/
+    /**
+     * Removes all drag-related handlers from the element and detaches shared listeners when applicable.
+     *
+     * @returns {Element} The current element for chaining.
+     */
     elproto.undrag = function () {
         let i = draggable.length;
         while (i--) if (draggable[i].el == this) {
@@ -545,6 +420,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this;
     };
 
+    /**
+     * Removes every registered mouse, touch, and drag listener from the element.
+     *
+     * @returns {Element} The current element for chaining.
+     */
     elproto.removeAllMouseListeners = function () {
         const events = this.events || [];
         let l = events.length;
@@ -555,8 +435,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         this.undrag();
         this.unhover();
-    }
+        return this;
+    };
 
+    /**
+     * Copies registered event listeners from another element, optionally preserving the original scopes.
+     *
+     * @param {Element} el Source element whose listeners should be duplicated.
+     * @param {boolean} [preserveScopes=false] When `true`, retains the original listener scopes.
+     * @param {boolean} [skip_drag=false] When `true`, drag handlers are ignored.
+     * @returns {Element} The current element for chaining.
+     */
     elproto.copyListeners = function (el, preserveScopes, skip_drag) {
         if (!el.events) return this;
 
@@ -566,6 +455,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             } else {
                 this[ev.name](ev.f, (preserveScopes) ? ev.scope : undefined);
             }
-        })
-    }
+        });
+
+        return this;
+    };
 });

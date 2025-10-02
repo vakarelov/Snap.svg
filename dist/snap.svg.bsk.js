@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-07-04
+// build: 2025-10-02
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -66,6 +66,42 @@
     const event_groups = {default: {n: {}}}; //default group allows adding listeners to local (grouped) events in the global context
 
     let events = event_groups.default;
+
+    // Global alias mappings for namespace translation
+    let namespace_aliases = undefined;
+
+    /*\
+     * translateNamespaceAlias
+     [ method ]
+     **
+     * Internal function to translate namespace aliases in event names.
+     * Translates the top-level namespace (first part before separator) if an alias exists.
+     **
+     - name (string|array) event name or array of event name parts
+     **
+     = (array|string) translated event name as array (or may return string if no aliases defind)
+    \*/
+    const translateNamespaceAlias = function(name) {
+        if (!namespace_aliases) return name;
+        if (isArray(name)) {
+            // Handle array format
+            if (name.length > 0 && namespace_aliases.hasOwnProperty(name[0])) {
+                const translated = name.slice(); // Create a copy
+                translated[0] = namespace_aliases[name[0]];
+                return translated;
+            }
+            return name;
+        } else {
+            // Handle string format
+            const nameParts = String(name).split(separator);
+            if (nameParts.length > 0 && namespace_aliases.hasOwnProperty(nameParts[0])) {
+                nameParts[0] = namespace_aliases[nameParts[0]];
+                return nameParts;
+            }
+            return nameParts;
+        }
+    };
+
     const getNext = function (event_list, name, group, skip_global) {
         if (event_list === undefined) {
             if (!skip_global && global_event.n.hasOwnProperty(name)) {
@@ -125,6 +161,10 @@
             } else {
                 group = group.id;
             }
+
+            // Apply namespace alias translation
+            name = translateNamespaceAlias(name);
+
             args = args || Array.prototype.slice.call(arguments, 3)
             const oldstop = stop,
                 listeners = eve.listeners(name, group),
@@ -224,6 +264,125 @@
 
     eve.isEve = true;
 
+    /*\
+     * eve.a
+     [ method ]
+
+     * Async version of eve that returns an array of promises from all listeners.
+     * All listener functions are wrapped to ensure they return promises.
+
+     - name (string) name of the *event*, dot (`.`) or slash (`/`) separated
+     - scope (object) context for the event handlers
+     - varargs (...) the rest of arguments will be sent to event handlers
+
+     = (array) array of promises from the listeners
+    \*/
+    eve.a = function (group, name, scope) {
+        let args;
+        if (Array.isArray(group) || typeof group === "string") {
+            args = Array.prototype.slice.call(arguments, 2)
+            scope = name;
+            name = group;
+            group = undefined;
+        } else {
+            group = group.id;
+        }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
+        args = args || Array.prototype.slice.call(arguments, 3)
+
+        const oldstop = stop,
+            listeners = eve.listeners(name, group),
+            promises = [],
+            ce = current_event;
+
+        promises.firstDefined = firstDefined;
+        promises.lastDefined = lastDefined;
+
+        if (typeof scope !== "undefined" && typeof scope !== "object") {
+            args.unshift(scope);
+            scope = undefined;
+        }
+
+        current_event = name;
+        stop = 0;
+
+        // Sort listeners by zIndex
+        listeners.sort(function_sort);
+
+        for (let i = 0, lim = listeners.length; i < lim; ++i) {
+            const l = listeners[i];
+            try {
+                // Universal wrapper to ensure all returns are promises
+                const result = l.apply(scope, args);
+                promises.push(Promise.resolve(result));
+            } catch (e) {
+                console.error(e.message, e, args, l);
+                eve("global.error", undefined, e, l, args);
+                promises.push(Promise.reject(e));
+            }
+            if (stop) {
+                break;
+            }
+        }
+
+        stop = oldstop;
+        current_event = ce;
+
+        // Log if enabled
+        if (eve._log) {
+            if (!group) group = "global";
+            if (!eve._log[group]) {
+                eve._log[group] = {};
+            }
+            name = (isArray(name)) ? name.join(separator) : name;
+            if (!eve._log[group][name]) {
+                eve._log[group][name] = [1, listeners.length];
+            } else {
+                eve._log[group][name][0]++;
+                eve._log[group][name][1] = Math.max(eve._log[group][name][1], listeners.length);
+            }
+        }
+
+        return promises;
+    };
+
+    /*\
+     * eve.all
+     [ method ]
+
+     * Async version that returns a single promise resolving to an array of all listener results.
+     * Waits for all promises to resolve before returning the results array.
+
+     - name (string) name of the *event*, dot (`.`) or slash (`/`) separated
+     - scope (object) context for the event handlers
+     - varargs (...) the rest of arguments will be sent to event handlers
+
+     = (Promise) promise that resolves to array of results from all listeners
+    \*/
+    eve.all = function (group, name, scope) {
+        const promises = eve.a.apply(this, arguments);
+
+        return Promise.all(promises).then(results => {
+            results.firstDefined = firstDefined;
+            results.lastDefined = lastDefined;
+            return results;
+        });
+    };
+
+    /*\
+     * eve.localEve
+     [ method ]
+     **
+     * Creates a local eve instance that operates within a specific event group.
+     * All events fired through this instance will be scoped to the specified group.
+     **
+     - group_id (string) identifier for the event group
+     **
+     = (function) local eve instance with all eve methods scoped to the group
+    \*/
     eve.localEve = function (group_id) {
         eve.setGroup(group_id);
         const ret_eve = function (name, scope) {
@@ -232,6 +391,18 @@
         }
 
         ret_eve.group = group_id;
+
+        // Add this inside the eve.localEve function, after the existing methods
+        ret_eve.a = function (name, scope) {
+            let args = [{id: group_id}, ...Array.prototype.slice.call(arguments)];
+            return eve.a.apply(undefined, args);
+        }
+
+        // Add this inside the eve.localEve function
+        ret_eve.all = function (name, scope) {
+            let args = [{id: group_id}, ...Array.prototype.slice.call(arguments)];
+            return eve.all.apply(undefined, args);
+        }
 
         ret_eve.on = function (name, f) {
             return eve.on(name, f, group_id);
@@ -262,6 +433,16 @@
 
         return ret_eve;
     }
+
+    /*\
+     * eve.logEvents
+     [ method ]
+     **
+     * Enables or disables event logging for debugging purposes.
+     * When enabled, tracks event firing statistics including call count and listener count.
+     **
+     - off (boolean) if true, disables logging; if false or undefined, enables logging
+    \*/
     eve.logEvents = function (off) {
         if (off) {
             delete eve._log;
@@ -286,6 +467,9 @@
      = (array) array of event handlers
     \*/
     eve.listeners = function (name, group, skip_global) {
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
         const names = isArray(name) ? name : name.split(separator);
         let e = undefined,
             item,
@@ -335,6 +519,15 @@
         }
     };
 
+    /*\
+     * eve.setGroup
+     [ method ]
+     **
+     * Sets the current active event group for subsequent event operations.
+     * If no group is specified, resets to the default group.
+     **
+     - group (string) #optional name of the event group to set as active
+    \*/
     eve.setGroup = function (group) {
         // if (!group) throw new Error("group must be defined");
 
@@ -351,6 +544,18 @@
         if (eve.hasOwnProperty("_events")) eve._events = events.n;
     };
 
+    /*\
+     * eve.fireInGroup
+     [ method ]
+     **
+     * Fires an event within a specific event group context.
+     * Temporarily switches to the specified group, fires the event, then restores the previous group.
+     **
+     - group (string) name of the event group to fire the event in
+     - varargs (...) event arguments to pass to eve()
+     **
+     = (array) array of returned values from the listeners
+    \*/
     eve.fireInGroup = function (group) {
         const args = Array.from(arguments).slice(1);
         if (!event_groups.hasOwnProperty(group)) {
@@ -364,11 +569,15 @@
     };
 
     /*\
-        * eve.addGlobalEventType
-        * Adds a global event type to the global event list.
-        * Be aware that this will not add the event to the local event list. Adding a global type may prevent local events
-        * starting with the same name from being triggered.
-     */
+     * eve.addGlobalEventType
+     [ method ]
+     **
+     * Adds a global event type to the global event list.
+     * Be aware that this will not add the event to the local event list. Adding a global type may prevent local events
+     * starting with the same name from being triggered.
+     **
+     - name (string) name of the global event type to add
+    \*/
     eve.addGlobalEventType = function (name) {
         if (!global_event.n.hasOwnProperty(name)) {
             global_event.n[name] = {n: {}};
@@ -414,6 +623,9 @@
         f.zIndex = xIndex_cur;
         xIndex_cur += 1e-12;
         const process_name = function (name) {
+            // Apply namespace alias translation for each name
+            name = translateNamespaceAlias(name);
+
             const names = isArray(name) ? name : Str(name).split(separator);
             let e, exist, n;
             for (var i = 0, ii = names.length; i < ii; ++i) {
@@ -527,6 +739,10 @@
             }
             return;
         }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
         names = isArray(name) ? name : Str(name).split(separator);
         var e,
             key,
@@ -605,16 +821,89 @@
         }
     };
 
+    /*\
+     * eve.alias
+     [ method ]
+     **
+     * Sets up namespace alias mappings for backward compatibility.
+     * Allows translating top-level event namespaces from one name to another.
+     * When an event is fired, registered, or removed with an aliased namespace,
+     * it will be automatically translated to the target namespace.
+     **
+     - aliases (object) object containing key-value pairs where keys are alias names
+     *   and values are the target namespace names they should be translated to
+     **
+     > Examples:
+     | // Set up aliases
+     | eve.alias({
+     |     "OLD_NAMESPACE": "new_namespace",
+     |     "LEGACY": "modern"
+     | });
+     |
+     | // These will be equivalent:
+     | eve.on("OLD_NAMESPACE.event.name", handler);
+     | eve.on("new_namespace.event.name", handler);
+     |
+     | eve("OLD_NAMESPACE.event.name", data);
+     | eve("new_namespace.event.name", data);
+    \*/
+    eve.alias = function(aliases) {
+        if (typeof aliases === 'object' && aliases !== null) {
+            namespace_aliases = namespace_aliases || {};
+            for (const aliasName in aliases) {
+                if (aliases.hasOwnProperty(aliasName)) {
+                    namespace_aliases[aliasName] = aliases[aliasName];
+                }
+            }
+        }
+    };
+
+    /*\
+     * eve.clearAliases
+     [ method ]
+     **
+     * Clears all namespace alias mappings.
+     **
+    \*/
+    eve.clearAliases = function() {
+        for (const key in namespace_aliases) {
+            if (namespace_aliases.hasOwnProperty(key)) {
+                delete namespace_aliases[key];
+            }
+        }
+    };
+
+    /*\
+     * eve.getAliases
+     [ method ]
+     **
+     * Returns a copy of the current namespace alias mappings.
+     **
+     = (object) copy of current alias mappings
+    \*/
+    eve.getAliases = function() {
+        const aliases = {};
+        if (namespace_aliases) for (const key in namespace_aliases) {
+            if (namespace_aliases.hasOwnProperty(key)) {
+                aliases[key] = namespace_aliases[key];
+            }
+        }
+        return aliases;
+    };
+
     /**
      * eve.is
      * [ method ]
-     * Checks if the given event is registered with the given function.
-     * @type {(function(*, *, *): (boolean))|*}
+    * Checks if the given event is registered with the given function.
+    * @type {function(*, *, *): boolean}
      */
     eve.is = function (name, f, group) {
         if (!name || typeof f !== 'function') {
             return false;
         }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
 
         let names = Array.isArray(name) ? (Array.isArray(name[0]) ? name : [name]) : String(name).split(comaseparator);
         if (names.length > 1) {
@@ -645,7 +934,7 @@
                     }
                 } else {
                     for (key in e) if (e.hasOwnProperty(key)) {
-                        if (isRegistered(key, f, group)) {
+                        if (eve.is(key, f, group)) {
                             return true;
                         }
                     }
@@ -666,8 +955,7 @@
         }
 
         return false;
-    }
-
+    };
 
     /*\
      * eve.once
@@ -727,6 +1015,10 @@
             data = name;
             name = group.eve
         }
+
+        // Apply namespace alias translation
+        name = translateNamespaceAlias(name);
+
         const container = {
             data: data,
             isFilter: true
@@ -829,6 +1121,34 @@
     };
     let lastTimeStamp;
 
+    /**
+     * @typedef {(number|number[])} AnimationValue
+     * @description Numeric value (or array of numeric values) animated by mina.
+     */
+
+    /**
+     * @callback MinaGetter
+     * @returns {number} Current master value that drives the animation timeline.
+     */
+
+    /**
+     * @callback MinaSetter
+     * @param {AnimationValue} value The interpolated value to apply.
+     * @returns {void}
+     */
+
+    /**
+     * @callback MinaEasing
+     * @param {number} t Normalized progress in the `[0, 1]` range.
+     * @returns {number} Eased progress value in the `[0, 1]` range.
+     */
+
+    /**
+     * Drives the global animation loop and updates all registered animations.
+     *
+     * @param {number} [timeStamp] High-resolution timestamp provided by `requestAnimationFrame`.
+     * @returns {void}
+     */
     function frame(timeStamp) {
         // Manual invokation?
         if (!timeStamp) {
@@ -883,10 +1203,24 @@
         requestID = len ? requestAnimFrame(frame) : false;
     }
 
+    /**
+     * Generates a unique animation identifier.
+     *
+     * @returns {string}
+     */
     function ID() {
         return idprefix + (idgen++).toString(36);
     }
 
+    /**
+     * Computes a linear interpolation function for the supplied values.
+     *
+     * @param {AnimationValue} a Start value(s).
+     * @param {number} b Start timestamp.
+     * @param {AnimationValue} A End value(s).
+     * @param {number} B End timestamp.
+    * @returns {function(number): AnimationValue}
+     */
     function diff(a, b, A, B) {
         if (isArray(a)) {
             const res = [];
@@ -907,6 +1241,13 @@
         return +new Date;
     };
 
+    /**
+     * Gets or sets the current status of an animation.
+     *
+     * @this {Animation}
+     * @param {number} [val] New normalized progress in the `[0, 1]` range.
+     * @returns {number|void}
+     */
     function sta(val) {
         if (val == null) {
             return this.s;
@@ -917,6 +1258,13 @@
         this.s = val;
     }
 
+    /**
+     * Gets or sets the playback speed of an animation.
+     *
+     * @this {Animation}
+     * @param {number} [val] New speed multiplier.
+     * @returns {number|void}
+     */
     function speed(val) {
         if (val == null) {
             return this.spd;
@@ -924,6 +1272,13 @@
         this.spd = val;
     }
 
+    /**
+     * Gets or sets the duration of an animation.
+     *
+     * @this {Animation}
+     * @param {number} [val] New duration in timeline units.
+     * @returns {number|void}
+     */
     function duration(val) {
         if (val == null) {
             return this.dur;
@@ -932,12 +1287,24 @@
         this.dur = val;
     }
 
+    /**
+     * Stops the animation immediately and emits the appropriate event.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function stopit() {
         delete animations[this.id];
         this.update();
         eve(["snap", "mina", "stop", this.id], this);
     }
 
+    /**
+     * Pauses the animation, preserving the current timeline offset.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function pause() {
         if (this.pdif) {
             return;
@@ -947,6 +1314,12 @@
         this.pdif = this.get() - this.b;
     }
 
+    /**
+     * Resumes a paused animation from its preserved timeline offset.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function resume() {
         if (!this.pdif) {
             return;
@@ -977,6 +1350,12 @@
     //     this.set(res);
     // };
 
+    /**
+     * Applies the easing function and updates the animated value.
+     *
+     * @this {Animation}
+     * @returns {void}
+     */
     function update() {
         let chng = false;
         if (this._lastRev !== undefined && this._lastRev !== this.rev) {
@@ -1018,11 +1397,25 @@
         }
     }
 
+    /**
+     * Toggles the playback direction of the animation.
+     *
+     * @this {Animation}
+     * @param {boolean} [fast=false] When `true`, the animation attempts to reuse the current eased position for a smoother reversal.
+     * @returns {void}
+     */
     function reverse(fast) {
         this.rev = !this.rev;
         this.rev_fast = !!fast;
     }
 
+    /**
+     * Registers a callback that resolves once the animation reaches completion.
+     *
+     * @this {Animation}
+    * @param {function(Animation): void} [callback] Invoked with the animation when it finishes.
+     * @returns {Promise<void>} Promise that resolves when the animation finishes.
+     */
     function then(callback) {
         return new Promise((resolve, reject) => {
             if (typeof callback === "function") {
@@ -1039,40 +1432,18 @@
         });
     }
 
-    /*\
- * mina
- [ method ]
- **
- * Generic animation of numbers
- **
- - a (number) start _slave_ number
- - A (number) end _slave_ number
- - b (number) start _master_ number (start time in general case)
- - B (number) end _master_ number (end time in general case)
- - get (function) getter of _master_ number (see @mina.time)
- - set (function) setter of _slave_ number
- - easing (function) #optional easing function, default is @mina.linear
- = (object) animation descriptor
- o {
- o         id (string) animation id,
- o         start (number) start _slave_ number,
- o         end (number) end _slave_ number,
- o         b (number) start _master_ number,
- o         s (number) animation status (0..1),
- o         dur (number) animation duration,
- o         spd (number) animation speed,
- o         get (function) getter of _master_ number (see @mina.time),
- o         set (function) setter of _slave_ number,
- o         easing (function) easing function, default is @mina.linear,
- o         status (function) status getter/setter,
- o         speed (function) speed getter/setter,
- o         duration (function) duration getter/setter,
- o         stop (function) animation stopper
- o         pause (function) pauses the animation
- o         resume (function) resumes the animation
- o         update (function) calles setter with the right value of the animation
- o }
-\*/
+    /**
+     * Descriptor returned by {@link mina} that encapsulates an active animation.
+     *
+     * @class Animation
+     * @param {AnimationValue} a Starting value(s).
+     * @param {AnimationValue} A Ending value(s).
+     * @param {number} b Starting master value (typically, start time).
+     * @param {number} B Ending master value (typically, end time).
+     * @param {MinaGetter} get Retrieves the current master value.
+     * @param {MinaSetter} set Applies the interpolated slave value.
+     * @param {MinaEasing} [easing=mina.linear] Easing function that transforms progress.
+     */
     class Animation {
         constructor(a, A, b, B, get, set, easing) {
             this.id = ID();
@@ -1096,12 +1467,29 @@
             this.update = update;
             this.reverse = reverse;
             this.then = then;
+            /**
+             * Indicates whether the animation has finished.
+             *
+             * @returns {boolean}
+             */
             this.done = function () {
                 return this.status() === 1
             };
         }
     }
 
+    /**
+     * Creates a new animation descriptor and schedules it on the shared timeline.
+     *
+     * @param {AnimationValue} a Starting value(s).
+     * @param {AnimationValue} A Ending value(s).
+     * @param {number} b Start time or master value.
+     * @param {number} B End time or master value.
+     * @param {MinaGetter} get Getter invoked to retrieve the current master value.
+     * @param {MinaSetter} set Setter invoked with the interpolated value during updates.
+     * @param {MinaEasing} [easing=mina.linear] Optional easing function.
+     * @returns {Animation}
+     */
     function mina(a, A, b, B, get, set, easing) {
         const anim = new Animation(a, A, b, B, get, set, easing);
         animations[anim.id] = anim;
@@ -1119,71 +1507,62 @@
         return anim;
     }
 
+    /**
+     * Exposes the `Animation` constructor for advanced use cases.
+    * @type {Function}
+     */
     mina.Animation = Animation;
 
-    /*\
-     * mina.time
-     [ method ]
-     **
-     * Returns the current time. Equivalent to:
-     | function () {
-     |     return (new Date).getTime();
-     | }
-    \*/
+    /**
+     * Returns the current timestamp in milliseconds.
+     * Mirrors `Date.now()` and is primarily used as the default master getter.
+     *
+     * @returns {number}
+     */
     mina.time = timer;
-    /*\
-     * mina.getById
-     [ method ]
-     **
-     * Returns an animation by its id
-     - id (string) animation's id
-     = (object) See @mina
-    \*/
+    /**
+     * Retrieves an animation descriptor by its identifier.
+     *
+     * @param {string} id Animation identifier generated by {@link mina}.
+     * @returns {Animation|null} Registered animation or `null` if not found.
+     */
     mina.getById = function (id) {
         return animations[id] || null;
     };
 
-    /*\
-     * mina.linear
-     [ method ]
-     **
-     * Default linear easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Default linear easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.linear = function (n) {
         return n;
     };
-    /*\
-     * mina.easeout
-     [ method ]
-     **
-     * Easeout easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Exponential ease-out easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.easeout = function (n) {
         return Math.pow(n, 1.7);
     };
-    /*\
-     * mina.easein
-     [ method ]
-     **
-     * Easein easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Exponential ease-in easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.easein = function (n) {
         return Math.pow(n, .48);
     };
-    /*\
-     * mina.easeinout
-     [ method ]
-     **
-     * Easeinout easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Smooth ease-in-out easing.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.easeinout = function (n) {
         if (n == 1) {
             return 1;
@@ -1196,14 +1575,12 @@
             Y = Math.pow(Math.abs(y), 1 / 3) * (y < 0 ? -1 : 1), t = X + Y + .5;
         return (1 - t) * 3 * t * t + t * t * t;
     };
-    /*\
-     * mina.backin
-     [ method ]
-     **
-     * Backin easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Back-in easing that overshoots slightly before accelerating.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.backin = function (n) {
         if (n == 1) {
             return 1;
@@ -1211,14 +1588,12 @@
         const s = 1.70158;
         return n * n * ((s + 1) * n - s);
     };
-    /*\
-     * mina.backout
-     [ method ]
-     **
-     * Backout easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Back-out easing that overshoots the end value before settling.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.backout = function (n) {
         if (n == 0) {
             return 0;
@@ -1227,14 +1602,14 @@
         const s = 1.70158;
         return n * n * ((s + 1) * n + s) + 1;
     };
-    /*\
-     * mina.elastic
-     [ method ]
-     **
-     * Elastic easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Elastic easing with optional amplitude and period customization.
+     *
+     * @param {number} [amp=1] Amplitude of the overshoot.
+     * @param {number} [per=0.3] Period of oscillation.
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.elastic = function (amp, per, n) {
         if (per === undefined) {
             n = amp;
@@ -1261,18 +1636,23 @@
         // var k = _2PI / .3;
         // var ret = amp * Math.pow(2, -10 * n) * Math.sin((n - .075) * k) + 1;
     };
+    /**
+     * Creates a reusable elastic easing function with predefined parameters.
+     *
+     * @param {number} amp Amplitude passed to {@link mina.elastic}.
+     * @param {number} per Period passed to {@link mina.elastic}.
+     * @returns {MinaEasing}
+     */
     mina.elastic.withParams = function (amp, per) {
         return mina.elastic.bind(undefined, amp, per);
     };
 
-    /*\
-     * mina.bounce
-     [ method ]
-     **
-     * Bounce easing
-     - n (number) input 0..1
-     = (number) output 0..1
-    \*/
+    /**
+     * Bounce easing that simulates a ball dropping and settling.
+     *
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
     mina.bounce = function (n) {
         const s = 7.5625, p = 2.75;
         let l;
@@ -1304,6 +1684,10 @@
     //
     // }
 
+    /**
+     * Flags functions that are not easing helpers so they are excluded from {@link mina.isEasing} checks.
+     * @type {Record<string, boolean>}
+     */
     const non_easing_functions = {
         Animation: true,
         getById: true,
@@ -1317,10 +1701,23 @@
         setInterval: true,
         trakSkippedFrames: true,
     };
+    /**
+     * Determines whether the provided key refers to a registered easing function.
+     *
+     * @param {string} name Property name on the mina namespace.
+     * @returns {boolean}
+     */
     mina.isEasing = function (name) {
         return mina.hasOwnProperty(name) && !non_easing_functions[name]
     };
 
+    /**
+     * Updates the global speed multiplier applied to all running animations.
+     *
+     * @param {number} [speed=1] Speed multiplier; values greater than `1` speed up animations.
+     * @param {number} [skip] Optional skip interval forwarded to {@link mina.setSkip}.
+     * @returns {void}
+     */
     mina.setSpeed = function (speed, skip) {
         if (speed) {
             global_speed = speed;
@@ -1333,6 +1730,12 @@
         if (skip) this.setSkip(skip);
     };
 
+    /**
+     * Sets the global step-skipping interval for all animations.
+     *
+     * @param {number} skip Number of frames to skip between updates.
+     * @returns {void}
+     */
     mina.setSkip = function (skip) {
         global_skip = Math.floor(+skip);
         Object.values(animations).forEach(function (anim) {
@@ -1340,26 +1743,62 @@
         });
     }
 
+    /**
+     * Schedules a timeout that respects the global mina speed multiplier.
+     *
+     * @param {Function} callback Handler to invoke.
+     * @param {number} deley Delay in milliseconds (affected by `setSpeed`).
+     * @param {...*} args Optional arguments forwarded to the callback.
+     * @returns {number}
+     */
     mina.setTimeout = function (callback, deley, ...args) {
         deley *= global_speed
         return setTimeout(callback, deley, ...args);
     }
 
+    /**
+     * Schedules an immediate or delayed callback aligned with the global speed multiplier.
+     *
+     * @param {Function} callback Handler to invoke.
+     * @param {number} deley Delay in milliseconds before execution.
+     * @param {...*} args Optional arguments forwarded to the callback.
+     * @returns {number|void}
+     */
     mina.setTimeoutNow = function (callback, deley, ...args) {
         deley *= global_speed
         return (deley) ? setTimeout(callback, deley, ...args) : callback(...args);
     }
 
+    /**
+     * Registers an interval timer that honors the global speed multiplier.
+     *
+     * @param {Function} callback Handler to invoke on each tick.
+     * @param {number} interval Interval duration in milliseconds.
+     * @param {...*} args Optional arguments forwarded to the callback.
+     * @returns {number}
+     */
     mina.setInterval = function (callback, interval, ...args) {
         interval *= global_speed;
         return setInterval(callback, interval, ...args);
     };
 
+    /**
+     * Enables detection of skipped frames by providing an expected frame duration.
+     *
+     * @param {number} [frame_time=18] Expected duration of each frame in milliseconds.
+     * @returns {void}
+     */
     mina.trakSkippedFrames = function (frame_time) {
         expectedFrameDuration = (frame_time === undefined) ? 18 // a bit longer than 60fps frame
             : +(frame_time || 0)
     }
 
+    /**
+     * Returns the last animation(s) registered or starts collecting the next batch.
+     *
+     * @param {boolean} [start_collecting=false] When `true`, clears the stored reference and begins collecting anew.
+     * @returns {Animation|Animation[]|undefined}
+     */
     mina.getLast = function (start_collecting) {
         if (start_collecting) {
             last = [];
@@ -1402,22 +1841,21 @@
 
         const eve = eve_ia;
 
-        /*\
-         * Snap
-         [ method ]
-         **
-         * Creates a drawing surface or wraps existing SVG element.
-         **
-         - width (number|string) width of surface
-         - height (number|string) height of surface
-         * or
-         - DOM (SVGElement) element to be wrapped into Snap structure
-         * or
-         - array (array) array of elements (will return set of elements)
-         * or
-         - query (string) CSS query selector
-         = (object) @Element
-        \*/
+    /**
+     * Main Snap.svg factory function and namespace entry point.
+     * Creates a drawing surface, wraps existing SVG content, or returns utility objects
+     * depending on the argument type.
+     *
+     * @namespace Snap
+     * @function Snap
+     * @param {(number|string|SVGElement|Array.<Element>|string)} [width] Width of the new surface,
+     *        an existing SVG DOM node, an array of elements, or a CSS selector when combined with
+     *        the `height` parameter being `null` or `undefined`.
+     * @param {(number|string|Object)} [height] Height of the new surface or attribute map applied
+     *        when the first argument is an element creation string.
+     * @returns {(Snap.Element|Snap.Paper|Snap.Set|null)} Wrapped element, drawing paper, set of
+     *          elements, or `null` when a selector matches nothing.
+     */
         function Snap(w, h) {
             if (w) {
                 if (w.nodeType || (Snap._.glob.win.jQuery && w instanceof jQuery)) {
@@ -1620,14 +2058,14 @@
         const xmlns = 'http://www.w3.org/2000/svg';
         const hub = {};
         const hub_rem = {};
-        /*\
-     * Snap.url
-     [ method ]
-     **
-     * Wraps path into `"url('<path>')"`.
-     - value (string) path
-     = (string) wrapped path
-    \*/
+        /**
+         * Wraps an ID in a `url(#...)` reference.
+         *
+         * @function Snap.url
+         * @memberof Snap
+         * @param {string} value Fragment identifier.
+         * @returns {string} URL reference string.
+         */
         const URL = Snap.url = function (url) {
             return 'url(#' + url + ')';
         };
@@ -1751,27 +2189,23 @@
                 objectToString.call(o).slice(8, -1).toLowerCase() === type;
         }
 
-        /*\
-         * Snap.format
-         [ method ]
-         **
-         * Replaces construction of type `{<name>}` to the corresponding argument
-         **
-         - token (string) string to format
-         - json (object) object which properties are used as a replacement
-         = (string) formatted string
-         > Usage
-         | // this draws a rectangular shape equivalent to "M10,20h40v50h-40z"
-         | paper.path(Snap.format("M{x},{y}h{dim.width}v{dim.height}h{dim['negative width']}z", {
-         |     x: 10,
-         |     y: 20,
-         |     dim: {
-         |         width: 40,
-         |         height: 50,
-         |         "negative width": -40
-         |     }
-         | }));
-        \*/
+    /**
+     * Performs simple token replacement on strings using `{token}` placeholders.
+     *
+     * @function Snap.format
+     * @memberof Snap
+     * @param {string} token Template string containing `{name}` placeholders.
+     * @param {Object} json Object whose properties are used as replacements.
+     * @returns {string} Formatted string.
+     * @example
+     * const path = Snap.format("M{x},{y}h{width}v{height}h{negWidth}z", {
+     *   x: 10,
+     *   y: 20,
+     *   width: 40,
+     *   height: 50,
+     *   negWidth: -40
+     * });
+     */
         Snap.format = (function () {
             const tokenRegex = /\{([^\}]+)\}/g,
                 objNotationRegex = /(?:(?:^|\.)(.+?)(?=\[|\.|$|\()|\[('|")(.+?)\2\])(\(\))?/g, // matches .xxxxx or ["xxxxx"] to run over object properties
@@ -1883,66 +2317,65 @@
             return this.x + S + this.y + S + this.width + ' \xd7 ' + this.height;
         }
 
-        /*\
-         * Snap.rad
-         [ method ]
-         **
-         * Transform angle to radians
-         - deg (number) angle in degrees
-         = (number) angle in radians
-        \*/
+        /**
+         * Converts degrees to radians.
+         *
+         * @function Snap.rad
+         * @memberof Snap
+         * @param {number} deg Angle in degrees.
+         * @returns {number} Angle in radians.
+         */
         Snap.rad = rad;
-        /*\
-         * Snap.deg
-         [ method ]
-         **
-         * Transform angle to degrees
-         - rad (number) angle in radians
-         = (number) angle in degrees
-        \*/
+        /**
+         * Converts radians to degrees.
+         *
+         * @function Snap.deg
+         * @memberof Snap
+         * @param {number} rad Angle in radians.
+         * @returns {number} Angle in degrees.
+         */
         Snap.deg = deg;
-        /*\
-         * Snap.sin
-         [ method ]
-         **
-         * Equivalent to `Math.sin()` only works with degrees, not radians.
-         - angle (number) angle in degrees
-         = (number) sin
-        \*/
+        /**
+         * Calculates the sine of an angle specified in degrees.
+         *
+         * @function Snap.sin
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Sine of the angle.
+         */
         Snap.sin = function (angle) {
             return math.sin(Snap.rad(angle));
         };
-        /*\
-         * Snap.tan
-         [ method ]
-         **
-         * Equivalent to `Math.tan()` only works with degrees, not radians.
-         - angle (number) angle in degrees
-         = (number) tan
-        \*/
+        /**
+         * Calculates the tangent of an angle specified in degrees.
+         *
+         * @function Snap.tan
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Tangent of the angle.
+         */
         Snap.tan = function (angle) {
             return math.tan(Snap.rad(angle));
         };
-        /*\
-         * Snap.cotan
-         [ method ]
-         **
-         * Evaluates cotangent of angle.
-         - angle (number) angle in degrees
-         = (number) tan
-        \*/
+        /**
+         * Calculates the cotangent of an angle specified in degrees.
+         *
+         * @function Snap.cot
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Cotangent of the angle.
+         */
         Snap.cot = function (angle) {
             return 1 / Snap.tan(angle);
         };
-
-        /*\
-         * Snap.cos
-         [ method ]
-         **
-         * Equivalent to `Math.cos()` only works with degrees, not radians.
-         - angle (number) angle in degrees
-         = (number) cos
-        \*/
+        /**
+         * Calculates the cosine of an angle specified in degrees.
+         *
+         * @function Snap.cos
+         * @memberof Snap
+         * @param {number} angle Angle in degrees.
+         * @returns {number} Cosine of the angle.
+         */
         Snap.cos = function (angle) {
             return math.cos(Snap.rad(angle));
         };
@@ -3070,7 +3503,13 @@
         //     }
         // }
 
-        function Element(el) {
+    /**
+     * Wrapper around native SVG DOM nodes providing Snap.svg convenience helpers.
+     *
+     * @class Snap.Element
+     * @param {SVGElement} el Underlying DOM node.
+     */
+    function Element(el) {
             if (el.snap in hub) {
                 return hub[el.snap];
             }
@@ -3264,7 +3703,13 @@
             return new Fragment(f);
         };
 
-        function Fragment(frag) {
+    /**
+     * Lightweight container representing detached SVG content that can be inserted elsewhere.
+     *
+     * @class Snap.Fragment
+     * @param {DocumentFragment} frag Native document fragment produced by Snap.
+     */
+    function Fragment(frag) {
             this.node = frag;
         }
 
@@ -3304,7 +3749,15 @@
             return el;
         }
 
-        function Paper(w, h) {
+    /**
+     * Wrapper around an `<svg>` root node providing element creation helpers and utilities.
+     * Instances are created through {@link Snap} and mirror the behaviour of Snap.svg papers.
+     *
+     * @class Snap.Paper
+     * @param {(number|string|SVGElement)} w Width of the surface or an existing SVG element.
+     * @param {(number|string)} [h] Height of the surface when `w` is a numeric or string size.
+     */
+    function Paper(w, h) {
             let res,
                 // desc,
                 defs;
@@ -3410,13 +3863,12 @@
             attr && el.attr(attr);
             return el;
         };
-        /*\
-         * Element.children
-         [ method ]
-         **
-         * Returns array of all the children of the element.
-         = (array) array of Elements
-        \*/
+    /**
+     * Returns all child elements wrapped as Snap elements.
+     *
+     * @function Snap.Element#children
+     * @returns {Array.<Snap.Element>} Array of child elements.
+     */
         Element.prototype.children = function () {
             const out = [],
                 ch = this.node.childNodes;
@@ -3444,18 +3896,12 @@
             }
         }
 
-        /*\
-         * Element.toJSON
-         [ method ]
-         **
-         * Returns object representation of the given element and all its children.
-         = (object) in format
-         o {
-         o     type (string) this.type,
-         o     attr (object) attributes map,
-         o     childNodes (array) optional array of children in the same format
-         o }
-        \*/
+    /**
+     * Serialises the element and its descendants into a plain object tree.
+     *
+     * @function Snap.Element#toJSON
+     * @returns {Object} Element descriptor containing type, attributes, and child nodes.
+     */
         Element.prototype.toJSON = function () {
             const out = [];
             jsonFiller([this], out);
@@ -3498,7 +3944,7 @@
             if (cssAttr[has](css)) {
                 attr[att] = '';
                 $(this.node, attr);
-                if (this.type === 'jquery') {
+                if (this.type === 'jquery') { //we don't use jquery anymore. Just for backwords compatibility
                     this.node.css(style, value);
                 } else {
                     this.node.style[style] = value;
@@ -3512,6 +3958,7 @@
                 }
                 if (geomAttr[has](att)) this.clearCHull() //.c_hull = undefined;
             }
+            this.attrMonitor(att)
         });
         (function (proto) {
         }(Paper.prototype));
@@ -3684,18 +4131,15 @@
                 x: left,
             };
         };
-        /*\
-         * Snap.getElementByPoint
-         [ method ]
-         **
-         * Returns you topmost element under given point.
-         **
-         = (object) Snap element object
-         - x (number) x coordinate from the top left corner of the window
-         - y (number) y coordinate from the top left corner of the window
-         > Usage
-         | Snap.getElementByPoint(mouseX, mouseY).attr({stroke: "#f00"});
-        \*/
+    /**
+     * Returns the topmost element under the given window coordinates.
+     *
+     * @function Snap.getElementByPoint
+     * @memberof Snap
+     * @param {number} x X coordinate relative to the top-left corner of the viewport.
+     * @param {number} y Y coordinate relative to the top-left corner of the viewport.
+     * @returns {(Snap.Element|null)} Snap element wrapper or `null` when nothing is found.
+     */
         Snap.getElementByPoint = function (x, y) {
             const paper = this,
                 svg = paper.canvas;
@@ -3716,21 +4160,13 @@
             }
             return wrap(target);
         };
-        /*\
-         * Snap.plugin
-         [ method ]
-         **
-         * Let you write plugins. You pass in a function with five arguments, like this:
-         | Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
-         |     Snap.newmethod = function () {};
-         |     Element.prototype.newmethod = function () {};
-         |     Paper.prototype.newmethod = function () {};
-         | });
-         * Inside the function you have access to all main objects (and their
-         * prototypes). This allow you to extend anything you want.
-         **
-         - f (function) your plugin body
-        \*/
+        /**
+         * Registers a plugin function that receives the Snap namespace and key prototypes.
+         *
+         * @function Snap.plugin
+         * @memberof Snap
+         * @param {function(Snap, Snap.Element, Snap.Paper, Window, Snap.Fragment, Function)} f Plugin callback.
+         */
         Snap.plugin = function (f) {
             f(Snap, Element, Paper, glob, Fragment, eve);
         };
@@ -3760,7 +4196,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             max = Math.max,
             INITIAL_BBOX = 'initial_bbox';
 
-        Snap.joinBBoxes = function (bboxes) {
+    /**
+     * Computes the minimal bounding box that encloses every box from the provided collection.
+     * @param {Snap.BBox[]} bboxes Collection of bounding boxes to merge.
+     * @returns {Snap.BBox|undefined} A Snap-ified bounding box describing the union of all input boxes, or
+     * `undefined` when no input boxes are provided.
+     */
+    Snap.joinBBoxes = function (bboxes) {
             const len = bboxes.length;
             if (len == 1) return bboxes[0];
             if (!Snap.path) return;
@@ -3782,9 +4224,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return Snap.box(box);
         };
 
-        Snap.bBoxFromPoints = boxFromPoints;
+    /**
+     * Converts a list of points into an axis-aligned bounding box in the current coordinate system.
+     * @function
+     * @name Snap.bBoxFromPoints
+    * @param {Point2DList} points Points that should be enclosed in the resulting bounding box.
+     * @param {Snap.Matrix} [matrix] Optional matrix to apply to every point before evaluating the box.
+     * @returns {Snap.BBox} Bounding box that contains the transformed point cloud.
+     */
+    Snap.bBoxFromPoints = boxFromPoints;
 
-        const clip_path_box_helper = function (box, clip_path, matrix) {
+    /**
+     * Intersects a bounding box with a clip-path region, optionally applying an additional matrix to the clip-path.
+     * @param {Snap.BBox|null} box Bounding box to adjust by the clip-path.
+     * @param {Element|null} clip_path Clip-path element that constrains the box.
+     * @param {Snap.Matrix} [matrix] Transformation applied to the clip-path before the intersection is computed.
+     * @returns {Snap.BBox|null} Intersected bounding box or `null` when no box is supplied.
+     */
+    const clip_path_box_helper = function (box, clip_path, matrix) {
             if (box && clip_path) {
                 if (matrix && !matrix.isIdentity()) {
                     const old_trans = clip_path.attr('transform');
@@ -3798,7 +4255,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return box;
         };
 
-        elproto.getPoints = function (use_local_transform, skip_hidden) {
+    /**
+     * Collects representative points for the element's geometry.
+     * @param {boolean} [use_local_transform=false] When true, applies the element's local matrix to the returned points.
+     * @param {boolean} [skip_hidden=false] When true, ignores children with `display: none`.
+    * @returns {Point2DList} Array of points that describe the element footprint.
+     */
+    elproto.getPoints = function (use_local_transform, skip_hidden) {
             let result = [];
             let rx, ry, matrix;
             switch (this.type) {
@@ -3903,7 +4366,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return result;
         };
 
-        elproto.getCHull = function (with_transform, skip_hidden) {
+    /**
+     * Builds the convex hull for an element, optionally applying its current transform.
+     * @param {boolean} [with_transform=false] When true, returns the hull in global coordinates.
+     * @param {boolean} [skip_hidden=false] When true, excludes hidden descendants while computing the hull.
+    * @returns {(Point2DList|null)} Array of hull vertices ordered clockwise, or `null` for unresolved targets.
+     */
+    elproto.getCHull = function (with_transform, skip_hidden) {
 
             let el = this.getUseTarget();
             if (!el) return null;
@@ -3942,7 +4411,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return points;
         };
 
-        elproto.getUseTarget = function () {
+    /**
+     * Resolves the underlying element referenced by a `<use>` node.
+     * @returns {Element|null} Resolved target element or `null` when no referenced node is available.
+     */
+    elproto.getUseTarget = function () {
             if (this.type !== 'use') return this;
             if (this.use_target) {
                 return this.use_target;
@@ -3958,14 +4431,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return null;
         };
 
-        elproto.saveMatrix = function (m) {
+    /**
+     * Persists the provided matrix on the element instance for subsequent lookups.
+     * @param {Snap.Matrix} m Matrix to assign as the element's current transform cache.
+     */
+    elproto.saveMatrix = function (m) {
             this.matrix = m;
             if (this.type === 'image' && m.f) {
                 // console.log("saving matrix", this.getId(), m.toString())
             }
         }
 
-        function boxFromPoints(points, matrix) {
+    /**
+    * Generates a bounding box from a set of points, optionally applying a matrix prior to evaluation.
+    * @param {Point2DList} points Collection of 2D points to enclose.
+     * @param {Snap.Matrix} [matrix] Matrix used to transform the points before computing the bounds.
+     * @returns {Snap.BBox} Bounding box covering the (transformed) points.
+     */
+    function boxFromPoints(points, matrix) {
             let min_x = Infinity, max_x = -Infinity, min_y = Infinity,
                 max_y = -Infinity;
             if (matrix && !matrix.isIdentity()) {
@@ -3981,31 +4464,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return Snap.box(min_x, min_y, max_x - min_x, max_y - min_y);
         }
 
-        /*\
-                 * Element.getBBox
-                 [ method ]
-                 **
-                 * Returns the bounding box descriptor for the given element
-                 **
-                 = (object) bounding box descriptor:
-                 o {
-                 o     cx: (number) x of the center,
-                 o     cy: (number) x of the center,
-                 o     h: (number) height,
-                 o     height: (number) height,
-                 o     path: (string) path command for the box,
-                 o     r0: (number) radius of a circle that fully encloses the box,
-                 o     r1: (number) radius of the smallest circle that can be enclosed,
-                 o     r2: (number) radius of the largest circle that can be enclosed,
-                 o     vb: (string) box as a viewbox command,
-                 o     w: (number) width,
-                 o     width: (number) width,
-                 o     x2: (number) x of the right side,
-                 o     x: (number) x of the left side,
-                 o     y2: (number) y of the bottom edge,
-                 o     y: (number) y of the top edge
-                 o }
-                 \*/
+    /**
+     * Returns the bounding-box descriptor for the current element with optional control over caching, transforms, and
+     * clip-path intersection.
+     * The returned descriptor exposes the canonical {@link Snap.BBox} API enriched with helper fields such as `cx`,
+     * `cy`, `path`, `vb`, and circle radii (`r0`, `r1`, `r2`).
+     * @param {boolean|Element|Snap.Matrix|Object} [settings] When `true`, omits the local transform from the answer. A
+     * {@link Element} scopes the result relative to an ancestor. A {@link Snap.Matrix} explicitly defines the applied
+     * transform. An options object may contain `without_transform`, `cache_bbox`, `include_clip_path`, `approx`,
+     * `skip_hidden`, `relative_parent`, `relative_coord`, or `matrix` flags for fine-grained control.
+     * @returns {Snap.BBox|null} Bounding-box descriptor or `null` if it can't be resolved (e.g. hidden `<use>` target).
+     */
         elproto.getBBox = function (settings) {
             if (!this.paper) {
                 // console.log("No paper", this.getId());
@@ -4044,7 +4513,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             if (!matrix && relative_parent) {
-                matrix = Snap.matrix();
+                matrix = this.getLocalMatrix();
                 let p = this;
                 //get the transform between this and the relative_parent
                 while ((p = p.parent()) && p !== relative_parent && p.type !== 'svg') {
@@ -4247,12 +4716,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.getBBoxApprox = function (setting) {
+    /**
+     * Convenience wrapper around {@link Element#getBBox} that enforces approximate convex-hull evaluation.
+     * @param {Object} [setting={}] Optional settings forwarded to {@link Element#getBBox}.
+     * @returns {Snap.BBox|null} Approximate bounding box or `null` on failure.
+     */
+    elproto.getBBoxApprox = function (setting) {
             setting = setting || {};
             setting.approx = true;
             return this.getBBox(setting);
         };
-        elproto.getBBoxExact = function (settigns) {
+    /**
+     * Forces precise bounding-box computation for the element, ignoring cached approximations.
+     * @param {boolean|Object|Snap.Matrix} [settigns] Options forwarded to {@link Element#getBBox}.
+     * @returns {Snap.BBox|null} Exact bounding box or `null` on failure.
+     */
+    elproto.getBBoxExact = function (settigns) {
             if (settigns && typeof settigns === 'object' && settigns.isMatrix) {
                 return this.getBBox({approx: false, matrix: settigns});
             }
@@ -4262,7 +4741,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.getBBox(settigns);
         };
 
-        elproto.attrMonitor = function (attr, callback_val) {
+    /**
+     * Registers or triggers attribute change monitors on the element.
+     * @param {string|string[]} attr Attribute name or list of names to monitor.
+     * @param {Function} [callback_val] Callback invoked with the attribute's current value when changes occur. When
+     * omitted, previously registered callbacks for `attr` are executed immediately.
+     * @returns {Element} The current element for chaining.
+     */
+    elproto.attrMonitor = function (attr, callback_val) {
             if (typeof callback_val === 'function') {
                 if (!this._attr_monitor) {
                     this._attr_monitor = {};
@@ -4283,7 +4769,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.string;
         };
 
-        function extractTransform(el, tstr) {
+    /**
+     * Parses the transform attribute of an element, caching and returning the corresponding matrix.
+     * @param {Element} el Element whose transform should be extracted.
+     * @param {string|Array|Snap.Matrix} [tstr] Optional transform override in string, array, or matrix form.
+     * @returns {Snap.Matrix|undefined} Parsed matrix when no explicit transform is supplied.
+     */
+    function extractTransform(el, tstr) {
             if (tstr == null) {
                 var doReturn = true;
                 if (el.type == 'linearGradient' || el.type == 'radialGradient') {
@@ -4327,7 +4819,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        function extractTransformStrict(el, tstr) {
+    /**
+     * Strict transform parser that bypasses compatibility heuristics used by {@link extractTransform}.
+     * @param {Element} el Element whose transform should be parsed.
+     * @param {string|Array|Snap.Matrix} [tstr] Optional transform override.
+     * @returns {Snap.Matrix|undefined} Parsed matrix when reading from the DOM.
+     */
+    function extractTransformStrict(el, tstr) {
             if (tstr == null) {
                 var doReturn = true;
                 if (el.type == 'linearGradient' || el.type == 'radialGradient') {
@@ -4359,7 +4857,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        function clearParentCHull(el, efficient) {
+    /**
+     * Clears cached convex hull data for the element's ancestors.
+     * @param {Element} el Element whose parents should be invalidated.
+     * @param {boolean} [efficient=false] When true, stops once an ancestor without cached hull data is found.
+     */
+    function clearParentCHull(el, efficient) {
             let parent = el.parent();
             while (parent && parent.type !== 'svg') {
                 if (parent.c_hull) {
@@ -4371,7 +4874,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        elproto.clearCHull = function (force_top) {
+    /**
+     * Clears cached convex hull data for the element and optionally its ancestors.
+     * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
+     */
+    elproto.clearCHull = function (force_top) {
             force_top = true;
             this.c_hull = undefined;
             clearParentCHull(this, !force_top);
@@ -4397,7 +4904,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          o     toString (function) returns `string` property
          o }
          \*/
-        elproto.transform = function (tstr, do_update, matrix, apply) {
+    /**
+     * Gets or sets the element transform.
+     * @param {string|Snap.Matrix} [tstr] Transform string or matrix to apply. When omitted, returns a descriptor with
+     * the current transform matrices.
+     * @param {boolean} [do_update=false] When true, refreshes cached bounding boxes after applying the transform.
+     * @param {Snap.Matrix|boolean} [matrix] Optional matrix used for cache updates or a boolean forwarded as the
+     * `apply` flag.
+     * @param {boolean} [apply] Internal flag controlling partner propagation.
+     * @returns {Element|Object} Element for chaining when setting transforms, or an object with aggregate matrices when
+     * querying.
+     */
+    elproto.transform = function (tstr, do_update, matrix, apply) {
             if (typeof matrix === 'boolean') {
                 apply = matrix;
                 matrix = undefined;
@@ -4509,7 +5027,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this;
         };
 
-        function transform2matrix(tdata) {
+    /**
+     * Translates a parsed transform token array into a {@link Snap.Matrix} instance.
+     * @param {Array} tdata Result from {@link Snap._.svgTransform2string} parsing.
+     * @returns {Snap.Matrix} Matrix representing the combined transform.
+     */
+    function transform2matrix(tdata) {
             let m = new Snap.Matrix;
             if (tdata) {
                 for (var i = 0, l = tdata.length; i < l; ++i) {
@@ -4532,7 +5055,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return m;
         }
 
-        elproto.transToMatrix = function () {
+    /**
+     * Normalises the element's current transform attribute and saves it as a matrix.
+     */
+    elproto.transToMatrix = function () {
             let tstr = "";
             if (this.type === 'linearGradient' || this.type === 'radialGradient') {
                 tstr = this.node.getAttribute('gradientTransform') || "";
@@ -4553,8 +5079,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 // console.log("Fixing transform for", this.getId(), tstr, "to", m);
                 if (this.type === 'linearGradient' || this.type === 'radialGradient') {
                     this.node.setAttribute('gradientTransform', m); //getAttribute("gradientTransform");
+                    this.attrMonitor('gradientTransform')
                 } else if (this.type === 'pattern') {
                     this.node.setAttribute('patternTransform', m);
+                    this.attrMonitor('patternTransform')
                 } else {
                     // this.node.setAttribute('transform', m);
                     this.transform(m)
@@ -4563,7 +5091,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.updateBBoxCache = function (matrix, apply, _skip_parent) {
+    /**
+     * Updates the cached bounding box after a transformation or clears it when the new transform is incompatible.
+     * @param {Snap.Matrix} [matrix] Matrix describing the current transformation.
+     * @param {boolean|number} [apply] When `-1`, clears the cache entirely. Otherwise controls whether child caches are
+     * updated.
+     * @param {boolean} [_skip_parent=false] Skips parent cache updates when truthy.
+     */
+    elproto.updateBBoxCache = function (matrix, apply, _skip_parent) {
             //if apply is negative, erase all bbox catches
             if (apply === -1) {
                 this.eraseBBoxCache();
@@ -4634,7 +5169,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         };
 
-        elproto.expandParenBBoxCatch = function (bbox_circ, is_circle) {
+    /**
+     * Expands cached bounding boxes up the parent chain when the current element grows in size.
+     * @param {Snap.BBox|{x:number,y:number,r:number}} bbox_circ Bounding region describing the new extent.
+     * @param {boolean} [is_circle=false] Indicates that `bbox_circ` represents a circle definition.
+     */
+    elproto.expandParenBBoxCatch = function (bbox_circ, is_circle) {
             const parent = this.parent();
             if (!parent) return;
             let saved_bb = parent.attr('bbox');
@@ -4667,7 +5207,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param bbox_circle a bbox or a circle region that contains the element. If provided, parent (and higher) bboxes
          * are erased only if region extrudes from the parent bbox. Otherwise, there is no need to remove.
          */
-        elproto.eraseParentBBoxCache = function (bbox_circle) {
+    /**
+     * Invalidates cached bounding boxes stored on parent elements.
+     * @param {Snap.BBox|{x:number,y:number,r:number}} [bbox_circle] Bounding region used to decide whether the parent
+     * caches still contain the element.
+     */
+    elproto.eraseParentBBoxCache = function (bbox_circle) {
             const parent = this.parent();
             if (!parent) return;
             let parent_bb = parent.attr('bbox');
@@ -4705,7 +5250,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         };
 
-        elproto.eraseBBoxCache = function () {
+    /**
+     * Removes the cached bounding box from the element and, recursively, its children.
+     */
+    elproto.eraseBBoxCache = function () {
             this.attr({bbox: ''});
             this.removeData(INITIAL_BBOX);
             if (this.isGroupLike()) {
@@ -4715,7 +5263,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.getLocalMatrix = function (strict) {
+    /**
+     * Retrieves the element's local matrix, parsing it from the DOM when not cached.
+     * @param {boolean} [strict=false] Enforces strict parsing semantics for the transform attribute.
+     * @returns {Snap.Matrix} Local transformation matrix.
+     */
+    elproto.getLocalMatrix = function (strict) {
             if (this.matrix) return this.matrix;
             if (strict) {
                 return extractTransformStrict(this);
@@ -4724,21 +5277,34 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.getGlobalMatrix = function () {
+    /**
+     * Returns the element's current global transformation matrix using the DOM CTM API.
+     * @returns {Snap.Matrix} Global matrix representing the element's absolute transform.
+     */
+    elproto.getGlobalMatrix = function () {
             const ctm = this.node.getCTM ? this.node.getCTM() : null;
             let matrix = new Snap.Matrix(ctm);
             return matrix;
         }
 
-        elproto.setPartner = function (el_dom, strict) {
-            if (el_dom.paper || el_dom instanceof Element) {
+    /**
+     * Registers a DOM or Snap partner that should mirror this element's transformations and style updates.
+     * @param {Element|HTMLElement|Object} el_dom Partner reference (Snap element, DOM node, or jQuery-like wrapper).
+     * @param {boolean} [strict] Reserved flag for stricter partner synchronisation.
+     */
+    elproto.setPartner = function (el_dom, strict) {
+            if (el_dom.paper && this.paper === el_dom.paper
+                // || el_dom instanceof Element
+            ) {
                 const el_part = this._element_partner || [];
 
                 if (!el_part.includes(el_dom)) {
                     el_part.push(el_dom);
                 }
                 this._element_partner = el_part;
-            } else if (el_dom instanceof HTMLElement || el_dom.css) {
+            } else
+                // if (el_dom instanceof HTMLElement || el_dom.css)
+                {
                 const dom_part = this._dom_partner || [];
                 if (el_dom instanceof HTMLElement) el_dom = Snap(el_dom);
                 if (!dom_part.includes(el_dom)) {
@@ -4757,7 +5323,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // }
         };
 
-        elproto._updatePartnerChild = function (el, remove) {
+    /**
+     * Updates the registry of partner children when elements are added or removed.
+     * @param {Element} el Child element that was added or removed.
+     * @param {boolean} [remove=false] Indicates whether the child should be removed from the registry.
+     * @returns {Element} Current element for chaining.
+     */
+    elproto._updatePartnerChild = function (el, remove) {
             if (this.type === 'svg' || this.type === 'defs') return;
 
             if (remove) {
@@ -4786,7 +5358,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        elproto._propagateTransToPartnersChild = function (el, trans) {
+    /**
+     * Propagates transformation updates to partner children.
+     * @param {Element} el Partner child receiving the propagated transform.
+     * @param {Snap.Matrix} [trans] Matrix to apply; defaults to the current element's global matrix.
+     */
+    elproto._propagateTransToPartnersChild = function (el, trans) {
             if (!el) return;
             if (trans) {
                 let matrix = trans.clone().add(this.getLocalMatrix(true));
@@ -4796,7 +5373,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto._applyToPartner = function (matrix) {
+    /**
+     * Applies the provided matrix to each registered partner, keeping their transforms aligned.
+     * @param {Snap.Matrix} matrix Matrix to propagate.
+     */
+    elproto._applyToPartner = function (matrix) {
             const partners = this.getPartners();
             if (partners) {
                 const loc = this.getLocalMatrix();
@@ -4819,7 +5400,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
 
-        elproto.removePartner = function (el_type, remove_elements) {
+    /**
+     * Removes partner associations or optionally deletes the partner nodes themselves.
+     * @param {'dom'|'element'|Element|HTMLElement|Snap|boolean} [el_type] Partner type or specific partner reference.
+     * @param {boolean} [remove_elements=false] When true, removes the partner elements from the DOM/SVG tree.
+     */
+    elproto.removePartner = function (el_type, remove_elements) {
 
             if (typeof el_type === 'boolean') {
                 remove_elements = el_type;
@@ -4871,11 +5457,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        elproto.hasPartner = function () {
+    /**
+     * Determines whether any partners are currently registered with the element.
+     * @returns {boolean} True when at least one DOM or Snap partner exists.
+     */
+    elproto.hasPartner = function () {
             return !!(this._dom_partner || this._element_partner);
         };
 
-        elproto.getPartners = function (el_type) {
+    /**
+     * Returns registered partners filtered by type.
+     * @param {'dom'|'element'|'both'} [el_type] Desired partner category.
+     * @returns {Array|Object|undefined} Matching partners or `undefined` when none exist.
+     */
+    elproto.getPartners = function (el_type) {
             if (!el_type) {
                 return this._dom_partner || this._element_partner;
             } else if (el_type === 'dom') {
@@ -4887,7 +5482,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        elproto.setPartnerStyle = function (style_obj) {
+    /**
+     * Applies style updates to registered partners, mirroring key display-related properties.
+     * @param {Object} style_obj Style object whose `opacity` and `display` values are forwarded to partners.
+     */
+    elproto.setPartnerStyle = function (style_obj) {
             let obj = {};
             if (style_obj.hasOwnProperty(
                 'opacity')) obj.opacity = style_obj.opacity;
@@ -4899,26 +5498,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el && el.forEach((e) => e.attr(obj));
         };
 
-        /*\
-         * Element.parent
-         [ method ]
-         **
-         * Returns the element's parent
-         **
-         = (Element) the parent element
-         \*/
+        /**
+         * Returns the element's parent element.
+         * @returns {Element} Parent element wrapper.
+         */
         elproto.parent = function () {
             return wrap(this.node.parentNode);
         };
 
-        /*\
-         * Element.setPaper
-         [ method ]
-         **
-         * Sets the elements paper.
-         **
-         = (Element) this
-         \*/
+        /**
+         * Assigns a new paper instance to the element and all of its descendants.
+         * @param {Paper} paper Target paper instance.
+         * @param {boolean} [force=false] When true, reassigns even if the paper is unchanged.
+         * @returns {Element} Current element for chaining.
+         */
         elproto.setPaper = function (paper, force) {
             if (!paper instanceof Paper ||
                 (!force && this.paper === paper)) return this;
@@ -4928,21 +5521,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this;
         };
 
-        /*\
-         * Element.append
-         [ method ]
-         **
-         * Appends the given element to current one
-         **
-         - el (Element|Set) element to append
-         = (Element) the parent element
-         \*/
-        /*\
-         * Element.add
-         [ method ]
-         **
-         * See @Element.append
-         \*/
+        /**
+         * Appends the provided element (or set) to the current element.
+         * @param {Element|Set|Array<Element>} el Element, set, or array to append.
+         * @returns {Element} Parent element for chaining.
+         */
         elproto.append = elproto.add = function (el) {
 
             if (el) {
@@ -4981,15 +5564,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.appendTo
-         [ method ]
-         **
-         * Appends the current element to the given one
-         **
-         - el (Element) parent element to append to
-         = (Element) the child element
-         \*/
+    /**
+     * Appends the current element to the specified parent.
+     * @param {Element} el Parent element that will receive this node.
+     * @returns {Element} Child element for chaining.
+     */
         elproto.appendTo = function (el) {
             if (el) {
                 clearParentCHull(this);
@@ -4998,15 +5577,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.prepend
-         [ method ]
-         **
-         * Prepends the given element to the current one
-         **
-         - el (Element) element to prepend
-         = (Element) the parent element
-         \*/
+    /**
+     * Prepends the specified element (or set) to the current element.
+     * @param {Element|Set} el Element to prepend.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.prepend = function (el) {
             if (el) {
                 clearParentCHull(this);
@@ -5033,29 +5608,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.prependTo
-         [ method ]
-         **
-         * Prepends the current element to the given one
-         **
-         - el (Element) parent element to prepend to
-         = (Element) the child element
-         \*/
+    /**
+     * Prepends this element to the specified parent.
+     * @param {Element} el Parent element to receive this node.
+     * @returns {Element} Child element for chaining.
+     */
         elproto.prependTo = function (el) {
             el = wrap(el);
             el.prepend(this);
             return this;
         };
-        /*\
-         * Element.before
-         [ method ]
-         **
-         * Inserts given element before the current one
-         **
-         - el (Element) element to insert
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the provided element before the current element.
+     * @param {Element|Set} el Element to insert.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.before = function (el) {
             clearParentCHull(this);
             if (el.type == 'set') {
@@ -5076,15 +5643,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.paper = this.paper;
             return this;
         };
-        /*\
-         * Element.after
-         [ method ]
-         **
-         * Inserts given element after the current one
-         **
-         - el (Element) element to insert
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the provided element after the current element.
+     * @param {Element} el Element to insert.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.after = function (el) {
             el = wrap(el);
             clearParentCHull(this);
@@ -5104,15 +5667,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.paper = this.paper;
             return this;
         };
-        /*\
-         * Element.insertBefore
-         [ method ]
-         **
-         * Inserts the element after the given one
-         **
-         - el (Element) element next to whom insert to
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the current element before the provided sibling.
+     * @param {Element} el Sibling element used as insertion point.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.insertBefore = function (el) {
             el = wrap(el);
             clearParentCHull(el);
@@ -5123,15 +5682,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.parent() && el.parent().add();
             return this;
         };
-        /*\
-         * Element.insertAfter
-         [ method ]
-         **
-         * Inserts the element after the given one
-         **
-         - el (Element) element next to whom insert to
-         = (Element) the parent element
-         \*/
+    /**
+     * Inserts the current element after the provided sibling.
+     * @param {Element} el Sibling element used as insertion reference.
+     * @returns {Element} Parent element for chaining.
+     */
         elproto.insertAfter = function (el) {
             el = wrap(el);
             clearParentCHull(el);
@@ -5142,13 +5697,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.parent() && el.parent().add();
             return this;
         };
-        /*\
-         * Element.remove
-         [ method ]
-         **
-         * Removes element from the DOM
-         = (Element) the detached element
-         \*/
+    /**
+     * Removes the element from the DOM and detaches partner associations.
+     * @returns {Array<Element>} Collection of child elements that were detached alongside this element.
+     */
         elproto.remove = function () {
             clearParentCHull(this);
             const parent = this.parent();
@@ -5168,12 +5720,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // parent && parent.add();
             return this.getChildren();
         };
-        /*\
-         * Element.removeChildren
-         [ method ]
-         **
-         * Removes all children element from the DOM
-         \*/
+    /**
+     * Removes all child elements from the DOM.
+     */
         elproto.removeChildren = function () {
             this.getChildren().forEach(function (el) {
                 el.remove();
@@ -5233,7 +5782,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // });
         };
 
-        elproto.hasChildren = function () {
+    /**
+     * Determines whether the element contains any non-meta child nodes.
+     * @returns {boolean} True when at least one meaningful child exists.
+     */
+    elproto.hasChildren = function () {
             if (this.type !== 'g' || this.type !== 'svg' || this.type !== 'clipPath') {
                 return false;
             }
@@ -5251,28 +5804,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return false;
         };
 
-        /*\
-         * Element.select
-         [ method ]
-         **
-         * Gathers the nested @Element matching the given set of CSS selectors
-         **
-         - query (string) CSS svg_selector
-         = (Element) result of query selection
-         \*/
+        /**
+         * Returns the first descendant matching the provided CSS selector.
+         * @param {string} query CSS selector compatible with SVG.
+         * @returns {Element|null} Wrapped element or `null` when not found.
+         */
         elproto.select = function (query) {
             query = replaceNumericIdSelectors(query);
             return wrap(this.node.querySelector(query));
         };
-        /*\
-         * Element.selectAll
-         [ method ]
-         **
-         * Gathers nested @Element objects matching the given set of CSS selectors
-         **
-         - query (string) CSS svg_selector
-         = (Set|array) result of query selection
-         \*/
+        /**
+         * Returns all descendants matching the provided CSS selector.
+         * @param {string} query CSS selector compatible with SVG.
+         * @returns {Array<Element>|Set} Collection containing all matches.
+         */
         elproto.selectAll = function (query) {
             query = replaceNumericIdSelectors(query);
             const nodelist = this.node.querySelectorAll(query),
@@ -5283,7 +5828,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return set;
         };
 
-        function replaceNumericIdSelectors(cssQuery) {
+    /**
+     * Transforms numeric ID selectors into attribute selectors for SVG compatibility.
+     * @param {string} cssQuery Raw CSS selector string.
+     * @returns {string} Selector with numeric ID references translated.
+     */
+    function replaceNumericIdSelectors(cssQuery) {
             // Regular expression to match ID selectors starting with a number
             const regex = /#(\d[\w-]*)/g;
 
@@ -5293,16 +5843,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return modifiedQuery;
         }
 
-        /*\
-         * Element.asPX
-         [ method ]
-         **
-         * Returns given attribute of the element as a `px` value (not %, em, etc.)
-         **
-         - attr (string) attribute name
-         - value (string) #optional attribute value
-         = (Element) result of query selection
-         \*/
+    /**
+     * Resolves an attribute value into pixels.
+     * @param {string} attr Attribute name.
+     * @param {string|number} [value] Optional raw value; defaults to the current attribute.
+     * @returns {number} Attribute value converted to pixels.
+     */
         elproto.asPX = function (attr, value) {
             if (value == null) {
                 value = this.attr(attr);
@@ -5310,15 +5856,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return +unit2px(this, attr, value);
         };
 // SIERRA Element.use(): I suggest adding a note about how to access the original element the returned <use> instantiates. It's a part of SVG with which ordinary web developers may be least familiar.
-        /*\
-         * Element.use
-         [ method ]
-         **
-         * Creates a `<use>` element linked to the current element, or if css_ref is provided, creates a '<use>' element
-         * from it, and adds it to the current element. In the second case, the current element must have meaningful children.
-         **
-         = (Element) the `<use>` element
-         \*/
+    /**
+     * Creates a `<use>` element referencing this element or one matched by the provided selector and appends it.
+     * @param {string} [css_ref] CSS reference resolving to an element to clone.
+     * @param {number} [x] Optional x-offset applied to the generated `<use>`.
+     * @param {number} [y] Optional y-offset applied to the generated `<use>`.
+     * @returns {Element|undefined} The newly created `<use>` element, or `undefined` when the selector fails.
+     */
         elproto.addUse = function (css_ref, x, y) {
             let use,
                 id = this.node.id;
@@ -5359,7 +5903,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         elproto.use = elproto.addUse;
 
-        function fixids(el, id_rename_callback) {
+    /**
+     * Normalises IDs within a cloned subtree to avoid collisions.
+     * @param {Element} el Root element containing cloned nodes.
+     * @param {Function} [id_rename_callback] Callback returning the new ID for a given current ID.
+     */
+    function fixids(el, id_rename_callback) {
             const els = el.selectAll('*');
             let it;
             const url = /^\s*url\(("|'|)(.*)\1\)\s*$/,
@@ -5428,14 +5977,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        /*\
-         * Element.clone
-         [ method ]
-         **
-         * Creates a clone of the element and inserts it after the element
-         **
-         = (Element) the clone
-         \*/
+    /**
+     * Clones the element, optionally hiding it, renaming IDs, or performing a deep `use` expansion.
+     * @param {boolean} [hidden] When true, skips inserting the clone into the DOM.
+     * @param {Function} [id_rename_callback] Callback used to generate unique IDs for the clone and descendants.
+     * @param {boolean} [deep_copy=false] When true, expands `<use>` references into actual nodes.
+     * @returns {Element} Cloned element.
+     */
         elproto.clone = function (hidden, id_rename_callback, deep_copy) {
             if (typeof hidden === 'function') {
                 id_rename_callback = hidden;
@@ -5492,10 +6040,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
            legend: true,
            label: true
         };
+        /**
+         * Determines whether the element behaves like a grouping container.
+         * @returns {boolean} True for group-like elements.
+         */
         elproto.isGroupLike = function () {
             return !!groupLikeTest[this.type];
         };
 
+        /**
+         * Recursively expands `<use>` elements into standalone clones.
+         */
         elproto.removeUses = function () {
             if (this.isGroupLike()) {
                 this.getChildren().forEach(function (el) {
@@ -5538,42 +6093,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
-        /*\
-         * Element.toDefs
-         [ method ]
-         **
-         * Moves element to the shared `<defs>` area
-         **
-         = (Element) the element
-         \*/
+    /**
+     * Moves the element into the shared `<defs>` section.
+     * @returns {Element} Current element for chaining.
+     */
         elproto.toDefs = function () {
             const defs = getSomeDefs(this);
             defs.appendChild(this.node);
             return this;
         };
-        /*\
-         * Element.toPattern
-         [ method ]
-         **
-         * Creates a `<pattern>` element from the current element
-         **
-         * To create a pattern you have to specify the pattern rect:
-         - x (string|number)
-         - y (string|number)
-         - width (string|number)
-         - height (string|number)
-         = (Element) the `<pattern>` element
-         * You can use pattern later on as an argument for `fill` attribute:
-         | var p = paper.path("M10-5-10,15M15,0,0,15M0-5-20,15").attr({
-         |         fill: "none",
-         |         stroke: "#bada55",
-         |         strokeWidth: 5
-         |     }).pattern(0, 0, 10, 10),
-         |     c = paper.circle(200, 200, 100);
-         | c.attr({
-         |     fill: p
-         | });
-         \*/
+    /**
+     * Converts the current element into a reusable `<pattern>` definition.
+     * @param {number|Object} [x] X coordinate or bounding-box object.
+     * @param {number} [y]
+     * @param {number} [width]
+     * @param {number} [height]
+     * @returns {Element} Pattern element that now owns the node.
+     */
         elproto.pattern = elproto.toPattern = function (x, y, width, height) {
             const p = make('pattern', getSomeDefs(this));
             if (x == null) {
@@ -5597,25 +6133,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             p.node.appendChild(this.node);
             return p;
         };
-// SIERRA Element.marker(): clarify what a reference point is. E.g., helps you offset the object from its edge such as when centering it over a path.
-// SIERRA Element.marker(): I suggest the method should accept default reference point values.  Perhaps centered with (refX = width/2) and (refY = height/2)? Also, couldn't it assume the element's current _width_ and _height_? And please specify what _x_ and _y_ mean: offsets? If so, from where?  Couldn't they also be assigned default values?
-        /*\
-         * Element.marker
-         [ method ]
-         **
-         * Creates a `<marker>` element from the current element
-         **
-         * To create a marker you have to specify the bounding rect and reference point:
-         - x (number)
-         - y (number)
-         - width (number)
-         - height (number)
-         - refX (number)
-         - refY (number)
-         = (Element) the `<marker>` element
-         * You can specify the marker later as an argument for `marker-start`, `marker-end`, `marker-mid`, and `marker` attributes. The `marker` attribute places the marker at every point along the path, and `marker-mid` places them at every point except the start and end.
-         \*/
-// TODO add usage for markers
+
+        /**
+         * Converts the current element into a `<marker>` definition.
+         * @param {number|Object} [x] X coordinate or bounding-box-like descriptor containing marker data.
+         * @param {number} [y]
+         * @param {number} [width]
+         * @param {number} [height]
+         * @param {number} [refX]
+         * @param {number} [refY]
+         * @returns {Element} Marker element referencing the current node.
+         */
         elproto.marker = function (x, y, width, height, refX, refY) {
             const p = make('marker', getSomeDefs(this));
             if (x == null) {
@@ -6031,6 +6559,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         math = Math,
         E = "";
 
+    /**
+     * Represents a 2D affine transformation matrix with six coefficients.
+     * Accepts individual numeric coefficients, an `SVGMatrix`-like object, a matrix string, or another `Matrix` instance.
+     * When invoked without arguments, an identity matrix is produced.
+     *
+     * @class
+     * @alias Snap.Matrix
+     * @param {number|SVGMatrix|string|Matrix} [a=1] - Either an existing matrix representation or the `a` component.
+     * @param {number} [b=0] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c=0] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d=1] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e=0] - The `e` translation component when numeric values are provided.
+     * @param {number} [f=0] - The `f` translation component when numeric values are provided.
+     */
     function Matrix(a, b, c, d, e, f) {
         if (b == null && objectToString.call(a) == "[object SVGMatrix]") {
             this.a = a.a;
@@ -6072,20 +6614,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.registerType("matrix", Matrix);
 
     (function (matrixproto) {
-        /*\
-         * Matrix.add
-         [ method ]
-         **
-         * Adds, in the sense of multiplying to the right the given matrix to existing one. This is not matrix addition
-         - a (number)
-         - b (number)
-         - c (number)
-         - d (number)
-         - e (number)
-         - f (number)
-         * or
-         - matrix (object) @Matrix
-        \*/
+    /**
+     * Multiplies the current matrix on the right by the supplied affine transform.
+     * If another {@link Matrix} instance is provided, its coefficients will be applied directly.
+     *
+     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient of the multiplier.
+     * @param {number} [c] - The `c` coefficient of the multiplier.
+     * @param {number} [d] - The `d` coefficient of the multiplier.
+     * @param {number} [e] - The `e` translation component of the multiplier.
+     * @param {number} [f] - The `f` translation component of the multiplier.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
         matrixproto.add = function (a, b, c, d, e, f) {
             if (a && a instanceof Matrix) {
                 return this.add(a.a, a.b, a.c, a.d, a.e, a.f);
@@ -6104,14 +6644,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         matrixproto.multRight = matrixproto.add;
 
-        matrixproto.plus = function (a, b, c, d, e, f) {
+    /**
+     * Returns a clone of the current matrix multiplied on the right by the supplied transform.
+     *
+     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient of the multiplier.
+     * @param {number} [c] - The `c` coefficient of the multiplier.
+     * @param {number} [d] - The `d` coefficient of the multiplier.
+     * @param {number} [e] - The `e` translation component of the multiplier.
+     * @param {number} [f] - The `f` translation component of the multiplier.
+     * @returns {Matrix} A new matrix containing the multiplied result.
+     */
+    matrixproto.plus = function (a, b, c, d, e, f) {
             if (a && a instanceof Matrix) {
                 return this.plus(a.a, a.b, a.c, a.d, a.e, a.f);
             }
 
             return this.clone().add(a, b, c, d, e, f);
         };
-        matrixproto.scMult = function (c) {
+    /**
+     * Multiplies all affine coefficients by a scalar.
+     *
+     * @param {number} c - Scalar value applied to each coefficient.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+    matrixproto.scMult = function (c) {
             this.a *= c;
             this.b *= c;
             this.c *= c;
@@ -6120,23 +6677,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.e *= c;
             return this;
         };
-        matrixproto.timesSc = function (c) {
+    /**
+     * Returns a clone of the matrix scaled by the supplied scalar.
+     *
+     * @param {number} c - Scalar value applied to each coefficient.
+     * @returns {Matrix} A new matrix instance with scaled coefficients.
+     */
+    matrixproto.timesSc = function (c) {
             return this.clone().scMult(c);
         };
-        /*\
-         * Matrix.multLeft
-         [ method ]
-         **
-         * Multiplies a passed affine transform to the left: M * this.
-         - a (number)
-         - b (number)
-         - c (number)
-         - d (number)
-         - e (number)
-         - f (number)
-         * or
-         - matrix (object) @Matrix
-        \*/
+    /**
+     * Multiplies the current matrix on the left by the supplied affine transform (pre-multiplication).
+     * Accepts a single matrix, an array of matrices, or individual coefficients.
+     *
+     * @param {number|Matrix|Array<number|Matrix>} a - Matrix, array of matrices, or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e] - The `e` translation component when numeric values are provided.
+     * @param {number} [f] - The `f` translation component when numeric values are provided.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
         Matrix.prototype.multLeft = function (a, b, c, d, e, f) {
             if (Array.isArray(a)) {
                 if (a[0] instanceof Matrix) {
@@ -6167,52 +6728,45 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.e = eNew;
             return this;
         };
-        /*\
-         * Matrix.invert
-         [ method ]
-         **
-         * Returns an inverted version of the matrix
-         = (object) @Matrix
-        \*/
+        /**
+         * Computes the inverse of the affine matrix.
+         *
+         * @returns {Matrix} A new matrix representing the inverse transform.
+         */
         matrixproto.invert = function () {
             var me = this,
                 x = me.a * me.d - me.b * me.c;
             return new Matrix(me.d / x, -me.b / x, -me.c / x, me.a / x, (me.c * me.f - me.d * me.e) / x, (me.b * me.e - me.a * me.f) / x);
         };
-        /*\
-         * Matrix.clone
-         [ method ]
-         **
-         * Returns a copy of the matrix
-         = (object) @Matrix
-        \*/
+        /**
+         * Creates an exact copy of the matrix.
+         *
+         * @returns {Matrix} A new matrix with identical coefficients.
+         */
         matrixproto.clone = function () {
             return new Matrix(this.a, this.b, this.c, this.d, this.e, this.f);
         };
-        /*\
-         * Matrix.translate
-         [ method ]
-         **
-         * Translate the matrix
-         - x (number) horizontal offset distance
-         - y (number) vertical offset distance
-        \*/
+        /**
+         * Applies a translation to the matrix.
+         *
+         * @param {number} x - Horizontal translation distance.
+         * @param {number} y - Vertical translation distance.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.translate = function (x, y) {
             this.e += x * this.a + y * this.c;
             this.f += x * this.b + y * this.d;
             return this;
         };
-        /*\
-         * Matrix.scale
-         [ method ]
-         **
-         * Scales the matrix
-         - x (number) amount to be scaled, with `1` resulting in no change
-         - y (number) #optional amount to scale along the vertical axis. (Otherwise `x` applies to both axes.)
-         - cx (number) #optional horizontal origin point from which to scale
-         - cy (number) #optional vertical origin point from which to scale
-         * Default cx, cy is the middle point of the element.
-        \*/
+        /**
+         * Applies a scale transformation to the matrix.
+         *
+         * @param {number} x - Horizontal scale factor; `1` leaves the axis unchanged.
+         * @param {number} [y=x] - Vertical scale factor; defaults to {@link x} when omitted.
+         * @param {number} [cx] - Optional horizontal origin around which to scale.
+         * @param {number} [cy] - Optional vertical origin around which to scale.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.scale = function (x, y, cx, cy) {
             y == null && (y = x);
             (cx || cy) && this.translate(cx, cy);
@@ -6223,15 +6777,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             (cx || cy) && this.translate(-cx, -cy);
             return this;
         };
-        /*\
-         * Matrix.rotate
-         [ method ]
-         **
-         * Rotates the matrix
-         - a (number) angle of rotation, in degrees
-         - x (number) horizontal origin point from which to rotate
-         - y (number) vertical origin point from which to rotate
-        \*/
+        /**
+         * Applies a rotation to the matrix.
+         *
+         * @param {number} a - Rotation angle in degrees.
+         * @param {number} [x=0] - Horizontal origin around which to rotate.
+         * @param {number} [y=0] - Vertical origin around which to rotate.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.rotate = function (a, x, y) {
             a = Snap.rad(a);
             x = x || 0;
@@ -6241,34 +6794,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.add(cos, sin, -sin, cos, x, y);
             return this.add(1, 0, 0, 1, -x, -y);
         };
-        /*\
-         * Matrix.skewX
-         [ method ]
-         **
-         * Skews the matrix along the x-axis
-         - x (number) Angle to skew along the x-axis (in degrees).
-        \*/
+        /**
+         * Skews the matrix along the x-axis.
+         *
+         * @param {number} x - Angle, in degrees, to skew along the x-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.skewX = function (x) {
             return this.skew(x, 0);
         };
-        /*\
-         * Matrix.skewY
-         [ method ]
-         **
-         * Skews the matrix along the y-axis
-         - y (number) Angle to skew along the y-axis (in degrees).
-        \*/
+        /**
+         * Skews the matrix along the y-axis.
+         *
+         * @param {number} y - Angle, in degrees, to skew along the y-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.skewY = function (y) {
             return this.skew(0, y);
         };
-        /*\
-         * Matrix.skew
-         [ method ]
-         **
-         * Skews the matrix
-         - y (number) Angle to skew along the y-axis (in degrees).
-         - x (number) Angle to skew along the x-axis (in degrees).
-        \*/
+        /**
+         * Applies a simultaneous skew transform on both axes.
+         *
+         * @param {number} [x=0] - Angle, in degrees, to skew along the x-axis.
+         * @param {number} [y=0] - Angle, in degrees, to skew along the y-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.skew = function (x, y) {
             x = x || 0;
             y = y || 0;
@@ -6278,32 +6828,41 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             var b = math.tan(y).toFixed(9);
             return this.add(1, b, c, 1, 0, 0);
         };
-        /*\
-         * Matrix.x
-         [ method ]
-         **
-         * Returns x coordinate for given point after transformation described by the matrix. See also @Matrix.y
-         - x (number)
-         - y (number)
-         = (number) x
-        \*/
+        /**
+         * Transforms a point and returns its x-coordinate.
+         *
+         * @param {number} x - Original x-coordinate.
+         * @param {number} y - Original y-coordinate.
+         * @returns {number} The transformed x-coordinate.
+         */
         matrixproto.x = function (x, y) {
             return x * this.a + y * this.c + this.e;
         };
-        /*\
-         * Matrix.y
-         [ method ]
-         **
-         * Returns y coordinate for given point after transformation described by the matrix. See also @Matrix.x
-         - x (number)
-         - y (number)
-         = (number) y
-        \*/
+        /**
+         * Transforms a point and returns its y-coordinate.
+         *
+         * @param {number} x - Original x-coordinate.
+         * @param {number} y - Original y-coordinate.
+         * @returns {number} The transformed y-coordinate.
+         */
         matrixproto.y = function (x, y) {
             return x * this.b + y * this.d + this.f;
         };
 
-        matrixproto.randomTrans = function (cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
+    /**
+     * Applies a pseudo-random translation, rotation, and scaling around an optional origin.
+     * Useful for generating varied transforms for effects or automated testing.
+     *
+     * @param {number} [cx=0] - Horizontal origin for rotation and scaling.
+     * @param {number} [cy=0] - Vertical origin for rotation and scaling.
+     * @param {boolean} [positive=false] - When `true`, restricts translations to positive offsets.
+     * @param {number} [distance=300] - Maximum translation distance along each axis.
+     * @param {boolean} [diff_scale=false] - When `true`, allows non-uniform (x/y) scaling.
+     * @param {boolean} [skip_rotation=false] - When `true`, prevents random rotation.
+     * @param {boolean} [skip_scale=false] - When `true`, prevents random scaling.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+    matrixproto.randomTrans = function (cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
             distance = distance || 300;
             cx = cx || 0;
             cy = cy || 0;
@@ -6322,16 +6881,39 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.translate(dx, dy).rotate(angle, cx + dx, cy + dy).scale(scalex, scaley, cx + dx, cy + dy);
         };
 
+        /**
+         * Returns a coefficient of the matrix by index (`0 → a`, `5 → f`).
+         *
+         * @param {number} i - Index of the coefficient (0-5).
+         * @returns {number} The coefficient rounded to nine decimal places.
+         */
         matrixproto.get = function (i) {
             return +this[Str.fromCharCode(97 + i)].toFixed(9);
         };
+        /**
+         * Serialises the matrix into an SVG `matrix(a,b,c,d,e,f)` transform string.
+         *
+         * @returns {string} SVG transform string representing the matrix.
+         */
         matrixproto.toString = function () {
             return "matrix(" + [this.get(0), this.get(1), this.get(2), this.get(3), this.get(4), this.get(5)].join() + ")";
         };
+        /**
+         * Returns the translation components (`e`, `f`) rounded to nine decimal places.
+         *
+         * @returns {number[]} A two-item array `[e, f]`.
+         */
         matrixproto.offset = function () {
             return [this.e.toFixed(9), this.f.toFixed(9)];
         };
 
+        /**
+         * Compares the matrix with another instance within an optional tolerance.
+         *
+         * @param {Matrix} m - Matrix to compare against.
+         * @param {number} [error] - Optional absolute tolerance per coefficient.
+         * @returns {boolean} `true` if all coefficients match within the tolerance.
+         */
         matrixproto.equals = function (m, error) {
             if (!m) return false;
             if (error == null) {
@@ -6344,11 +6926,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 Math.abs(this.e - m.e) <= error &&
                 Math.abs(this.f - m.f) <= error;
         }
+        /**
+         * Checks whether the matrix equals the identity transform.
+         *
+         * @returns {boolean} `true` when all non-identity coefficients are zero.
+         */
         matrixproto.isIdentity = function () {
             return this.a === 1 && !this.b && !this.c && this.d === 1 &&
                 !this.e && !this.f;
         };
 
+        /**
+         * Returns the matrix coefficients as an array `[a, b, c, d, e, f]`.
+         *
+         * @returns {number[]} Array of the six coefficients.
+         */
         matrixproto.toArray = function () {
             return [this.a, this.b, this.c, this.d, this.e, this.f];
         };
@@ -6363,30 +6955,32 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             a[1] && (a[1] /= mag);
         }
 
-        /*\
-         * Matrix.determinant
-         [ method ]
-         **
-         * Finds determinant of the given matrix.
-         = (number) determinant
-        \*/
+        /**
+         * Computes the determinant of the affine matrix.
+         *
+         * @returns {number} Determinant value (`a * d - b * c`).
+         */
         matrixproto.determinant = function () {
             return this.a * this.d - this.b * this.c;
         };
-        /*\
-         * Matrix.split
-         [ method ]
-         **
-         * Splits matrix into primitive transformations
-         = (object) in format:
-         o dx (number) translation by x
-         o dy (number) translation by y
-         o scalex (number) scale by x
-         o scaley (number) scale by y
-         o shear (number) shear
-         o rotate (number) rotation in deg
-         o isSimple (boolean) could it be represented via simple transformations
-        \*/
+    /**
+     * Decomposes the matrix into intuitive primitives (translation, rotation, scale, shear).
+     * Optionally records any pre-translation that occurred before the core linear transform.
+     *
+     * @param {boolean} [add_pre_translation=false] - When `true`, include the pre-translation offset (`px`, `py`).
+     * @returns {object} Parts describing the transform.
+     * @returns {number} return.dx - Final translation along the x-axis.
+     * @returns {number} return.dy - Final translation along the y-axis.
+     * @returns {number} [return.px] - Optional pre-translation along the x-axis (only when `add_pre_translation` is `true`).
+     * @returns {number} [return.py] - Optional pre-translation along the y-axis (only when `add_pre_translation` is `true`).
+     * @returns {number} return.scalex - Scale factor applied along the x-axis. Negative when the matrix mirrors across an axis.
+     * @returns {number} return.scaley - Scale factor applied along the y-axis.
+     * @returns {number} return.shear - Shear factor that skews the y-axis relative to the x-axis.
+     * @returns {number} return.rotate - Rotation in degrees, measured after the scale/shear decomposition.
+     * @returns {boolean} return.isSimple - `true` when the matrix can be expressed as translate → rotate → uniform scale (or no rotation).
+     * @returns {boolean} return.isSuperSimple - `true` when the matrix is only translate → uniform scale (no rotation or shear).
+     * @returns {boolean} return.noRotation - `true` when the matrix has neither rotation nor shear.
+     */
         matrixproto.split = function (add_pre_translation) {
             var out = {};
             // translation
@@ -6441,7 +7035,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return out;
         };
 
-        matrixproto.split2 = function getTransform() {
+    /**
+     * Provides a lightweight decomposition returning translation, rotation, and scale components.
+     *
+     * @returns {{dx:number, dy:number, r:number, scalex:number, scaley:number}} Simplified transform description.
+     */
+    matrixproto.split2 = function getTransform() {
             let a = this.a,
                 b = this.b,
                 c = this.c,
@@ -6458,13 +7057,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return {dx: dx, dy: dy, r: Snap.deg(r), scalex: scx, scaley: scy};
         }
 
-        /*\
-         * Matrix.toTransformString
-         [ method ]
-         **
-         * Returns transform string that represents given matrix
-         = (string) transform string
-        \*/
+        /**
+         * Serialises the matrix into Snap's short transform string format.
+         *
+         * @param {object} [shorter] - Optional decomposition result to reuse.
+         * @returns {string} A transform string compatible with Snap.svg syntax.
+         */
         matrixproto.toTransformString = function (shorter) {
             var s = shorter || this.split();
             if (!+s.shear.toFixed(9)) {
@@ -6479,11 +7077,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
+        /**
+         * Identifies the object as a matrix instance.
+         *
+         * @returns {boolean} Always returns `true` for matrix instances.
+         */
         matrixproto.isMatrix = function () {
             return true;
         }
 
-        matrixproto.twoPointTransformMatrix = function (x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
+    /**
+     * Computes an affine transform mapping two source points to two destination points.
+     *
+     * @param {number} x1 - X-coordinate of the first source point.
+     * @param {number} y1 - Y-coordinate of the first source point.
+     * @param {number} x1Prime - X-coordinate of the first destination point.
+     * @param {number} y1Prime - Y-coordinate of the first destination point.
+     * @param {number} x2 - X-coordinate of the second source point.
+     * @param {number} y2 - Y-coordinate of the second source point.
+     * @param {number} x2Prime - X-coordinate of the second destination point.
+     * @param {number} y2Prime - Y-coordinate of the second destination point.
+     * @returns {Matrix} A new matrix performing the inferred transform.
+     */
+    matrixproto.twoPointTransformMatrix = function (x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
             // Calculate distances before and after transformation
             const distanceBefore = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
             const distanceAfter = Math.sqrt(Math.pow(x2Prime - x1Prime, 2) + Math.pow(y2Prime - y1Prime, 2));
@@ -6510,11 +7126,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return new Snap.Matrix(a, b, c, d, e, f);
         }
 
+        /**
+         * Conjugates an affine transform by a base matrix (`base * m * base^{-1}`).
+         *
+         * @param {Matrix} m - Matrix to conjugate.
+         * @param {Matrix} base - Base matrix providing the reference frame.
+         * @returns {Matrix} The conjugated matrix.
+         * @private
+         */
         function rightLeftFlipMatrix(m, base) {
             let inv = base.clone().invert();
             return base.clone().multRight(m).multRight(inv);
         }
 
+        /**
+         * Splits a matrix into translation/scale and rotation/shear factors.
+         *
+         * @param {Matrix} [m=this] - Matrix to decompose.
+         * @returns {{0:Matrix, 1:Matrix, trans_scale:Matrix, rot_shear:Matrix, scalex:number, scaley:number, rotate:number, shear:number, dx:number, dy:number}} Matrices and scalars describing the decomposition.
+         */
         function rotScaleSplit(m) {
             m = m || this;
             const split = m.split();
@@ -6543,31 +7173,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         matrixproto.rotScaleSplit = rotScaleSplit;
 
     })(Matrix.prototype);
-    /*\
-     * Snap.Matrix
-     [ method ]
-     **
-     * Matrix constructor, extend on your own risk.
-     * To create matrices use @Snap.matrix.
-    \*/
+    /**
+     * Exposes the {@link Matrix} constructor on the `Snap` namespace.
+     *
+    * @type {Function}
+     */
     Snap.Matrix = Matrix;
-    /*\
-     * Snap.matrix
-     [ method ]
-     **
-     * Utility method
-     **
-     * Returns a matrix based on the given parameters
-     - a (number)
-     - b (number)
-     - c (number)
-     - d (number)
-     - e (number)
-     - f (number)
-     * or
-     - svgMatrix (SVGMatrix)
-     = (object) @Matrix
-    \*/
+    /**
+     * Factory helper mirroring the {@link Matrix} constructor signature.
+     *
+     * @param {number|SVGMatrix|string|Matrix} [a] - Either an existing matrix representation or the `a` coefficient.
+     * @param {number} [b] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e] - The `e` translation component when numeric values are provided.
+     * @param {number} [f] - The `f` translation component when numeric values are provided.
+     * @returns {Matrix} A new matrix instance.
+     */
     Snap.matrix = function (a, b, c, d, e, f) {
         return new Matrix(a, b, c, d, e, f);
     };
@@ -7266,11 +7888,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          **
          = (boolean) `true` if the element has given class
         \*/
-        elproto.hasClass = function (value) {
+        elproto.hasClass = function (value, conjunctive = false) {
             var elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
                 curClasses = className.match(rgNotSpace) || [];
-            return !!~curClasses.indexOf(value);
+            if (Array.isArray(value)) {
+                if (conjunctive) {
+                    return value.every(v => curClasses.indexOf(v) !== -1);
+                } else {
+                    return value.some(v => curClasses.indexOf(v) !== -1);
+                }
+            }
+            return curClasses.indexOf(value) !== -1;
         };
 
         elproto.matchClass = function (regex) {
@@ -7441,26 +8070,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var proto = Paper.prototype,
         is = Snap.is;
-    /*\
-     * Paper.rect
-     [ method ]
+    /**
+     * Draws a rectangle on the paper.
      *
-     * Draws a rectangle
-     **
-     - x (number) x coordinate of the top left corner
-     - y (number) y coordinate of the top left corner
-     - width (number) width
-     - height (number) height
-     - rx (number) #optional horizontal radius for rounded corners, default is 0
-     - ry (number) #optional vertical radius for rounded corners, default is rx or 0
-     = (object) the `rect` element
-     **
-     > Usage
-     | // regular rectangle
-     | var c = paper.rect(10, 10, 50, 50);
-     | // rectangle with rounded corners
-     | var c = paper.rect(40, 40, 50, 50, 10);
-    \*/
+     * @function Snap.Paper#rect
+     * @param {number} x X coordinate of the top-left corner.
+     * @param {number} y Y coordinate of the top-left corner.
+     * @param {number} width Rectangle width.
+     * @param {number} height Rectangle height.
+     * @param {number|Array.<number>} [rx] Horizontal radius for rounded corners, or an `[rx, ry]` pair.
+     * @param {number} [ry] Vertical radius for rounded corners; defaults to `rx` when omitted.
+     * @param {Object} [attr] Attribute map applied to the created element.
+     * @returns {Snap.Element} The rectangle element.
+     * @example
+     * // Regular rectangle
+     * paper.rect(10, 10, 50, 50);
+     *
+     * // Rectangle with rounded corners
+     * paper.rect(40, 40, 50, 50, 10);
+     */
     proto.rect = function (x, y, w, h, rx, ry, attr) {
         if (is(rx, "object") && !Array.isArray(rx)) {
             attr = rx;
@@ -7494,20 +8122,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("rect", attr);
     };
-    /*\
-     * Paper.circle
-     [ method ]
-     **
-     * Draws a circle
-     **
-     - x (number) x coordinate of the centre
-     - y (number) y coordinate of the centre
-     - r (number) radius
-     = (object) the `circle` element
-     **
-     > Usage
-     | var c = paper.circle(50, 50, 40);
-    \*/
+
+    /**
+     * Draws a circle.
+     *
+     * @function Snap.Paper#circle
+     * @param {number} x X coordinate of the centre.
+     * @param {number} y Y coordinate of the centre.
+     * @param {number} r Circle radius.
+     * @param {Object} [attr] Attribute map for the circle element.
+     * @returns {Snap.Element} The circle element.
+     * @example
+     * paper.circle(50, 50, 40);
+     */
     proto.circle = function (cx, cy, r, attr) {
         if (is(cx, "object") && cx == "[object Object]") {
             attr = cx;
@@ -7521,7 +8148,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("circle", attr);
     };
-
     var preload = (function () {
         function onerror() {
             this.parentNode.removeChild(this);
@@ -7542,24 +8168,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
     }());
 
-    /*\
-     * Paper.image
-     [ method ]
-     **
-     * Places an image on the surface
-     **
-     - src (string) URI of the source image
-     - x (number) x offset position
-     - y (number) y offset position
-     - width (number) width of the image
-     - height (number) height of the image
-     = (object) the `image` element
-     * or
-     = (object) Snap element object with type `image`
-     **
-     > Usage
-     | var c = paper.image("apple.png", 10, 10, 80, 80);
-    \*/
+    /**
+     * Places an image on the surface.
+     *
+     * @function Snap.Paper#image
+     * @param {string|Object} src Image URL or attribute map containing at least a `src` property.
+     * @param {number} [x] Horizontal offset on the paper.
+     * @param {number} [y] Vertical offset on the paper.
+     * @param {number} [width] Image width.
+     * @param {number} [height] Image height.
+     * @param {Object} [attr] Additional attributes applied to the element.
+     * @returns {Snap.Element} The image element.
+     * @example
+     * paper.image("apple.png", 10, 10, 80, 80);
+     */
     proto.image = function (src, x, y, width, height, attr) {
         var el = this.el("image");
         if (is(src, "object") && "src" in src) {
@@ -7590,21 +8212,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return el;
     };
-    /*\
-     * Paper.ellipse
-     [ method ]
-     **
-     * Draws an ellipse
-     **
-     - x (number) x coordinate of the centre
-     - y (number) y coordinate of the centre
-     - rx (number) horizontal radius
-     - ry (number) vertical radius
-     = (object) the `ellipse` element
-     **
-     > Usage
-     | var c = paper.ellipse(50, 50, 40, 20);
-    \*/
+    /**
+     * Draws an ellipse.
+     *
+     * @function Snap.Paper#ellipse
+     * @param {number} x X coordinate of the centre.
+     * @param {number} y Y coordinate of the centre.
+     * @param {number} rx Horizontal radius.
+     * @param {number} ry Vertical radius.
+     * @param {Object} [attr] Attribute map for the element.
+     * @returns {Snap.Element} The ellipse element.
+     * @example
+     * paper.ellipse(50, 50, 40, 20);
+     */
     proto.ellipse = function (cx, cy, rx, ry, attr) {
         if (is(cx, "object") && cx == "[object Object]") {
             attr = cx;
@@ -7620,36 +8240,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this.el("ellipse", attr);
     };
 // SIERRA Paper.path(): Unclear from the link what a Catmull-Rom curveto is, and why it would make life any easier.
-    /*\
-     * Paper.path
-     [ method ]
-     **
-     * Creates a `<path>` element using the given string as the path's definition
-     - pathString (string) #optional path string in SVG format
-     * Path string consists of one-letter commands, followed by comma seprarated arguments in numerical form. Example:
-     | "M10,20L30,40"
-     * This example features two commands: `M`, with arguments `(10, 20)` and `L` with arguments `(30, 40)`. Uppercase letter commands express coordinates in absolute terms, while lowercase commands express them in relative terms from the most recently declared coordinates.
+    /**
+     * Creates a `<path>` element using the provided SVG path data string.
+     * The path data follows standard SVG syntax where single-letter commands are followed by
+     * comma- or space-separated numeric arguments (for example, `"M10,20L30,40"`).
      *
-     # <p>Here is short list of commands available, for more details see <a href="http://www.w3.org/TR/SVG/paths.html#PathData" title="Details of a path's data attribute's format are described in the SVG specification.">SVG path string format</a> or <a href="https://developer.mozilla.org/en/SVG/Tutorial/Paths">article about path strings at MDN</a>.</p>
-     # <table><thead><tr><th>Command</th><th>Name</th><th>Parameters</th></tr></thead><tbody>
-     # <tr><td>M</td><td>moveto</td><td>(x y)+</td></tr>
-     # <tr><td>Z</td><td>closepath</td><td>(none)</td></tr>
-     # <tr><td>L</td><td>lineto</td><td>(x y)+</td></tr>
-     # <tr><td>H</td><td>horizontal lineto</td><td>x+</td></tr>
-     # <tr><td>V</td><td>vertical lineto</td><td>y+</td></tr>
-     # <tr><td>C</td><td>curveto</td><td>(x1 y1 x2 y2 x y)+</td></tr>
-     # <tr><td>S</td><td>smooth curveto</td><td>(x2 y2 x y)+</td></tr>
-     # <tr><td>Q</td><td>quadratic Bézier curveto</td><td>(x1 y1 x y)+</td></tr>
-     # <tr><td>T</td><td>smooth quadratic Bézier curveto</td><td>(x y)+</td></tr>
-     # <tr><td>A</td><td>elliptical arc</td><td>(rx ry x-axis-rotation large-arc-flag sweep-flag x y)+</td></tr>
-     # <tr><td>R</td><td><a href="http://en.wikipedia.org/wiki/Catmull–Rom_spline#Catmull.E2.80.93Rom_spline">Catmull-Rom curveto</a>*</td><td>x1 y1 (x y)+</td></tr></tbody></table>
-     * * _Catmull-Rom curveto_ is a not standard SVG command and added to make life easier.
-     * Note: there is a special case when a path consists of only three commands: `M10,10R…z`. In this case the path connects back to its starting point.
-     > Usage
-     | var c = paper.path("M10 10L90 90");
-     | // draw a diagonal line:
-     | // move to 10,10, line to 90,90
-    \*/
+     * @function Snap.Paper#path
+     * @param {(string|Array|Object)} [pathString] SVG path string, an array of segments, or an
+     *        attribute map applied to the created element.
+     * @returns {Snap.Element} The resulting path element.
+     * @see <a href="http://www.w3.org/TR/SVG/paths.html#PathData">SVG path specification</a>
+     * @see <a href="https://developer.mozilla.org/en/SVG/Tutorial/Paths">MDN path tutorial</a>
+     * @example
+     * // Draw a diagonal line
+     * paper.path("M10 10L90 90");
+     */
     proto.path = function (d, attr) {
         attr = attr || {};
         if (is(d, "object") && !is(d, "array")) {
@@ -7659,31 +8264,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("path", attr);
     };
-    /*\
-     * Paper.g
-     [ method ]
-     **
-     * Creates a def_group element
-     **
-     - varargs (…) #optional elements to nest within the def_group
-     = (object) the `g` element
-     **
-     > Usage
-     | var c1 = paper.circle(),
-     |     c2 = paper.rect(),
-     |     g = paper.g(c2, c1); // note that the order of elements is different
-     * or
-     | var c1 = paper.circle(),
-     |     c2 = paper.rect(),
-     |     g = paper.g();
-     | g.add(c2, c1);
-    \*/
-    /*\
-     * Paper.def_group
-     [ method ]
-     **
-     * See @Paper.g
-    \*/
+    /**
+     * Creates an SVG `<g>` element on the paper and optionally nests the supplied elements within it.
+     * The last argument may be an attribute map applied to the created group.
+     *
+     * @function Snap.Paper#g
+     * @alias Snap.Paper#def_group
+     * @param {...(Snap.Element|Object)} elements Elements to append to the group. When the final argument
+     *        is a plain object without `type` or `paper` properties, it is treated as the attribute map.
+     * @returns {Snap.Element} The group element.
+     * @example
+     * const circle = paper.circle(10, 10, 5);
+     * const rect = paper.rect(0, 0, 20, 20);
+     * paper.g(circle, rect);
+     */
     proto.def_group = proto.g = function () {
         var attr,
             el = this.el("g");
@@ -7702,23 +8296,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return el;
     };
-    /*\
-     * Paper.svg
-     [ method ]
-     **
-     * Creates a nested SVG element.
-     - x (number) @optional X of the element
-     - y (number) @optional Y of the element
-     - width (number) @optional width of the element
-     - height (number) @optional height of the element
-     - vbx (number) @optional viewbox X
-     - vby (number) @optional viewbox Y
-     - vbw (number) @optional viewbox width
-     - vbh (number) @optional viewbox height
-     **
-     = (object) the `svg` element
-     **
-    \*/
+    /**
+     * Creates a nested `<svg>` element.
+     *
+     * @function Snap.Paper#svg
+     * @param {number} [x] X coordinate of the embedded SVG.
+     * @param {number} [y] Y coordinate of the embedded SVG.
+     * @param {number|string} [width] Viewport width.
+     * @param {number|string} [height] Viewport height.
+     * @param {number} [vbx] ViewBox x origin.
+     * @param {number} [vby] ViewBox y origin.
+     * @param {number} [vbw] ViewBox width.
+     * @param {number} [vbh] ViewBox height.
+     * @returns {Snap.Element} The nested SVG element.
+     */
     proto.svg = function (x, y, width, height, vbx, vby, vbw, vbh) {
         var attrs = {};
         if (is(x, "object") && y == null) {
@@ -7743,15 +8334,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this.el("svg", attrs);
     };
     proto.svg.skip = true;
-    /*\
-     * Paper.mask
-     [ method ]
-     **
-     * Equivalent in behaviour to @Paper.g, except it’s a mask.
-     **
-     = (object) the `mask` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<mask>` element, mirroring the behaviour of {@link Snap.Paper#g}.
+     * When a single plain object is supplied, it is treated as the attribute map; otherwise all
+     * parameters are added to the mask as children.
+     *
+     * @function Snap.Paper#mask
+     * @param {...(Snap.Element|Object)} nodes Elements to include in the mask or a terminating attribute map.
+     * @returns {Snap.Element} The mask element.
+     */
     proto.mask = function (first) {
         var attr,
             el = this.el("mask");
@@ -7762,23 +8353,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return el;
     };
-    /*\
-     * Paper.ptrn
-     [ method ]
-     **
-     * Equivalent in behaviour to @Paper.g, except it’s a pattern.
-     - x (number) @optional X of the element
-     - y (number) @optional Y of the element
-     - width (number) @optional width of the element
-     - height (number) @optional height of the element
-     - vbx (number) @optional viewbox X
-     - vby (number) @optional viewbox Y
-     - vbw (number) @optional viewbox width
-     - vbh (number) @optional viewbox height
-     **
-     = (object) the `pattern` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<pattern>` element, optionally configuring its position, size, and viewBox.
+     *
+     * @function Snap.Paper#ptrn
+     * @param {number} [x] X coordinate of the pattern.
+     * @param {number} [y] Y coordinate of the pattern.
+     * @param {number} [width] Width of the pattern tile.
+     * @param {number} [height] Height of the pattern tile.
+     * @param {number} [vx] ViewBox x origin.
+     * @param {number} [vy] ViewBox y origin.
+     * @param {number} [vw] ViewBox width.
+     * @param {number} [vh] ViewBox height.
+     * @param {Object} [attr] Attribute map applied to the pattern.
+     * @returns {Snap.Element} The pattern element.
+     */
     proto.ptrn = function (x, y, width, height, vx, vy, vw, vh, attr) {
         attr = arguments(arguments.length - 1);
         if (!is(attr, "object")) attr = {};
@@ -7806,18 +8395,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("pattern", attr);
     };
-    /*\
-     * Paper.use
-     [ method ]
-     **
-     * Creates a <use> element.
-     - id (string) @optional id of element to link
-     * or
-     - id (Element) @optional element to link
-     **
-     = (object) the `use` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<use>` element referencing an existing symbol or node.
+     *
+     * @function Snap.Paper#use
+     * @param {(string|Snap.Element|Object)} [id] ID of the element to reference, the element itself,
+     *        or an attribute map containing an `id` property. When omitted the method defers to the
+     *        {@link Snap.Element#use} behaviour.
+     * @param {Object} [attr] Additional attributes applied to the `<use>` element.
+     * @returns {Snap.Element} The `<use>` element.
+     */
     proto.use = function (id, attr) {
         if (id != null) {
             if (id instanceof Element) {
@@ -7842,18 +8429,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
     proto.use.skip = true;
 
-    /*\
-     * Paper.symbol
-     [ method ]
-     **
-     * Creates a <symbol> element.
-     - vbx (number) @optional viewbox X
-     - vby (number) @optional viewbox Y
-     - vbw (number) @optional viewbox width
-     - vbh (number) @optional viewbox height
-     = (object) the `symbol` element
-     **
-    \*/
+    /**
+     * Creates an SVG `<symbol>` element.
+     *
+     * @function Snap.Paper#symbol
+     * @param {number} [vbx] ViewBox x origin.
+     * @param {number} [vby] ViewBox y origin.
+     * @param {number} [vbw] ViewBox width.
+     * @param {number} [vbh] ViewBox height.
+     * @param {Object} [attr] Additional attributes applied to the symbol.
+     * @returns {Snap.Element} The symbol element.
+     */
     proto.symbol = function (vx, vy, vw, vh, attr) {
         attr = attr || {};
         if (vx != null && vy != null && vw != null && vh != null) {
@@ -7862,26 +8448,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return this.el("symbol", attr);
     };
-    /*\
-     * Paper.text
-     [ method ]
-     **
-     * Draws a text string
-     **
-     - x (number) x coordinate position
-     - y (number) y coordinate position
-     - text (string|array) The text string to draw or array of strings to nest within separate `<tspan>` elements
-     = (object) the `text` element
-     **
-     > Usage
-     | var t1 = paper.text(50, 50, "Snap");
-     | var t2 = paper.text(50, 50, ["S","n","a","p"]);
-     | // Text path usage
-     | t1.attr({textpath: "M10,10L100,100"});
-     | // or
-     | var pth = paper.path("M10,10L100,100");
-     | t1.attr({textpath: pth});
-    \*/
+    /**
+     * Draws a text string.
+     *
+     * @function Snap.Paper#text
+     * @param {number} x X coordinate of the baseline origin.
+     * @param {number} y Y coordinate of the baseline origin.
+     * @param {(string|Array.<string>)} text Text content or an array of strings that become nested `<tspan>` elements.
+     * @param {Object} [attr] Attribute map for the text element.
+     * @returns {Snap.Element} The text element.
+     * @example
+     * const label = paper.text(50, 50, "Snap");
+     * label.attr({textpath: "M10,10L100,100"});
+     */
     proto.text = function (x, y, text, attr) {
         attr = attr || {};
         if (is(x, "object")) {
@@ -7895,21 +8474,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this.el("text", attr);
     };
-    /*\
-     * Paper.line
-     [ method ]
-     **
-     * Draws a line
-     **
-     - x1 (number) x coordinate position of the start
-     - y1 (number) y coordinate position of the start
-     - x2 (number) x coordinate position of the end
-     - y2 (number) y coordinate position of the end
-     = (object) the `line` element
-     **
-     > Usage
-     | var t1 = paper.line(50, 50, 100, 100);
-    \*/
+    /**
+     * Draws a line segment between two points.
+     *
+     * @function Snap.Paper#line
+     * @param {number} x1 Start point X coordinate.
+     * @param {number} y1 Start point Y coordinate.
+     * @param {number} x2 End point X coordinate.
+     * @param {number} y2 End point Y coordinate.
+     * @param {Object} [attr] Attribute map for the line element.
+     * @returns {Snap.Element} The line element.
+     */
     proto.line = function (x1, y1, x2, y2, attr) {
         attr = attr || {};
         if (is(x1, "object")) {
@@ -7947,33 +8522,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return attr;
     }
 
-    /*\
-     * Paper.polyline
-     [ method ]
-     **
-     * Draws a polyline
-     **
-     - points (array) array of points
-     * or
-     - varargs (…) points
-     = (object) the `polyline` element
-     **
-     > Usage
-     | var p1 = paper.polyline([10, 10, 100, 100]);
-     | var p2 = paper.polyline(10, 10, 100, 100);
-    \*/
+    /**
+     * Draws a polyline through a list of coordinates.
+     *
+     * @function Snap.Paper#polyline
+     * @param {(Array.<number>|...number)} points Coordinate list. Provide either a flat array or individual arguments.
+     * @param {Object} [attr] Attribute map applied to the element.
+     * @returns {Snap.Element} The polyline element.
+     */
     proto.polyline = function (points, attr) {
         attr = point_args(Array.from(arguments));
         return this.el("polyline", attr);
     };
 
 
-    /*\
-         * Paper.polygon
-         [ method ]
-         **
-         * Draws a polygon. See @Paper.polyline
-        \*/
+    /**
+     * Draws a closed polygon by joining supplied coordinates.
+     *
+     * @function Snap.Paper#polygon
+     * @see Snap.Paper#polyline
+     * @param {(Array.<number>|...number)} points Coordinate list as an array or individual numbers.
+     * @param {Object} [attr] Attribute map for the polygon element.
+     * @returns {Snap.Element} The polygon element.
+     */
     proto.polygon = function (points, attr) {
         attr = point_args(Array.from(arguments));
         return this.el("polygon", attr);
@@ -7982,28 +8553,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     (function () {
         var $ = Snap._.$;
         // gradients' helpers
-        /*\
-         * Element.stops
-         [ method ]
-         **
-         * Only for gradients!
-         * Returns array of gradient stops elements.
-         = (array) the stops array.
-        \*/
+        /**
+         * Returns all gradient stop elements.
+         *
+         * @function Snap.Element#stops
+         * @memberof Snap.Element
+         * @returns {Snap.Set} Collection of `<stop>` elements.
+         */
         function Gstops() {
             return this.selectAll("stop");
         }
 
-        /*\
-         * Element.addStop
-         [ method ]
-         **
-         * Only for gradients!
-         * Adds another stop to the gradient.
-         - color (string) stops color
-         - offset (number) stops offset 0..100
-         = (object) gradient element
-        \*/
+        /**
+         * Adds a stop to the gradient.
+         *
+         * @function Snap.Element#addStop
+         * @memberof Snap.Element
+         * @param {string} color Stop colour.
+         * @param {number} offset Stop offset from `0` to `100`.
+         * @returns {Snap.Element} The gradient element.
+         */
         function GaddStop(color, offset) {
             var stop = $("stop"),
                 attr = {
@@ -8046,17 +8615,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
 
-        /*\
-         * Element.setStops
-         [ method ]
-         **
-         * Only for gradients!
-         * Updates stops of the gradient based on passed gradient descriptor. See @Ppaer.gradient
-         - str (string) gradient descriptor part after `()`.
-         = (object) gradient element
-         | var g = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
-         | g.setStops("#fff-#000-#f00-#fc0");
-        \*/
+    /**
+     * Updates gradient stops based on a descriptor string or parsed structure.
+     *
+     * @function Snap.Element#setStops
+     * @memberof Snap.Element
+     * @param {(string|Array)} str Gradient descriptor (after the `()` portion) or parsed stops array.
+     * @returns {Snap.Element} The gradient element.
+     * @example
+     * const grad = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
+     * grad.setStops("#fff-#000-#f00-#fc0");
+     */
         function GsetStops(str) {
             var grad = str,
                 stops = this.stops();
@@ -8149,59 +8718,54 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return el;
         }
 
-        /*\
-         * Paper.gradient
-         [ method ]
-         **
-         * Creates a gradient element
-         **
-         - gradient (string) gradient descriptor
-         > Gradient Descriptor
-         * The gradient descriptor is an expression formatted as
-         * follows: `<type>(<coords>)<colors>`.  The `<type>` can be
-         * either linear or radial.  The uppercase `L` or `R` letters
-         * indicate absolute coordinates offset from the SVG surface.
-         * Lowercase `l` or `r` letters indicate coordinates
-         * calculated relative to the element to which the gradient is
-         * applied.  Coordinates specify a linear gradient vector as
-         * `x1`, `y1`, `x2`, `y2`, or a radial gradient as `cx`, `cy`,
-         * `r` and optional `fx`, `fy` specifying a focal point away
-         * from the center of the circle. Specify `<colors>` as a list
-         * of dash-separated CSS color values.  Each color may be
-         * followed by a custom offset value, separated with a colon
-         * character.
-         > Examples
-         * Linear gradient, relative from top-left corner to bottom-right
-         * corner, from black through red to white:
-         | var g = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
-         * Linear gradient, absolute from (0, 0) to (100, 100), from black
-         * through red at 25% to white:
-         | var g = paper.gradient("L(0, 0, 100, 100)#000-#f00:25-#fff");
-         * Radial gradient, relative from the center of the element with radius
-         * half the width, from black to white:
-         | var g = paper.gradient("r(0.5, 0.5, 0.5)#000-#fff");
-         * To apply the gradient:
-         | paper.circle(50, 50, 40).attr({
-         |     fill: g
-         | });
-         = (object) the `gradient` element
-        \*/
+        /**
+         * Creates an SVG gradient element from a descriptor string.
+         * The descriptor has the format `<type>(<coords>)<stops>` where `type` is one of `l`, `L`,
+         * `r`, or `R` (lowercase for relative coordinates, uppercase for absolute). Coordinates define
+         * the gradient line or circle and stops are dash-separated colour values with optional
+         * `:offset` suffixes.
+         *
+         * @function Snap.Paper#gradient
+         * @param {string} str Gradient descriptor.
+         * @returns {Snap.Element} The gradient element.
+         * @example
+         * const grad = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
+         * paper.circle(50, 50, 40).attr({fill: grad});
+         */
         proto.gradient = function (str) {
             return gradient(this.defs, str);
         };
+        /**
+         * Creates a linear gradient with the given bounding coordinates.
+         * @function Snap.Paper#gradientLinear
+         * @param {number} x1 Start x coordinate.
+         * @param {number} y1 Start y coordinate.
+         * @param {number} x2 End x coordinate.
+         * @param {number} y2 End y coordinate.
+         * @returns {Snap.Element} The linear gradient element.
+         */
         proto.gradientLinear = function (x1, y1, x2, y2) {
             return gradientLinear(this.defs, x1, y1, x2, y2);
         };
+        /**
+         * Creates a radial gradient centred at the supplied coordinates.
+         * @function Snap.Paper#gradientRadial
+         * @param {number} cx Centre x coordinate.
+         * @param {number} cy Centre y coordinate.
+         * @param {number} r Radius of the gradient.
+         * @param {number} [fx] Optional focal x coordinate.
+         * @param {number} [fy] Optional focal y coordinate.
+         * @returns {Snap.Element} The radial gradient element.
+         */
         proto.gradientRadial = function (cx, cy, r, fx, fy) {
             return gradientRadial(this.defs, cx, cy, r, fx, fy);
         };
-        /*\
-         * Paper.toString
-         [ method ]
-         **
-         * Returns SVG code for the @Paper
-         = (string) SVG code for the @Paper
-        \*/
+    /**
+     * Serialises the paper to SVG markup.
+     *
+     * @function Snap.Paper#toString
+     * @returns {string} SVG markup representing the paper.
+     */
         proto.toString = function () {
             var doc = this.node.ownerDocument,
                 f = doc.createDocumentFragment(),
@@ -8216,25 +8780,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return res;
         };
         proto.toString.skip = true;
-        /*\
-         * Paper.toDataURL
-         [ method ]
-         **
-         * Returns SVG code for the @Paper as Data URI string.
-         = (string) Data URI string
-        \*/
+    /**
+     * Serialises the paper to a Data URI containing SVG markup.
+     *
+     * @function Snap.Paper#toDataURL
+     * @returns {string} Data URI string for the paper's SVG content.
+     */
         proto.toDataURL = function () {
             if (window && window.btoa) {
                 return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(this)));
             }
         };
         proto.toDataURL.skip = true;
-        /*\
-         * Paper.clear
-         [ method ]
-         **
-         * Removes all child nodes of the paper, except <defs>.
-        \*/
+    /**
+     * Removes all child nodes of the paper except its `<defs>` block.
+     *
+     * @function Snap.Paper#clear
+     */
         proto.clear = function () {
             var node = this.node.firstChild,
                 next;
@@ -8258,8 +8820,79 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
  */
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
-    const ERROR = 1e-12;
+    /**
+     * Snap.svg plugin augmenting the library with a {@link BBox} helper type and
+     * related geometry utilities for working with rectangular bounds.
+     *
+     * @namespace Snap.bbox
+     */
 
+    const abs = Math.abs;
+    const p2s = /,?([a-z]),?/gi;
+
+    /**
+     * Converts an array-based path representation into a compact string.
+     *
+     * @param {Array} [path=this]
+     *        Sequence of path commands (as produced by Snap.svg helpers).
+     * @returns {string}
+     *          SVG path data string.
+     */
+    function toString(path) {
+        path = path || this;
+        return path.join(',').replace(p2s, '$1');
+    }
+
+    /**
+     * Generates the path command array describing a rectangle.
+     *
+     * @param {number} x The rectangle's top-left x coordinate.
+     * @param {number} y The rectangle's top-left y coordinate.
+     * @param {number} w The rectangle's width.
+     * @param {number} h The rectangle's height.
+     * @param {number} [rx]
+     *        Optional corner radius on the x axis for rounded corners.
+     * @param {number} [ry=rx]
+     *        Optional corner radius on the y axis when different from `rx`.
+     * @returns {Array}
+     *          Snap-compatible path command list describing the rectangle.
+     */
+    function rectPath(x, y, w, h, rx, ry) {
+        if (rx) {
+            if (!ry) ry = rx;
+            return [
+                ['M', +x + +rx, y],
+                ['l', w - rx * 2, 0],
+                ['a', rx, ry, 0, 0, 1, rx, ry],
+                ['l', 0, h - ry * 2],
+                ['a', rx, ry, 0, 0, 1, -rx, ry],
+                ['l', rx * 2 - w, 0],
+                ['a', rx, ry, 0, 0, 1, -rx, -ry],
+                ['l', 0, ry * 2 - h],
+                ['a', rx, ry, 0, 0, 1, rx, -ry],
+                ['z'],
+            ];
+        }
+        const res = [['M', x, y], ['l', w, 0], ['l', 0, h], ['l', -w, 0], ['z']];
+        res.toString = toString;
+        return res;
+    }
+
+    /**
+     * Represents an axis-aligned bounding box and offers utility methods to
+     * interrogate and transform it.
+     *
+     * @class
+     * @param {(number|Array|Object|null)} x
+     *        Top-left x coordinate, array form `[x, y, width, height]`, an object
+     *        with positional fields, or `null` to produce an empty box.
+     * @param {number} [y]
+     *        Top-left y coordinate when `x` is numeric.
+     * @param {number} [width]
+     *        Width when `x` is numeric.
+     * @param {number} [height]
+     *        Height when `x` is numeric.
+     */
     function BBox(x, y, width, height) {
         if (x === null) {
             x = y = width = height = 0;
@@ -8309,26 +8942,67 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.cy = this.y + this.height / 2;
     }
 
+    /**
+     * Creates a shallow copy of the bounding box.
+     *
+     * @returns {BBox}
+     *          New instance with identical coordinates and dimensions.
+     */
     BBox.prototype.clone = function () {
         return new BBox(this.x, this.y, this.width, this.height);
     };
 
+    /**
+     * Returns the radius of the largest circle that fits inside the box.
+     *
+     * @returns {number}
+     *          Half of the shortest side length.
+     */
     BBox.prototype.r1 = function () {
         return Math.min(this.width, this.height) / 2;
     };
 
+    /**
+     * Returns the radius of the smallest circle that fully contains the box.
+     *
+     * @returns {number}
+     *          Half of the longest side length.
+     */
     BBox.prototype.r2 = function () {
         return Math.max(this.width, this.height) / 2;
     };
 
+    /**
+     * Returns the radius of the circle covering the box's diagonal.
+     *
+     * @returns {number}
+     *          Half the diagonal length.
+     */
     BBox.prototype.r0 = function () {
         return Math.sqrt(this.width * this.width + this.height * this.height) / 2;
     };
 
+    /**
+     * Computes the full diagonal length of the box.
+     *
+     * @returns {number}
+     *          Distance between the top-left and bottom-right corners.
+     */
     BBox.prototype.diag = function () {
         return Math.sqrt(this.width * this.width + this.height * this.height);
     };
 
+    /**
+     * Expands the box by the supplied border amounts.
+     *
+     * @param {(number|Array|Object)} [border=0]
+     *        Uniform numeric padding, tuple `[x, y, x2, y2]`, or object literal
+     *        with per-side offsets.
+     * @param {boolean} [get_new=false]
+     *        When `true`, a new expanded {@link BBox} is returned.
+     * @returns {BBox}
+     *          The mutated box or the newly created instance.
+     */
     BBox.prototype.addBorder = function (border, get_new) {
         if (get_new) {
             const bbox = this.clone();
@@ -8363,10 +9037,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this;
     }
 
+    /**
+     * Produces a rectangle path description matching the bounds.
+     *
+     * @returns {Array}
+     *          Array of Snap path commands outlining the box.
+     */
     BBox.prototype.path = function () {
         return rectPath(this.x, this.y, this.width, this.height);
     };
 
+    /**
+     * Draws the bounding box on the supplied paper instance.
+     *
+     * @param {Snap.Paper} paper Destination paper to receive the rectangle.
+     * @param {(number|Object|Array)} [radius]
+     *        Corner radius or `{rx, ry}`/array form for rounded corners.
+     * @param {(number|Array|Object)} [border]
+     *        Optional expansion applied before drawing.
+     * @returns {Snap.Element}
+     *          The created rectangle element.
+     */
     BBox.prototype.rect = function (paper, radius, border) {
         let rx, ry;
         if (radius) {
@@ -8382,14 +9073,36 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return paper.rect(bb.x, bb.y, bb.width, bb.height, rx, ry);
     };
 
+    /**
+     * Serialises the box to an SVG viewBox string.
+     *
+     * @returns {string}
+     *          Space separated `x y width height` representation.
+     */
     BBox.prototype.vb = function () {
         return [this.x, this.y, this.width, this.height].join(' ');
     };
 
+    /**
+     * Returns the aspect ratio of the box.
+     *
+     * @returns {number}
+     *          Width divided by height.
+     */
     BBox.prototype.ration = function () {
         return this.width / this.height;
     };
 
+    /**
+     * Tests whether the box fully contains another box or point.
+     *
+    * @param {(BBox|BoundsLike|Array.<number>)} bbox_or_point
+     *        Target bounds or point to evaluate.
+     * @param {number} [clearance=0]
+     *        Optional tolerance applied to the container box.
+     * @returns {boolean}
+     *          `true` when the target lies completely inside the bounds.
+     */
     BBox.prototype.contains = function (bbox_or_point, clearance) {
         clearance = clearance || 0;
         const x = bbox_or_point.x || bbox_or_point[0],
@@ -8402,15 +9115,36 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return is_in;
     };
 
+    /**
+     * Tests whether the box completely contains a circle.
+     *
+    * @param {Circle} circle Circle descriptor.
+     * @returns {boolean}
+     *          `true` when the circle fits within the bounds.
+     */
     BBox.prototype.containsCircle = function (circle) {
         return this.x <= circle.x - circle.r && this.y <= circle.y - circle.r &&
             this.x2 >= circle.x + circle.r && this.y2 >= circle.y + circle.r;
     };
 
+    /**
+     * Returns the geometric centre of the box.
+     *
+    * @returns {Point2D}
+     *          Center point coordinates.
+     */
     BBox.prototype.center = function () {
         return {x: this.cx, y: this.cy};
     };
 
+    /**
+     * Retrieves a corner point by index.
+     *
+     * @param {number} [count=0]
+     *        Corner index where 0=top-left, 1=top-right, 2=bottom-right, 3=bottom-left.
+    * @returns {Point2D}
+     *          The requested corner coordinates.
+     */
     BBox.prototype.corner = function (count) {
         count = count || 0;
         switch (count) {
@@ -8425,6 +9159,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     }
 
+    /**
+     * Looks up a named anchor point on the box.
+     *
+     * @param {string} name Named location (e.g. `c`, `tl`, `rc`).
+    * @returns {(Point2D|null)}
+     *          The resolved point or `null` when unknown.
+     */
     BBox.prototype.pointFromName = function (name) {
         name = name.toLowerCase();
         switch (name) {
@@ -8454,6 +9195,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return null;
     };
 
+    /**
+     * Computes the overlapping region between this box and another.
+     *
+     * @param {BBox|Object} box Other box-like descriptor.
+     * @returns {BBox|null}
+     *          Intersection bounds, empty box, or `null` when input is falsy.
+     */
     BBox.prototype.intersect = function (box) {
         if (!box) return null;
 
@@ -8469,6 +9217,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new BBox(x, y, x2 - x, y2 - y);
     };
 
+    /**
+     * Checks whether another box overlaps the current bounds.
+     *
+     * @param {BBox|Object} box Other box-like descriptor.
+     * @returns {boolean}
+     *          `true` when the two boxes share any overlapping area.
+     */
     BBox.prototype.isOverlap = function (box) {
         if (!box) return false;
 
@@ -8481,6 +9236,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     }
 
+    /**
+     * Computes the smallest box that contains both this and another box.
+     *
+     * @param {BBox|Object} box Other box-like descriptor.
+     * @returns {BBox}
+     *          Bounding box covering both inputs.
+     */
     BBox.prototype.union = function (box) {
         if (!box) return this;
         const x = Math.min(this.x, box.x),
@@ -8491,6 +9253,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return new BBox(x, y, x2 - x, y2 - y);
     };
 
+    /**
+     * Moves the box so that its top-left corner is at the provided coordinates.
+     *
+     * @param {number} x New top-left x coordinate.
+     * @param {number} y New top-left y coordinate.
+     * @returns {BBox}
+     *          The mutated box instance.
+     */
     BBox.prototype.setCorner = function (x, y) {
         this.x = x;
         this.y = y;
@@ -8502,9 +9272,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     /**
-     * Translates the box by x and y units
-     * @param  x an number or matrix. If matrix, only the f and e values are used
-     * @param  y
+     * Translates the box by the supplied offsets.
+     *
+     * @param {(number|Snap.Matrix)} x X offset or matrix whose translation
+     *        components will be applied.
+     * @param {number} [y]
+     *        Y offset when `x` is numeric.
+     * @returns {BBox}
+     *          The mutated box instance.
      */
     BBox.prototype.translate = function (x, y) {
         if (typeof x === 'object' && x.hasOwnProperty('e') &&
@@ -8524,16 +9299,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     /**
-     * Scales the box by sx and sy factors arpound center (cx,cy).
-     * @param sx
-     * @param sy
-     * @param cx
-     * @param cy
+     * Scales the box around an anchor point.
+     *
+     * @param {number} sx Scale factor along the x axis.
+     * @param {number} [sy=sx] Scale factor along the y axis.
+     * @param {number} [cx=this.x]
+     *        X coordinate of the pivot point.
+     * @param {number} [cy=this.y]
+     *        Y coordinate of the pivot point.
+     * @returns {BBox}
+     *          The mutated box instance.
      */
     BBox.prototype.scale = function (sx, sy, cx, cy) {
         if (sy == null) sy = sx;
-        if (cx == null) cx = sx;
-        if (cy == null) cy = sy;
+        if (cx == null) cx = this.x;
+        if (cy == null) cy = this.y;
         this.w = this.width *= sx;
         this.h = this.height *= sy;
 
@@ -8543,17 +9323,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.y2 = this.y + this.height;
         this.cx = this.x + this.width / 2;
         this.cy = this.y + this.height / 2;
+
+        return this;
     }
 
+    /**
+     * Returns the bounding box itself (Snap.svg compatibility helper).
+     *
+     * @returns {BBox}
+     *          The current instance.
+     */
     BBox.prototype.getBBox = function () {
         return this;
     };
 
     /**
-     * Returns a new bbox with the same first corner, that contains the rotation of this bbox at a given angle.
-     * A property "old_corner" is added to the new bbox, giving the coord of the first corner of the rotates bbox.
-     * @param angle
-     * @return {BBox}
+     * Computes the bounds required to contain the box rotated by the given angle.
+     *
+     * @param {number} angle Rotation angle in degrees.
+     * @returns {BBox}
+     *          New box covering the rotated area. Includes `old_corner`
+     *          metadata describing the original top-left location.
      */
     BBox.prototype.getBBoxRot = function (angle) {
         const rotation = Snap.matrix().rotate(angle);
@@ -8576,9 +9366,54 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return bbox;
     };
 
-    BBox.prototype.getBBox = function () {
-        return this;
-    };
+    /**
+     * Normalises input values into a {@link BBox} instance.
+     *
+     * @param {(BBox|Array|Object|number)} x
+     *        Either an existing {@link BBox}, tuple, bounds object or x coordinate.
+     * @param {number} [y]
+     *        Y coordinate when numeric values are provided.
+     * @param {number} [width]
+     *        Width when numeric values are provided.
+     * @param {number} [height]
+     *        Height when numeric values are provided.
+     * @returns {BBox}
+     *          Prepared bounding box instance.
+     */
+    function box(x, y, width, height) {
+        if (x instanceof BBox) {
+            return x;
+        }
+        if (Array.isArray(x) && x.length === 4) {
+            return new BBox(+x[0], +x[1], +x[2], +x[3]);
+        }
+        if (typeof x === 'object') {
+            return new BBox(x);
+        }
+        return new BBox(+x, +y, +width, +height);
+    }
+
+    Snap._.box = box; //for backward compatibility
+    Snap.box = box;
+    Snap.BBox = BBox;
+    Snap._.BBox = BBox;
+    Snap.registerType('bbox', BBox);
+
+});
+
+/*
+ * Copyright (c) 2018.  Orlin Vakarelov
+ */
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+
+    const ERROR = 1e-12;
+
+    const BBox = Snap.BBox || Snap._.BBox;
+    const box = Snap.box || Snap._.box;
+
+    if (!BBox || !box) {
+        throw new Error('Snap BBox extension must be loaded before the path extension.');
+    }
 
 //Snap begins here
     Snap._.transform2matrixStrict = function transform2matrixStrict(tstr) {
@@ -8683,19 +9518,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         });
         return p[ps];
-    }
-
-    function box(x, y, width, height) {
-        if (x instanceof BBox) {
-            return x;
-        }
-        if (Array.isArray(x) && x.length === 4) {
-            return new BBox(+x[0], +x[1], +x[2], +x[3]);
-        }
-        if (typeof x === 'object') {
-            return new BBox(x);
-        }
-        return new BBox(+x, +y, +width, +height);
     }
 
     function toString(path) {
@@ -10517,6 +11339,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     PathPoint.SMOOTH = 'smooth'; //2;
     PathPoint.SYMMETRIC = 'symmetric'; //3;
 
+    /**
+     * Describes a single anchor point within a path segment, including the
+     * control handles that precede and follow it.
+     *
+     * @param {{x:number,y:number}|PathPoint} center
+     *        The anchor point position, or an existing {@link PathPoint} to clone.
+     * @param {{x:number,y:number}} [before]
+     *        Handle leading into the point (a.k.a. the "previous" handle).
+     * @param {{x:number,y:number}} [after]
+     *        Handle exiting the point (a.k.a. the "next" handle).
+     * @param {string} [ending]
+     *        Optional ending flag describing how the point terminates a segment.
+     */
     function PathPoint(center, before, after, ending) {
         let type, bezier;
         if (center instanceof PathPoint) {
@@ -10576,6 +11411,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this.getType() === PathPoint.SYMMETRIC;
     }
 
+    /**
+     * Annotates a collection of {@link PathPoint}s with arc-length metadata.
+     *
+     * @param {PathPoint[]} pathPoints
+     *        Ordered list of points describing the path.
+     * @param {Snap.PolyBezier[]|Array} [beziers]
+     *        Optional cached Bézier segments. When omitted they are recomputed.
+     * @param {boolean} [close=false]
+     *        When `true`, a synthetic closing point mirroring the first anchor is appended.
+     * @param {Object} [data]
+     *        Extra key/value pairs replicated onto each point for downstream consumers.
+     */
     PathPoint.prototype.addMeasurements = function (pathPoints, beziers, close, data) {
         beziers = beziers || Snap.path.toBeziers(pathPoints);
         const total_length = beziers.reduce((len, bz) => len + bz.length(), 0);
@@ -10627,15 +11474,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     /**
-     * Computes new bezier tangent control points around a point to make the curve
-     * @param center the main point.
-     * @param after the after control point
-     * @param before the before control point
-     * @param symmetric whether to make the control tangents points symmetric
-     * @param modify_points if true, the before and after points objects are modified, instead of new points being returned.
-     * @returns {undefined|*[]} If modify_points is true, nothing is returend, otherwise, array [new_after, new_before]
-     * is returned.
-     * TODO: implement auto-smooth, as in: https://stackoverflow.com/questions/61564459/algorithm-behind-inkscapes-auto-smooth-nodes
+     * Recomputes tangent handles to smooth the curve through a {@link PathPoint}.
+     *
+     * @param {{x:number,y:number}} center
+     *        The anchor to be smoothed.
+     * @param {{x:number,y:number}} after
+     *        The outgoing handle from the anchor.
+     * @param {{x:number,y:number}} before
+     *        The incoming handle to the anchor.
+     * @param {boolean} [symmetric=false]
+     *        When `true`, both handles are forced to be symmetric.
+     * @param {boolean} [modify_points=false]
+     *        When `true`, the original handle objects are mutated in place.
+     * @returns {(Array|undefined)}
+     *          Returns `[new_after, new_before]` unless `modify_points` is `true`, in which case the handles are mutated and `undefined` is returned.
+     * @todo Implement auto-smooth heuristics similar to Inkscape.
      */
     Snap.path.smoothCorner = function (center, after, before, symmetric, modify_points) {
         const type = Snap.path.getPointType(center, after, before);
@@ -10746,6 +11599,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return result;
     }
 
+    /**
+     * Generates {@link PathPoint} descriptors for the element's path data.
+     *
+     * @returns {PathPoint[]}
+     *          Ordered points enriched with control handles and segment metadata.
+     */
     elproto.getSegmentAnalysis = function () {
         let path_str = getPath[this.type](this);
 
@@ -10811,6 +11670,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return joins;
     };
 
+    /**
+     * Builds cubic Bézier curve descriptions from path analysis points.
+     *
+     * When called with no arguments, it will attempt to call `getSegmentAnalysis()`
+     * on the current context (`this`). Passing a truthy non-array first argument is
+     * treated as the `segmented` flag, matching the legacy API behaviour.
+     *
+     * @param {(PathPoint[]|{getSegmentAnalysis:Function}|boolean)} [anals]
+     *        Optional segment analysis result or boolean shorthand for `segmented`.
+     * @param {boolean} [segmented=false]
+     *        When `true`, the returned array is chunked per logical path segment.
+     * @returns {Array<Array|Object>|undefined}
+     *          An array of cubic Bézier descriptors, or nested arrays when segmented.
+     */
     function toBeziers(anals, segmented) {
         if (anals && !Array.isArray(anals) && !anals.getSegmentAnalysis) {
             segmented = anals;
@@ -10842,10 +11715,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     elproto.toBeziers = toBeziers;
     Snap.path.toBeziers = toBeziers
 
+    /**
+     * Converts the current path element into a {@link Snap.polyBezier} instance.
+     *
+     * @returns {Snap.PolyBezier}
+     *          A poly-bézier representation of the element suitable for tessellation.
+     */
     elproto.toPolyBezier = function () {
         return Snap.polyBezier(this.toBeziers());
     };
 
+    /**
+     * Computes a cubic Bézier curve that interpolates four third-points.
+     *
+     * @param {{x:number,y:number}} p1 The start point of the curve.
+     * @param {{x:number,y:number}} p2 The first interior control point.
+     * @param {{x:number,y:number}} p3 The second interior control point.
+     * @param {{x:number,y:number}} p4 The end point of the curve.
+     * @returns {Array<{x:number,y:number}>}
+     *          Array describing the resulting cubic Bézier points.
+     */
     function cubicFromThirdPoints(p1, p2, p3, p4) {
         let m = [
             [1, 0, 0, 0],
@@ -11156,8 +12045,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (items) {
                 for (var i = 0, ii = items.length; i < ii; ++i) {
                     if (items[i]) {
-                        this[this.items.length] = this.items[this.items.length] = items[i];
-                        this.length++;
+                        // this[this.items.length] = this.items[this.items.length] = items[i];
+                        // this.length++;
+                        this.push(items[i])
                     }
                 }
             }
@@ -11749,6 +12639,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             mouseenter: 'pointerenter',
             mouseleave: 'pointerleave',
         },
+        /**
+         * Retrieves the current scroll offset for the specified axis.
+         *
+         * @param {"x"|"y"} xy Indicates which axis to measure.
+         * @param {Element|Snap|undefined} [el] Optional element used to resolve the owning document.
+         * @returns {number} The scroll offset in pixels for the requested axis.
+         */
         getScroll = function (xy, el) {
             const name = xy == "y" ? "scrollTop" : "scrollLeft",
                 doc = el && el.node ? el.node.ownerDocument : Snap.document();
@@ -11767,6 +12664,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         stopTouch = function () {
             return this.originalEvent.stopPropagation();
         },
+        /**
+         * Normalises DOM, touch, and pointer events for Snap elements.
+         *
+         * @param {HTMLElement|Document} obj A DOM node to attach the native listener to.
+         * @param {string} type The canonical mouse event name.
+         * @param {Function} fn The handler invoked with normalised coordinates.
+         * @param {Element} element The Snap element used as `this` when invoking the handler.
+         * @returns {Function} A disposer that removes the underlying native listeners.
+         */
         addEvent = function (obj, type, fn, element) {
             let realName = (supportsPointer && pointerMap[type])
                 ? pointerMap[type] : (supportsTouch && touchMap[type] ? touchMap[type] : type);
@@ -11840,6 +12746,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             };
         };
     let drag = [];
+    /**
+     * Handles the active drag gesture by relaying movement coordinates to registered listeners.
+     *
+     * @param {MouseEvent|TouchEvent} e The original DOM event.
+     */
     const dragMove = function (e) {
             let x = e.clientX,
                 y = e.clientY;
@@ -11881,6 +12792,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 // console.log("drag move", dragi.el.id, x, y);
             }
         },
+        /**
+         * Concludes all active drag gestures and removes the shared move/up listeners.
+         *
+         * @param {MouseEvent|TouchEvent} e The original DOM event that ended the drag.
+         */
         dragUp = function (e) {
             Snap.unmousemove(dragMove).unmouseup(dragUp);
             let i = drag.length,
@@ -11893,192 +12809,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             drag = [];
         };
-    /*\
-     * Element.click
-     [ method ]
-     **
-     * Adds a click event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unclick
-     [ method ]
-     **
-     * Removes a click event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.dblclick
-     [ method ]
-     **
-     * Adds a double click event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.undblclick
-     [ method ]
-     **
-     * Removes a double click event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mousedown
-     [ method ]
-     **
-     * Adds a mousedown event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmousedown
-     [ method ]
-     **
-     * Removes a mousedown event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mousemove
-     [ method ]
-     **
-     * Adds a mousemove event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmousemove
-     [ method ]
-     **
-     * Removes a mousemove event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mouseout
-     [ method ]
-     **
-     * Adds a mouseout event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmouseout
-     [ method ]
-     **
-     * Removes a mouseout event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mouseover
-     [ method ]
-     **
-     * Adds a mouseover event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmouseover
-     [ method ]
-     **
-     * Removes a mouseover event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.mouseup
-     [ method ]
-     **
-     * Adds a mouseup event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.unmouseup
-     [ method ]
-     **
-     * Removes a mouseup event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchstart
-     [ method ]
-     **
-     * Adds a touchstart event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchstart
-     [ method ]
-     **
-     * Removes a touchstart event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchmove
-     [ method ]
-     **
-     * Adds a touchmove event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchmove
-     [ method ]
-     **
-     * Removes a touchmove event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchend
-     [ method ]
-     **
-     * Adds a touchend event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchend
-     [ method ]
-     **
-     * Removes a touchend event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-
-    /*\
-     * Element.touchcancel
-     [ method ]
-     **
-     * Adds a touchcancel event handler to the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
-    /*\
-     * Element.untouchcancel
-     [ method ]
-     **
-     * Removes a touchcancel event handler from the element
-     - handler (function) handler for the event
-     = (object) @Element
-    \*/
+    /**
+     * Generates pointer helper methods such as `element.click`, `element.mousemove`, and their
+     * corresponding `un*` counterparts. These helpers normalise mouse, touch, and pointer events,
+     * optionally invoke handlers with a custom scope, and expose the event coordinates adjusted for
+     * document scroll.
+     *
+     * Each generated method supports two calling conventions:
+     * - `element.eventName(handler, [scope], [data])` to bind a listener.
+     * - `element.eventName()` to trigger previously bound listeners for the same event type.
+     *
+     * @param {Function} fn The event handler. When omitted the previously registered handlers are invoked.
+     * @param {Object} [scope] Optional `this` context passed to the handler.
+     * @param {*} [data] Arbitrary data stored alongside the handler metadata.
+     * @returns {Element} The current element, allowing chaining.
+     *
+     * @example
+     * element.click(function (event, x, y) {
+     *     console.log("Clicked at", x, y);
+     * });
+     *
+     * @example
+     * element.unclick(handler);
+     */
     for (var i = events.length; i--;) {
         (function (eventName) {
             Snap[eventName] = elproto[eventName] = function (fn, scope, data) {
@@ -12120,29 +12873,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 };
         })(events[i]);
     }
-    /*\
-     * Element.hover
-     [ method ]
-     **
-     * Adds hover event handlers to the element
-     - f_in (function) handler for hover in
-     - f_out (function) handler for hover out
-     - icontext (object) #optional context for hover in handler
-     - ocontext (object) #optional context for hover out handler
-     = (object) @Element
-    \*/
+    /**
+     * Adds hover-in and hover-out handlers to the element using `mouseover` and `mouseout` events.
+     *
+     * @param {Function} f_in Handler executed when the pointer enters the element.
+     * @param {Function} f_out Handler executed when the pointer leaves the element.
+     * @param {Object} [scope_in] Optional context bound to the hover-in handler.
+     * @param {Object} [scope_out] Optional context bound to the hover-out handler.
+     * @returns {Element} The current element for chaining.
+     */
     elproto.hover = function (f_in, f_out, scope_in, scope_out) {
         return this.mouseover(f_in, scope_in).mouseout(f_out, scope_out || scope_in);
     };
-    /*\
-     * Element.unhover
-     [ method ]
-     **
-     * Removes hover event handlers from the element
-     - f_in (function) handler for hover in
-     - f_out (function) handler for hover out
-     = (object) @Element
-    \*/
+    /**
+     * Removes previously registered hover handlers from the element.
+     *
+     * @param {Function} f_in The hover-in handler to unregister.
+     * @param {Function} f_out The hover-out handler to unregister.
+     * @returns {Element} The current element for chaining.
+     */
     elproto.unhover = function (f_in, f_out) {
         return this.unmouseover(f_in).unmouseout(f_out);
     };
@@ -12151,37 +12900,30 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     // SIERRA Element.drag(): _x position of the mouse_: Where are the x/y values offset from?
     // SIERRA Element.drag(): much of this member's doc appears to be duplicated for some reason.
     // SIERRA Unclear about this sentence: _Additionally following drag events will be triggered: drag.start.<id> on start, drag.end.<id> on end and drag.move.<id> on every move._ Is there a global _drag_ object to which you can assign handlers keyed by an element's ID?
-    /*\
-     * Element.drag
-     [ method ]
-     **
-     * Adds event handlers for an element's drag gesture
-     **
-     - onmove (function) handler for moving
-     - onstart (function) handler for drag start
-     - onend (function) handler for drag end
-     - mcontext (object) #optional context for moving handler
-     - scontext (object) #optional context for drag start handler
-     - econtext (object) #optional context for drag end handler
-     * Additionaly following `drag` events are triggered: `drag.start.<id>` on start, 
-     * `drag.end.<id>` on end and `drag.move.<id>` on every move. When element is dragged over another element 
-     * `drag.over.<id>` fires as well.
+    /**
+     * Adds drag gesture handlers to the element.
      *
-     * Start event and start handler are called in specified context or in context of the element with following parameters:
-     o x (number) x position of the mouse
-     o y (number) y position of the mouse
-     o event (object) DOM event object
-     * Move event and move handler are called in specified context or in context of the element with following parameters:
-     o dx (number) shift by x from the start point
-     o dy (number) shift by y from the start point
-     o x (number) x position of the mouse
-     o y (number) y position of the mouse
-     o event (object) DOM event object
-     * End event and end handler are called in specified context or in context of the element with following parameters:
-     o event (object) DOM event object
-     = (object) @Element
-    \*/
-    elproto.drag = function (onmove, onstart, onend, move_scope, start_scope, end_scope) {
+     * Additional `drag` events are triggered for convenience:
+     * - `drag.start.<id>` when the gesture begins.
+     * - `drag.move.<id>` while the pointer moves.
+     * - `drag.end.<id>` when the gesture finishes.
+     * - `drag.over.<id>` when the element is dragged over another element.
+     *
+     * Handler invocation details:
+     * - The start handler receives `(x, y, event)` where `x` and `y` are the pointer coordinates.
+     * - The move handler receives `(dx, dy, x, y, event)` where `dx`/`dy` are deltas from the start point.
+     * - The end handler receives `(event)`.
+     *
+     * @param {Function} [onmove] Handler for pointer movement.
+     * @param {Function} [onstart] Handler fired when the drag starts.
+     * @param {Function} [onend] Handler fired when the drag ends.
+     * @param {Object} [move_scope] Optional context for the move handler.
+     * @param {Object} [start_scope] Optional context for the start handler.
+     * @param {Object} [end_scope] Optional context for the end handler.
+    * @param {AltClickEventSpecification} [alt_click_event] Optional alternate click trigger when the drag is extremely short. Accepts a timeout in milliseconds or `[event, timeout]` where `event` can be an event name or callback.
+     * @returns {Element} The current element to support chaining.
+     */
+    elproto.drag = function (onmove, onstart, onend, move_scope, start_scope, end_scope, alt_click_event) {
         const el = this;
         if (!arguments.length) {
             let origTransform;
@@ -12194,9 +12936,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             });
         }
 
+        let time;
+
         function start(e, x, y) {
             // (e.originalEvent || e).preventDefault();
-
+            if (alt_click_event) time = Date.now();
             el._drag.x = x;
             el._drag.y = y;
             el._drag.id = e.identifier;
@@ -12205,11 +12949,33 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             drag.push({el: el, move_scope: move_scope, start_scope: start_scope, end_scope: end_scope});
             onstart && eve.on("snap.drag.start." + el.id, onstart);
             onmove && eve.on("snap.drag.move." + el.id, onmove);
+            if (alt_click_event) {
+                eve.on("snap.drag.end." + el.id, () => {
+                    let cl_t = (typeof alt_click_event === "number") ? alt_click_event : 500;
+                    if (Array.isArray(alt_click_event)
+                        && typeof alt_click_event[1] === "number"
+                        && (typeof alt_click_event[0] === "string"
+                            || typeof alt_click_event[0] === "function")) {
+                        [alt_click_event, cl_t] = alt_click_event;
+                    }
+                    if (Date.now() - time < cl_t) {
+                        if (typeof alt_click_event === "string") {
+                            eve(alt_click_event)
+                        }
+                        if (typeof alt_click_event === "function") {
+                            alt_click_event()
+                        } else {
+                           el.node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+                        }
+                        eve("snap.drag.click." + el.id)
+                    }
+                })
+            }
             onend && eve.on("snap.drag.end." + el.id, onend);
             eve(["snap", "drag", "start", el.id], start_scope || move_scope || el, x, y, e);
         }
 
-       function init(e, x, y) {
+        function init(e, x, y) {
             // Prevent execution if more than one button or finger is pressed
             if ((e.touches && e.touches.length > 1) || (e.buttons && e.buttons > 1)) {
                 return;
@@ -12236,12 +13002,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     // elproto.onDragOver = function (f) {
     //     f ? eve.on("snap.drag.over." + this.id, f) : eve.unbind("snap.drag.over." + this.id);
     // };
-    /*\
-     * Element.undrag
-     [ method ]
-     **
-     * Removes all drag event handlers from the given element
-    \*/
+    /**
+     * Removes all drag-related handlers from the element and detaches shared listeners when applicable.
+     *
+     * @returns {Element} The current element for chaining.
+     */
     elproto.undrag = function () {
         let i = draggable.length;
         while (i--) if (draggable[i].el == this) {
@@ -12254,6 +13019,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this;
     };
 
+    /**
+     * Removes every registered mouse, touch, and drag listener from the element.
+     *
+     * @returns {Element} The current element for chaining.
+     */
     elproto.removeAllMouseListeners = function () {
         const events = this.events || [];
         let l = events.length;
@@ -12264,8 +13034,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         this.undrag();
         this.unhover();
-    }
+        return this;
+    };
 
+    /**
+     * Copies registered event listeners from another element, optionally preserving the original scopes.
+     *
+     * @param {Element} el Source element whose listeners should be duplicated.
+     * @param {boolean} [preserveScopes=false] When `true`, retains the original listener scopes.
+     * @param {boolean} [skip_drag=false] When `true`, drag handlers are ignored.
+     * @returns {Element} The current element for chaining.
+     */
     elproto.copyListeners = function (el, preserveScopes, skip_drag) {
         if (!el.events) return this;
 
@@ -12275,8 +13054,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             } else {
                 this[ev.name](ev.f, (preserveScopes) ? ev.scope : undefined);
             }
-        })
-    }
+        });
+
+        return this;
+    };
 });
 
 // Copyright (c) 2013 Adobe Systems Incorporated. All rights reserved.
@@ -12642,35 +13423,46 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   };
 });
 
-
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var box = Snap.box,
+    const box = Snap.box,
         is = Snap.is,
         firstLetter = /^[^a-z]*([tbmlrc])/i,
         toString = function () {
             return "T" + this.dx + "," + this.dy;
         };
-    /*\
-     * Element.getAlign
-     [ method ]
-     **
-     * Returns shift needed to align the element relatively to given element.
-     * If no elements specified, parent `<svg>` container will be used.
-     - el (object) @optional alignment element
-     - way (string) one of six values: `"top"`, `"middle"`, `"bottom"`, `"left"`, `"center"`, `"right"`
-     = (object|string) Object in format `{dx: , dy: }` also has a string representation as a transformation string
-     > Usage
-     | el.transform(el.getAlign(el2, "top"));
-     * or
-     | var dy = el.getAlign(el2, "top").dy;
-    \*/
+
+    /**
+     * @typedef {Object} AlignOffset
+     * @property {number} dx Horizontal shift required for alignment.
+     * @property {number} dy Vertical shift required for alignment.
+     * @property {function(): string} toString Serialises the offset as an SVG transform string (e.g. `"T10,-5"`).
+     */
+
+    /**
+     * Returns the translation vector required to align this element with a target element, Snap set, or raw bounding box.
+     * If no target is provided, the current paper (parent `<svg>`) is used by default. Passing a string as the first
+     * argument is treated as the `way` so you can call `el.getAlign("top")` directly.
+     *
+     * @param {Snap.Element|Snap.Paper|Snap.BBox|Element|Object|string} [el] Alignment target. When a string is provided it is treated as the `way` argument.
+     * @param {string} [way="center"] Alignment mode: "top", "middle", "bottom", "left", "center", or "right".
+     * @returns {AlignOffset} Offset needed to align the element.
+     *
+     * @example <caption>Apply the translation directly as a transform</caption>
+     * const shift = el.getAlign(el2, "top");
+     * el.transform(el.transform().localMatrix.toTransformString() + shift.toString());
+     *
+     * @example <caption>Use the numeric values for custom positioning</caption>
+     * const topOffset = el.getAlign(el2, "top");
+     * const dy = topOffset.dy;
+     * // position some helper guides with `dy`
+     */
     Element.prototype.getAlign = function (el, way) {
         if (way == null && is(el, "string")) {
             way = el;
             el = null;
         }
         el = el || this.paper;
-        var bx = el.getBBox ? el.getBBox() : box(el),
+        const bx = el.getBBox ? el.getBBox() : box(el),
             bb = this.getBBox(),
             out = {};
         way = way && way.match(firstLetter);
@@ -12679,47 +13471,150 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             case "t":
                 out.dx = 0;
                 out.dy = bx.y - bb.y;
-            break;
+                break;
             case "b":
                 out.dx = 0;
                 out.dy = bx.y2 - bb.y2;
-            break;
+                break;
             case "m":
                 out.dx = 0;
                 out.dy = bx.cy - bb.cy;
-            break;
+                break;
             case "l":
                 out.dx = bx.x - bb.x;
                 out.dy = 0;
-            break;
+                break;
             case "r":
                 out.dx = bx.x2 - bb.x2;
                 out.dy = 0;
-            break;
+                break;
             default:
                 out.dx = bx.cx - bb.cx;
                 out.dy = 0;
-            break;
+                break;
         }
         out.toString = toString;
         return out;
     };
-    /*\
-     * Element.align
-     [ method ]
-     **
-     * Aligns the element relatively to given one via transformation.
-     * If no elements specified, parent `<svg>` container will be used.
-     - el (object) @optional alignment element
-     - way (string) one of six values: `"top"`, `"middle"`, `"bottom"`, `"left"`, `"center"`, `"right"`
-     = (object) this element
-     > Usage
-     | el.align(el2, "top");
-     * or
-     | el.align("middle");
-    \*/
+    /**
+     * Aligns this element with a target element or bounding box by applying the translation returned from {@link Element#getAlign}.
+     * The method is chainable and does not reset the existing transformation matrix; it simply appends the calculated shift.
+     *
+     * @param {Snap.Element|Snap.Paper|Snap.BBox|Element|Object|string} [el] Alignment target. When a string is provided it is treated as the `way` argument.
+     * @param {string} [way="center"] Alignment mode: "top", "middle", "bottom", "left", "center", or "right".
+     * @returns {Snap.Element} The current element for chaining.
+     *
+     * @example <caption>Align the element to the top of another element</caption>
+     * el.align(el2, "top");
+     *
+     * @example <caption>Align relative to the parent SVG by passing only the way</caption>
+     * el.align("middle");
+     */
     Element.prototype.align = function (el, way) {
         return this.transform("..." + this.getAlign(el, way));
+    };
+
+    /**
+     * Aligns this element together with other elements or bounding boxes. The method resolves a shared anchor box—either
+     * the explicit anchor provided, or one derived from the combined bounding boxes—and then applies {@link Element#align}
+     * to every member of the set.
+     *
+     * @param {Snap.Set|Array<Snap.Element|Snap.BBox|Object>} [els=[]] Elements, sets, or bounding boxes to align alongside this element.
+     * @param {string} [way="center"] Alignment mode: "top", "middle", "bottom", "left", "center", or "right".
+     * @param {string|Snap.Element|Snap.BBox|Object} [anchor_id] Named anchor, element, or bounding box to align against.
+     * @returns {number|false} Number of elements moved, or `false` if no anchor can be resolved.
+     *
+     * @example <caption>Align a group to the center of the first element</caption>
+     * const movedCount = el.alignAll([el2, el3], "center", el);
+     * // movedCount === 3 when all three elements were repositioned
+     *
+     * @example <caption>Align several elements to the top edge of an element with id="anchor"</caption>
+     * el.alignAll([el2, el3], "top", "anchor");
+     */
+    Element.prototype.alignAll = function (els, way, anchor_id) {
+        if (way == null && anchor_id == null && is(els, "string")) {
+            anchor_id = null;
+            way = els;
+            els = [];
+        } else if (anchor_id == null && way != null && !is(way, "string")) {
+            anchor_id = way;
+            way = null;
+        }
+
+        way = way || "center";
+
+
+        const alignSet = new Snap.Set([this, ...els.filter((el) => is(el, "element"))]);
+
+        if (!alignSet.length) {
+            return this;
+        }
+
+        let anchorElement = null,
+            anchorBox = null;
+
+        if (anchor_id != null) {
+            if (is(anchor_id, "string")) {
+                const needle = anchor_id;
+                anchorElement = alignSet.filter((el) => el.getId() === anchor_id)[0];
+
+                if (!anchorElement) {
+                    anchorElement = this.paper.select('#' + anchor_id);
+                }
+                if (anchorElement) {
+                    anchorBox = box(anchorElement.getBBox());
+                } else {
+                    return false;
+                }
+            } else if (Snap.is(anchor_id, "Element")) {
+                anchorElement = anchor_id;
+                anchorBox = box(anchorElement.getBBox());
+            } else if (anchor_id && anchor_id.getBBox && is(anchor_id.getBBox, "function")) {
+                anchorBox = anchor_id.getBBox();
+            } else if (anchor_id) {
+                try {
+                    anchorBox = box(anchor_id);
+                } catch (er) {
+                    return false;
+                }
+            }
+        }
+
+        if (!anchorBox) {
+            const boxes = Array.from(new Snap.Set([this, ...els])).map((el) => (el.getBBox) ?? el.getBBox()).filter(Boolean);
+            const n = boxes.length;
+            if (way[0].toLowerCase() === 'c') {
+                let CX_bar = boxes.map(b => b.cx).sum() / n,
+                    CY_bar = boxes.map(b => b.cy).sum() / n;
+                anchorBox = box(CX_bar - 10, CY_bar - 10, 20, 20);
+            } else {
+                let X_bar = boxes.map(b => b.x).sum() / n,
+                    Y_bar = boxes.map(b => b.y).sum() / n,
+                    X2_bar = boxes.map(b => b.x2).sum() / n,
+                    Y2_bar = boxes.map(b => b.y2).sum() / n;
+
+                anchorBox = box(X_bar, Y_bar, X2_bar - X_bar, Y2_bar - Y2_bar);
+            }
+        }
+
+        if (anchorElement && !anchorBox) {
+            anchorBox = box(anchorElement.getBBox());
+        }
+
+        if (!anchorBox) {
+            return this;
+        }
+
+        let moved = 0
+        alignSet.forEach(function (item) {
+            if (!item || !item.getBBox || !is(item.getBBox, "function")) {
+                return;
+            }
+            item.align(anchorElement || anchorBox, way);
+            ++moved
+        });
+
+        return moved;
     };
 });
 

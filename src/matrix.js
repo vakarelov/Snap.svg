@@ -17,6 +17,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         math = Math,
         E = "";
 
+    /**
+     * Represents a 2D affine transformation matrix with six coefficients.
+     * Accepts individual numeric coefficients, an `SVGMatrix`-like object, a matrix string, or another `Matrix` instance.
+     * When invoked without arguments, an identity matrix is produced.
+     *
+     * @class
+     * @alias Snap.Matrix
+     * @param {number|SVGMatrix|string|Matrix} [a=1] - Either an existing matrix representation or the `a` component.
+     * @param {number} [b=0] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c=0] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d=1] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e=0] - The `e` translation component when numeric values are provided.
+     * @param {number} [f=0] - The `f` translation component when numeric values are provided.
+     */
     function Matrix(a, b, c, d, e, f) {
         if (b == null && objectToString.call(a) == "[object SVGMatrix]") {
             this.a = a.a;
@@ -58,20 +72,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.registerType("matrix", Matrix);
 
     (function (matrixproto) {
-        /*\
-         * Matrix.add
-         [ method ]
-         **
-         * Adds, in the sense of multiplying to the right the given matrix to existing one. This is not matrix addition
-         - a (number)
-         - b (number)
-         - c (number)
-         - d (number)
-         - e (number)
-         - f (number)
-         * or
-         - matrix (object) @Matrix
-        \*/
+    /**
+     * Multiplies the current matrix on the right by the supplied affine transform.
+     * If another {@link Matrix} instance is provided, its coefficients will be applied directly.
+     *
+     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient of the multiplier.
+     * @param {number} [c] - The `c` coefficient of the multiplier.
+     * @param {number} [d] - The `d` coefficient of the multiplier.
+     * @param {number} [e] - The `e` translation component of the multiplier.
+     * @param {number} [f] - The `f` translation component of the multiplier.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
         matrixproto.add = function (a, b, c, d, e, f) {
             if (a && a instanceof Matrix) {
                 return this.add(a.a, a.b, a.c, a.d, a.e, a.f);
@@ -90,14 +102,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         matrixproto.multRight = matrixproto.add;
 
-        matrixproto.plus = function (a, b, c, d, e, f) {
+    /**
+     * Returns a clone of the current matrix multiplied on the right by the supplied transform.
+     *
+     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient of the multiplier.
+     * @param {number} [c] - The `c` coefficient of the multiplier.
+     * @param {number} [d] - The `d` coefficient of the multiplier.
+     * @param {number} [e] - The `e` translation component of the multiplier.
+     * @param {number} [f] - The `f` translation component of the multiplier.
+     * @returns {Matrix} A new matrix containing the multiplied result.
+     */
+    matrixproto.plus = function (a, b, c, d, e, f) {
             if (a && a instanceof Matrix) {
                 return this.plus(a.a, a.b, a.c, a.d, a.e, a.f);
             }
 
             return this.clone().add(a, b, c, d, e, f);
         };
-        matrixproto.scMult = function (c) {
+    /**
+     * Multiplies all affine coefficients by a scalar.
+     *
+     * @param {number} c - Scalar value applied to each coefficient.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+    matrixproto.scMult = function (c) {
             this.a *= c;
             this.b *= c;
             this.c *= c;
@@ -106,23 +135,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.e *= c;
             return this;
         };
-        matrixproto.timesSc = function (c) {
+    /**
+     * Returns a clone of the matrix scaled by the supplied scalar.
+     *
+     * @param {number} c - Scalar value applied to each coefficient.
+     * @returns {Matrix} A new matrix instance with scaled coefficients.
+     */
+    matrixproto.timesSc = function (c) {
             return this.clone().scMult(c);
         };
-        /*\
-         * Matrix.multLeft
-         [ method ]
-         **
-         * Multiplies a passed affine transform to the left: M * this.
-         - a (number)
-         - b (number)
-         - c (number)
-         - d (number)
-         - e (number)
-         - f (number)
-         * or
-         - matrix (object) @Matrix
-        \*/
+    /**
+     * Multiplies the current matrix on the left by the supplied affine transform (pre-multiplication).
+     * Accepts a single matrix, an array of matrices, or individual coefficients.
+     *
+     * @param {number|Matrix|Array<number|Matrix>} a - Matrix, array of matrices, or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e] - The `e` translation component when numeric values are provided.
+     * @param {number} [f] - The `f` translation component when numeric values are provided.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
         Matrix.prototype.multLeft = function (a, b, c, d, e, f) {
             if (Array.isArray(a)) {
                 if (a[0] instanceof Matrix) {
@@ -153,52 +186,45 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.e = eNew;
             return this;
         };
-        /*\
-         * Matrix.invert
-         [ method ]
-         **
-         * Returns an inverted version of the matrix
-         = (object) @Matrix
-        \*/
+        /**
+         * Computes the inverse of the affine matrix.
+         *
+         * @returns {Matrix} A new matrix representing the inverse transform.
+         */
         matrixproto.invert = function () {
             var me = this,
                 x = me.a * me.d - me.b * me.c;
             return new Matrix(me.d / x, -me.b / x, -me.c / x, me.a / x, (me.c * me.f - me.d * me.e) / x, (me.b * me.e - me.a * me.f) / x);
         };
-        /*\
-         * Matrix.clone
-         [ method ]
-         **
-         * Returns a copy of the matrix
-         = (object) @Matrix
-        \*/
+        /**
+         * Creates an exact copy of the matrix.
+         *
+         * @returns {Matrix} A new matrix with identical coefficients.
+         */
         matrixproto.clone = function () {
             return new Matrix(this.a, this.b, this.c, this.d, this.e, this.f);
         };
-        /*\
-         * Matrix.translate
-         [ method ]
-         **
-         * Translate the matrix
-         - x (number) horizontal offset distance
-         - y (number) vertical offset distance
-        \*/
+        /**
+         * Applies a translation to the matrix.
+         *
+         * @param {number} x - Horizontal translation distance.
+         * @param {number} y - Vertical translation distance.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.translate = function (x, y) {
             this.e += x * this.a + y * this.c;
             this.f += x * this.b + y * this.d;
             return this;
         };
-        /*\
-         * Matrix.scale
-         [ method ]
-         **
-         * Scales the matrix
-         - x (number) amount to be scaled, with `1` resulting in no change
-         - y (number) #optional amount to scale along the vertical axis. (Otherwise `x` applies to both axes.)
-         - cx (number) #optional horizontal origin point from which to scale
-         - cy (number) #optional vertical origin point from which to scale
-         * Default cx, cy is the middle point of the element.
-        \*/
+        /**
+         * Applies a scale transformation to the matrix.
+         *
+         * @param {number} x - Horizontal scale factor; `1` leaves the axis unchanged.
+         * @param {number} [y=x] - Vertical scale factor; defaults to {@link x} when omitted.
+         * @param {number} [cx] - Optional horizontal origin around which to scale.
+         * @param {number} [cy] - Optional vertical origin around which to scale.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.scale = function (x, y, cx, cy) {
             y == null && (y = x);
             (cx || cy) && this.translate(cx, cy);
@@ -209,15 +235,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             (cx || cy) && this.translate(-cx, -cy);
             return this;
         };
-        /*\
-         * Matrix.rotate
-         [ method ]
-         **
-         * Rotates the matrix
-         - a (number) angle of rotation, in degrees
-         - x (number) horizontal origin point from which to rotate
-         - y (number) vertical origin point from which to rotate
-        \*/
+        /**
+         * Applies a rotation to the matrix.
+         *
+         * @param {number} a - Rotation angle in degrees.
+         * @param {number} [x=0] - Horizontal origin around which to rotate.
+         * @param {number} [y=0] - Vertical origin around which to rotate.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.rotate = function (a, x, y) {
             a = Snap.rad(a);
             x = x || 0;
@@ -227,34 +252,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.add(cos, sin, -sin, cos, x, y);
             return this.add(1, 0, 0, 1, -x, -y);
         };
-        /*\
-         * Matrix.skewX
-         [ method ]
-         **
-         * Skews the matrix along the x-axis
-         - x (number) Angle to skew along the x-axis (in degrees).
-        \*/
+        /**
+         * Skews the matrix along the x-axis.
+         *
+         * @param {number} x - Angle, in degrees, to skew along the x-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.skewX = function (x) {
             return this.skew(x, 0);
         };
-        /*\
-         * Matrix.skewY
-         [ method ]
-         **
-         * Skews the matrix along the y-axis
-         - y (number) Angle to skew along the y-axis (in degrees).
-        \*/
+        /**
+         * Skews the matrix along the y-axis.
+         *
+         * @param {number} y - Angle, in degrees, to skew along the y-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.skewY = function (y) {
             return this.skew(0, y);
         };
-        /*\
-         * Matrix.skew
-         [ method ]
-         **
-         * Skews the matrix
-         - y (number) Angle to skew along the y-axis (in degrees).
-         - x (number) Angle to skew along the x-axis (in degrees).
-        \*/
+        /**
+         * Applies a simultaneous skew transform on both axes.
+         *
+         * @param {number} [x=0] - Angle, in degrees, to skew along the x-axis.
+         * @param {number} [y=0] - Angle, in degrees, to skew along the y-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
         matrixproto.skew = function (x, y) {
             x = x || 0;
             y = y || 0;
@@ -264,32 +286,41 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             var b = math.tan(y).toFixed(9);
             return this.add(1, b, c, 1, 0, 0);
         };
-        /*\
-         * Matrix.x
-         [ method ]
-         **
-         * Returns x coordinate for given point after transformation described by the matrix. See also @Matrix.y
-         - x (number)
-         - y (number)
-         = (number) x
-        \*/
+        /**
+         * Transforms a point and returns its x-coordinate.
+         *
+         * @param {number} x - Original x-coordinate.
+         * @param {number} y - Original y-coordinate.
+         * @returns {number} The transformed x-coordinate.
+         */
         matrixproto.x = function (x, y) {
             return x * this.a + y * this.c + this.e;
         };
-        /*\
-         * Matrix.y
-         [ method ]
-         **
-         * Returns y coordinate for given point after transformation described by the matrix. See also @Matrix.x
-         - x (number)
-         - y (number)
-         = (number) y
-        \*/
+        /**
+         * Transforms a point and returns its y-coordinate.
+         *
+         * @param {number} x - Original x-coordinate.
+         * @param {number} y - Original y-coordinate.
+         * @returns {number} The transformed y-coordinate.
+         */
         matrixproto.y = function (x, y) {
             return x * this.b + y * this.d + this.f;
         };
 
-        matrixproto.randomTrans = function (cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
+    /**
+     * Applies a pseudo-random translation, rotation, and scaling around an optional origin.
+     * Useful for generating varied transforms for effects or automated testing.
+     *
+     * @param {number} [cx=0] - Horizontal origin for rotation and scaling.
+     * @param {number} [cy=0] - Vertical origin for rotation and scaling.
+     * @param {boolean} [positive=false] - When `true`, restricts translations to positive offsets.
+     * @param {number} [distance=300] - Maximum translation distance along each axis.
+     * @param {boolean} [diff_scale=false] - When `true`, allows non-uniform (x/y) scaling.
+     * @param {boolean} [skip_rotation=false] - When `true`, prevents random rotation.
+     * @param {boolean} [skip_scale=false] - When `true`, prevents random scaling.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+    matrixproto.randomTrans = function (cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
             distance = distance || 300;
             cx = cx || 0;
             cy = cy || 0;
@@ -308,16 +339,39 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.translate(dx, dy).rotate(angle, cx + dx, cy + dy).scale(scalex, scaley, cx + dx, cy + dy);
         };
 
+        /**
+         * Returns a coefficient of the matrix by index (`0 → a`, `5 → f`).
+         *
+         * @param {number} i - Index of the coefficient (0-5).
+         * @returns {number} The coefficient rounded to nine decimal places.
+         */
         matrixproto.get = function (i) {
             return +this[Str.fromCharCode(97 + i)].toFixed(9);
         };
+        /**
+         * Serialises the matrix into an SVG `matrix(a,b,c,d,e,f)` transform string.
+         *
+         * @returns {string} SVG transform string representing the matrix.
+         */
         matrixproto.toString = function () {
             return "matrix(" + [this.get(0), this.get(1), this.get(2), this.get(3), this.get(4), this.get(5)].join() + ")";
         };
+        /**
+         * Returns the translation components (`e`, `f`) rounded to nine decimal places.
+         *
+         * @returns {number[]} A two-item array `[e, f]`.
+         */
         matrixproto.offset = function () {
             return [this.e.toFixed(9), this.f.toFixed(9)];
         };
 
+        /**
+         * Compares the matrix with another instance within an optional tolerance.
+         *
+         * @param {Matrix} m - Matrix to compare against.
+         * @param {number} [error] - Optional absolute tolerance per coefficient.
+         * @returns {boolean} `true` if all coefficients match within the tolerance.
+         */
         matrixproto.equals = function (m, error) {
             if (!m) return false;
             if (error == null) {
@@ -330,11 +384,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 Math.abs(this.e - m.e) <= error &&
                 Math.abs(this.f - m.f) <= error;
         }
+        /**
+         * Checks whether the matrix equals the identity transform.
+         *
+         * @returns {boolean} `true` when all non-identity coefficients are zero.
+         */
         matrixproto.isIdentity = function () {
             return this.a === 1 && !this.b && !this.c && this.d === 1 &&
                 !this.e && !this.f;
         };
 
+        /**
+         * Returns the matrix coefficients as an array `[a, b, c, d, e, f]`.
+         *
+         * @returns {number[]} Array of the six coefficients.
+         */
         matrixproto.toArray = function () {
             return [this.a, this.b, this.c, this.d, this.e, this.f];
         };
@@ -349,30 +413,32 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             a[1] && (a[1] /= mag);
         }
 
-        /*\
-         * Matrix.determinant
-         [ method ]
-         **
-         * Finds determinant of the given matrix.
-         = (number) determinant
-        \*/
+        /**
+         * Computes the determinant of the affine matrix.
+         *
+         * @returns {number} Determinant value (`a * d - b * c`).
+         */
         matrixproto.determinant = function () {
             return this.a * this.d - this.b * this.c;
         };
-        /*\
-         * Matrix.split
-         [ method ]
-         **
-         * Splits matrix into primitive transformations
-         = (object) in format:
-         o dx (number) translation by x
-         o dy (number) translation by y
-         o scalex (number) scale by x
-         o scaley (number) scale by y
-         o shear (number) shear
-         o rotate (number) rotation in deg
-         o isSimple (boolean) could it be represented via simple transformations
-        \*/
+    /**
+     * Decomposes the matrix into intuitive primitives (translation, rotation, scale, shear).
+     * Optionally records any pre-translation that occurred before the core linear transform.
+     *
+     * @param {boolean} [add_pre_translation=false] - When `true`, include the pre-translation offset (`px`, `py`).
+     * @returns {object} Parts describing the transform.
+     * @returns {number} return.dx - Final translation along the x-axis.
+     * @returns {number} return.dy - Final translation along the y-axis.
+     * @returns {number} [return.px] - Optional pre-translation along the x-axis (only when `add_pre_translation` is `true`).
+     * @returns {number} [return.py] - Optional pre-translation along the y-axis (only when `add_pre_translation` is `true`).
+     * @returns {number} return.scalex - Scale factor applied along the x-axis. Negative when the matrix mirrors across an axis.
+     * @returns {number} return.scaley - Scale factor applied along the y-axis.
+     * @returns {number} return.shear - Shear factor that skews the y-axis relative to the x-axis.
+     * @returns {number} return.rotate - Rotation in degrees, measured after the scale/shear decomposition.
+     * @returns {boolean} return.isSimple - `true` when the matrix can be expressed as translate → rotate → uniform scale (or no rotation).
+     * @returns {boolean} return.isSuperSimple - `true` when the matrix is only translate → uniform scale (no rotation or shear).
+     * @returns {boolean} return.noRotation - `true` when the matrix has neither rotation nor shear.
+     */
         matrixproto.split = function (add_pre_translation) {
             var out = {};
             // translation
@@ -427,7 +493,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return out;
         };
 
-        matrixproto.split2 = function getTransform() {
+    /**
+     * Provides a lightweight decomposition returning translation, rotation, and scale components.
+     *
+     * @returns {{dx:number, dy:number, r:number, scalex:number, scaley:number}} Simplified transform description.
+     */
+    matrixproto.split2 = function getTransform() {
             let a = this.a,
                 b = this.b,
                 c = this.c,
@@ -444,13 +515,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return {dx: dx, dy: dy, r: Snap.deg(r), scalex: scx, scaley: scy};
         }
 
-        /*\
-         * Matrix.toTransformString
-         [ method ]
-         **
-         * Returns transform string that represents given matrix
-         = (string) transform string
-        \*/
+        /**
+         * Serialises the matrix into Snap's short transform string format.
+         *
+         * @param {object} [shorter] - Optional decomposition result to reuse.
+         * @returns {string} A transform string compatible with Snap.svg syntax.
+         */
         matrixproto.toTransformString = function (shorter) {
             var s = shorter || this.split();
             if (!+s.shear.toFixed(9)) {
@@ -465,11 +535,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
 
+        /**
+         * Identifies the object as a matrix instance.
+         *
+         * @returns {boolean} Always returns `true` for matrix instances.
+         */
         matrixproto.isMatrix = function () {
             return true;
         }
 
-        matrixproto.twoPointTransformMatrix = function (x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
+    /**
+     * Computes an affine transform mapping two source points to two destination points.
+     *
+     * @param {number} x1 - X-coordinate of the first source point.
+     * @param {number} y1 - Y-coordinate of the first source point.
+     * @param {number} x1Prime - X-coordinate of the first destination point.
+     * @param {number} y1Prime - Y-coordinate of the first destination point.
+     * @param {number} x2 - X-coordinate of the second source point.
+     * @param {number} y2 - Y-coordinate of the second source point.
+     * @param {number} x2Prime - X-coordinate of the second destination point.
+     * @param {number} y2Prime - Y-coordinate of the second destination point.
+     * @returns {Matrix} A new matrix performing the inferred transform.
+     */
+    matrixproto.twoPointTransformMatrix = function (x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
             // Calculate distances before and after transformation
             const distanceBefore = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
             const distanceAfter = Math.sqrt(Math.pow(x2Prime - x1Prime, 2) + Math.pow(y2Prime - y1Prime, 2));
@@ -496,11 +584,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return new Snap.Matrix(a, b, c, d, e, f);
         }
 
+        /**
+         * Conjugates an affine transform by a base matrix (`base * m * base^{-1}`).
+         *
+         * @param {Matrix} m - Matrix to conjugate.
+         * @param {Matrix} base - Base matrix providing the reference frame.
+         * @returns {Matrix} The conjugated matrix.
+         * @private
+         */
         function rightLeftFlipMatrix(m, base) {
             let inv = base.clone().invert();
             return base.clone().multRight(m).multRight(inv);
         }
 
+        /**
+         * Splits a matrix into translation/scale and rotation/shear factors.
+         *
+         * @param {Matrix} [m=this] - Matrix to decompose.
+         * @returns {{0:Matrix, 1:Matrix, trans_scale:Matrix, rot_shear:Matrix, scalex:number, scaley:number, rotate:number, shear:number, dx:number, dy:number}} Matrices and scalars describing the decomposition.
+         */
         function rotScaleSplit(m) {
             m = m || this;
             const split = m.split();
@@ -529,31 +631,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         matrixproto.rotScaleSplit = rotScaleSplit;
 
     })(Matrix.prototype);
-    /*\
-     * Snap.Matrix
-     [ method ]
-     **
-     * Matrix constructor, extend on your own risk.
-     * To create matrices use @Snap.matrix.
-    \*/
+    /**
+     * Exposes the {@link Matrix} constructor on the `Snap` namespace.
+     *
+    * @type {Function}
+     */
     Snap.Matrix = Matrix;
-    /*\
-     * Snap.matrix
-     [ method ]
-     **
-     * Utility method
-     **
-     * Returns a matrix based on the given parameters
-     - a (number)
-     - b (number)
-     - c (number)
-     - d (number)
-     - e (number)
-     - f (number)
-     * or
-     - svgMatrix (SVGMatrix)
-     = (object) @Matrix
-    \*/
+    /**
+     * Factory helper mirroring the {@link Matrix} constructor signature.
+     *
+     * @param {number|SVGMatrix|string|Matrix} [a] - Either an existing matrix representation or the `a` coefficient.
+     * @param {number} [b] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e] - The `e` translation component when numeric values are provided.
+     * @param {number} [f] - The `f` translation component when numeric values are provided.
+     * @returns {Matrix} A new matrix instance.
+     */
     Snap.matrix = function (a, b, c, d, e, f) {
         return new Matrix(a, b, c, d, e, f);
     };

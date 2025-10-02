@@ -11,6 +11,7 @@ module.exports = function (grunt) {
         './src/class.js',
         './src/attradd.js',
         './src/paper.js',
+        './src/bbox.js',
         './src/path.js',
         './src/set.js',
         './src/equal.js',
@@ -95,15 +96,21 @@ module.exports = function (grunt) {
             },
         },
         exec: {
-            dr: {
-                command: 'node node_modules/dr.js/dr dr.json',
-            },
             test: {
                 command: 'cd test; phantomjs test.js',
             },
             eslint: {
                 command: './node_modules/eslint/bin/eslint.js ' + core.join(' '),
             },
+        },
+        jsdoc: {
+            dist: {
+                src: ['src/**/*.js'],
+                options: {
+                    destination: 'doc/reference',
+                    configure: 'djsdoc.config.js'
+                }
+            }
         },
         prettify: {
             options: {
@@ -124,11 +131,12 @@ module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-terser');
     grunt.loadNpmTasks('grunt-exec');
     grunt.loadNpmTasks('grunt-prettify');
+    grunt.loadNpmTasks('grunt-jsdoc');
 
     grunt.registerTask('default',
         [
             // 'exec:eslint',
-            'concat', 'terser', 'exec:dr', 'prettify']);
+            'concat', 'terser', 'jsdoc', 'prettify']);
     grunt.registerTask('lint', ['exec:eslint']);
     grunt.registerTask('test', ['exec:test']);
 };

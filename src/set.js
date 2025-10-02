@@ -24,8 +24,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (items) {
                 for (var i = 0, ii = items.length; i < ii; ++i) {
                     if (items[i]) {
-                        this[this.items.length] = this.items[this.items.length] = items[i];
-                        this.length++;
+                        // this[this.items.length] = this.items[this.items.length] = items[i];
+                        // this.length++;
+                        this.push(items[i])
                     }
                 }
             }
