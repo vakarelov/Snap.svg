@@ -236,7 +236,7 @@
         const xlink = "http://www.w3.org/1999/xlink";
         const xmlns = "http://www.w3.org/2000/svg";
         const hub = {};
-        const hub_rem = {};
+        Snap._.hub_rem = {};
         /**
          * Wraps an ID in a `url(#...)` reference.
          *
@@ -323,6 +323,7 @@
 
         Snap._.$ = $;
         Snap._.id = ID;
+        Snap._.make = make;
 
         /**
          * Extracts all attributes from a DOM element
@@ -1775,94 +1776,10 @@
         // - element-class.js defines Element and registers it with Snap.registerClass("Element", Element)
         // - paper-class.js defines Paper and registers it with Snap.registerClass("Paper", Paper)
         // - fragment-class.js defines Fragment and registers it with Snap.registerClass("Fragment", Fragment)
-
-        /**
-         * Element.attr @method
-         *
-         * Gets or sets given attributes of the element.
-         *
-         * @param {object} params - contains key-value pairs of attributes you want to set
-         * or
-         * @param {string} param - name of the attribute
-         * @returns {Element} the current element
-         * or
-         * @returns {string} value of attribute
-         > Usage
-         | el.attr({
-         |     fill: "#fc0",
-         |     stroke: "#000",
-         |     strokeWidth: 2, // CamelCase...
-         |     "fill-opacity": 0.5, // or dash-separated names
-         |     width: "*=2" // prefixed values
-         | });
-         | console.log(el.attr("fill")); // #fc0
-         * Prefixed values in format `"+=10"` supported. All four operations
-         * (`+`, `-`, `*` and `/`) could be used. Optionally you can use units for `+`
-         * and `-`: `"+=2em"`.
-         */
-        Element.prototype.attr = function (params, value) {
-            const el = this,
-                node = el.node;
-            if (!params) {
-                if (node.nodeType !== 1) {
-                    return {
-                        text: node.nodeValue,
-                    };
-                }
-                const attr = node.attributes,
-                    out = {};
-                let i = 0;
-                const ii = attr.length;
-                for (; i < ii; ++i) {
-                    out[attr[i].nodeName] = attr[i].nodeValue;
-                }
-                return out;
-            }
-            if (is(params, "string")) {
-                if (arguments.length > 1) {
-                    const json = {};
-                    json[params] = value;
-                    params = json;
-                } else {
-                    return eve(["snap", "util", "getattr", params], el).firstDefined();
-                }
-            }
-            for (let att in params) {
-                if (params[has](att)) {
-                    eve(["snap", "util", "attr", att], el, params[att]);
-                }
-            }
-            return el;
-        };
-
-        Element.prototype.css = Element.prototype.attr;
-
-        Element.prototype.registerRemoveFunction = function (fun) {
-            // if (typeof fun !== "function") return;
-            // let reg_fun = this.data("_registered_remove_functions");
-            // if (!reg_fun) {
-            //     reg_fun = [];
-            //     this.data("_registered_remove_functions", reg_fun);
-            // }
-            // reg_fun.push(fun)
-            // this.addClass("IA_Designer_Remove_Function");
-            if (this.id in hub_rem) {
-                hub_rem[this.id].push(fun);
-            } else {
-                hub_rem[this.id] = [fun];
-            }
-        }
-
-        Element.prototype.cleanupAfterRemove = function () {
-            let reg_fun = hub_rem[this.id];
-            if (reg_fun) {
-                for (let i = 0; i < reg_fun.length; i++) {
-                    reg_fun[i](this);
-                }
-                delete hub_rem[this.id];
-            }
-        };
-
+        
+        // Note: Element.prototype methods (attr, css, registerRemoveFunction, cleanupAfterRemove, children, toJSON)
+        // are now defined in element-class.js
+        
         function sanitize(svg) {
             const script_filter = /<script[\s\S]*\/script>/gmi;
             svg = svg.replace(script_filter, "");
@@ -1971,9 +1888,8 @@
             return new ElementClass(dom);
         }
 
-        Snap._.make = make;
         Snap._.wrap = wrap;
-
+        
 
         //MeasureText
         Snap.measureTextClientRect = function (text_el) {
@@ -1993,77 +1909,9 @@
 
         }
 
-        /**
-         * Paper.el @method
-         *
-         * Creates an element on paper with a given name and no attributes
-         *
-         * @param {string} name - tag name
-         * @param {object} attr - attributes
-         * @returns {Element} the current element
-         > Usage
-         | var c = paper.circle(10, 10, 10); // is the same as...
-         | var c = paper.el("circle").attr({
-         |     cx: 10,
-         |     cy: 10,
-         |     r: 10
-         | });
-         | // and the same as
-         | var c = paper.el("circle", {
-         |     cx: 10,
-         |     cy: 10,
-         |     r: 10
-         | });
-         */
-        Paper.prototype.el = function (name, attr) {
-            const el = make(name, this.node);
-            attr && el.attr(attr);
-            return el;
-        };
-        /**
-         * Returns all child elements wrapped as Snap elements.
-         *
-         * @function Snap.Element#children
-         * @returns {Array.<Snap.Element>} Array of child elements.
-         */
-        Element.prototype.children = function () {
-            const out = [],
-                ch = this.node.childNodes;
-            let i = 0;
-            const ii = ch.length;
-            for (; i < ii; ++i) {
-                out[i] = Snap(ch[i]);
-            }
-            return out;
-        };
+        // Note: Paper.prototype.el method is now defined in paper-class.js
+        // Note: Element.prototype.children and toJSON methods (and jsonFiller helper) are now defined in element-class.js
 
-        function jsonFiller(root, o) {
-            let i = 0;
-            const ii = root.length;
-            for (; i < ii; ++i) {
-                const item = {
-                        type: root[i].type,
-                        attr: root[i].attr(),
-                    },
-                    children = root[i].children();
-                o.push(item);
-                if (children.length) {
-                    jsonFiller(children, item.childNodes = []);
-                }
-            }
-        }
-
-        /**
-         * Serialises the element and its descendants into a plain object tree.
-         *
-         * @function Snap.Element#toJSON
-         * @returns {Object} Element descriptor containing type, attributes, and child nodes.
-         */
-        Element.prototype.toJSON = function () {
-            const out = [];
-            jsonFiller([this], out);
-            return out[0];
-        };
 // default
         eve.on("snap.util.getattr", function () {
             let att = eve.nt();
@@ -2117,8 +1965,6 @@
             }
             this.attrMonitor(att)
         });
-        (function (proto) {
-        }(Paper.prototype));
 
 // simple ajax
         /**

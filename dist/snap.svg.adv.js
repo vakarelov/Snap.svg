@@ -1747,8 +1747,7 @@
                 if (is(w, "array") && Snap.set) {
                     return Snap.set.apply(Snap, w);
                 }
-                const ElementClass = Snap.getClass("Element");
-                if (w instanceof ElementClass) {
+                if (is(w, "Element")) {
                     return w;
                 }
                 if (typeof w === "string") {
@@ -1802,11 +1801,11 @@
         Snap.getProto = function (proto_name) {
             switch (proto_name.toLowerCase()) {
                 case "element":
-                    return Element.prototype;
+                    return Snap.getClass("Element").prototype;
                 case "paper":
-                    return Paper.prototype;
+                    return Snap.getClass("Paper").prototype;
                 case "fragment":
-                    return Fragment.prototype;
+                    return Snap.getClass("Fragment").prototype;
             }
         };
 
@@ -2053,11 +2052,7 @@
             return out;
         }
 
-        let available_types = {
-            "element": Element,
-            "paper": Paper,
-            "fragment": Fragment
-        };
+        let available_types = {};
         if (root.mina) available_types.animation = root.mina.Animation;
 
         /**
@@ -3486,93 +3481,9 @@
         // - paper-class.js defines Paper and registers it with Snap.registerClass("Paper", Paper)
         // - fragment-class.js defines Fragment and registers it with Snap.registerClass("Fragment", Fragment)
         
-        /**
-         * Element.attr @method
-         *
-         * Gets or sets given attributes of the element.
-         *
-         * @param {object} params - contains key-value pairs of attributes you want to set
-         * or
-         * @param {string} param - name of the attribute
-         * @returns {Element} the current element
-         * or
-         * @returns {string} value of attribute
-         > Usage
-         | el.attr({
-         |     fill: "#fc0",
-         |     stroke: "#000",
-         |     strokeWidth: 2, // CamelCase...
-         |     "fill-opacity": 0.5, // or dash-separated names
-         |     width: "*=2" // prefixed values
-         | });
-         | console.log(el.attr("fill")); // #fc0
-         * Prefixed values in format `"+=10"` supported. All four operations
-         * (`+`, `-`, `*` and `/`) could be used. Optionally you can use units for `+`
-         * and `-`: `"+=2em"`.
-         */
-        Element.prototype.attr = function (params, value) {
-            const el = this,
-                node = el.node;
-            if (!params) {
-                if (node.nodeType !== 1) {
-                    return {
-                        text: node.nodeValue,
-                    };
-                }
-                const attr = node.attributes,
-                    out = {};
-                let i = 0;
-                const ii = attr.length;
-                for (; i < ii; ++i) {
-                    out[attr[i].nodeName] = attr[i].nodeValue;
-                }
-                return out;
-            }
-            if (is(params, "string")) {
-                if (arguments.length > 1) {
-                    const json = {};
-                    json[params] = value;
-                    params = json;
-                } else {
-                    return eve(["snap", "util", "getattr", params], el).firstDefined();
-                }
-            }
-            for (let att in params) {
-                if (params[has](att)) {
-                    eve(["snap", "util", "attr", att], el, params[att]);
-                }
-            }
-            return el;
-        };
-
-        Element.prototype.css = Element.prototype.attr;
-
-        Element.prototype.registerRemoveFunction = function (fun) {
-            // if (typeof fun !== "function") return;
-            // let reg_fun = this.data("_registered_remove_functions");
-            // if (!reg_fun) {
-            //     reg_fun = [];
-            //     this.data("_registered_remove_functions", reg_fun);
-            // }
-            // reg_fun.push(fun)
-            // this.addClass("IA_Designer_Remove_Function");
-            if (this.id in hub_rem) {
-                hub_rem[this.id].push(fun);
-            } else {
-                hub_rem[this.id] = [fun];
-            }
-        }
-
-        Element.prototype.cleanupAfterRemove = function () {
-            let reg_fun = hub_rem[this.id];
-            if (reg_fun) {
-                for (let i = 0; i < reg_fun.length; i++) {
-                    reg_fun[i](this);
-                }
-                delete hub_rem[this.id];
-            }
-        };
-
+        // Note: Element.prototype methods (attr, css, registerRemoveFunction, cleanupAfterRemove, children, toJSON)
+        // are now defined in element-class.js
+        
         function sanitize(svg) {
             const script_filter = /<script[\s\S]*\/script>/gmi;
             svg = svg.replace(script_filter, "");
@@ -3667,7 +3578,7 @@
             const ElementClass = Snap.getClass("Element");
             const FragmentClass = Snap.getClass("Fragment");
             const PaperClass = Snap.getClass("Paper");
-            
+
             if (dom instanceof ElementClass || dom instanceof FragmentClass) {
                 return dom;
             }
@@ -3680,9 +3591,6 @@
             }
             return new ElementClass(dom);
         }
-
-        Snap._.make = make;
-        Snap._.wrap = wrap;
 
 
         //MeasureText
@@ -3703,77 +3611,9 @@
 
         }
 
-        /**
-         * Paper.el @method
-         *
-         * Creates an element on paper with a given name and no attributes
-         *
-         * @param {string} name - tag name
-         * @param {object} attr - attributes
-         * @returns {Element} the current element
-         > Usage
-         | var c = paper.circle(10, 10, 10); // is the same as...
-         | var c = paper.el("circle").attr({
-         |     cx: 10,
-         |     cy: 10,
-         |     r: 10
-         | });
-         | // and the same as
-         | var c = paper.el("circle", {
-         |     cx: 10,
-         |     cy: 10,
-         |     r: 10
-         | });
-         */
-        Paper.prototype.el = function (name, attr) {
-            const el = make(name, this.node);
-            attr && el.attr(attr);
-            return el;
-        };
-        /**
-         * Returns all child elements wrapped as Snap elements.
-         *
-         * @function Snap.Element#children
-         * @returns {Array.<Snap.Element>} Array of child elements.
-         */
-        Element.prototype.children = function () {
-            const out = [],
-                ch = this.node.childNodes;
-            let i = 0;
-            const ii = ch.length;
-            for (; i < ii; ++i) {
-                out[i] = Snap(ch[i]);
-            }
-            return out;
-        };
+        // Note: Paper.prototype.el method is now defined in paper-class.js
+        // Note: Element.prototype.children and toJSON methods (and jsonFiller helper) are now defined in element-class.js
 
-        function jsonFiller(root, o) {
-            let i = 0;
-            const ii = root.length;
-            for (; i < ii; ++i) {
-                const item = {
-                        type: root[i].type,
-                        attr: root[i].attr(),
-                    },
-                    children = root[i].children();
-                o.push(item);
-                if (children.length) {
-                    jsonFiller(children, item.childNodes = []);
-                }
-            }
-        }
-
-        /**
-         * Serialises the element and its descendants into a plain object tree.
-         *
-         * @function Snap.Element#toJSON
-         * @returns {Object} Element descriptor containing type, attributes, and child nodes.
-         */
-        Element.prototype.toJSON = function () {
-            const out = [];
-            jsonFiller([this], out);
-            return out[0];
-        };
 // default
         eve.on("snap.util.getattr", function () {
             let att = eve.nt();
@@ -3827,8 +3667,6 @@
             }
             this.attrMonitor(att)
         });
-        (function (proto) {
-        }(Paper.prototype));
 
 // simple ajax
         /**
@@ -4033,7 +3871,7 @@
          * @param {function(Snap, Snap.Element, Snap.Paper, Window, Snap.Fragment, Function)} f Plugin callback.
          */
         Snap.plugin = function (f) {
-            f(Snap, Element, Paper, glob, Fragment, eve);
+           f(Snap, Snap.getClass("Element"), Snap.getClass("Paper"), glob, Snap.getClass("Fragment"), eve);
         };
         root.Snap_ia = Snap;
         root.Snap = root.Snap || Snap;
@@ -4047,7 +3885,7 @@
  * Copyright (c) 2013 - 2017 Adobe Systems Incorporated. All rights reserved.
  * Modifications copyright (C) 2019 <Orlin Vakarelov>
  */
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap_ia.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
     /**
      * Lightweight container representing detached SVG content that can be inserted elsewhere.
      *
@@ -4094,7 +3932,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         const hub = Snap._.hub;
         const ID = Snap._.id;
         const $ = Snap._.$;
@@ -4157,8 +3995,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         // Register the Element class with Snap
         Snap.registerClass("Element", Element);
 
+        const hub_rem = Snap._.hub_rem;
         const elproto = Element.prototype,
-            proto = Paper.prototype,
             is = Snap.is,
             Str = String,
             unit2px = Snap._unit2px,
@@ -6275,6 +6113,131 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     btoa(unescape(encodeURIComponent(svg)));
             }
         };
+
+        /**
+         * Element.attr @method
+         *
+         * Gets or sets given attributes of the element.
+         *
+         * @param {object} params - contains key-value pairs of attributes you want to set
+         * or
+         * @param {string} param - name of the attribute
+         * @returns {Element} the current element
+         * or
+         * @returns {string} value of attribute
+         > Usage
+         | el.attr({
+         |     fill: "#fc0",
+         |     stroke: "#000",
+         |     strokeWidth: 2, // CamelCase...
+         |     "fill-opacity": 0.5, // or dash-separated names
+         |     width: "*=2" // prefixed values
+         | });
+         | console.log(el.attr("fill")); // #fc0
+         * Prefixed values in format `"+=10"` supported. All four operations
+         * (`+`, `-`, `*` and `/`) could be used. Optionally you can use units for `+`
+         * and `-`: `"+=2em"`.
+         */
+        elproto.attr = function (params, value) {
+            const el = this,
+                node = el.node;
+            if (!params) {
+                if (node.nodeType !== 1) {
+                    return {
+                        text: node.nodeValue,
+                    };
+                }
+                const attr = node.attributes,
+                    out = {};
+                let i = 0;
+                const ii = attr.length;
+                for (; i < ii; ++i) {
+                    out[attr[i].nodeName] = attr[i].nodeValue;
+                }
+                return out;
+            }
+            if (is(params, "string")) {
+                if (arguments.length > 1) {
+                    const json = {};
+                    json[params] = value;
+                    params = json;
+                } else {
+                    return eve(["snap", "util", "getattr", params], el).firstDefined();
+                }
+            }
+            for (let att in params) {
+                if (params[has](att)) {
+                    eve(["snap", "util", "attr", att], el, params[att]);
+                }
+            }
+            return el;
+        };
+
+        elproto.css = elproto.attr;
+
+        elproto.registerRemoveFunction = function (fun) {
+            if (this.id in hub_rem) {
+                hub_rem[this.id].push(fun);
+            } else {
+                hub_rem[this.id] = [fun];
+            }
+        };
+
+        elproto.cleanupAfterRemove = function () {
+            let reg_fun = hub_rem[this.id];
+            if (reg_fun) {
+                for (let i = 0; i < reg_fun.length; i++) {
+                    reg_fun[i](this);
+                }
+                delete hub_rem[this.id];
+            }
+        };
+
+        /**
+         * Returns all child elements wrapped as Snap elements.
+         *
+         * @function Snap.Element#children
+         * @returns {Array.<Snap.Element>} Array of child elements.
+         */
+        elproto.children = function () {
+            const out = [],
+                ch = this.node.childNodes;
+            let i = 0;
+            const ii = ch.length;
+            for (; i < ii; ++i) {
+                out[i] = Snap(ch[i]);
+            }
+            return out;
+        };
+
+        function jsonFiller(root, o) {
+            let i = 0;
+            const ii = root.length;
+            for (; i < ii; ++i) {
+                const item = {
+                        type: root[i].type,
+                        attr: root[i].attr(),
+                    },
+                    children = root[i].children();
+                o.push(item);
+                if (children.length) {
+                    jsonFiller(children, item.childNodes = []);
+                }
+            }
+        }
+
+        /**
+         * Serialises the element and its descendants into a plain object tree.
+         *
+         * @function Snap.Element#toJSON
+         * @returns {Object} Element descriptor containing type, attributes, and child nodes.
+         */
+        elproto.toJSON = function () {
+            const out = [];
+            jsonFiller([this], out);
+            return out[0];
+        };
+
         /**
          * Fragment.select @method
  *
@@ -6304,7 +6267,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
     const hub = Snap._.hub;
     const $ = Snap._.$;
     const make = Snap._.make;
@@ -6694,7 +6657,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     proto.use = function (id, attr) {
         if (id != null) {
-            if (id instanceof Element) {
+            if (Snap.is(id, "Element")) {
                 if (!id.attr("id")) {
                     id.attr({id: Snap._.id(id)});
                 }
@@ -6711,7 +6674,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             attr["href"] = "#" + id;
             return this.el("use", attr);
         } else {
-            return Element.prototype.use.call(this);
+            let Element = Snap.getClass("Element");
+            return Element && Element.prototype.use.call(this);
         }
     };
     proto.use.skip = true;
@@ -7099,6 +7063,51 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
         proto.clear.skip = true;
     }());
+
+    /**
+     * Paper.el @method
+     *
+     * Creates an element on paper with a given name and no attributes
+     *
+     * @param {string} name - tag name
+     * @param {object} attr - attributes
+     * @returns {Element} the current element
+     > Usage
+     | var c = paper.circle(10, 10, 10); // is the same as...
+     | var c = paper.el("circle").attr({
+     |     cx: 10,
+     |     cy: 10,
+     |     r: 10
+     | });
+     | // and the same as
+     | var c = paper.el("circle", {
+     |     cx: 10,
+     |     cy: 10,
+     |     r: 10
+     | });
+     */
+    proto.el = function (name, attr) {
+        const el = make(name, this.node);
+        attr && el.attr(attr);
+        return el;
+    };
+
+    //MeasureText
+    Snap.measureTextClientRect = function (text_el) {
+        if (!Snap._.measureSVG) {
+            Snap._.measureSVG = Snap(100, 100).attr("style", "position:absolute;left:-9999px;top:-9999px; pointer-events:none");
+        }
+        let temp_clone = text_el.node.cloneNode(true);
+        temp_clone.removeAttribute("transform");
+        Snap._.measureSVG.node.appendChild(temp_clone);
+        const rect = temp_clone.getBoundingClientRect();
+        const parent_rect = Snap._.measureSVG.node.getBoundingClientRect();
+        temp_clone.remove();
+        return {
+            left: rect.left - parent_rect.left, top: rect.top - parent_rect.top,
+            width: rect.width, height: rect.height
+        };
+    }
 })
 ;
 

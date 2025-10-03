@@ -48,7 +48,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
             }
             res.paper = res.root = res;
         } else {
-            res = make("svg", glob.doc.body);
+            res = Snap._.make("svg", glob.doc.body);
             $(res.node, {
                 height: h,
                 version: 1.1,
@@ -807,5 +807,50 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         };
         proto.clear.skip = true;
     }());
+
+    /**
+     * Paper.el @method
+     *
+     * Creates an element on paper with a given name and no attributes
+     *
+     * @param {string} name - tag name
+     * @param {object} attr - attributes
+     * @returns {Element} the current element
+     > Usage
+     | var c = paper.circle(10, 10, 10); // is the same as...
+     | var c = paper.el("circle").attr({
+     |     cx: 10,
+     |     cy: 10,
+     |     r: 10
+     | });
+     | // and the same as
+     | var c = paper.el("circle", {
+     |     cx: 10,
+     |     cy: 10,
+     |     r: 10
+     | });
+     */
+    proto.el = function (name, attr) {
+        const el = make(name, this.node);
+        attr && el.attr(attr);
+        return el;
+    };
+
+    //MeasureText
+    Snap.measureTextClientRect = function (text_el) {
+        if (!Snap._.measureSVG) {
+            Snap._.measureSVG = Snap(100, 100).attr("style", "position:absolute;left:-9999px;top:-9999px; pointer-events:none");
+        }
+        let temp_clone = text_el.node.cloneNode(true);
+        temp_clone.removeAttribute("transform");
+        Snap._.measureSVG.node.appendChild(temp_clone);
+        const rect = temp_clone.getBoundingClientRect();
+        const parent_rect = Snap._.measureSVG.node.getBoundingClientRect();
+        temp_clone.remove();
+        return {
+            left: rect.left - parent_rect.left, top: rect.top - parent_rect.top,
+            width: rect.width, height: rect.height
+        };
+    }
 })
 ;
