@@ -32,23 +32,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         brown = "#EFEBE9#D7CCC8#BCAAA4#A1887F#8D6E63#795548#6D4C41#5D4037#4E342E#3E2723",
         grey = "#FAFAFA#F5F5F5#EEEEEE#E0E0E0#BDBDBD#9E9E9E#757575#616161#424242#212121",
         bluegrey = "#ECEFF1#CFD8DC#B0BEC5#90A4AE#78909C#607D8B#546E7A#455A64#37474F#263238";
-    /*\
-     * Snap.mui
-     [ property ]
-     **
+    /**
+     * Snap.mui @property *
      * Contain Material UI colours.
      | Snap().rect(0, 0, 10, 10).attr({fill: Snap.mui.deeppurple, stroke: Snap.mui.amber[600]});
      # For colour reference: <a href="https://www.materialui.co">https://www.materialui.co</a>.
-    \*/
+    */
     Snap.mui = {};
-    /*\
-     * Snap.flat
-     [ property ]
-     **
+    /**
+     * Snap.flat @property *
      * Contain Flat UI colours.
      | Snap().rect(0, 0, 10, 10).attr({fill: Snap.flat.carrot, stroke: Snap.flat.wetasphalt});
      # For colour reference: <a href="https://www.materialui.co">https://www.materialui.co</a>.
-    \*/
+    */
     Snap.flat = {};
     let levels = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900];
 
@@ -113,15 +109,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.flat.midnightblue = "#2c3e50";
     Snap.flat.concrete = "#95a5a6";
     Snap.flat.asbestos = "#7f8c8d";
-    /*\
-     * Snap.importMUIColors
-     [ method ]
-     **
+    /**
+     * Snap.importMUIColors @method *
      * Imports Material UI colours into global object.
      | Snap.importMUIColors();
      | Snap().rect(0, 0, 10, 10).attr({fill: deeppurple, stroke: amber[600]});
      # For colour reference: <a href="https://www.materialui.co">https://www.materialui.co</a>.
-    \*/
+    */
     Snap.importMUIColors = function () {
         for (var color in Snap.mui) {
             if (Snap.mui.hasOwnProperty(color)) {

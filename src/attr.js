@@ -23,14 +23,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         Str = String,
         separator = Snap._.separator,
         E = "";
-    /*\
-     * Snap.deurl
-     [ method ]
-     **
+    /**
+     * Snap.deurl @method
+ *
      * Unwraps path from `"url(<path>)"`.
-     - value (string) url path
-     = (string) unwrapped path
-    \*/
+ * @param {string} value - url path
+ * @returns {string} unwrapped path
+    */
     Snap.deurl = function (value) {
         var res = String(value).match(reURLValue);
         return res ? res[2] : value;
@@ -67,11 +66,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }(function (value) {
         if (value instanceof Element || value instanceof Fragment) {
             eve.stop();
+            const ElementClass = Snap.getClass("Element");
             var clip,
                 node = value.node;
             while (node) {
                 if (node.nodeName === "clipPath") {
-                    clip = new Element(node);
+                    clip = new ElementClass(node);
                     break;
                 }
                 if (node.nodeName === "svg") {

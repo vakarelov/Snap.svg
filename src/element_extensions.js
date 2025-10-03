@@ -7,14 +7,21 @@
         //ELEMENT Functions
 
         let _ = {};
-    /**
-     * Ensures the element has an `id` attribute and returns it.
-     * If the attribute is missing it is generated from the internal Snap id.
-     *
-     * @function Snap.Element#getId
-     * @returns {string} Unique identifier associated with the element.
-     */
-    Element.prototype.getId = function () {
+
+        /**
+         * Resolves the DOM identifier used by this element.
+         * If the element does not yet have an `id` attribute, one is generated
+         * from Snap's internal identifier and applied to the node so future
+         * lookups remain stable.
+         *
+         * @function Snap.Element#getId
+         * @returns {string} A non-empty identifier guaranteed to be set on the element.
+         * @example
+         * const rect = paper.rect(0, 0, 100, 50);
+         * const id = rect.getId();
+         * Ensures the DOM node now has an id attribute you can query with document.getElementById(id)
+         */
+        Element.prototype.getId = function () {
             let id = this.attr('id');
             if (!id) {
                 id = this.id;
@@ -22,14 +29,20 @@
             }
             return id;
         };
-    /**
-     * Sets the id of the element and adjusts any references of the object.
-     *
-     * @function Snap.Element#setIdFollowRefs
-     * @param {string} [id] Desired id; when omitted a unique suffix is appended to the existing id.
-     * @param {Snap.Element} [from_group] Optional ancestor used to narrow the reference search scope.
-     * @returns {Snap.Element} The element itself, allowing chaining.
-     */
+
+        /**
+         * Sets the element `id` and updates all references that point at the original value.
+         * This is particularly useful when importing foreign SVG fragments that may clash
+         * with existing identifiers inside the current paper.
+         *
+         * @function Snap.Element#setIdFollowRefs
+         * @param {string|undefined} [id] A custom identifier. When omitted a unique suffix is appended to the original id.
+         * @param {Snap.Element|undefined} [from_group] Optional group that scopes the reference search.
+         * @returns {Snap.Element} Returns the element to allow chaining.
+         * @example
+         * symbol.setIdFollowRefs('icon-symbol');
+         *  All <use> nodes targeting the original id now point to #icon-symbol.
+         */
         Element.prototype.setIdFollowRefs = function (id, from_group) {
             if (id instanceof Element) {
                 from_group = id;
@@ -208,14 +221,18 @@
             }
 
         };
-    /**
-     * Reorders the element within the provided group to match the rendering order of the DOM node.
-     *
-     * @function Snap.Element#repositionInGroup
-     * @param {Snap.Element} group Group whose child order should be synchronized.
-     * @returns {Snap.Element} The element itself for chaining.
-     */
-    Element.prototype.repositionInGroup = function (group) {
+
+        /**
+         * Reparents the element into another group while preserving its visual position.
+         *
+         * @function Snap.Element#repositionInGroup
+         * @param {Snap.Element} group The new group-like container or root svg.
+         * @returns {Snap.Element|undefined} Returns the element when the move succeeds, otherwise leaves it untouched.
+         * @example
+         * const layer = paper.g();
+         * rect.repositionInGroup(layer); // rect visually remains in place but becomes a child of `layer`
+         */
+        Element.prototype.repositionInGroup = function (group) {
             if (!group.isGroupLike() && group.type !== 'svg') return;
             if (this.parent() === group) return;
             const diffMatrix = this.transform().diffMatrix;
@@ -224,31 +241,42 @@
             group.add(this);
             this.addTransform(new_trans);
         };
-    /**
-     * Converts a coordinate from the global SVG space to the element's local coordinate system.
-     *
-     * @function Snap.Element#globalToLocal
-     * @param {{x:number,y:number}} globalPoint Point in SVG global coordinates.
-     * @param {Snap.Element} [coordTarget] Optional element whose coordinate system should be the result.
-     * @returns {{x:number,y:number}} Converted coordinates relative to the target element.
-     */
-    Element.prototype.globalToLocal = function (globalPoint, coordTarget) {
+
+        /**
+         * Converts a global SVG point to the local coordinate space of the element.
+         * The conversion accounts for nested transforms by multiplying the relevant matrices.
+         *
+         * @function Snap.Element#globalToLocal
+         * @param {DOMPoint} globalPoint The point expressed in the global coordinate system.
+         * @param {Snap.Element} coordTarget The element that produced the original global coordinates.
+         * @returns {DOMPoint} A new DOMPoint positioned in this element's local space.
+         * @example
+         * const cursor = rect.getCursorPoint(evt.clientX, evt.clientY, rect);
+         * const local = rect.globalToLocal(cursor, rect);
+         */
+        Element.prototype.globalToLocal = function (globalPoint, coordTarget) {
 
             let ctm = coordTarget.node.getCTM();
             const globalToLocal = ctm ? ctm.inverse().multiply(this.node.getCTM()) : this.node.getCTM();
             globalToLocal.e = globalToLocal.f = 0;
             return globalPoint.matrixTransform(globalToLocal);
         };
-    /**
-     * Produces an SVG point from client (screen) coordinates, optionally in another element's system.
-     *
-     * @function Snap.Element#getCursorPoint
-     * @param {number} x Horizontal client coordinate (e.g., mouse event `clientX`).
-     * @param {number} y Vertical client coordinate (e.g., mouse event `clientY`).
-     * @param {Snap.Element} [coordTarget] Element whose coordinate system should be used for the result.
-     * @returns {{x:number,y:number}} Point expressed in the chosen coordinate system.
-     */
-    Element.prototype.getCursorPoint = function (x, y, coordTarget) {
+
+        /**
+         * Translates screen coordinates (usually from pointer events) into the element's local coordinate system.
+         *
+         * @function Snap.Element#getCursorPoint
+         * @param {number} x The screen-space X coordinate (e.g. `event.clientX`).
+         * @param {number} y The screen-space Y coordinate (e.g. `event.clientY`).
+         * @param {Snap.Element} [coordTarget=this] Optional element that originated the event; defaults to the element itself.
+         * @returns {DOMPoint} A DOMPoint describing the local coordinates.
+         * @example
+         * svg.node.addEventListener('mousemove', evt => {
+         *   const {x, y} = rect.getCursorPoint(evt.clientX, evt.clientY);
+         *   rect.attr({ x, y });
+         * });
+         */
+        Element.prototype.getCursorPoint = function (x, y, coordTarget) {
             const pt = this.paper.node.createSVGPoint();
             coordTarget = coordTarget || this;
 
@@ -390,15 +418,14 @@
                 return this.isOverlapRect(rect);
             }
         };
-    /**
-     * Approximates the dominant direction of the element by sampling points along its outline.
-     *
-     * @function Snap.Element#getDirectionLine
-     * @param {number} [sample=100] Number of sampling points used along the path or polygon.
-     * @param {Object} [gui] Optional helper object used for visualization (expects `svgRoot`).
-     * @returns {Array<number>|null} `[angle, intercept]` pair in degrees and intercept, or `null` if undetermined.
-     */
-    Element.prototype.getDirectionLine = function (sample, gui) {
+        /**
+         * Approximates the dominant direction of the element by sampling points along its outline.
+         *
+         * @function Snap.Element#getDirectionLine
+         * @param {number} [sample=100] Number of sampling points used along the path or polygon.
+         * @returns {Array<number>|null} `[angle, intercept]` pair in degrees and intercept, or `null` if undetermined.
+         */
+        Element.prototype.getDirectionLine = function (sample) {
             if (!root.ss) return null;
             sample = sample || 100;
             let el = this;
@@ -412,7 +439,6 @@
                     const points = [];
                     for (let i = 0, d = 0, p; i < sample; ++i, d += inc) {
                         p = el.getPointAtLength(d);
-                        let c = gui.svgRoot.circle(p.x, p.y, .3).attr({id: 'c' + i, fill: 'red'});
                         points.push([p.x, p.y]);
                     }
 
@@ -439,55 +465,12 @@
             }
 
             return line_slope_intersect;
-        };
-    /**
-     * Updates the CSS cursor on the element and, optionally, on all descendants.
-     *
-     * @function Snap.Element#setCursor
-     * @param {string} cursorStyle CSS cursor value (for example `pointer` or `url(...)`).
-     * @param {boolean} [apply_to_children=false] When true the cursor is applied to all child elements.
-     * @returns {Snap.Element} The element itself for chaining.
-     */
-    Element.prototype.setCursor = function (cursorStyle, apply_to_children) {
-            //todo: allow url.
-            if (!cursorStyle) {
-                cursorStyle = 'default';
-            }
-
-            if (cursorStyle.startsWith("url(")) {
-                // Direct style assignment for URL-based cursors
-                this.node.style.cursor = cursorStyle;
-                this.removeClass("IA_Designer_Cursor", true);
-            } else if (!this.hasClass("IA_Designer_Cursor_" + cursorStyle)) {
-                // Class-based cursor styling for standard cursors
-                this.node.style.cursor = "inherit";
-                this.removeClass("IA_Designer_Cursor", true);
-                this.addClass("IA_Designer_Cursor_" + cursorStyle);
-            }
-
-            // if (cursorStyle === 'inherit') {
-            //     const parent = this.parent();
-            //     if (parent)
-            //         return this.setCursor(parent.node.style.cursor);
-            // }
-            //
-            // if (cursorStyle) {
-            //     this.node.style.cursor = cursorStyle;
-            // } else {
-            //     this.node.style.cursor = 'default';
-            // }
-
-            if (apply_to_children) {
-                const children = this.getChildren();
-
-                for (let i = 0; i < children.length; ++i) {
-                    children[i].setCursor(cursorStyle);
-                }
-            }
-
-            return this;
-        };
-
+        };        /**
+         * Calculates the center of mass for the element.
+         * 
+         * @function Snap.Element#centerOfMass
+         * @returns {{x:number,y:number}} Point representing the center of mass.
+         */
         Element.prototype.centerOfMass = function () {
             const cm = this.paper.node.createSVGPoint();
             if (this.attr('center_mass_x') !== null &&
@@ -508,6 +491,12 @@
             return cm;
         };
 
+        /**
+         * Gets the center point for rotation operations.
+         * 
+         * @function Snap.Element#centerRotation
+         * @returns {{x:number,y:number}} Point around which the element should rotate.
+         */
         Element.prototype.centerRotation = function () {
             //todo: fix this
             return this.centerOfMass();
@@ -516,6 +505,14 @@
 
         let old_remove = Element.prototype.remove;
 
+        /**
+         * Removes the element from the DOM along with any associated linked resources and partners.
+         * 
+         * @function Snap.Element#remove
+         * @param {boolean} [skip_linked=false] When true, linked resources are not automatically removed.
+         * @param {boolean} [skip_reg_fun_childern] Reserved parameter for internal use.
+         * @returns {Snap.Element} The removed element.
+         */
         Element.prototype.remove = function (skip_linked, skip_reg_fun_childern) {
             if (!skip_linked && IA_Designer &&
                 IA_Designer.class_defs.LINKED_RESOURCE) {
@@ -558,19 +555,46 @@
             return old_remove.bind(this)();
         };
 
+        /**
+         * Hides the element by setting its display style to 'none'.
+         * 
+         * @function Snap.Element#hide
+         * @returns {void}
+         */
         Element.prototype.hide = function () {
             this.setStyle("display", "none");
         }
 
+        /**
+         * Shows the element by resetting its display style.
+         * 
+         * @function Snap.Element#show
+         * @returns {void}
+         */
         Element.prototype.show = function () {
             this.setStyle("display", "");
         }
 
+        /**
+         * Removes the element after fading it out over a specified duration.
+         * 
+         * @function Snap.Element#removeSlowly
+         * @param {number} [time=500] Duration of the fade-out animation in milliseconds.
+         * @returns {void}
+         */
         Element.prototype.removeSlowly = function (time) {
             if (time === undefined) time = 500;
             this.animate({opacity: 0}, time, undefined, () => this.remove());
         }
 
+        /**
+         * Hides the element with a fade-out animation.
+         * 
+         * @function Snap.Element#hideSlowly
+         * @param {number} [time=500] Duration of the fade-out animation in milliseconds.
+         * @param {Function} [after] Optional callback executed after the animation completes.
+         * @returns {void}
+         */
         Element.prototype.hideSlowly = function (time, after) {
             if (time === undefined) time = 500;
             this.animate({opacity: 0}, time, undefined, () => {
@@ -579,6 +603,14 @@
             });
         }
 
+        /**
+         * Shows the element with a fade-in animation.
+         * 
+         * @function Snap.Element#showSlowly
+         * @param {number} [time=500] Duration of the fade-in animation in milliseconds.
+         * @param {Function} [after] Optional callback executed after the animation completes.
+         * @returns {void}
+         */
         Element.prototype.showSlowly = function (time, after) {
             if (time === undefined) time = 500;
             let opacity = +this.attr("opacity") || 1;
@@ -589,7 +621,14 @@
             );
         }
 
-
+        /**
+         * Flattens a group by moving all its children to the parent level and applies the group's transformation and styling to each child.
+         * The group element is removed after flattening.
+         * 
+         * @function Snap.Element#flatten
+         * @param {boolean} [process_css=false] When true, propagates the group's classes and styles to all children.
+         * @returns {Snap.Element} The element (for non-groups) or undefined after removal (for groups).
+         */
         Element.prototype.flatten = function (process_css) {
             if (!this.isGroupLike()) return this;
             const children = this.getChildren();
@@ -620,6 +659,14 @@
             this.remove();
         }
 
+        /**
+         * Wraps the element in an anchor element for linking functionality.
+         * 
+         * @function Snap.Element#anchorEmbed
+         * @param {string} href The URL or link destination.
+         * @param {string} [target] Optional target attribute for the anchor (e.g., '_blank', '_self').
+         * @returns {void}
+         */
         Element.prototype.anchorEmbed = function (href, target) {
             let a = this.paper.a(href, target);
             this.after(a);
@@ -627,16 +674,13 @@
         };
 
         /**
-         *
-         * Records changes to the element.
-         *
-         */
-        /**
          * Records a change to the element, using a bit code. Used to updating the state of the server
          *
-         * @param exclude_attribute  (only relevant if to_leafs is true) excludes element that have a give
+         * @function Snap.Element#recordChange
+         * @param {string} [exclude_attribute] (only relevant if to_leafs is true) excludes element that have a given
          * system attribute set to true. For example, to exclude protected element
-         * @param to_leafs weather to apply the changes only to the leafs (non-group elements) of a group.
+         * @param {boolean} [to_leafs] weather to apply the changes only to the leafs (non-group elements) of a group.
+         * @param {Function} [f] Optional callback function to execute after recording changes.
          *
          * The arguments (after above system arguments) are passed as string tokens: "transform", "points", "style", "new", "reorder", "attribute", "effect", "clip"
          */
@@ -696,7 +740,9 @@
 
         /**
          * Returns changes to the element
-         * @return {Array} of the following, in this order:
+         * 
+         * @function Snap.Element#readChanges
+         * @returns {Array} of the following, in this order:
          * "delete", "new", "points", "transform", "reorder", "style", "attribute", "effect", "clip"
          */
         Element.prototype.readChanges = function () {
@@ -716,11 +762,25 @@
             return changes;
         };
 
+        /**
+         * Marks the element as local-only, preventing it from being synced to a server.
+         * 
+         * @function Snap.Element#localOnly
+         * @param {boolean} [reverse=false] When true, removes the local-only flag.
+         * @returns {Snap.Element} The element for method chaining.
+         */
         Element.prototype.localOnly = function (reverse) {
             this.attr({local: (reverse) ? '' : 1});
             return this;
         };
 
+        /**
+         * Checks whether the element or any of its ancestors are marked as local-only.
+         * 
+         * @function Snap.Element#isLocal
+         * @param {Node} [node] Optional DOM node to check; defaults to the element's node.
+         * @returns {boolean} True if the element is local-only.
+         */
         Element.prototype.isLocal = function (node) {
             if (node) {
                 if (node.tagName.toLowerCase() === 'svg') return false;
@@ -732,6 +792,14 @@
                 this.isLocal(this.node.parentElement);
         };
 
+        /**
+         * Gets or sets the first point of a path, polyline, or polycurve element.
+         * 
+         * @function Snap.Element#pathFirstPoint
+         * @param {number|Object} [x] X coordinate or point object. If omitted, returns the current first point.
+         * @param {number} [y] Y coordinate (only used if x is a number).
+         * @returns {Snap.Element|Object} The element for chaining when setting, or point object {x, y} when getting.
+         */
         Element.prototype.pathFirstPoint = function (x, y) { //Avoid setting the first point of a poly object
             const type = this.type;
 
@@ -765,6 +833,12 @@
             return this;
         };
 
+        /**
+         * Converts the element to a path element while preserving all non-geometric attributes.
+         * 
+         * @function Snap.Element#makePath
+         * @returns {Snap.Element} The converted path element or the original element if already a path or group.
+         */
         Element.prototype.makePath = function () {
             if (this.isGroupLike() || this.type === 'path') return this;
 
@@ -789,6 +863,14 @@
             return this;
         };
 
+        /**
+         * Creates a clip path and applies it to the element.
+         * 
+         * @function Snap.Element#createClipPath
+         * @param {Snap.Element} path The path element to use for clipping.
+         * @param {string} [id] Optional ID for the clip path; auto-generated if omitted.
+         * @returns {Snap.Element} The created clipPath element.
+         */
         Element.prototype.createClipPath = function (path, id) {
             const clipPath = this.clipPath();
             if (id) {
@@ -802,6 +884,14 @@
             return clipPath;
         };
 
+        /**
+         * Creates a mask and applies it to the element.
+         * 
+         * @function Snap.Element#createMask
+         * @param {Snap.Element} path The path element to use for masking.
+         * @param {string} [id] Optional ID for the mask; auto-generated if omitted.
+         * @returns {Snap.Element} The created mask element.
+         */
         Element.prototype.createMask = function (path, id) {
             const mask = this.mask();
             if (id) {
@@ -815,6 +905,12 @@
             return mask;
         };
 
+        /**
+         * Localizes a linked element (clipPath or mask) by updating its ID and all references.
+         * 
+         * @function Snap.Element#linkedElementLocalise
+         * @returns {void}
+         */
         Element.prototype.linkedElementLocalise = function () {
             if (this.type !== "clipPath" && this.type !== "mask") return;
             let old_id = this.getId();
@@ -832,24 +928,23 @@
             this.attr('id', new_id);
         }
 
-
+        /**
+         * Converts the element to a polyBezier representation.
+         * 
+         * @function Snap.Element#toPolyBezier
+         * @returns {Snap.Element} A polyBezier element created from the element's bezier curves.
+         */
         Element.prototype.toPolyBezier = function () {
             return Snap.polyBezier(this.toBeziers());
         };
 
-        Element.prototype.correctScale = function (center_x, center_y, gui) {
-            // return this;
-            let scale = 1;
-            if (center_x === undefined) center_x = 0;
-            if (center_y === undefined) center_y = 0;
-            if (gui && gui.layers.getCurrentNavLayer() &&
-                (scale = 1 / Number(gui.layers.getZoom())) && !isNaN(scale) &&
-                !(scale === 1)) {
-                this.scale(scale, scale, center_x, center_y, 'id');
-            }
-            return this;
-        };
-
+        /**
+         * Gets the first point of the element's geometry.
+         * 
+         * @function Snap.Element#getFirstPoint
+         * @param {boolean} [use_local_transform=false] Whether to apply the element's local transformation matrix.
+         * @returns {{x:number,y:number}} The first point of the element.
+         */
         Element.prototype.getFirstPoint = function (use_local_transform) {
             const type = this.type;
             let point;
@@ -882,6 +977,14 @@
             return point;
         };
 
+        /**
+         * Sets the first point of the element's geometry.
+         * 
+         * @function Snap.Element#setFirstPoint
+         * @param {number|{x:number,y:number}|number[]} x X coordinate or point object/array.
+         * @param {number} [y] Y coordinate (required if x is a number).
+         * @returns {Snap.Element} The element itself for chaining.
+         */
         Element.prototype.setFirstPoint = function (x, y) {
             if (typeof x == 'object') {
                 y = x.y || x[1] || undefined;
@@ -905,6 +1008,13 @@
             return this;
         };
 
+        /**
+         * Gets the last point of the element's geometry.
+         * 
+         * @function Snap.Element#getLastPoint
+         * @param {boolean} [use_local_transform=false] Whether to apply the element's local transformation matrix.
+         * @returns {{x:number,y:number}} The last point of the element.
+         */
         Element.prototype.getLastPoint = function (use_local_transform) {
             let points = this.getControlPoints();
             let point = points[points.length - 1];
@@ -917,9 +1027,14 @@
         };
 
         /**
-         * Returns a map of the values of the list of attribute names
-         * @param  attributes [array] the list of attribute names
-         * @param  inverse [boolean] if true, it returns all attributes except the ones in the attribute list
+         * Returns a map of selected attributes for the element.
+         *
+         * @function Snap.Element#attrs
+         * @param {string[]|Object} attributes List or map of attribute names to retrieve.
+         * @param {boolean} [inverse=false] When true, returns every attribute except the supplied ones.
+         * @returns {Object<string, any>} A dictionary of attribute values.
+         * @example
+         * const geometry = rect.attrs(['x', 'y', 'width', 'height']);
          */
         Element.prototype.attrs = function (attributes, inverse) {
             const result = {};
@@ -946,6 +1061,13 @@
             return result;
         };
 
+        /**
+         * Gets the geometry-related attributes for the element based on its type.
+         * 
+         * @function Snap.Element#getGeometryAttr
+         * @param {boolean} [names_only=false] If true, returns only attribute names, otherwise returns values.
+         * @returns {string[]|Object} Array of attribute names or object with attribute values.
+         */
         Element.prototype.getGeometryAttr = function (names_only) {
             const el = this;
 
@@ -982,6 +1104,13 @@
             return [];
         };
 
+        /**
+         * Collects all attributes from the underlying DOM node.
+         * Style attributes are converted into key/value maps via `Snap.convertStyleFormat`.
+         *
+         * @function Snap.Element#getAttributes
+         * @returns {Object<string, any>} Dictionary containing attribute names and values.
+         */
         Element.prototype.getAttributes = function () {
             const ret = {};
             const attrMap = this.node.attributes;
@@ -995,6 +1124,14 @@
             return ret;
         };
 
+        /**
+         * Toggles pointer event transparency for the element.
+         *
+         * @function Snap.Element#transparentToMouse
+         * @param {boolean} [remove=false] When true, restores the previous pointer-events value.
+         * @param {string} [type] Optional pointer-event value to reapply when removing transparency.
+         * @returns {Snap.Element} The element for chaining.
+         */
         Element.prototype.transparentToMouse = function (remove = false, type) {
             if (remove) {
                 this.attr('pointer-events', type || '');
@@ -1004,10 +1141,24 @@
             return this;
         };
 
+        /**
+         * Checks whether the element overlaps a given rectangle.
+         *
+         * @function Snap.Element#isOverlapRect
+         * @param {Snap.Element} rect Rectangle element used for hit-testing.
+         * @returns {boolean} True when the element intersects the rectangle.
+         */
         Element.prototype.isOverlapRect = function (rect) {
             return Snap.path.isPathOverlapRect(this, rect);
         };
 
+        /**
+         * Tests polygon overlap between the element and another geometry.
+         *
+         * @function Snap.Element#isOverlap
+         * @param {number[][]|Object} el Either an array of points or an object exposing `getCHull`.
+         * @returns {boolean} True when the convex hulls intersect.
+         */
         Element.prototype.isOverlap = function (el) {
             let points;
             if (Array.isArray(el)) {
@@ -1024,8 +1175,24 @@
             return false;
         }
 
-
         //Actions
+    
+        // Helper function for rounding numbers
+        function round(num, decimals = 0) {
+            const factor = Math.pow(10, decimals);
+            return Math.round(num * factor) / factor;
+        }
+        /**
+         * Enables drag-based translation for the element.
+         *
+         * @function Snap.Element#move
+         * @param {Object} [select] Selection context providing GUI helpers.
+         * @param {Snap.Element} [el=this] Optional proxy element to move.
+         * @param {Object} [mcontext] Context object passed to move callbacks.
+         * @param {Object} [scontext] Context object passed to start callbacks.
+         * @param {Object} [econtext] Context object passed to end callbacks.
+         * @returns {Snap.Element} The element for chaining.
+         */
         Element.prototype.move = function (
             select, el, mcontext, scontext, econtext) {
             if (el == undefined) {
@@ -1044,7 +1211,7 @@
                     econtext = econtext || {};
                     econtext.use_cache = true;
                 }
-            } else if (select) {
+            } else if (select && select.gui && select.gui.layers) {
                 coordTarget = select.gui.layers.getCurrentNavLayer();
             } else {
                 coordTarget = el.paper;
@@ -1067,11 +1234,22 @@
             );
         };
 
+        /**
+         * Adds drag-based rotation behaviour to the element.
+         *
+         * @function Snap.Element#revolve
+         * @param {{x:number,y:number}} [center] Rotation pivot; defaults to the element's bounding box centre.
+         * @param {Snap.Element} [coordTarget] Element whose coordinate system is used for cursor tracking.
+         * @param {Object} [mcontext] Context passed to rotation move callbacks.
+         * @param {Object} [scontext] Context passed to rotation start callbacks.
+         * @param {Object} [econtext] Context passed to rotation end callbacks.
+         * @returns {Snap.Element} The element for chaining.
+         */
         Element.prototype.revolve = function (
             center, coordTarget, mcontext, scontext, econtext) {
 
             if (center === undefined) {
-                let bbox = el.getBBox();
+                let bbox = this.getBBox();
                 center = {x: bbox.cx, y: bbox.cy};
             }
             let limits,
@@ -1088,7 +1266,7 @@
                     scontext.initial = mcontext.initial;
                 }
             }
-            coordTarget = coordTarget || el.paper;
+            coordTarget = coordTarget || this.paper;
 
             const el = this;
 
@@ -1109,119 +1287,19 @@
             );
         };
 
-        Element.prototype.regionSelect = function (gui, rect_style, end_event, move_event, target_group, send_click) {
-            // if (this.paper !== this) return;
-
-            let container = target_group;
-            let that = this;
-            if (!container) {
-                if (gui && gui.handlerGroup) {
-                    container = gui.handlerGroup;
-                } else {
-                    container = this.paper;
-                }
-            }
-
-            let select, start_point, start_t, append;
-
-            function make_rect(el, cursorPoint, rectStyle) {
-                const dash_size = (gui && gui.layers.getZoom()) ?
-                    5 / gui.layers.getZoom() :
-                    5;
-                const stroke_width = (gui && gui.layers.getZoom()) ?
-                    .5 / gui.layers.getZoom() :
-                    .5;
-                rectStyle = Object.assign({
-                    fill: 'none',
-                    stroke: 'red',
-                    strokeWidth: stroke_width,
-                    strokeDasharray: dash_size + ', ' + dash_size,
-                }, rectStyle || {});
-                return el.rect(cursorPoint.x, cursorPoint.y, 0, 0, {id: "select_rect"}).setStyle(rectStyle);
-            }
-
-            const startRegionSelect = function (x, y, ev, el, gui) {
-                if (el.data('active')) return;
-                eve(['drag', 'regionSelect', 'start']);
-                // console.log("StartRotDrag in");
-                el.data('active', true);
-                start_t = Date.now();
-
-                start_point = el.getCursorPoint(x, y,
-                    // gui.layers.getCurrentNavLayer()
-                );
-
-                // console.log("Init Select", container);
-                // console.log("dash: " + dash_size);
-
-                append = ev.shiftKey || ev.ctrlKey;
-
-            };
-
-            const regionSelMove = function (dx, dy, x, y, el, gui) {
-                const cursorPoint = el.getCursorPoint(x, y,
-                    // gui.layers.getCurrentNavLayer()
-                );
-                // var pt = el.paper.node.createSVGPoint();
-
-                dx = Math.abs(cursorPoint.x - start_point.x);
-                dy = Math.abs(cursorPoint.y - start_point.y);
-
-                if (Date.now() - start_t > 200 && dx > 5 && dy > 5) {
-                    if (!select) {
-                        select = make_rect(el, start_point, rect_style);
-                    }
-                }
-                // console.log(x, y, cursorPoint.x, cursorPoint.y);
-                if (select) {
-
-                    const select_def = {
-                        x: Math.min(start_point.x, cursorPoint.x),
-                        y: Math.min(start_point.y, cursorPoint.y),
-                        width: dx,
-                        height: dy,
-                    };
-                    select.attr(select_def);
-
-                    if (move_event) {
-                        gui.eve(move_event, this, select_def)
-                    }
-                }
-            };
-
-            let endRegionSelect = function (ev, el) {
-                console.log(select);
-                if (select) {
-                    const appendElements = append || ev.shiftKey || ev.ctrlKey;
-
-                    gui.eve(end_event || ['drag', 'regionSelect', 'end'], el, select,
-                        appendElements);
-                    select.remove();
-                    select = undefined;
-                } else {
-                    // if (send_click) {
-                    //     const event = new Event('click');
-                    //     that.node.dispatchEvent(event)
-                    // }
-                }
-                el.data('active', false);
-                gui.eve(['drag', 'regionSelect', 'done'], el);
-            };
-
-            return this.drag(
-                function (dx, dy, x, y) {
-                    regionSelMove(dx, dy, x, y, container, gui);
-                },
-                function (x, y, ev) {
-                    startRegionSelect(x, y, ev, container, gui);
-                },
-                function (ev) {
-                    endRegionSelect(ev, container);
-                },
-            );
-        };
-
-
+        /**
+         * Creates a drag shadow clone for the element enabling drag-and-drop interactions.
+         *
+         * @function Snap.Element#makeDraggable
+         * @param {Snap.Element} [drop_target] Target element queried during the drag lifecycle.
+         * @param {number|Object} [animate] Animation parameters for returning the clone to its origin.
+         * @param {Array|string} [end_event] Event identifier triggered after a successful drop.
+         * @param {Array|string} [move_event] Event identifier emitted while dragging.
+         * @param {*} [data] Arbitrary payload forwarded with drag events.
+         * @param {Function} [local_eve=eve] Event emitter used to publish drag lifecycle events.
+         * @param {Snap.Element} [alt_element] Alternative element used for cloning and opacity adjustments.
+         * @returns {Snap.Element} The element for chaining.
+         */
         Element.prototype.makeDraggable = function (drop_target, animate, end_event, move_event, data, local_eve, alt_element) {
 
             local_eve = local_eve || eve;
@@ -1626,12 +1704,31 @@
             return pt;
         };
 
+        // Helper function for rounding numbers
+        function round(num, decimals = 0) {
+            const factor = Math.pow(10, decimals);
+            return Math.round(num * factor) / factor;
+        }
+
+
         //copy _ to Snap._
         Object.assign(Snap._, _);
 
 
         const STRICT_MODE = true;
 
+        /**
+         * Applies scaling relative to the element's current transformation matrix.
+         *
+         * @function Snap.Element#scale
+         * @param {number} x Scale factor along the X axis.
+         * @param {number} [y=x] Scale factor along the Y axis.
+         * @param {number} [cx=0] X coordinate of the scaling centre.
+         * @param {number} [cy=0] Y coordinate of the scaling centre.
+         * @param {Snap.Matrix|string|boolean} [prev_trans] Optional base matrix or configuration flag.
+         * @param {boolean} [use_cache] When true, reuse cached bounding boxes.
+         * @returns {Snap.Element} The element for chaining.
+         */
         Element.prototype.scale = function (
             x, y, cx, cy, prev_trans, use_cache) {
             if (typeof prev_trans === 'boolean') {
@@ -1655,6 +1752,18 @@
 
         };
 
+        /**
+         * Translates the element within its local coordinate system.
+         *
+         * @function Snap.Element#translate
+         * @param {number} x Translation along the X axis.
+         * @param {number} y Translation along the Y axis.
+         * @param {Snap.Matrix|string|boolean} [prev_trans] Optional base matrix or configuration flag.
+         * @param {number} [cx=0] Optional X offset applied before translation.
+         * @param {number} [cy=0] Optional Y offset applied before translation.
+         * @param {boolean} [use_bbox_cache=false] When true, updates cached bounding boxes eagerly.
+         * @returns {Snap.Element} The element for chaining.
+         */
         Element.prototype.translate = function (
             x, y, prev_trans, cx, cy, use_bbox_cache) {
 
@@ -1691,6 +1800,19 @@
 
         };
 
+        /**
+         * Animates a translation (movement) of the element over time.
+         * 
+         * @function Snap.Element#translateAnimate
+         * @param {number|number[]} duration Animation duration in milliseconds, or [duration, easing] array.
+         * @param {number} x Horizontal offset to animate to.
+         * @param {number} y Vertical offset to animate to.
+         * @param {Snap.Matrix|string|boolean} [prev_trans] Previous transformation matrix to build upon.
+         * @param {number} [cx=0] X offset to subtract from translation.
+         * @param {number} [cy=0] Y offset to subtract from translation.
+         * @param {boolean} [use_bbox_cache] Whether to use bounding box cache.
+         * @returns {Snap.Element} The element itself for chaining.
+         */
         Element.prototype.translateAnimate = function (duration,
                                                        x, y, prev_trans, cx, cy, use_bbox_cache) {
 
@@ -1731,6 +1853,18 @@
 
         };
 
+        /**
+         * Translates the element in global coordinates.
+         * 
+         * @function Snap.Element#translate_glob
+         * @param {number} x Horizontal offset in global coordinates.
+         * @param {number} y Vertical offset in global coordinates.
+         * @param {Snap.Matrix|string|boolean} [prev_trans] Previous transformation matrix to build upon.
+         * @param {number} [cx=0] X offset to subtract from translation.
+         * @param {number} [cy=0] Y offset to subtract from translation.
+         * @param {boolean} [use_cache] Whether to use bounding box cache.
+         * @returns {Snap.Element} The element itself for chaining.
+         */
         Element.prototype.translate_glob = function (
             x, y, prev_trans, cx, cy, use_cache) {
 
@@ -1766,6 +1900,17 @@
 
         };
 
+        /**
+         * Rotates the element by the specified angle around an optional center point.
+         * 
+         * @function Snap.Element#rotate
+         * @param {number} ang Rotation angle in degrees.
+         * @param {number} [cx] X coordinate of the center point for rotation.
+         * @param {number} [cy] Y coordinate of the center point for rotation.
+         * @param {Snap.Matrix|string|boolean} [prev_trans] Previous transformation matrix to build upon.
+         * @param {boolean} [use_cache] Whether to use bounding box cache.
+         * @returns {Snap.Element} The element itself for chaining.
+         */
         Element.prototype.rotate = function (
             ang, cx, cy, prev_trans, use_cache) {
             if (typeof prev_trans === 'boolean') {
@@ -1790,6 +1935,17 @@
             return this;
         };
 
+        /**
+         * Mirrors the element along the specified direction or axis.
+         *
+         * @function Snap.Element#reflect
+         * @param {('x'|'y'|'vertical'|'horizontal'|number|Snap.Element)} direction Axis keyword, angle in degrees, or line element.
+         * @param {number} [cx] X coordinate of the reflection centre.
+         * @param {number} [cy] Y coordinate of the reflection centre.
+         * @param {Snap.Matrix|string|boolean} [prev_trans] Optional base matrix or configuration flag.
+         * @param {boolean} [use_catch=false] When true, updates cached bounding boxes.
+         * @returns {Snap.Element} The element for chaining.
+         */
         Element.prototype.reflect = function (
             direction, cx, cy, prev_trans, use_catch) {
             if (typeof prev_trans === 'boolean') {
@@ -1827,6 +1983,14 @@
             }
         };
 
+        /**
+         * Adds a transformation matrix to the element's existing transformation.
+         * 
+         * @function Snap.Element#addTransform
+         * @param {Snap.Matrix} matrix Transformation matrix to add.
+         * @param {Snap.Matrix} [prev_trans] Previous transformation matrix to build upon. If not provided, uses the element's current local matrix.
+         * @returns {Snap.Element} The element itself for chaining.
+         */
         Element.prototype.addTransform = function (matrix, prev_trans) {
             if (prev_trans === undefined) {
                 prev_trans = this.getLocalMatrix(); // this.getLocalMatrix(STRICT_MODE);
@@ -1838,6 +2002,13 @@
         };
 
         if (false) { //todo: finish conversion
+            /**
+             * Ellips ransform.
+             *
+             * @function Snap.Element#ellipseTransform
+             * @param {*} m
+             * @returns {*}
+             */
             Element.prototype.ellipseTransform = function (m) {
                 this.addTransform(m);
                 m = this.getLocalMatrix();
@@ -1946,13 +2117,14 @@
             };
         }
 
-        /**
-         * Creates an array of all leafs in the dom tree of the element.
-         * @param invisible if invisible elements should be included
-         * @param {Array|undefined} _arr for the recursive process, but it can be used to pass an array where to store the element
-         * @return {*|Array} an array of the element
-         */
-        Element.prototype.getLeafs = function (invisible, _arr) {
+    /**
+     * Collects every non-group child within the element's subtree.
+     *
+     * @param {boolean} [invisible=false] Whether hidden elements should be included.
+     * @param {Snap.Element[]} [_arr] Accumulator used by the recursive implementation.
+     * @returns {Snap.Element[]} List of leaf elements.
+     */
+    Element.prototype.getLeafs = function (invisible, _arr) {
             _arr = _arr || [];
             if (this.type !== 'g') {
                 _arr.push(this);
@@ -1964,14 +2136,16 @@
             return _arr;
         };
 
-        /**
-         * Gets the chain of element parents, ending with this, but not including the top SVG element.
-         * @param callback is callback provided, taking an element and the order from below as arguments (el,i),
-         *  it will return the result of the collback, as in array.map.
-         * @param include_top_sag if true, adds the top svg element as well
-         * @return {*[]}
-         */
-        Element.prototype.getParentChain = function (
+    /**
+     * Builds an array with the element and its ancestors (excluding the root SVG by default).
+     *
+     * @param {Function|boolean} [callback] Mapper invoked as `(element, index)`; providing a boolean is treated as `skip_current`.
+     * @param {boolean} [skip_current=false] When `true`, start from the parent instead of the current element.
+     * @param {boolean} [toCoord] Stops when a coordinate root is reached.
+     * @param {boolean} [include_top_svg=false] Include the top-level SVG element in the result.
+     * @returns {Array<*>} Either the element chain or the mapped output.
+     */
+    Element.prototype.getParentChain = function (
             callback, skip_current, toCoord, include_top_svg) {
             if (typeof callback !== 'function') {
                 include_top_svg = toCoord;
@@ -2004,6 +2178,14 @@
             return ret.reverse();
         };
 
+        /**
+         * Gets the coordinate transformation matrix for the element.
+         * 
+         * @function Snap.Element#getCoordMatrix
+         * @param {boolean} [strict] Whether to use strict mode for matrix computation.
+         * @param {boolean} [full] Whether to include the element itself in the computation.
+         * @returns {Snap.Matrix} The coordinate transformation matrix.
+         */
         Element.prototype.getCoordMatrix = function (strict, full) {
             strict = strict || STRICT_MODE;
             let parent_matrixes = this.getParentChain(
@@ -2012,19 +2194,33 @@
             return Snap.matrix().multLeft(parent_matrixes);
         };
 
+        /**
+         * Gets the real bounding box using relative coordinates.
+         * 
+         * @function Snap.Element#getRealBBox
+         * @returns {Object} Bounding box object with x, y, width, height properties.
+         */
         Element.prototype.getRealBBox = function () {
             return this.getBBoxApprox({relative_coord: true});
         };
 
+        /**
+         * Gets the exact real bounding box using relative coordinates.
+         * 
+         * @function Snap.Element#getRealBBoxExact
+         * @returns {Object} Exact bounding box object with x, y, width, height properties.
+         */
         Element.prototype.getRealBBoxExact = function () {
             return this.getBBoxExact({relative_coord: true});
         };
 
         /**
-         * Pushes all transforms to the leafes of the group tree
-         * @param exclude_attribute
-         * @param _transform
-         * @param full propagates the transform inside lines, paths, polygons and polylines
+         * Pushes the current transformation down to descendant elements, optionally skipping specific attributes.
+         *
+         * @param {string} [exclude_attribute] Attribute name that, when present on an element, prevents propagation.
+         * @param {Snap.Matrix} [_transform] Matrix to prepend before propagating; defaults to the element's local transform.
+         * @param {boolean} [full=false] When `true`, also applies the transform to geometry attributes (paths, polygons, etc.).
+         * @returns {Snap.Element} The current element.
          */
         Element.prototype.propagateTransform = function (
             exclude_attribute, _transform, full) {
@@ -2151,13 +2347,16 @@
         }
 
         /**
-         * Fits the element inside the bouding box.
-         * @param {Element | Object} external_bBox The bounding box to fit. Must have width, height, cx and cy as properties. Or, it must be an element with getBBox method.
-         * @param {boolean | string} preserve_proportions if boolean
-         * the object is centered in the smaller dimension. If a string, it is assumed to be an alignment,
-         * in which case it can be 'top', 'bottom', 'left', or 'right'.
-         * @param {boolean} scale_down if true, only reduces the size of the object to fit in the box.
-         * If the object is smaller, it is not scaled up. The object will still be centered in the box.
+         * Fits the element within an external bounding box, scaling and aligning as requested.
+         *
+         * @function Snap.Element#fitInBox
+         * @param {Snap.Element|Object|number[]} external_bBox Bounding box definition or element providing `getBBox()` data.
+         * @param {boolean|string} [preserve_proportions=false] Preserve aspect ratio or align using "top", "bottom", "left", "right".
+         * @param {boolean} [scale_down=false] When true, only allow shrinking (no enlargement).
+         * @param {boolean} [matrix_only=false] Return the computed matrix instead of mutating the element.
+         * @returns {Snap.Element|Snap.Matrix} The element (mutated) or the matrix when `matrix_only` is true.
+         * @example
+         * rect.fitInBox([200, 120, 100, 60], true);
          */
         Element.prototype.fitInBox = function (
             external_bBox, preserve_proportions, scale_down, matrix_only) {
@@ -2257,14 +2456,14 @@
             return this;
         };
 
-        /**
-         * Fills the element inside the bounding box, making it sufficiently large to fill the entire. The element
-         * may stick out of the box.
-         * @param {Element | Object} external_bBox The bounding box to fit. Must have width, height, cx and cy as properties. Or, it must be an element with getBBox method.
-         * @param {boolean} scale_up if true, only increase the size of the object to fit in the box.
-         * If the object is bigger, it is not scaled up. The object will still be centered in the box.
-         */
-        Element.prototype.fillInBox = function (external_bBox, scale_up) {
+    /**
+     * Scales the element so it completely covers the supplied bounding box.
+     *
+     * @param {Snap.Element|{width:number,height:number,cx:number,cy:number}} external_bBox Bounding box or element supplying `getBBox()` data.
+     * @param {boolean} [scale_up=false] When `true`, avoids shrinking elements that are already larger than the box.
+     * @returns {Snap.Element} The transformed element.
+     */
+    Element.prototype.fillInBox = function (external_bBox, scale_up) {
             if (external_bBox.paper) {
                 // var matrix = external_bBox.getLocalMatrix();
                 external_bBox = external_bBox.getBBox();
@@ -2291,14 +2490,12 @@
         };
 
         /**
-         * Emulates an image fill of an element (that supports a fill attribute) by creating a group surrogate for the
-         * object and overimposing it on a clipped image.
-         * This overcomes some limitations is using a pattern as a fill.
-         * @param image the image element, or an id of an image. The image can be used for only one fill. If the same
-         * image must be used in multiple fills, use a patters instead, or clone.
-         * @param fit_element whether to rescale the image to fit the element.
-         * @param preserve_proportons whether to preserve proportions when fitting
-         * @return {Element} returns the element surrogate group.
+         * Emulates filling an element with an image by creating a surrogate group and clipping the image to the shape.
+         *
+         * @param {Snap.Element|string} image Image element or its id. Each image instance can serve a single fill unless cloned.
+         * @param {boolean} [fit_element=false] When `true`, scales the image to fit the element's bounding box.
+         * @param {boolean} [preserve_proportons=false] Controls whether aspect ratio is preserved when fitting.
+         * @returns {Snap.Element} The surrogate group wrapping the filled element.
          */
         Element.prototype.fillImage = function (
             image, fit_element, preserve_proportons) {
@@ -2419,7 +2616,14 @@
             return val;
         };
 
-        Element.prototype.setStyle = function (style, value) {
+    /**
+     * Applies CSS styles to the element, accepting either a declaration string or an object map.
+     *
+     * @param {string|Object} style CSS text or a property map. When a property name is provided, `value` supplies the value.
+     * @param {string} [value] Value used when `style` is a single property name.
+     * @returns {Snap.Element} The element with updated style.
+     */
+    Element.prototype.setStyle = function (style, value) {
             if (!style) return this;
             let that = this; //we may need change the object to a surrogate;
             if (typeof style === 'string') {
@@ -2475,7 +2679,13 @@
             return that;
         };
 
-        Element.prototype.getStyle = function (properties) {
+    /**
+     * Retrieves the element's style declarations as an object map or a subset of properties.
+     *
+     * @param {string[]|Object} [properties] Optional list (or object keys) specifying which properties to read from computed styles.
+     * @returns {Object<string,string>} Map of style property names to values.
+     */
+    Element.prototype.getStyle = function (properties) {
             /*Explicit list of properties we get from computed style*/
             if (properties) {
                 if (typeof properties === 'object' && !Array.isArray(properties)) {
@@ -2569,7 +2779,14 @@
             'word-spacing': true,
             'writing-mode': true,
         };
-        Element.prototype.moveAttrToStyle = function (recursive, f) {
+    /**
+     * Converts style-related attributes into inline CSS declarations stored in the `style` attribute.
+     *
+     * @param {boolean|Function} [recursive=false] When `true`, processes descendants; if a function is passed it is treated as `f`.
+     * @param {Function} [f] Optional callback triggered when a style change is recorded.
+     * @returns {Snap.Element} The current element.
+     */
+    Element.prototype.moveAttrToStyle = function (recursive, f) {
             if (typeof recursive === 'function') {
                 f = recursive;
                 recursive = false;
@@ -2603,11 +2820,13 @@
             return this;
         };
 
-        /**
-         * May not change the attribute string. Should be used only for display
-         * @param source
-         */
-        Element.prototype.copyComStyle = function (source) {
+    /**
+     * Copies computed styles from another element onto this element for display purposes.
+     *
+     * @param {Snap.Element} source Element whose computed style should be cloned.
+     * @returns {Snap.Element} The current element.
+     */
+    Element.prototype.copyComStyle = function (source) {
             const styles = root.getComputedStyle(source.node);
             if (styles.cssText !== '') {
                 this.node.style.cssText = styles.cssText;
@@ -2625,317 +2844,57 @@
         };
 
         /**
-         * Adds a click event to the element
-         *
-         * @param {string} type one of:
-         *      'click': processed when element is clicked,
-         *      'press': processed when element is given mousedown or touchdown event,
-         *      'hold': similar to press but assumes a function with an interval, whose return value is the timeout
-         *  which will be canceled at the end of the hold.
-         *      'longpress': processed aftre a long press
-         *
-         * @param {function | Object |string} action_description a function to be called or an object of the following format
-         *
-         * * Object may have the following structure:
-         * {
-         *  eve:  an string for an eve event.
-         *  function: an array of strings linking to a function accessible from the gui object
-         *     e.g.['layers", "addLayer'] will call gui.layers.addLayer()
-         *     one cannot access "privet" objects which start with '_' - all leading "_" are removed. This may lead
-         *     to unexpected results if another method without leading "_" exists.
-         *     Some methods may have a .protected property set. Such methods also cannot be called.
-         *  operation: a string defining a function defined in the fuctionManager/buttonManager of gui,
-         *      or an eve event string.
-         *
-         *  this: an array of strings linking to an object accessible from the gui object, as above. The link must be an
-         *     object. Otherwise, undefined is used. To use gui itself, set to "gui"
-         *  context:  see this:
-         *
-         * params: an array of parameters to pass to the function. The special key word "target" is preserved to pass
-         *     the target of the Element (snap format) that contained the event.
-         *     If a parameter param is an object with a key "object", i.e. param['object'], the value must be an array
-         *     linking to an object, as in this.
-         *
-         * timer: if the event will be called with a timeout. Processing must return a timer to allow cancellation.
-         *
-         * interval: if the event will be called periodically with an interval. Processing must return a timer to allow cancellation.
-         *
-         * timer takes priority
-         * }
-         *
-         * If both "eve" and "function" are set, eve takes priority.
-         * @param {Object} other_params allows passing other keys and values to the description. Useful mainly when adding
-         * and internal function. Otherwise, the params can be passed direlcy in the description.
+         * Checks if this element is positioned above another element in the DOM.
+         * 
+         * @function Snap.Element#isAbove
+         * @param {Snap.Element} el Element to compare against.
+         * @returns {boolean} True if this element is above the other element.
          */
-        Element.prototype.addInteractionEvent = function (
-            type, action_description, other_params, replace, gui) {
-
-            if (other_params && other_params.eve) {
-                gui = other_params;
-                other_params = undefined;
-            }
-            if (typeof replace === "object" && replace.eve) {
-                gui = replace;
-                replace = undefined;
-            }
-
-            if (Array.isArray(action_description)) {
-                for (let i = 0; i < action_description.length; ++i) {
-                    this.addInteractionEvent(type, action_description[i]);
-                }
-                return;
-            }
-
-            let index = undefined;
-            if (typeof action_description === 'function') {
-                const other_stored_functions = this.data('stored-function') || [];
-                other_stored_functions.push(action_description);
-                this.data('stored-function', other_stored_functions);
-                action_description = {
-                    'stored-function': other_stored_functions.length - 1,
-                };
-            }
-
-            if (typeof action_description === "string") {
-                action_description = {'operation': action_description}
-            }
-
-            if (action_description && action_description['message'] && gui) {
-
-                this.addMessage(action_description['message'], gui.eve);
-
-                delete action_description['message'];
-            }
-
-            if (other_params) {
-                for (let key in other_params) if (other_params.hasOwnProperty(
-                    key)) {
-                    action_description[key] = other_params[key];
-                }
-            }
-
-            const event = type + '-event';
-            if (this.data(event)) {
-                if (replace) {
-                    if (action_description) {
-                        this.data(event, [action_description]);
-                    } else {
-                        this.removeData(event);
-                    }
-                } else {
-                    let actions = this.data(event);
-                    actions.push(action_description);
-                    this.data(event, actions);
-                }
-            } else {
-                this.data(event, [action_description]);
-            }
-
-        };
-
-        Element.prototype.addClickEvent = function (
-            action_description, other_params, replace, gui) {
-            this.setCursor('pointer');
-            return this.addInteractionEvent('click', action_description,
-                other_params, replace);
-        };
-
-        Element.prototype.addPressEvent = function (
-            action_description, other_params, replace, gui) {
-            return this.addInteractionEvent('press', action_description,
-                other_params, replace);
-        };
-
-        Element.prototype.addHoldEvent = function (
-            action_description, other_params, replace, gui) {
-            return this.addInteractionEvent('hold', action_description,
-                other_params, replace);
-        };
-
-        Element.prototype.addLongpressEvent = function (
-            action_description, other_params, gui) {
-            return this.addInteractionEvent('longpress', action_description,
-                other_params, replace);
-        };
-
-        //This function needs a listener to display the message. Intended for use with IA Designer
-        Element.prototype.addMessage = function (message, eve) {
-            let in_fun = () => {
-                eve(["gui", "message"], undefined, message);
-            };
-            this.mouseover(in_fun);
-
-            let out_fun = () => {
-                eve(["gui", "tooltip", "clear"])
-            };
-            this.mouseout(out_fun);
-
-            this.data("_message_helper_funs", [in_fun, out_fun])
-        }
-
-        Element.prototype.removeMessage = function () {
-            const funs = this.data("_message_helper_funs");
-            if (funs) {
-                this.unmouseover(funs[0]);
-                this.unmouseout(funs[1]);
-                this.removeData("_message_helper_funs");
-            }
-        }
-
-        Element.prototype.getBitmap = function (
-            width, border, gui, callback, base64) {
-            let height;
-            let bbox;
-            border = border || 0;
-            if (width) {
-                if (!isNaN(width)) {
-                    width = Math.min(width, gui.panelWidth * 2);
-                    bbox = this.getBBoxApprox();
-                    height = (bbox.height + 2 * border) *
-                        (width / (bbox.width + 2 * border));
-                }
-                if (Array.isArray(width)) {
-                    let x = width[2] || 0;
-                    let y = width[3] || 0;
-                    height = width[1];
-                    width = width[0];
-                    bbox = {x, y, width, height};
-                }
-                // console.log("ratios", width / height, bbox.width / bbox.height);
-            }
-            let disp = this.attr('display');
-            this.attr({display: ''});
-            let svg_data = gui._.svgEncapsulateBox(this, border, width, height,
-                bbox);
-            this.attr({display: disp});
-
-            let canvas = document.createElement('canvas');
-
-            // canvas_div.append(canvas);
-            // canvas = canvas[0];
-            canvas.width = width;
-            canvas.height = height;
-            const context = canvas.getContext('2d');
-
-            const img = new Image();
-
-            let svg = new Blob([svg_data], {type: 'image/svg+xml'});
-            const DOMURL = root.URL || root.webkitURL || root;
-            const url = DOMURL.createObjectURL(svg);
-
-            let time = performance.now();
-
-            const that = this;
-            img.addEventListener('load', function () {
-                context.drawImage(img, 0, 0, width, height, 0, 0, width, height);
-                // that.temp_image_canvas = canvas;
-                DOMURL.revokeObjectURL(url);
-                // console.log(performance.now() - time);
-                let ret = (base64) ? canvas.toDataURL() :
-                    context.getImageData(0, 0, width, height);
-                callback(ret);
-                canvas.remove();
-            });
-
-            img.onerror = function () {
-                console.log('problem with svg');
-                console.log(svg_data);
-                callback(null);
-                canvas.remove();
-            };
-
-            img.src = url;
-
-        };
-
-        Element.prototype.getCanvasOverly = function (
-            scale, width_pix, height_pix) {
-            let scalex, scaley;
-            scale = scale || 1;
-            if (Array.isArray(scale) && scale.length === 2) {
-                scalex = scale[0];
-                scaley = scale[1];
-            } else {
-                scalex = scaley = scale;
-            }
-
-            // let bbox = this.getBBoxRot(this.transform().totalMatrix.split().rotate);
-            let bbox = this.getBBox();
-            // console.log("co", bbox, width_pix, height_pix, bbox.width / bbox.height, width_pix / height_pix);
-            // this.after(bbox.rect(this.paper).attr({fill: "none", stroke: "black"}));
-            width_pix = width_pix || bbox.width;
-            height_pix = height_pix || bbox.height;
-
-            const html = '<canvas id="' + this.getId() + '_canvas" ' +
-                'width="' + width_pix + '" ' +
-                'height="' + height_pix + '"></canvas>';
-            const fo = this.htmlInsert(Snap.FORCE_AFTER, 0, 0, width_pix,
-                height_pix, html);
-
-            fo.fitInBox({
-                width: bbox.width * scalex,
-                height: bbox.height * scaley,
-                cx: bbox.cx,
-                cy: bbox.cy,
-            }, true);
-
-            let canvas = fo.select('canvas');
-            canvas = canvas.node;
-
-            return {container: fo, canvas: canvas};
-        };
-
-        /**
-         * Creates a rastezied image of the element and places it in front ot the element.
-         * @param gui
-         * @param scale
-         * @param border
-         * @param remove
-         * @returns {Promise<Element>} When created, the new image will be returned by the promise
-         */
-        Element.prototype.rasterize = function (gui, scale, border, remove) {
-            scale = scale || 1;
-
-            let that = this;
-            border = border || 0;
-            let bbox = this.getBBox();
-            if (typeof border === 'string' &&
-                border.endsWith('%')) border = Math.ceil(
-                bbox.r2() * (+border.replace('%', '')) / 100);
-            const promise = new Promise((resolve, reject) => {
-                let make = function (base64) {
-                    let img = that.image(Snap.FORCE_AFTER, base64, bbox.x - border,
-                        bbox.y - border,
-                        bbox.width + 2 * border, bbox.height + 2 * border);
-                    img.attr({id: that.getId() + '_raster'});
-                    console.log(bbox, img.getBBox());
-                    if (remove) that.remove();
-                    resolve(img);
-                };
-
-                this.getBitmap(bbox.width * scale, border, gui, make, true);
-            });
-
-            return promise;
-        };
-
-
         Element.prototype.isAbove = function (el) {
             return Snap.positionComparator(this, el) > 0;
         };
 
+        /**
+         * Checks if this element is positioned below another element in the DOM.
+         * 
+         * @function Snap.Element#isBelow
+         * @param {Snap.Element} el Element to compare against.
+         * @returns {boolean} True if this element is below the other element.
+         */
         Element.prototype.isBelow = function (el) {
             return Snap.positionComparator(el, this) > 0;
         };
 
+        /**
+         * Checks if this element is a parent of another element.
+         * 
+         * @function Snap.Element#isParentOf
+         * @param {Snap.Element} el Element to check.
+         * @returns {boolean} True if this element is a parent of the given element.
+         */
         Element.prototype.isParentOf = function (el) {
             return !!(Snap._compareDomPosition(this, el) & 16);
         };
 
+        /**
+         * Checks if this element is a child of another element.
+         * 
+         * @function Snap.Element#isChildOf
+         * @param {Snap.Element} el Element to check.
+         * @returns {boolean} True if this element is a child of the given element.
+         */
         Element.prototype.isChildOf = function (el) {
             return !!(Snap._compareDomPosition(this, el) & 8);
         };
 
+        /**
+         * Finds a parent element that matches the given CSS selector or function.
+         * 
+         * @function Snap.Element#selectParent
+         * @param {string|Function} css_select CSS selector string or predicate function.
+         * @param {boolean} [outside_svg=false] Whether to search outside the SVG element.
+         * @returns {Snap.Element|null} Matching parent element or null if none found.
+         */
         Element.prototype.selectParent = function (css_select, outside_svg) {
             if ((!outside_svg && this.type === 'svg') || this.node === Snap.window().document) return null;
 
@@ -2948,12 +2907,31 @@
             return this.parent().selectParent(css_select, outside_svg);
         };
 
+        /**
+         * Finds the closest ancestor (including self) that matches the given CSS selector.
+         * 
+         * @function Snap.Element#closest
+         * @param {string} css_select CSS selector string.
+         * @param {boolean} [outside_svg=false] Whether to search outside the SVG element.
+         * @returns {Snap.Element|null} Matching element or null if none found.
+         */
         Element.prototype.closest = function (css_select, outside_svg) {
             if (this.node.matches(css_select)) return this;
 
             return this.selectParent(css_select, outside_svg);
         }
 
+        /**
+         * Gets the bounding box of the element after rotating it by a specified angle.
+         * 
+         * @function Snap.Element#getBBoxRot
+         * @param {number} angle Rotation angle in degrees.
+         * @param {number|{x:number,y:number}|boolean} [cx] X coordinate of rotation center, or point object, or boolean for aprox parameter.
+         * @param {number} [cy] Y coordinate of rotation center.
+         * @param {boolean} [aprox=false] Whether to use approximate bounding box calculation.
+         * @param {Object} [settings] Additional settings for bounding box calculation.
+         * @returns {Object} Bounding box after rotation with x, y, width, height properties.
+         */
         Element.prototype.getBBoxRot = function (angle, cx, cy, aprox, settings) {
             if (typeof cx === 'boolean') {
                 aprox = cx;
@@ -3147,6 +3125,18 @@
 //                 }
 //             };
 
+        /**
+         * Animates a transformation matrix change over time.
+         * 
+         * @function Snap.Element#animateTransform
+         * @param {Snap.Matrix} matrix Target transformation matrix to animate to.
+         * @param {number} duration Animation duration in milliseconds.
+         * @param {Function} [easing] Easing function for the animation.
+         * @param {Function} [after_callback] Function to call when animation completes.
+         * @param {boolean} [easing_direct_matrix=false] Whether easing function works directly on matrices.
+         * @param {Function} [processor] Optional function to process the transformation matrix during animation.
+         * @returns {Object} Animation control object with stop, pause, and resume methods.
+         */
         Element.prototype.animateTransform = function (
             matrix, duration, easing, after_callback, easing_direct_matrix, processor) {
 
@@ -3318,217 +3308,6 @@
 
             return fun;
         }
-
-        // let _animateOnPath_old = function (el, absolute, path, duration, scale_path,
-        //                                    rot_path,
-        //                                    easing, after_callback, during_callback) {
-        //     if (typeof scale_path === 'function') {
-        //         after_callback = easing;
-        //         easing = scale_path;
-        //         scale_path = undefined;
-        //     }
-        //     if (easing == null) {
-        //         easing = mina.linear;
-        //     }
-        //     let init_time;
-        //     // let id = el.getId();
-        //     const p_length = (path.getTotalLength) ? path.getTotalLength() :
-        //         path.length();
-        //     const p0 = path.getFirstPoint(true);
-        //     let p_last;
-        //
-        //     let scale_fun, rot_fun;
-        //
-        //     const bbox = el.getBBox();
-        //     const initial_matrix = el.getLocalMatrix();
-        //
-        //     // console.log("Start", el.getId(), bbox, el.getBBox());
-        //
-        //     if (scale_path) {
-        //         if (absolute) {
-        //             const split = initial_matrix.split();
-        //
-        //             initial_matrix.multLeft(Snap.matrix().scale(1 / split.scalex, 1 / split.scaley, bbox.cx, bbox.cy));
-        //         }
-        //         scale_fun = (typeof scale_path === 'function') ?
-        //             scale_path :
-        //             val_generator(scale_path, 1);
-        //     }
-        //
-        //     // console.log("Start", el.getId(), initial_matrix);
-        //
-        //     if (rot_path) {
-        //         if (absolute) {
-        //             const split = initial_matrix.split();
-        //
-        //             initial_matrix.multLeft(
-        //                 Snap.matrix().rotate(-split.rotate, bbox.cx, bbox.cy));
-        //         }
-        //         if (rot_path === true || !isNaN(rot_path)) {
-        //             const angle_inc = (rot_path === true) ? 0 : rot_path;
-        //             rot_fun = function (t, p, length) {
-        //                 if (p && Snap.is(p, 'Element')) {
-        //                     p = p.getPointAtLength(t * length);
-        //                 }
-        //                 if (p && p.hasOwnProperty('alpha')) {
-        //                     return p.alpha + 180 + angle_inc;
-        //                 }
-        //                 if (p && Snap.is(p, 'PolyBezier')) {
-        //
-        //                 }
-        //
-        //             };
-        //         } else {
-        //             rot_fun = (typeof rot_path === 'function') ?
-        //                 rot_path :
-        //                 val_generator(rot_path, 0);
-        //         }
-        //     }
-        //
-        //     if (absolute) initial_matrix.multLeft(
-        //         Snap.matrix().translate(p0.x - bbox.cx, p0.y - bbox.cy));
-        //
-        //     // console.log("Start_m", el.getId(), initial_matrix.a, initial_matrix.e);
-        //
-        //     const center = (absolute) ? p0 : el.getBBox().center();
-        //
-        //     const dom_partner = el._dom_partner;
-        //     const element_partner = el._element_partner;
-        //
-        //     let stop;
-        //     const handler = function (time) {
-        //         // console.log("anim", cur);
-        //
-        //         if (stop) return;
-        //
-        //         if (init_time === undefined) init_time = time;
-        //
-        //         let t = time - init_time;
-        //
-        //         let done = false;
-        //         if (t >= duration - 30) {
-        //             t = duration || 1;
-        //             done = true;
-        //         }
-        //
-        //         t /= (duration || 1);
-        //
-        //         t = easing(t);
-        //         let extra = 0;
-        //         if (t > 1) {
-        //             extra = 1;
-        //             t = 2 - t;// 1 - (t - 1)
-        //         } else if (t < 0) {
-        //             extra = -1;
-        //             t = -t;
-        //         }
-        //
-        //         let pt = path.getPointAtLength(p_length * t);
-        //
-        //         if (extra > 0) {
-        //             p_last = p_last || path.getLastPoint(true);
-        //             pt = {
-        //                 x: 2 * p_last.x - pt.x,
-        //                 y: 2 * p_last.y - pt.y,
-        //                 alpha: pt.alpha,
-        //             };
-        //         }
-        //
-        //         if (extra < 0) {
-        //             pt = {
-        //                 x: 2 * p0.x - pt.x,
-        //                 y: 2 * p0.y - pt.y,
-        //                 alpha: pt.alpha,
-        //             };
-        //         }
-        //
-        //
-        //         let transl = Snap.matrix().translate(pt.x - p0.x, pt.y - p0.y);
-        //
-        //         // console.log(el.getId(), pt.x, t, transl.e);
-        //
-        //         let scale;
-        //         if (scale_fun) {
-        //             scale = scale_fun(t);
-        //
-        //             if (scale !== 1) {
-        //                 const new_c = transl.apply(center);
-        //                 const trans_scl = Snap.matrix().scale(scale, scale, new_c.x, new_c.y);
-        //
-        //                 transl.multLeft(trans_scl);
-        //             }
-        //             // console.log(el.getId() + "t_s", transl.a, transl.e, scale);
-        //         }
-        //
-        //
-        //         let angle;
-        //         if (rot_fun) {
-        //             angle = rot_fun(t, pt);
-        //             const new_c = transl.apply(center);
-        //             if (angle !== 0) {
-        //                 const trans_rot = Snap.matrix().rotate(angle, new_c.x, new_c.y);
-        //
-        //                 transl.multLeft(trans_rot);
-        //             }
-        //         }
-        //
-        //         const step_matrix = initial_matrix.clone().multLeft(transl);
-        //
-        //         // console.log(el.getId() + "m", step_matrix.a, step_matrix.e,
-        //         //     initial_matrix, initial_matrix.clone().multLeft(transl))
-        //
-        //         if (done) {
-        //             el.transform(step_matrix)
-        //         } else {
-        //             // el.node.setAttribute('transform', step_matrix);
-        //             el.transform(step_matrix)
-        //             el.saveMatrix(undefined);
-        //         }
-        //
-        //
-        //         if (dom_partner) dom_partner.forEach(
-        //             (dom) => dom.css('transform', step_matrix));
-        //         if (element_partner) element_partner.forEach((el) => {
-        //             if (done) {
-        //                 el.transform(step_matrix)
-        //             } else {
-        //                 // el.node.setAttribute('transform', step_matrix);
-        //                 el.transform(step_matrix)
-        //                 el.saveMatrix(undefined);
-        //             }
-        //         });
-        //
-        //         during_callback && during_callback(t, el, scale, angle);
-        //
-        //         if (done) {
-        //             if (after_callback && typeof after_callback === 'function') {
-        //                 after_callback(el);
-        //             }
-        //         } else {
-        //             requestAnimationFrame(handler);
-        //         }
-        //
-        //     };
-        //
-        //     requestAnimationFrame(handler);
-        //
-        //     return {
-        //         stop: () => {
-        //             stop = true;
-        //         },
-        //         pause: () => {
-        //             stop = performance.now();
-        //         },
-        //         resume: () => {
-        //             if (typeof stop === 'number') {
-        //                 init_time += performance.now() - stop;
-        //                 requestAnimationFrame(handler);
-        //             }
-        //         }
-        //     }
-        //
-        // };
-
 
         let _animateOnPath = function (el, absolute, path, duration,
                                        scale_path,

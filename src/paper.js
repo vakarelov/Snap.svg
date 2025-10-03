@@ -214,7 +214,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      *
      * @function Snap.Paper#g
      * @alias Snap.Paper#def_group
-     * @param {...(Snap.Element|Object)} elements Elements to append to the group. When the final argument
+     * @param {...any} elements Elements to append to the group. When the final argument
      *        is a plain object without `type` or `paper` properties, it is treated as the attribute map.
      * @returns {Snap.Element} The group element.
      * @example
@@ -284,7 +284,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * parameters are added to the mask as children.
      *
      * @function Snap.Paper#mask
-     * @param {...(Snap.Element|Object)} nodes Elements to include in the mask or a terminating attribute map.
+     * @param {...any} nodes Elements to include in the mask or a terminating attribute map.
      * @returns {Snap.Element} The mask element.
      */
     proto.mask = function (first) {

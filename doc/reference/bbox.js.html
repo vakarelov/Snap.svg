@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>bbox.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Animation.html">Animation</a><ul class='methods'><li data-type='method'><a href="Animation.html#done">done</a></li></ul></li><li></li><li><a href="BinaryHeap.html">BinaryHeap</a></li><li></li><li></li><li></li><li><a href="Set.html">Set</a><ul class='methods'><li data-type='method'><a href="Set.html#.animate">animate</a></li><li data-type='method'><a href="Set.html#.attr">attr</a></li><li data-type='method'><a href="Set.html#.bind">bind</a></li><li data-type='method'><a href="Set.html#.clear">clear</a></li><li data-type='method'><a href="Set.html#.forEach">forEach</a></li><li data-type='method'><a href="Set.html#.pop">pop</a></li><li data-type='method'><a href="Set.html#.push">push</a></li><li data-type='method'><a href="Set.html#.clone">clone</a></li><li data-type='method'><a href="Set.html#.exclude">exclude</a></li><li data-type='method'><a href="Set.html#.filter">filter</a></li><li data-type='method'><a href="Set.html#.getBBox">getBBox</a></li><li data-type='method'><a href="Set.html#.includes">includes</a></li><li data-type='method'><a href="Set.html#.insertAfter">insertAfter</a></li><li data-type='method'><a href="Set.html#.map">map</a></li><li data-type='method'><a href="Set.html#.remove">remove</a></li><li data-type='method'><a href="Set.html#.splice">splice</a></li><li data-type='method'><a href="Set.html#.toString">toString</a></li><li data-type='method'><a href="Set.html#.values">values</a></li></ul></li><li></li><li><a href="Snap.Element.html">Element</a><ul class='methods'><li data-type='method'><a href="Snap.Element.html#addClickEvent">addClickEvent</a></li><li data-type='method'><a href="Snap.Element.html#addHoldEvent">addHoldEvent</a></li><li data-type='method'><a href="Snap.Element.html#addInteractionEvent">addInteractionEvent</a></li><li data-type='method'><a href="Snap.Element.html#addLongpressEvent">addLongpressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addMessage">addMessage</a></li><li data-type='method'><a href="Snap.Element.html#addPressEvent">addPressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addTransform">addTransform</a></li><li data-type='method'><a href="Snap.Element.html#anchorEmbed">anchorEmbed</a></li><li data-type='method'><a href="Snap.Element.html#animateTransform">animateTransform</a></li><li data-type='method'><a href="Snap.Element.html#attrs">attrs</a></li><li data-type='method'><a href="Snap.Element.html#centerOfMass">centerOfMass</a></li><li data-type='method'><a href="Snap.Element.html#centerRotation">centerRotation</a></li><li data-type='method'><a href="Snap.Element.html#children">children</a></li><li data-type='method'><a href="Snap.Element.html#closest">closest</a></li><li data-type='method'><a href="Snap.Element.html#correctScale">correctScale</a></li><li data-type='method'><a href="Snap.Element.html#createClipPath">createClipPath</a></li><li data-type='method'><a href="Snap.Element.html#createMask">createMask</a></li><li data-type='method'><a href="Snap.Element.html#ellipseTransform">ellipseTransform</a></li><li data-type='method'><a href="Snap.Element.html#fitInBox">fitInBox</a></li><li data-type='method'><a href="Snap.Element.html#flatten">flatten</a></li><li data-type='method'><a href="Snap.Element.html#getAttributes">getAttributes</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxRot">getBBoxRot</a></li><li data-type='method'><a href="Snap.Element.html#getBitmap">getBitmap</a></li><li data-type='method'><a href="Snap.Element.html#getCanvasOverly">getCanvasOverly</a></li><li data-type='method'><a href="Snap.Element.html#getClientHeight">getClientHeight</a></li><li data-type='method'><a href="Snap.Element.html#getClientWidth">getClientWidth</a></li><li data-type='method'><a href="Snap.Element.html#getCoordMatrix">getCoordMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getCursorPoint">getCursorPoint</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLine">getDirectionLine</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLineWithGui">getDirectionLineWithGui</a></li><li data-type='method'><a href="Snap.Element.html#getFirstPoint">getFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#getFromScreenDistance">getFromScreenDistance</a></li><li data-type='method'><a href="Snap.Element.html#getGeometryAttr">getGeometryAttr</a></li><li data-type='method'><a href="Snap.Element.html#getId">getId</a></li><li data-type='method'><a href="Snap.Element.html#getLastPoint">getLastPoint</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBox">getRealBBox</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBoxExact">getRealBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getReferringToMe">getReferringToMe</a></li><li data-type='method'><a href="Snap.Element.html#getTopSVG">getTopSVG</a></li><li data-type='method'><a href="Snap.Element.html#globalToLocal">globalToLocal</a></li><li data-type='method'><a href="Snap.Element.html#hide">hide</a></li><li data-type='method'><a href="Snap.Element.html#hideSlowly">hideSlowly</a></li><li data-type='method'><a href="Snap.Element.html#isAbove">isAbove</a></li><li data-type='method'><a href="Snap.Element.html#isBelow">isBelow</a></li><li data-type='method'><a href="Snap.Element.html#isChildOf">isChildOf</a></li><li data-type='method'><a href="Snap.Element.html#isInRect">isInRect</a></li><li data-type='method'><a href="Snap.Element.html#isLocal">isLocal</a></li><li data-type='method'><a href="Snap.Element.html#isOverlap">isOverlap</a></li><li data-type='method'><a href="Snap.Element.html#isOverlapRect">isOverlapRect</a></li><li data-type='method'><a href="Snap.Element.html#isParentOf">isParentOf</a></li><li data-type='method'><a href="Snap.Element.html#linkedElementLocalise">linkedElementLocalise</a></li><li data-type='method'><a href="Snap.Element.html#localOnly">localOnly</a></li><li data-type='method'><a href="Snap.Element.html#makeDraggable">makeDraggable</a></li><li data-type='method'><a href="Snap.Element.html#makePath">makePath</a></li><li data-type='method'><a href="Snap.Element.html#move">move</a></li><li data-type='method'><a href="Snap.Element.html#pathFirstPoint">pathFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#rasterize">rasterize</a></li><li data-type='method'><a href="Snap.Element.html#readChanges">readChanges</a></li><li data-type='method'><a href="Snap.Element.html#recordChange">recordChange</a></li><li data-type='method'><a href="Snap.Element.html#reflect">reflect</a></li><li data-type='method'><a href="Snap.Element.html#regionSelect">regionSelect</a></li><li data-type='method'><a href="Snap.Element.html#remove">remove</a></li><li data-type='method'><a href="Snap.Element.html#removeMessage">removeMessage</a></li><li data-type='method'><a href="Snap.Element.html#removeSlowly">removeSlowly</a></li><li data-type='method'><a href="Snap.Element.html#repositionInGroup">repositionInGroup</a></li><li data-type='method'><a href="Snap.Element.html#revolve">revolve</a></li><li data-type='method'><a href="Snap.Element.html#rotate">rotate</a></li><li data-type='method'><a href="Snap.Element.html#scale">scale</a></li><li data-type='method'><a href="Snap.Element.html#selectParent">selectParent</a></li><li data-type='method'><a href="Snap.Element.html#setCursor">setCursor</a></li><li data-type='method'><a href="Snap.Element.html#setFirstPoint">setFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#setIdFollowRefs">setIdFollowRefs</a></li><li data-type='method'><a href="Snap.Element.html#show">show</a></li><li data-type='method'><a href="Snap.Element.html#showSlowly">showSlowly</a></li><li data-type='method'><a href="Snap.Element.html#toJSON">toJSON</a></li><li data-type='method'><a href="Snap.Element.html#toPolyBezier">toPolyBezier</a></li><li data-type='method'><a href="Snap.Element.html#translate">translate</a></li><li data-type='method'><a href="Snap.Element.html#translate_glob">translate_glob</a></li><li data-type='method'><a href="Snap.Element.html#translateAnimate">translateAnimate</a></li><li data-type='method'><a href="Snap.Element.html#transparentToMouse">transparentToMouse</a></li><li data-type='method'><a href="Snap.Element.html#addStop">addStop</a></li><li data-type='method'><a href="Snap.Element.html#setStops">setStops</a></li><li data-type='method'><a href="Snap.Element.html#stops">stops</a></li></ul></li><li></li><li><a href="Snap.Fragment.html">Fragment</a></li><li></li><li><a href="Snap.html#.Matrix">Matrix</a><ul class='methods'><li data-type='method'><a href="Snap.html#.Matrix#multLeft">multLeft</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransform">twoPointTransform</a></li><li data-type='method'><a href="Snap.html#.Matrix#apply">apply</a></li></ul></li><li><a href="Snap.Paper.html">Paper</a><ul class='methods'><li data-type='method'><a href="Snap.Paper.html#circle">circle</a></li><li data-type='method'><a href="Snap.Paper.html#clear">clear</a></li><li data-type='method'><a href="Snap.Paper.html#ellipse">ellipse</a></li><li data-type='method'><a href="Snap.Paper.html#g">g</a></li><li data-type='method'><a href="Snap.Paper.html#gradient">gradient</a></li><li data-type='method'><a href="Snap.Paper.html#gradientLinear">gradientLinear</a></li><li data-type='method'><a href="Snap.Paper.html#gradientRadial">gradientRadial</a></li><li data-type='method'><a href="Snap.Paper.html#image">image</a></li><li data-type='method'><a href="Snap.Paper.html#line">line</a></li><li data-type='method'><a href="Snap.Paper.html#mask">mask</a></li><li data-type='method'><a href="Snap.Paper.html#path">path</a></li><li data-type='method'><a href="Snap.Paper.html#polygon">polygon</a></li><li data-type='method'><a href="Snap.Paper.html#polyline">polyline</a></li><li data-type='method'><a href="Snap.Paper.html#ptrn">ptrn</a></li><li data-type='method'><a href="Snap.Paper.html#rect">rect</a></li><li data-type='method'><a href="Snap.Paper.html#svg">svg</a></li><li data-type='method'><a href="Snap.Paper.html#symbol">symbol</a></li><li data-type='method'><a href="Snap.Paper.html#text">text</a></li><li data-type='method'><a href="Snap.Paper.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Paper.html#toString">toString</a></li><li data-type='method'><a href="Snap.Paper.html#use">use</a></li><li data-type='method'><a href="Snap.Paper.html#a">a</a></li><li data-type='method'><a href="Snap.Paper.html#addExtension">addExtension</a></li><li data-type='method'><a href="Snap.Paper.html#arcFan">arcFan</a></li><li data-type='method'><a href="Snap.Paper.html#borderImage">borderImage</a></li><li data-type='method'><a href="Snap.Paper.html#button">button</a></li><li data-type='method'><a href="Snap.Paper.html#canvas">canvas</a></li><li data-type='method'><a href="Snap.Paper.html#circleCentPoint">circleCentPoint</a></li><li data-type='method'><a href="Snap.Paper.html#circleThreePoints">circleThreePoints</a></li><li data-type='method'><a href="Snap.Paper.html#circleTwoPoints">circleTwoPoints</a></li><li data-type='method'><a href="Snap.Paper.html#clipPath">clipPath</a></li><li data-type='method'><a href="Snap.Paper.html#disk">disk</a></li><li data-type='method'><a href="Snap.Paper.html#diskSegments">diskSegments</a></li><li data-type='method'><a href="Snap.Paper.html#ellipseFromEquation">ellipseFromEquation</a></li><li data-type='method'><a href="Snap.Paper.html#embeddedSVG">embeddedSVG</a></li><li data-type='method'><a href="Snap.Paper.html#foreignObject">foreignObject</a></li><li data-type='method'><a href="Snap.Paper.html#grid">grid</a></li><li data-type='method'><a href="Snap.Paper.html#htmlInsert">htmlInsert</a></li><li data-type='method'><a href="Snap.Paper.html#measureText">measureText</a></li><li data-type='method'><a href="Snap.Paper.html#multilineText">multilineText</a></li><li data-type='method'><a href="Snap.Paper.html#point">point</a></li><li data-type='method'><a href="Snap.Paper.html#processExtensions">processExtensions</a></li><li data-type='method'><a href="Snap.Paper.html#textInputBox">textInputBox</a></li><li data-type='method'><a href="Snap.Paper.html#zigzag">zigzag</a></li></ul></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li><a href="Snap.Set.html">Set</a></li><li></li></ul><h3>Namespaces</h3><ul><li><a href="Snap.bbox.html">bbox</a></li><li><a href="Snap.polygons.html">polygons</a><ul class='methods'><li data-type='method'><a href="Snap.polygons.html#.findPointInsidePolygon">findPointInsidePolygon</a></li><li data-type='method'><a href="Snap.polygons.html#.intersect">intersect</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonArea">polygonArea</a></li></ul></li><li></li><li></li></ul><h3>Global</h3><ul><li><a href="global.html#Checksifthegiveneventisregisteredwiththegivenfunction.">Checks if the given event is registered with the given function.</a></li><li><a href="global.html#compareInt">compareInt</a></li><li><a href="global.html#getLengthFactory">getLengthFactory</a></li><li><a href="global.html#O">O</a></li><li><a href="global.html#reverse_seg">reverse_seg</a></li><li><a href="global.html#voronoi">voronoi</a></li><li><a href="global.html#voronoi1D">voronoi1D</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">bbox.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/*
+ * Copyright (c) 2018.  Orlin Vakarelov
+ */
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+
+    /**
+     * Snap.svg plugin augmenting the library with a {@link BBox} helper type and
+     * related geometry utilities for working with rectangular bounds.
+     *
+     * @namespace Snap.bbox
+     */
+
+    const abs = Math.abs;
+    const p2s = /,?([a-z]),?/gi;
+
+    /**
+     * Converts an array-based path representation into a compact string.
+     *
+     * @param {Array} [path=this]
+     *        Sequence of path commands (as produced by Snap.svg helpers).
+     * @returns {string}
+     *          SVG path data string.
+     */
+    function toString(path) {
+        path = path || this;
+        return path.join(',').replace(p2s, '$1');
+    }
+
+    /**
+     * Generates the path command array describing a rectangle.
+     *
+     * @param {number} x The rectangle's top-left x coordinate.
+     * @param {number} y The rectangle's top-left y coordinate.
+     * @param {number} w The rectangle's width.
+     * @param {number} h The rectangle's height.
+     * @param {number} [rx]
+     *        Optional corner radius on the x axis for rounded corners.
+     * @param {number} [ry=rx]
+     *        Optional corner radius on the y axis when different from `rx`.
+     * @returns {Array}
+     *          Snap-compatible path command list describing the rectangle.
+     */
+    function rectPath(x, y, w, h, rx, ry) {
+        if (rx) {
+            if (!ry) ry = rx;
+            return [
+                ['M', +x + +rx, y],
+                ['l', w - rx * 2, 0],
+                ['a', rx, ry, 0, 0, 1, rx, ry],
+                ['l', 0, h - ry * 2],
+                ['a', rx, ry, 0, 0, 1, -rx, ry],
+                ['l', rx * 2 - w, 0],
+                ['a', rx, ry, 0, 0, 1, -rx, -ry],
+                ['l', 0, ry * 2 - h],
+                ['a', rx, ry, 0, 0, 1, rx, -ry],
+                ['z'],
+            ];
+        }
+        const res = [['M', x, y], ['l', w, 0], ['l', 0, h], ['l', -w, 0], ['z']];
+        res.toString = toString;
+        return res;
+    }
+
+    /**
+     * Represents an axis-aligned bounding box and offers utility methods to
+     * interrogate and transform it.
+     *
+     * @class
+     * @param {(number|Array|Object|null)} x
+     *        Top-left x coordinate, array form `[x, y, width, height]`, an object
+     *        with positional fields, or `null` to produce an empty box.
+     * @param {number} [y]
+     *        Top-left y coordinate when `x` is numeric.
+     * @param {number} [width]
+     *        Width when `x` is numeric.
+     * @param {number} [height]
+     *        Height when `x` is numeric.
+     */
+    function BBox(x, y, width, height) {
+        if (x === null) {
+            x = y = width = height = 0;
+        }
+        if (Array.isArray(x)) {
+            this.y = +x[1] || 0;
+            this.width = +x[2] || 0;
+            this.height = +x[3] || 0;
+            this.x = +x[0] || 0;
+        } else if (typeof x === 'object' &amp;&amp; typeof x.x === 'object') {  //bezeir bbox
+            this.x = x.x.min || 0;
+            this.y = x.y.min || 0;
+            this.width = x.x.size || 0;
+            this.height = x.y.size || 0;
+        } else if (typeof x === 'object'
+            &amp;&amp; (typeof x.x === 'number' || typeof x.cx === 'number' || typeof x.x2 === 'number')
+            &amp;&amp; (typeof x.y === 'number' || typeof x.cy === 'number' || typeof x.y2 === 'number')) {
+            this.width = +x.width || abs(+x.x - +x.x2) || 0;
+            this.height = +x.height || abs(+x.y - +x.y2) || 0;
+            if (typeof x.x === 'number') {
+                this.x = x.x;
+            } else if (typeof x.cx === 'number') {
+                this.x = x.cx - this.width / 2
+            } else {
+                this.x = x.x2 - this.width
+            }
+            if (typeof x.y === 'number') {
+                this.y = x.y;
+            } else if (typeof x.cy === 'number') {
+                this.y = x.cy - this.height / 2
+            } else {
+                this.y = x.y2 - this.height
+            }
+        } else { //ZERO box
+            this.x = +x || 0;
+            this.y = +y || 0;
+            this.width = +width || 0;
+            this.height = +height || 0;
+        }
+
+        this.h = this.height;
+        this.w = this.width;
+
+        this.x2 = this.x + this.width;
+        this.y2 = this.y + this.height;
+        this.cx = this.x + this.width / 2;
+        this.cy = this.y + this.height / 2;
+    }
+
+    /**
+     * Creates a shallow copy of the bounding box.
+     *
+     * @returns {BBox}
+     *          New instance with identical coordinates and dimensions.
+     */
+    BBox.prototype.clone = function () {
+        return new BBox(this.x, this.y, this.width, this.height);
+    };
+
+    /**
+     * Returns the radius of the largest circle that fits inside the box.
+     *
+     * @returns {number}
+     *          Half of the shortest side length.
+     */
+    BBox.prototype.r1 = function () {
+        return Math.min(this.width, this.height) / 2;
+    };
+
+    /**
+     * Returns the radius of the smallest circle that fully contains the box.
+     *
+     * @returns {number}
+     *          Half of the longest side length.
+     */
+    BBox.prototype.r2 = function () {
+        return Math.max(this.width, this.height) / 2;
+    };
+
+    /**
+     * Returns the radius of the circle covering the box's diagonal.
+     *
+     * @returns {number}
+     *          Half the diagonal length.
+     */
+    BBox.prototype.r0 = function () {
+        return Math.sqrt(this.width * this.width + this.height * this.height) / 2;
+    };
+
+    /**
+     * Computes the full diagonal length of the box.
+     *
+     * @returns {number}
+     *          Distance between the top-left and bottom-right corners.
+     */
+    BBox.prototype.diag = function () {
+        return Math.sqrt(this.width * this.width + this.height * this.height);
+    };
+
+    /**
+     * Expands the box by the supplied border amounts.
+     *
+     * @param {(number|Array|Object)} [border=0]
+     *        Uniform numeric padding, tuple `[x, y, x2, y2]`, or object literal
+     *        with per-side offsets.
+     * @param {boolean} [get_new=false]
+     *        When `true`, a new expanded {@link BBox} is returned.
+     * @returns {BBox}
+     *          The mutated box or the newly created instance.
+     */
+    BBox.prototype.addBorder = function (border, get_new) {
+        if (get_new) {
+            const bbox = this.clone();
+            return bbox.addBorder(border);
+        }
+        if (!border) {
+            border = {x: 0, y: 0, x2: 0, y2: 0};
+        } else {
+            if (!isNaN(border)) {
+                border = {x: border, y: border, x2: border, y2: border};
+            }
+            if (Array.isArray(border)) {
+                if (border.length === 1) border[1] = border[0];
+                border = {
+                    x: border[0], y: border[1],
+                    x2: (border[2] == null) ? border[0] : border[2],
+                    y2: (border[3] == null) ? border[1] : border[3]
+                };
+            }
+        }
+        this.x -= border.x;
+        this.y -= border.y;
+        this.width += border.x + border.x2;
+        this.w = this.width;
+        this.height += border.y + border.y2;
+        this.h = this.height;
+        this.x2 = this.x + this.width;
+        this.y2 = this.y + this.height;
+        this.cx = this.x + this.width / 2;
+        this.cy = this.y + this.height / 2;
+
+        return this;
+    }
+
+    /**
+     * Produces a rectangle path description matching the bounds.
+     *
+     * @returns {Array}
+     *          Array of Snap path commands outlining the box.
+     */
+    BBox.prototype.path = function () {
+        return rectPath(this.x, this.y, this.width, this.height);
+    };
+
+    /**
+     * Draws the bounding box on the supplied paper instance.
+     *
+     * @param {Snap.Paper} paper Destination paper to receive the rectangle.
+     * @param {(number|Object|Array)} [radius]
+     *        Corner radius or `{rx, ry}`/array form for rounded corners.
+     * @param {(number|Array|Object)} [border]
+     *        Optional expansion applied before drawing.
+     * @returns {Snap.Element}
+     *          The created rectangle element.
+     */
+    BBox.prototype.rect = function (paper, radius, border) {
+        let rx, ry;
+        if (radius) {
+            if (!isNaN(radius)) {
+                rx = ry = radius;
+            } else {
+                rx = radius.rx || radius[0] || 0;
+                ry = radius.ry || radius[1] || rx;
+            }
+
+        }
+        const bb = (border) ? this.addBorder(border, true) : this;
+        return paper.rect(bb.x, bb.y, bb.width, bb.height, rx, ry);
+    };
+
+    /**
+     * Serialises the box to an SVG viewBox string.
+     *
+     * @returns {string}
+     *          Space separated `x y width height` representation.
+     */
+    BBox.prototype.vb = function () {
+        return [this.x, this.y, this.width, this.height].join(' ');
+    };
+
+    /**
+     * Returns the aspect ratio of the box.
+     *
+     * @returns {number}
+     *          Width divided by height.
+     */
+    BBox.prototype.ration = function () {
+        return this.width / this.height;
+    };
+
+    /**
+     * Tests whether the box fully contains another box or point.
+     *
+    * @param {(BBox|BoundsLike|Array.&lt;number>)} bbox_or_point
+     *        Target bounds or point to evaluate.
+     * @param {number} [clearance=0]
+     *        Optional tolerance applied to the container box.
+     * @returns {boolean}
+     *          `true` when the target lies completely inside the bounds.
+     */
+    BBox.prototype.contains = function (bbox_or_point, clearance) {
+        clearance = clearance || 0;
+        const x = bbox_or_point.x || bbox_or_point[0],
+            y = bbox_or_point.y || bbox_or_point[1],
+            x2 = (bbox_or_point.hasOwnProperty('x2')) ? bbox_or_point.x2 : x,
+            y2 = (bbox_or_point.hasOwnProperty('y2')) ? bbox_or_point.y2 : y;
+
+        const is_in = x >= this.x - clearance &amp;&amp; x2 &lt;= this.x2 + clearance
+            &amp;&amp; y >= this.y - clearance &amp;&amp; y2 &lt;= this.y2 + clearance;
+        return is_in;
+    };
+
+    /**
+     * Tests whether the box completely contains a circle.
+     *
+    * @param {Circle} circle Circle descriptor.
+     * @returns {boolean}
+     *          `true` when the circle fits within the bounds.
+     */
+    BBox.prototype.containsCircle = function (circle) {
+        return this.x &lt;= circle.x - circle.r &amp;&amp; this.y &lt;= circle.y - circle.r &amp;&amp;
+            this.x2 >= circle.x + circle.r &amp;&amp; this.y2 >= circle.y + circle.r;
+    };
+
+    /**
+     * Returns the geometric centre of the box.
+     *
+    * @returns {Point2D}
+     *          Center point coordinates.
+     */
+    BBox.prototype.center = function () {
+        return {x: this.cx, y: this.cy};
+    };
+
+    /**
+     * Retrieves a corner point by index.
+     *
+     * @param {number} [count=0]
+     *        Corner index where 0=top-left, 1=top-right, 2=bottom-right, 3=bottom-left.
+    * @returns {Point2D}
+     *          The requested corner coordinates.
+     */
+    BBox.prototype.corner = function (count) {
+        count = count || 0;
+        switch (count) {
+            case 0:
+                return {x: this.x, y: this.y};
+            case 1:
+                return {x: this.x2, y: this.y};
+            case 2:
+                return {x: this.x2, y: this.y2};
+            case 3:
+                return {x: this.x, y: this.y2};
+        }
+    }
+
+    /**
+     * Looks up a named anchor point on the box.
+     *
+     * @param {string} name Named location (e.g. `c`, `tl`, `rc`).
+    * @returns {(Point2D|null)}
+     *          The resolved point or `null` when unknown.
+     */
+    BBox.prototype.pointFromName = function (name) {
+        name = name.toLowerCase();
+        switch (name) {
+            case 'c':
+                return this.center();
+            case 'tl':
+                return this.corner(0);
+            case 'tr':
+                return this.corner(1);
+            case 'br':
+                return this.corner(2);
+            case 'bl':
+                return this.corner(3);
+            case 't':
+            case 'tc':
+                return {x: this.cx, y: this.y2};
+            case 'l':
+            case 'lc':
+                return {x: this.x, y: this.cy};
+            case 'r':
+            case 'rc':
+                return {x: this.x2, y: this.cy};
+            case 'b':
+            case 'bc':
+                return {x: this.cx, y: this.y2}
+        }
+        return null;
+    };
+
+    /**
+     * Computes the overlapping region between this box and another.
+     *
+     * @param {BBox|Object} box Other box-like descriptor.
+     * @returns {BBox|null}
+     *          Intersection bounds, empty box, or `null` when input is falsy.
+     */
+    BBox.prototype.intersect = function (box) {
+        if (!box) return null;
+
+        const x = Math.max(this.x, box.x),
+            y = Math.max(this.y, box.y),
+            x2 = Math.min(this.x2, box.x2),
+            y2 = Math.min(this.y2, box.y2);
+
+        if (x >= x2 || y >= y2) {
+            return new BBox(Math.min(x, x2), Math.min(y, y2), 0, 0);
+        }
+
+        return new BBox(x, y, x2 - x, y2 - y);
+    };
+
+    /**
+     * Checks whether another box overlaps the current bounds.
+     *
+     * @param {BBox|Object} box Other box-like descriptor.
+     * @returns {boolean}
+     *          `true` when the two boxes share any overlapping area.
+     */
+    BBox.prototype.isOverlap = function (box) {
+        if (!box) return false;
+
+        const x = Math.max(this.x, box.x),
+            y = Math.max(this.y, box.y),
+            x2 = Math.min(this.x2, box.x2),
+            y2 = Math.min(this.y2, box.y2);
+
+        return x &lt; x2 &amp;&amp; y &lt; y2;
+
+    }
+
+    /**
+     * Computes the smallest box that contains both this and another box.
+     *
+     * @param {BBox|Object} box Other box-like descriptor.
+     * @returns {BBox}
+     *          Bounding box covering both inputs.
+     */
+    BBox.prototype.union = function (box) {
+        if (!box) return this;
+        const x = Math.min(this.x, box.x),
+            y = Math.min(this.y, box.y),
+            x2 = Math.max(this.x2, box.x2),
+            y2 = Math.max(this.y2, box.y2);
+
+        return new BBox(x, y, x2 - x, y2 - y);
+    };
+
+    /**
+     * Moves the box so that its top-left corner is at the provided coordinates.
+     *
+     * @param {number} x New top-left x coordinate.
+     * @param {number} y New top-left y coordinate.
+     * @returns {BBox}
+     *          The mutated box instance.
+     */
+    BBox.prototype.setCorner = function (x, y) {
+        this.x = x;
+        this.y = y;
+        this.x2 = this.x + this.width;
+        this.y2 = this.y + this.height;
+        this.cx = x + this.width / 2;
+        this.cy = y + this.height / 2;
+        return this;
+    };
+
+    /**
+     * Translates the box by the supplied offsets.
+     *
+     * @param {(number|Snap.Matrix)} x X offset or matrix whose translation
+     *        components will be applied.
+     * @param {number} [y]
+     *        Y offset when `x` is numeric.
+     * @returns {BBox}
+     *          The mutated box instance.
+     */
+    BBox.prototype.translate = function (x, y) {
+        if (typeof x === 'object' &amp;&amp; x.hasOwnProperty('e') &amp;&amp;
+            x.hasOwnProperty('f')) {
+            y = x.f;
+            x = x.e;
+        }
+
+        this.x += x;
+        this.x2 += x;
+        this.cx += x;
+        this.y += y;
+        this.y2 += y;
+        this.cy += y;
+
+        return this;
+    };
+
+    /**
+     * Scales the box around an anchor point.
+     *
+     * @param {number} sx Scale factor along the x axis.
+     * @param {number} [sy=sx] Scale factor along the y axis.
+     * @param {number} [cx=this.x]
+     *        X coordinate of the pivot point.
+     * @param {number} [cy=this.y]
+     *        Y coordinate of the pivot point.
+     * @returns {BBox}
+     *          The mutated box instance.
+     */
+    BBox.prototype.scale = function (sx, sy, cx, cy) {
+        if (sy == null) sy = sx;
+        if (cx == null) cx = this.x;
+        if (cy == null) cy = this.y;
+        this.w = this.width *= sx;
+        this.h = this.height *= sy;
+
+        this.x = cx - (cx - this.x) * sx;
+        this.y = cy - (cy - this.y) * sy;
+        this.x2 = this.x + this.width;
+        this.y2 = this.y + this.height;
+        this.cx = this.x + this.width / 2;
+        this.cy = this.y + this.height / 2;
+
+        return this;
+    }
+
+    /**
+     * Returns the bounding box itself (Snap.svg compatibility helper).
+     *
+     * @returns {BBox}
+     *          The current instance.
+     */
+    BBox.prototype.getBBox = function () {
+        return this;
+    };
+
+    /**
+     * Computes the bounds required to contain the box rotated by the given angle.
+     *
+     * @param {number} angle Rotation angle in degrees.
+     * @returns {BBox}
+     *          New box covering the rotated area. Includes `old_corner`
+     *          metadata describing the original top-left location.
+     */
+    BBox.prototype.getBBoxRot = function (angle) {
+        const rotation = Snap.matrix().rotate(angle);
+        let min_x = 0, max_x = -Infinity, min_y = 0, max_y = -Infinity;
+        [
+            {x: this.width, y: 0}, {x: 0, y: this.height},
+            {
+                x: this.width,
+                y: this.height,
+            }].forEach((p) => {
+            p = rotation.apply(p);
+            min_x = Math.min(min_x, p.x);
+            min_y = Math.min(min_y, p.y);
+            max_x = Math.max(max_x, p.x);
+            max_y = Math.max(max_y, p.y);
+        });
+
+        const bbox = new BBox(this.x, this.y, max_x - min_x, max_y - min_y);
+        bbox.old_corner = {x: this.x - min_x, y: this.y - min_y};
+        return bbox;
+    };
+
+    /**
+     * Normalises input values into a {@link BBox} instance.
+     *
+     * @param {(BBox|Array|Object|number)} x
+     *        Either an existing {@link BBox}, tuple, bounds object or x coordinate.
+     * @param {number} [y]
+     *        Y coordinate when numeric values are provided.
+     * @param {number} [width]
+     *        Width when numeric values are provided.
+     * @param {number} [height]
+     *        Height when numeric values are provided.
+     * @returns {BBox}
+     *          Prepared bounding box instance.
+     */
+    function box(x, y, width, height) {
+        if (x instanceof BBox) {
+            return x;
+        }
+        if (Array.isArray(x) &amp;&amp; x.length === 4) {
+            return new BBox(+x[0], +x[1], +x[2], +x[3]);
+        }
+        if (typeof x === 'object') {
+            return new BBox(x);
+        }
+        return new BBox(+x, +y, +width, +height);
+    }
+
+    Snap._.box = box; //for backward compatibility
+    Snap.box = box;
+    Snap.BBox = BBox;
+    Snap._.BBox = BBox;
+    Snap.registerType('bbox', BBox);
+
+});
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.11</a> on Fri Oct 03 2025 13:35:34 GMT-0700 (Pacific Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

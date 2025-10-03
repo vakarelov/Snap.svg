@@ -675,7 +675,7 @@
      *
      * @param {Function} callback Handler to invoke.
      * @param {number} deley Delay in milliseconds (affected by `setSpeed`).
-     * @param {...*} args Optional arguments forwarded to the callback.
+     * @param {...any} args Optional arguments forwarded to the callback.
      * @returns {number}
      */
     mina.setTimeout = function (callback, deley, ...args) {
@@ -688,7 +688,7 @@
      *
      * @param {Function} callback Handler to invoke.
      * @param {number} deley Delay in milliseconds before execution.
-     * @param {...*} args Optional arguments forwarded to the callback.
+     * @param {...any} args Optional arguments forwarded to the callback.
      * @returns {number|void}
      */
     mina.setTimeoutNow = function (callback, deley, ...args) {
@@ -701,7 +701,7 @@
      *
      * @param {Function} callback Handler to invoke on each tick.
      * @param {number} interval Interval duration in milliseconds.
-     * @param {...*} args Optional arguments forwarded to the callback.
+     * @param {...any} args Optional arguments forwarded to the callback.
      * @returns {number}
      */
     mina.setInterval = function (callback, interval, ...args) {

@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>matrix.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Animation.html">Animation</a><ul class='methods'><li data-type='method'><a href="Animation.html#done">done</a></li></ul></li><li></li><li><a href="BinaryHeap.html">BinaryHeap</a></li><li></li><li></li><li></li><li><a href="Set.html">Set</a><ul class='methods'><li data-type='method'><a href="Set.html#.animate">animate</a></li><li data-type='method'><a href="Set.html#.attr">attr</a></li><li data-type='method'><a href="Set.html#.bind">bind</a></li><li data-type='method'><a href="Set.html#.clear">clear</a></li><li data-type='method'><a href="Set.html#.forEach">forEach</a></li><li data-type='method'><a href="Set.html#.pop">pop</a></li><li data-type='method'><a href="Set.html#.push">push</a></li><li data-type='method'><a href="Set.html#.clone">clone</a></li><li data-type='method'><a href="Set.html#.exclude">exclude</a></li><li data-type='method'><a href="Set.html#.filter">filter</a></li><li data-type='method'><a href="Set.html#.getBBox">getBBox</a></li><li data-type='method'><a href="Set.html#.includes">includes</a></li><li data-type='method'><a href="Set.html#.insertAfter">insertAfter</a></li><li data-type='method'><a href="Set.html#.map">map</a></li><li data-type='method'><a href="Set.html#.remove">remove</a></li><li data-type='method'><a href="Set.html#.splice">splice</a></li><li data-type='method'><a href="Set.html#.toString">toString</a></li><li data-type='method'><a href="Set.html#.values">values</a></li></ul></li><li></li><li><a href="Snap.Element.html">Element</a><ul class='methods'><li data-type='method'><a href="Snap.Element.html#addClickEvent">addClickEvent</a></li><li data-type='method'><a href="Snap.Element.html#addHoldEvent">addHoldEvent</a></li><li data-type='method'><a href="Snap.Element.html#addInteractionEvent">addInteractionEvent</a></li><li data-type='method'><a href="Snap.Element.html#addLongpressEvent">addLongpressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addMessage">addMessage</a></li><li data-type='method'><a href="Snap.Element.html#addPressEvent">addPressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addTransform">addTransform</a></li><li data-type='method'><a href="Snap.Element.html#anchorEmbed">anchorEmbed</a></li><li data-type='method'><a href="Snap.Element.html#animateTransform">animateTransform</a></li><li data-type='method'><a href="Snap.Element.html#attrs">attrs</a></li><li data-type='method'><a href="Snap.Element.html#centerOfMass">centerOfMass</a></li><li data-type='method'><a href="Snap.Element.html#centerRotation">centerRotation</a></li><li data-type='method'><a href="Snap.Element.html#children">children</a></li><li data-type='method'><a href="Snap.Element.html#closest">closest</a></li><li data-type='method'><a href="Snap.Element.html#correctScale">correctScale</a></li><li data-type='method'><a href="Snap.Element.html#createClipPath">createClipPath</a></li><li data-type='method'><a href="Snap.Element.html#createMask">createMask</a></li><li data-type='method'><a href="Snap.Element.html#ellipseTransform">ellipseTransform</a></li><li data-type='method'><a href="Snap.Element.html#fitInBox">fitInBox</a></li><li data-type='method'><a href="Snap.Element.html#flatten">flatten</a></li><li data-type='method'><a href="Snap.Element.html#getAttributes">getAttributes</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxRot">getBBoxRot</a></li><li data-type='method'><a href="Snap.Element.html#getBitmap">getBitmap</a></li><li data-type='method'><a href="Snap.Element.html#getCanvasOverly">getCanvasOverly</a></li><li data-type='method'><a href="Snap.Element.html#getClientHeight">getClientHeight</a></li><li data-type='method'><a href="Snap.Element.html#getClientWidth">getClientWidth</a></li><li data-type='method'><a href="Snap.Element.html#getCoordMatrix">getCoordMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getCursorPoint">getCursorPoint</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLine">getDirectionLine</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLineWithGui">getDirectionLineWithGui</a></li><li data-type='method'><a href="Snap.Element.html#getFirstPoint">getFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#getFromScreenDistance">getFromScreenDistance</a></li><li data-type='method'><a href="Snap.Element.html#getGeometryAttr">getGeometryAttr</a></li><li data-type='method'><a href="Snap.Element.html#getId">getId</a></li><li data-type='method'><a href="Snap.Element.html#getLastPoint">getLastPoint</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBox">getRealBBox</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBoxExact">getRealBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getReferringToMe">getReferringToMe</a></li><li data-type='method'><a href="Snap.Element.html#getTopSVG">getTopSVG</a></li><li data-type='method'><a href="Snap.Element.html#globalToLocal">globalToLocal</a></li><li data-type='method'><a href="Snap.Element.html#hide">hide</a></li><li data-type='method'><a href="Snap.Element.html#hideSlowly">hideSlowly</a></li><li data-type='method'><a href="Snap.Element.html#isAbove">isAbove</a></li><li data-type='method'><a href="Snap.Element.html#isBelow">isBelow</a></li><li data-type='method'><a href="Snap.Element.html#isChildOf">isChildOf</a></li><li data-type='method'><a href="Snap.Element.html#isInRect">isInRect</a></li><li data-type='method'><a href="Snap.Element.html#isLocal">isLocal</a></li><li data-type='method'><a href="Snap.Element.html#isOverlap">isOverlap</a></li><li data-type='method'><a href="Snap.Element.html#isOverlapRect">isOverlapRect</a></li><li data-type='method'><a href="Snap.Element.html#isParentOf">isParentOf</a></li><li data-type='method'><a href="Snap.Element.html#linkedElementLocalise">linkedElementLocalise</a></li><li data-type='method'><a href="Snap.Element.html#localOnly">localOnly</a></li><li data-type='method'><a href="Snap.Element.html#makeDraggable">makeDraggable</a></li><li data-type='method'><a href="Snap.Element.html#makePath">makePath</a></li><li data-type='method'><a href="Snap.Element.html#move">move</a></li><li data-type='method'><a href="Snap.Element.html#pathFirstPoint">pathFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#rasterize">rasterize</a></li><li data-type='method'><a href="Snap.Element.html#readChanges">readChanges</a></li><li data-type='method'><a href="Snap.Element.html#recordChange">recordChange</a></li><li data-type='method'><a href="Snap.Element.html#reflect">reflect</a></li><li data-type='method'><a href="Snap.Element.html#regionSelect">regionSelect</a></li><li data-type='method'><a href="Snap.Element.html#remove">remove</a></li><li data-type='method'><a href="Snap.Element.html#removeMessage">removeMessage</a></li><li data-type='method'><a href="Snap.Element.html#removeSlowly">removeSlowly</a></li><li data-type='method'><a href="Snap.Element.html#repositionInGroup">repositionInGroup</a></li><li data-type='method'><a href="Snap.Element.html#revolve">revolve</a></li><li data-type='method'><a href="Snap.Element.html#rotate">rotate</a></li><li data-type='method'><a href="Snap.Element.html#scale">scale</a></li><li data-type='method'><a href="Snap.Element.html#selectParent">selectParent</a></li><li data-type='method'><a href="Snap.Element.html#setCursor">setCursor</a></li><li data-type='method'><a href="Snap.Element.html#setFirstPoint">setFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#setIdFollowRefs">setIdFollowRefs</a></li><li data-type='method'><a href="Snap.Element.html#show">show</a></li><li data-type='method'><a href="Snap.Element.html#showSlowly">showSlowly</a></li><li data-type='method'><a href="Snap.Element.html#toJSON">toJSON</a></li><li data-type='method'><a href="Snap.Element.html#toPolyBezier">toPolyBezier</a></li><li data-type='method'><a href="Snap.Element.html#translate">translate</a></li><li data-type='method'><a href="Snap.Element.html#translate_glob">translate_glob</a></li><li data-type='method'><a href="Snap.Element.html#translateAnimate">translateAnimate</a></li><li data-type='method'><a href="Snap.Element.html#transparentToMouse">transparentToMouse</a></li><li data-type='method'><a href="Snap.Element.html#addStop">addStop</a></li><li data-type='method'><a href="Snap.Element.html#setStops">setStops</a></li><li data-type='method'><a href="Snap.Element.html#stops">stops</a></li></ul></li><li></li><li><a href="Snap.Fragment.html">Fragment</a></li><li></li><li><a href="Snap.html#.Matrix">Matrix</a><ul class='methods'><li data-type='method'><a href="Snap.html#.Matrix#multLeft">multLeft</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransform">twoPointTransform</a></li><li data-type='method'><a href="Snap.html#.Matrix#apply">apply</a></li></ul></li><li><a href="Snap.Paper.html">Paper</a><ul class='methods'><li data-type='method'><a href="Snap.Paper.html#circle">circle</a></li><li data-type='method'><a href="Snap.Paper.html#clear">clear</a></li><li data-type='method'><a href="Snap.Paper.html#ellipse">ellipse</a></li><li data-type='method'><a href="Snap.Paper.html#g">g</a></li><li data-type='method'><a href="Snap.Paper.html#gradient">gradient</a></li><li data-type='method'><a href="Snap.Paper.html#gradientLinear">gradientLinear</a></li><li data-type='method'><a href="Snap.Paper.html#gradientRadial">gradientRadial</a></li><li data-type='method'><a href="Snap.Paper.html#image">image</a></li><li data-type='method'><a href="Snap.Paper.html#line">line</a></li><li data-type='method'><a href="Snap.Paper.html#mask">mask</a></li><li data-type='method'><a href="Snap.Paper.html#path">path</a></li><li data-type='method'><a href="Snap.Paper.html#polygon">polygon</a></li><li data-type='method'><a href="Snap.Paper.html#polyline">polyline</a></li><li data-type='method'><a href="Snap.Paper.html#ptrn">ptrn</a></li><li data-type='method'><a href="Snap.Paper.html#rect">rect</a></li><li data-type='method'><a href="Snap.Paper.html#svg">svg</a></li><li data-type='method'><a href="Snap.Paper.html#symbol">symbol</a></li><li data-type='method'><a href="Snap.Paper.html#text">text</a></li><li data-type='method'><a href="Snap.Paper.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Paper.html#toString">toString</a></li><li data-type='method'><a href="Snap.Paper.html#use">use</a></li><li data-type='method'><a href="Snap.Paper.html#a">a</a></li><li data-type='method'><a href="Snap.Paper.html#addExtension">addExtension</a></li><li data-type='method'><a href="Snap.Paper.html#arcFan">arcFan</a></li><li data-type='method'><a href="Snap.Paper.html#borderImage">borderImage</a></li><li data-type='method'><a href="Snap.Paper.html#button">button</a></li><li data-type='method'><a href="Snap.Paper.html#canvas">canvas</a></li><li data-type='method'><a href="Snap.Paper.html#circleCentPoint">circleCentPoint</a></li><li data-type='method'><a href="Snap.Paper.html#circleThreePoints">circleThreePoints</a></li><li data-type='method'><a href="Snap.Paper.html#circleTwoPoints">circleTwoPoints</a></li><li data-type='method'><a href="Snap.Paper.html#clipPath">clipPath</a></li><li data-type='method'><a href="Snap.Paper.html#disk">disk</a></li><li data-type='method'><a href="Snap.Paper.html#diskSegments">diskSegments</a></li><li data-type='method'><a href="Snap.Paper.html#ellipseFromEquation">ellipseFromEquation</a></li><li data-type='method'><a href="Snap.Paper.html#embeddedSVG">embeddedSVG</a></li><li data-type='method'><a href="Snap.Paper.html#foreignObject">foreignObject</a></li><li data-type='method'><a href="Snap.Paper.html#grid">grid</a></li><li data-type='method'><a href="Snap.Paper.html#htmlInsert">htmlInsert</a></li><li data-type='method'><a href="Snap.Paper.html#measureText">measureText</a></li><li data-type='method'><a href="Snap.Paper.html#multilineText">multilineText</a></li><li data-type='method'><a href="Snap.Paper.html#point">point</a></li><li data-type='method'><a href="Snap.Paper.html#processExtensions">processExtensions</a></li><li data-type='method'><a href="Snap.Paper.html#textInputBox">textInputBox</a></li><li data-type='method'><a href="Snap.Paper.html#zigzag">zigzag</a></li></ul></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li><a href="Snap.Set.html">Set</a></li><li></li></ul><h3>Namespaces</h3><ul><li><a href="Snap.bbox.html">bbox</a></li><li><a href="Snap.polygons.html">polygons</a><ul class='methods'><li data-type='method'><a href="Snap.polygons.html#.findPointInsidePolygon">findPointInsidePolygon</a></li><li data-type='method'><a href="Snap.polygons.html#.intersect">intersect</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonArea">polygonArea</a></li></ul></li><li></li><li></li></ul><h3>Global</h3><ul><li><a href="global.html#Checksifthegiveneventisregisteredwiththegivenfunction.">Checks if the given event is registered with the given function.</a></li><li><a href="global.html#compareInt">compareInt</a></li><li><a href="global.html#getLengthFactory">getLengthFactory</a></li><li><a href="global.html#O">O</a></li><li><a href="global.html#reverse_seg">reverse_seg</a></li><li><a href="global.html#voronoi">voronoi</a></li><li><a href="global.html#voronoi1D">voronoi1D</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">matrix.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// Copyright (c) 2013 Adobe Systems Incorporated. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+    var objectToString = Object.prototype.toString,
+        Str = String,
+        math = Math,
+        E = "";
+
+    /**
+     * Represents a 2D affine transformation matrix with six coefficients.
+     * Accepts individual numeric coefficients, an `SVGMatrix`-like object, a matrix string, or another `Matrix` instance.
+     * When invoked without arguments, an identity matrix is produced.
+     *
+     * @class
+     * @alias Snap.Matrix
+     * @param {number|SVGMatrix|string|Matrix} [a=1] - Either an existing matrix representation or the `a` component.
+     * @param {number} [b=0] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c=0] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d=1] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e=0] - The `e` translation component when numeric values are provided.
+     * @param {number} [f=0] - The `f` translation component when numeric values are provided.
+     */
+    function Matrix(a, b, c, d, e, f) {
+        if (b == null &amp;&amp; objectToString.call(a) == "[object SVGMatrix]") {
+            this.a = a.a;
+            this.b = a.b;
+            this.c = a.c;
+            this.d = a.d;
+            this.e = a.e;
+            this.f = a.f;
+            return;
+        }
+        if (b == null &amp;&amp; typeof a === "string") {
+            a = a.replace("matrix(", "").replace("(", "").replace(")", "");
+            a = a.split(",");
+            this.a = +a[0] || 0;
+            this.b = +a[1] || 0;
+            this.c = +a[2] || 0;
+            this.d = +a[3] || 0;
+            this.e = +a[4] || 0;
+            this.f = +a[5] || 0;
+            return;
+        }
+        if (a != null) {
+            this.a = +a;
+            this.b = +b;
+            this.c = +c;
+            this.d = +d;
+            this.e = +e;
+            this.f = +f;
+        } else {
+            this.a = 1;
+            this.b = 0;
+            this.c = 0;
+            this.d = 1;
+            this.e = 0;
+            this.f = 0;
+        }
+    }
+
+    Snap.registerType("matrix", Matrix);
+
+    (function (matrixproto) {
+    /**
+     * Multiplies the current matrix on the right by the supplied affine transform.
+     * If another {@link Matrix} instance is provided, its coefficients will be applied directly.
+     *
+     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient of the multiplier.
+     * @param {number} [c] - The `c` coefficient of the multiplier.
+     * @param {number} [d] - The `d` coefficient of the multiplier.
+     * @param {number} [e] - The `e` translation component of the multiplier.
+     * @param {number} [f] - The `f` translation component of the multiplier.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+        matrixproto.add = function (a, b, c, d, e, f) {
+            if (a &amp;&amp; a instanceof Matrix) {
+                return this.add(a.a, a.b, a.c, a.d, a.e, a.f);
+            }
+            var aNew = a * this.a + b * this.c,
+                bNew = a * this.b + b * this.d;
+            this.e += e * this.a + f * this.c;
+            this.f += e * this.b + f * this.d;
+            this.c = c * this.a + d * this.c;
+            this.d = c * this.b + d * this.d;
+
+            this.a = aNew;
+            this.b = bNew;
+            return this;
+        };
+
+        matrixproto.multRight = matrixproto.add;
+
+    /**
+     * Returns a clone of the current matrix multiplied on the right by the supplied transform.
+     *
+     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient of the multiplier.
+     * @param {number} [c] - The `c` coefficient of the multiplier.
+     * @param {number} [d] - The `d` coefficient of the multiplier.
+     * @param {number} [e] - The `e` translation component of the multiplier.
+     * @param {number} [f] - The `f` translation component of the multiplier.
+     * @returns {Matrix} A new matrix containing the multiplied result.
+     */
+    matrixproto.plus = function (a, b, c, d, e, f) {
+            if (a &amp;&amp; a instanceof Matrix) {
+                return this.plus(a.a, a.b, a.c, a.d, a.e, a.f);
+            }
+
+            return this.clone().add(a, b, c, d, e, f);
+        };
+    /**
+     * Multiplies all affine coefficients by a scalar.
+     *
+     * @param {number} c - Scalar value applied to each coefficient.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+    matrixproto.scMult = function (c) {
+            this.a *= c;
+            this.b *= c;
+            this.c *= c;
+            this.d *= c;
+            this.f *= c;
+            this.e *= c;
+            return this;
+        };
+    /**
+     * Returns a clone of the matrix scaled by the supplied scalar.
+     *
+     * @param {number} c - Scalar value applied to each coefficient.
+     * @returns {Matrix} A new matrix instance with scaled coefficients.
+     */
+    matrixproto.timesSc = function (c) {
+            return this.clone().scMult(c);
+        };
+    /**
+     * Multiplies the current matrix on the left by the supplied affine transform (pre-multiplication).
+     * Accepts a single matrix, an array of matrices, or individual coefficients.
+     *
+     * @param {number|Matrix|Array&lt;number|Matrix>} a - Matrix, array of matrices, or the `a` coefficient of the multiplier.
+     * @param {number} [b] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e] - The `e` translation component when numeric values are provided.
+     * @param {number} [f] - The `f` translation component when numeric values are provided.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+        Matrix.prototype.multLeft = function (a, b, c, d, e, f) {
+            if (Array.isArray(a)) {
+                if (a[0] instanceof Matrix) {
+                    for (let i = a.length - 1; i > -1; --i) {
+                        this.multLeft(a[i])
+                    }
+                    return this;
+                }
+                if (typeof a[0] === "number") {
+                    return this.multLeft(a[0] || 0, a[1] || 0,
+                        a[2] || 0, a[3] || 0, a[4] || 0, a[5] || 0);
+                }
+                return this;
+            }
+
+            if (a &amp;&amp; a instanceof Matrix) {
+                return this.multLeft(a.a, a.b, a.c, a.d, a.e, a.f);
+            }
+            var aNew = a * this.a + c * this.b,
+                cNew = a * this.c + c * this.d,
+                eNew = a * this.e + c * this.f + e;
+            this.b = b * this.a + d * this.b;
+            this.d = b * this.c + d * this.d;
+            this.f = b * this.e + d * this.f + f;
+
+            this.a = aNew;
+            this.c = cNew;
+            this.e = eNew;
+            return this;
+        };
+        /**
+         * Computes the inverse of the affine matrix.
+         *
+         * @returns {Matrix} A new matrix representing the inverse transform.
+         */
+        matrixproto.invert = function () {
+            var me = this,
+                x = me.a * me.d - me.b * me.c;
+            return new Matrix(me.d / x, -me.b / x, -me.c / x, me.a / x, (me.c * me.f - me.d * me.e) / x, (me.b * me.e - me.a * me.f) / x);
+        };
+        /**
+         * Creates an exact copy of the matrix.
+         *
+         * @returns {Matrix} A new matrix with identical coefficients.
+         */
+        matrixproto.clone = function () {
+            return new Matrix(this.a, this.b, this.c, this.d, this.e, this.f);
+        };
+        /**
+         * Applies a translation to the matrix.
+         *
+         * @param {number} x - Horizontal translation distance.
+         * @param {number} y - Vertical translation distance.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        matrixproto.translate = function (x, y) {
+            this.e += x * this.a + y * this.c;
+            this.f += x * this.b + y * this.d;
+            return this;
+        };
+        /**
+         * Applies a scale transformation to the matrix.
+         *
+         * @param {number} x - Horizontal scale factor; `1` leaves the axis unchanged.
+         * @param {number} [y=x] - Vertical scale factor; defaults to {@link x} when omitted.
+         * @param {number} [cx] - Optional horizontal origin around which to scale.
+         * @param {number} [cy] - Optional vertical origin around which to scale.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        matrixproto.scale = function (x, y, cx, cy) {
+            y == null &amp;&amp; (y = x);
+            (cx || cy) &amp;&amp; this.translate(cx, cy);
+            this.a *= x;
+            this.b *= x;
+            this.c *= y;
+            this.d *= y;
+            (cx || cy) &amp;&amp; this.translate(-cx, -cy);
+            return this;
+        };
+        /**
+         * Applies a rotation to the matrix.
+         *
+         * @param {number} a - Rotation angle in degrees.
+         * @param {number} [x=0] - Horizontal origin around which to rotate.
+         * @param {number} [y=0] - Vertical origin around which to rotate.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        matrixproto.rotate = function (a, x, y) {
+            a = Snap.rad(a);
+            x = x || 0;
+            y = y || 0;
+            var cos = +math.cos(a).toFixed(9),
+                sin = +math.sin(a).toFixed(9);
+            this.add(cos, sin, -sin, cos, x, y);
+            return this.add(1, 0, 0, 1, -x, -y);
+        };
+        /**
+         * Skews the matrix along the x-axis.
+         *
+         * @param {number} x - Angle, in degrees, to skew along the x-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        matrixproto.skewX = function (x) {
+            return this.skew(x, 0);
+        };
+        /**
+         * Skews the matrix along the y-axis.
+         *
+         * @param {number} y - Angle, in degrees, to skew along the y-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        matrixproto.skewY = function (y) {
+            return this.skew(0, y);
+        };
+        /**
+         * Applies a simultaneous skew transform on both axes.
+         *
+         * @param {number} [x=0] - Angle, in degrees, to skew along the x-axis.
+         * @param {number} [y=0] - Angle, in degrees, to skew along the y-axis.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        matrixproto.skew = function (x, y) {
+            x = x || 0;
+            y = y || 0;
+            x = Snap.rad(x);
+            y = Snap.rad(y);
+            var c = math.tan(x).toFixed(9);
+            var b = math.tan(y).toFixed(9);
+            return this.add(1, b, c, 1, 0, 0);
+        };
+        /**
+         * Transforms a point and returns its x-coordinate.
+         *
+         * @param {number} x - Original x-coordinate.
+         * @param {number} y - Original y-coordinate.
+         * @returns {number} The transformed x-coordinate.
+         */
+        matrixproto.x = function (x, y) {
+            return x * this.a + y * this.c + this.e;
+        };
+        /**
+         * Transforms a point and returns its y-coordinate.
+         *
+         * @param {number} x - Original x-coordinate.
+         * @param {number} y - Original y-coordinate.
+         * @returns {number} The transformed y-coordinate.
+         */
+        matrixproto.y = function (x, y) {
+            return x * this.b + y * this.d + this.f;
+        };
+
+    /**
+     * Applies a pseudo-random translation, rotation, and scaling around an optional origin.
+     * Useful for generating varied transforms for effects or automated testing.
+     *
+     * @param {number} [cx=0] - Horizontal origin for rotation and scaling.
+     * @param {number} [cy=0] - Vertical origin for rotation and scaling.
+     * @param {boolean} [positive=false] - When `true`, restricts translations to positive offsets.
+     * @param {number} [distance=300] - Maximum translation distance along each axis.
+     * @param {boolean} [diff_scale=false] - When `true`, allows non-uniform (x/y) scaling.
+     * @param {boolean} [skip_rotation=false] - When `true`, prevents random rotation.
+     * @param {boolean} [skip_scale=false] - When `true`, prevents random scaling.
+     * @returns {Matrix} The matrix instance for chaining.
+     */
+    matrixproto.randomTrans = function (cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
+            distance = distance || 300;
+            cx = cx || 0;
+            cy = cy || 0;
+            let angle = (skip_rotation) ? 0 : 360 * Math.random();
+            let scalex = (Math.random() &lt; .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random();
+            let scaley = (diff_scale) ? (Math.random() &lt; .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random() : scalex;
+
+            if (skip_scale) {
+                scalex = 1;
+                scaley = 1;
+            }
+
+            let dx = (positive) ? distance * Math.random() : distance * (Math.random() - .5),
+                dy = (positive) ? distance * Math.random() : distance * (Math.random() - .5);
+
+            return this.translate(dx, dy).rotate(angle, cx + dx, cy + dy).scale(scalex, scaley, cx + dx, cy + dy);
+        };
+
+        /**
+         * Returns a coefficient of the matrix by index (`0 → a`, `5 → f`).
+         *
+         * @param {number} i - Index of the coefficient (0-5).
+         * @returns {number} The coefficient rounded to nine decimal places.
+         */
+        matrixproto.get = function (i) {
+            return +this[Str.fromCharCode(97 + i)].toFixed(9);
+        };
+        /**
+         * Serialises the matrix into an SVG `matrix(a,b,c,d,e,f)` transform string.
+         *
+         * @returns {string} SVG transform string representing the matrix.
+         */
+        matrixproto.toString = function () {
+            return "matrix(" + [this.get(0), this.get(1), this.get(2), this.get(3), this.get(4), this.get(5)].join() + ")";
+        };
+        /**
+         * Returns the translation components (`e`, `f`) rounded to nine decimal places.
+         *
+         * @returns {number[]} A two-item array `[e, f]`.
+         */
+        matrixproto.offset = function () {
+            return [this.e.toFixed(9), this.f.toFixed(9)];
+        };
+
+        /**
+         * Compares the matrix with another instance within an optional tolerance.
+         *
+         * @param {Matrix} m - Matrix to compare against.
+         * @param {number} [error] - Optional absolute tolerance per coefficient.
+         * @returns {boolean} `true` if all coefficients match within the tolerance.
+         */
+        matrixproto.equals = function (m, error) {
+            if (!m) return false;
+            if (error == null) {
+                return this.a === m.a &amp;&amp; this.b === m.b &amp;&amp; this.c === m.c &amp;&amp; this.d === m.d &amp;&amp; this.e === m.e &amp;&amp; this.f === m.f;
+            }
+            return Math.abs(this.a - m.a) &lt;= error &amp;&amp;
+                Math.abs(this.b - m.b) &lt;= error &amp;&amp;
+                Math.abs(this.c - m.c) &lt;= error &amp;&amp;
+                Math.abs(this.d - m.d) &lt;= error &amp;&amp;
+                Math.abs(this.e - m.e) &lt;= error &amp;&amp;
+                Math.abs(this.f - m.f) &lt;= error;
+        }
+        /**
+         * Checks whether the matrix equals the identity transform.
+         *
+         * @returns {boolean} `true` when all non-identity coefficients are zero.
+         */
+        matrixproto.isIdentity = function () {
+            return this.a === 1 &amp;&amp; !this.b &amp;&amp; !this.c &amp;&amp; this.d === 1 &amp;&amp;
+                !this.e &amp;&amp; !this.f;
+        };
+
+        /**
+         * Returns the matrix coefficients as an array `[a, b, c, d, e, f]`.
+         *
+         * @returns {number[]} Array of the six coefficients.
+         */
+        matrixproto.toArray = function () {
+            return [this.a, this.b, this.c, this.d, this.e, this.f];
+        };
+
+        function norm(a) {
+            return a[0] * a[0] + a[1] * a[1];
+        }
+
+        function normalize(a) {
+            var mag = math.sqrt(norm(a));
+            a[0] &amp;&amp; (a[0] /= mag);
+            a[1] &amp;&amp; (a[1] /= mag);
+        }
+
+        /**
+         * Computes the determinant of the affine matrix.
+         *
+         * @returns {number} Determinant value (`a * d - b * c`).
+         */
+        matrixproto.determinant = function () {
+            return this.a * this.d - this.b * this.c;
+        };
+    /**
+     * Decomposes the matrix into intuitive primitives (translation, rotation, scale, shear).
+     * Optionally records any pre-translation that occurred before the core linear transform.
+     *
+     * @param {boolean} [add_pre_translation=false] - When `true`, include the pre-translation offset (`px`, `py`).
+     * @returns {object} Parts describing the transform.
+     * @returns {number} return.dx - Final translation along the x-axis.
+     * @returns {number} return.dy - Final translation along the y-axis.
+     * @returns {number} [return.px] - Optional pre-translation along the x-axis (only when `add_pre_translation` is `true`).
+     * @returns {number} [return.py] - Optional pre-translation along the y-axis (only when `add_pre_translation` is `true`).
+     * @returns {number} return.scalex - Scale factor applied along the x-axis. Negative when the matrix mirrors across an axis.
+     * @returns {number} return.scaley - Scale factor applied along the y-axis.
+     * @returns {number} return.shear - Shear factor that skews the y-axis relative to the x-axis.
+     * @returns {number} return.rotate - Rotation in degrees, measured after the scale/shear decomposition.
+     * @returns {boolean} return.isSimple - `true` when the matrix can be expressed as translate → rotate → uniform scale (or no rotation).
+     * @returns {boolean} return.isSuperSimple - `true` when the matrix is only translate → uniform scale (no rotation or shear).
+     * @returns {boolean} return.noRotation - `true` when the matrix has neither rotation nor shear.
+     */
+        matrixproto.split = function (add_pre_translation) {
+            var out = {};
+            // translation
+            out.dx = this.e;
+            out.dy = this.f;
+
+            //pre-translation
+            if (add_pre_translation) {
+                let m = this.clone();
+                m.e -= this.e;
+                m.f -= this.f;
+                let inv = m.invert();
+
+                m = this.clone();
+                m.multLeft(inv);
+                out.px = m.e;
+                out.py = m.f;
+            }
+
+
+            // scale and shear
+            var row = [[this.a, this.b], [this.c, this.d]];
+            out.scalex = math.sqrt(norm(row[0]));
+            normalize(row[0]);
+
+            out.shear = row[0][0] * row[1][0] + row[0][1] * row[1][1];
+            row[1] = [row[1][0] - row[0][0] * out.shear, row[1][1] - row[0][1] * out.shear];
+
+            out.scaley = math.sqrt(norm(row[1]));
+            normalize(row[1]);
+            out.shear /= out.scaley;
+
+            if (this.determinant() &lt; 0) {
+                out.scalex = -out.scalex;
+            }
+
+            // rotation
+            var sin = row[0][1],
+                cos = row[1][1];
+            if (cos &lt; 0) {
+                out.rotate = Snap.deg(math.acos(cos));
+                if (sin &lt; 0) {
+                    out.rotate = 360 - out.rotate;
+                }
+            } else {
+                out.rotate = Snap.deg(math.asin(sin));
+            }
+
+            out.isSimple = !+out.shear.toFixed(9) &amp;&amp; (out.scalex.toFixed(9) == out.scaley.toFixed(9) || !out.rotate);
+            out.isSuperSimple = !+out.shear.toFixed(9) &amp;&amp; out.scalex.toFixed(9) == out.scaley.toFixed(9) &amp;&amp; !out.rotate;
+            out.noRotation = !+out.shear.toFixed(9) &amp;&amp; !out.rotate;
+            return out;
+        };
+
+    /**
+     * Provides a lightweight decomposition returning translation, rotation, and scale components.
+     *
+     * @returns {{dx:number, dy:number, r:number, scalex:number, scaley:number}} Simplified transform description.
+     */
+    matrixproto.split2 = function getTransform() {
+            let a = this.a,
+                b = this.b,
+                c = this.c,
+                d = this.d,
+                e = this.e,
+                f = this.f;
+
+            const dx = e;
+            const dy = f;
+            const r = Math.atan2(b, a);
+            const scx = Math.sqrt(a * a + b * b);
+            const scy = (a * d - b * c) / scx;
+
+            return {dx: dx, dy: dy, r: Snap.deg(r), scalex: scx, scaley: scy};
+        }
+
+        /**
+         * Serialises the matrix into Snap's short transform string format.
+         *
+         * @param {object} [shorter] - Optional decomposition result to reuse.
+         * @returns {string} A transform string compatible with Snap.svg syntax.
+         */
+        matrixproto.toTransformString = function (shorter) {
+            var s = shorter || this.split();
+            if (!+s.shear.toFixed(9)) {
+                s.scalex = +s.scalex.toFixed(9);
+                s.scaley = +s.scaley.toFixed(9);
+                s.rotate = +s.rotate.toFixed(9);
+                return (s.dx || s.dy ? "t" + [+s.dx.toFixed(9), +s.dy.toFixed(9)] : E) +
+                    (s.rotate ? "r" + [+s.rotate.toFixed(9), 0, 0] : E) +
+                    (s.scalex != 1 || s.scaley != 1 ? "s" + [s.scalex, s.scaley, 0, 0] : E);
+            } else {
+                return "m" + [this.get(0), this.get(1), this.get(2), this.get(3), this.get(4), this.get(5)];
+            }
+        };
+
+        /**
+         * Identifies the object as a matrix instance.
+         *
+         * @returns {boolean} Always returns `true` for matrix instances.
+         */
+        matrixproto.isMatrix = function () {
+            return true;
+        }
+
+    /**
+     * Computes an affine transform mapping two source points to two destination points.
+     *
+     * @param {number} x1 - X-coordinate of the first source point.
+     * @param {number} y1 - Y-coordinate of the first source point.
+     * @param {number} x1Prime - X-coordinate of the first destination point.
+     * @param {number} y1Prime - Y-coordinate of the first destination point.
+     * @param {number} x2 - X-coordinate of the second source point.
+     * @param {number} y2 - Y-coordinate of the second source point.
+     * @param {number} x2Prime - X-coordinate of the second destination point.
+     * @param {number} y2Prime - Y-coordinate of the second destination point.
+     * @returns {Matrix} A new matrix performing the inferred transform.
+     */
+    matrixproto.twoPointTransformMatrix = function (x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
+            // Calculate distances before and after transformation
+            const distanceBefore = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            const distanceAfter = Math.sqrt(Math.pow(x2Prime - x1Prime, 2) + Math.pow(y2Prime - y1Prime, 2));
+
+            // Scale factor
+            const s = distanceAfter / distanceBefore;
+
+            // Calculate rotation angle theta
+            const dotProduct = (x2Prime - x1Prime) * (x2 - x1) + (y2Prime - y1Prime) * (y2 - y1);
+            const determinant = (x2Prime - x1Prime) * (y2 - y1) - (y2Prime - y1Prime) * (x2 - x1);
+            const theta = Math.atan2(determinant, dotProduct);
+
+            // Calculate components of the transformation matrix
+            const a = s * Math.cos(theta);
+            const b = s * Math.sin(theta);
+            const c = -s * Math.sin(theta);
+            const d = s * Math.cos(theta);
+
+            // Calculate translation components
+            const e = x1Prime - (a * x1 + c * y1);
+            const f = y1Prime - (b * x1 + d * y1);
+
+            // Return the transformation matrix
+            return new Snap.Matrix(a, b, c, d, e, f);
+        }
+
+        /**
+         * Conjugates an affine transform by a base matrix (`base * m * base^{-1}`).
+         *
+         * @param {Matrix} m - Matrix to conjugate.
+         * @param {Matrix} base - Base matrix providing the reference frame.
+         * @returns {Matrix} The conjugated matrix.
+         * @private
+         */
+        function rightLeftFlipMatrix(m, base) {
+            let inv = base.clone().invert();
+            return base.clone().multRight(m).multRight(inv);
+        }
+
+        /**
+         * Splits a matrix into translation/scale and rotation/shear factors.
+         *
+         * @param {Matrix} [m=this] - Matrix to decompose.
+         * @returns {{0:Matrix, 1:Matrix, trans_scale:Matrix, rot_shear:Matrix, scalex:number, scaley:number, rotate:number, shear:number, dx:number, dy:number}} Matrices and scalars describing the decomposition.
+         */
+        function rotScaleSplit(m) {
+            m = m || this;
+            const split = m.split();
+            const tm = new Matrix().translate(split.dx, split.dy);
+            const rm = new Matrix().rotate(split.rotate);
+            const scm = new Matrix().scale(split.scalex, split.scaley);
+            const shm = new Matrix().skew(split.shear);
+
+            const rot_shear = rightLeftFlipMatrix(rm.multRight(shm), tm);
+            const trans_scale = scm.multLeft(tm);
+
+            return {
+                0: trans_scale,
+                1: rot_shear,
+                trans_scale: trans_scale,
+                rot_shear: rot_shear,
+                scalex: split.scalex,
+                scaley: split.scaley,
+                rotate: split.rotate,
+                shear: split.shear,
+                dx: split.dx,
+                dy: split.dy
+            };
+        }
+
+        matrixproto.rotScaleSplit = rotScaleSplit;
+
+    })(Matrix.prototype);
+    /**
+     * Exposes the {@link Matrix} constructor on the `Snap` namespace.
+     *
+    * @type {Function}
+     */
+    Snap.Matrix = Matrix;
+    /**
+     * Factory helper mirroring the {@link Matrix} constructor signature.
+     *
+     * @param {number|SVGMatrix|string|Matrix} [a] - Either an existing matrix representation or the `a` coefficient.
+     * @param {number} [b] - The `b` coefficient when numeric values are provided.
+     * @param {number} [c] - The `c` coefficient when numeric values are provided.
+     * @param {number} [d] - The `d` coefficient when numeric values are provided.
+     * @param {number} [e] - The `e` translation component when numeric values are provided.
+     * @param {number} [f] - The `f` translation component when numeric values are provided.
+     * @returns {Matrix} A new matrix instance.
+     */
+    Snap.matrix = function (a, b, c, d, e, f) {
+        return new Matrix(a, b, c, d, e, f);
+    };
+});
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.11</a> on Fri Oct 03 2025 13:35:34 GMT-0700 (Pacific Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

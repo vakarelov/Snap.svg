@@ -17,15 +17,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             rgTrim = /(^\s+|\s+$)/g,
             Str = String,
             elproto = Element.prototype;
-        /*\
-         * Element.addClass
-         [ method ]
-         **
-         * Adds given class name or list of class names to the element.
-         - value (string) class name or space separated list of class names
-         **
-         = (Element) original element.
-        \*/
+        /**
+         * Element.addClass @method *
+         * Adds given class name or list of class names to the element. * @param {string} value - class name or space separated list of class names * * @returns {Element} original element.
+        */
         elproto.addClass = function (value) {
             var classes = (Array.isArray(value)) ? value : Str(value || "").match(rgNotSpace) || [],
                 elem = this.node,
@@ -66,16 +61,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-             * Element.removeClass
-             [ method ]
-             **
-             * Removes given class name or list of class names from the element.
-             - value (string) class name or space separated list of class names
-             - prefix (boolean) if true, removes all classes that start with the given class name
-             **
-             = (Element) original element.
-            \*/
+        /**
+             * Element.removeClass @method *
+             * Removes given class name or list of class names from the element. * @param {string} value - class name or space separated list of class names * @param {boolean} prefix - if true, removes all classes that start with the given class name * * @returns {Element} original element.
+            */
         elproto.removeClass = function (value, prefix = false) {
             if (Array.isArray(value)) {
                 value.forEach((v) => this.removeClass(v))
@@ -114,15 +103,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             }
         }
-        /*\
-         * Element.hasClass
-         [ method ]
-         **
-         * Checks if the element has a given class name in the list of class names applied to it.
-         - value (string) class name
-         **
-         = (boolean) `true` if the element has given class
-        \*/
+        /**
+         * Element.hasClass @method *
+         * Checks if the element has a given class name in the list of class names applied to it. * @param {string} value - class name * * @returns {boolean} `true` if the element has given class
+        */
         elproto.hasClass = function (value, conjunctive = false) {
             var elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
@@ -147,17 +131,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         elproto.classesStartWith = function (value) {
             return this.matchClass(new RegExp("^" + value));
         }
-        /*\
-         * Element.toggleClass
-         [ method ]
-         **
+        /**
+         * Element.toggleClass @method *
          * Add or remove one or more classes from the element, depending on either
-         * the class’s presence or the value of the `flag` argument.
-         - value (string) class name or space separated list of class names
-         - flag (boolean) value to determine whether the class should be added or removed
-         **
-         = (Element) original element.
-        \*/
+         * the class’s presence or the value of the `flag` argument. * @param {string} value - class name or space separated list of class names * @param {boolean} flag - value to determine whether the class should be added or removed * * @returns {Element} original element.
+        */
         elproto.toggleClass = function (value, flag) {
             if (flag != null) {
                 if (flag) {

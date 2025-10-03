@@ -704,16 +704,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             clearParentCHull(this, !force_top);
         }
 
-        /*\
-         * Element.transform
-         [ method ]
-         **
-         * Gets or sets transformation of the element
-         **
-         - tstr (string) transform string in Snap or SVG format
-         = (Element) the current element
-         * or
-         = (object) transformation descriptor:
+        /**
+         * Element.transform @method *
+         * Gets or sets transformation of the element * * @param {string} tstr - transform string in Snap or SVG format * @returns {Element} the current element
+         * or * @returns {object} transformation descriptor:
          o {
          o     string (string) transform string,
          o     globalMatrix (Matrix) matrix of all transformations applied to element or its parents,
@@ -723,7 +717,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          o     local (string) local transformation as string,
          o     toString (function) returns `string` property
          o }
-         \*/
+         */
     /**
      * Gets or sets the element transform.
      * @param {string|Snap.Matrix} [tstr] Transform string or matrix to apply. When omitted, returns a descriptor with
@@ -1554,7 +1548,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         /*
          * Element.getChildren
-         * [ method ]
+         * @method
          *
          * Returns an array of the children of the element, filtering out non-geometric elements. It shoulc be called
          * for the groups or the topmost svg element.
@@ -1990,19 +1984,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return p;
         };
         const eldata = {};
-        /*\
-         * Element.data
-         [ method ]
-         **
+        /**
+         * Element.data @method *
          * Adds or retrieves given value associated with given key. (Don’t confuse
          * with `data-` attributes)
          *
-         * See also @Element.removeData
-         - key (string) key to store data
-         - value (any) #optional value to store
-         = (object) @Element
-         * or, if value is not specified:
-         = (any) value
+         * See also @Element.removeData * @param {string} key - key to store data * @param {any} value - #optional value to store * @returns {object} @Element
+         * or, if value is not specified: * @returns {any} value
          > Usage
          | for (var i = 0, i < 5, i++) {
          |     paper.circle(10 + 15 * i, 10, 10)
@@ -2012,7 +2000,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          |             alert(this.data("i"));
          |          });
          | }
-         \*/
+         */
         elproto.data = function (key, value) {
             const data = eldata[this.id] = eldata[this.id] || {};
             if (arguments.length == 0) {
@@ -2033,15 +2021,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             Snap._dataEvents && eve(['snap', 'data', 'set', this.id], this, value, key);
             return this;
         };
-        /*\
-         * Element.removeData
-         [ method ]
-         **
+        /**
+         * Element.removeData @method *
          * Removes value associated with an element by given key.
-         * If key is not provided, removes all the data of the element.
-         - key (string) #optional key
-         = (object) @Element
-         \*/
+         * If key is not provided, removes all the data of the element. * @param {string} key - #optional key * @returns {object} @Element
+         */
         elproto.removeData = function (key) {
             if (key == null) {
                 eldata[this.id] = {};
@@ -2050,29 +2034,21 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-        /*\
-         * Element.outerSVG
-         [ method ]
-         **
+        /**
+         * Element.outerSVG @method *
          * Returns SVG code for the element, equivalent to HTML's `outerHTML`.
          *
-         * See also @Element.innerSVG
-         = (string) SVG code for the element
-         \*/
-        /*\
-         * Element.toString
-         [ method ]
-         **
+         * See also @Element.innerSVG * @returns {string} SVG code for the element
+         */
+        /**
+         * Element.toString @method *
          * See @Element.outerSVG
-         \*/
+         */
         elproto.outerSVG = elproto.toString = toString(1);
-        /*\
-         * Element.innerSVG
-         [ method ]
-         **
-         * Returns SVG code for the element's contents, equivalent to HTML's `innerHTML`
-         = (string) SVG code for the element
-         \*/
+        /**
+         * Element.innerSVG @method *
+         * Returns SVG code for the element's contents, equivalent to HTML's `innerHTML` * @returns {string} SVG code for the element
+         */
         elproto.innerSVG = toString();
 
         function toString(type) {
@@ -2128,19 +2104,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     btoa(unescape(encodeURIComponent(svg)));
             }
         };
-        /*\
-         * Fragment.select
-         [ method ]
-         **
+        /**
+         * Fragment.select @method *
          * See @Element.select
-         \*/
+         */
         Fragment.prototype.select = elproto.select;
-        /*\
-         * Fragment.selectAll
-         [ method ]
-         **
+        /**
+         * Fragment.selectAll @method *
          * See @Element.selectAll
-         \*/
+         */
         Fragment.prototype.selectAll = elproto.selectAll;
     }
 )

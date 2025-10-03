@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>mouse.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Animation.html">Animation</a><ul class='methods'><li data-type='method'><a href="Animation.html#done">done</a></li></ul></li><li></li><li><a href="BinaryHeap.html">BinaryHeap</a></li><li></li><li></li><li></li><li><a href="Set.html">Set</a><ul class='methods'><li data-type='method'><a href="Set.html#.animate">animate</a></li><li data-type='method'><a href="Set.html#.attr">attr</a></li><li data-type='method'><a href="Set.html#.bind">bind</a></li><li data-type='method'><a href="Set.html#.clear">clear</a></li><li data-type='method'><a href="Set.html#.forEach">forEach</a></li><li data-type='method'><a href="Set.html#.pop">pop</a></li><li data-type='method'><a href="Set.html#.push">push</a></li><li data-type='method'><a href="Set.html#.clone">clone</a></li><li data-type='method'><a href="Set.html#.exclude">exclude</a></li><li data-type='method'><a href="Set.html#.filter">filter</a></li><li data-type='method'><a href="Set.html#.getBBox">getBBox</a></li><li data-type='method'><a href="Set.html#.includes">includes</a></li><li data-type='method'><a href="Set.html#.insertAfter">insertAfter</a></li><li data-type='method'><a href="Set.html#.map">map</a></li><li data-type='method'><a href="Set.html#.remove">remove</a></li><li data-type='method'><a href="Set.html#.splice">splice</a></li><li data-type='method'><a href="Set.html#.toString">toString</a></li><li data-type='method'><a href="Set.html#.values">values</a></li></ul></li><li></li><li><a href="Snap.Element.html">Element</a><ul class='methods'><li data-type='method'><a href="Snap.Element.html#addClickEvent">addClickEvent</a></li><li data-type='method'><a href="Snap.Element.html#addHoldEvent">addHoldEvent</a></li><li data-type='method'><a href="Snap.Element.html#addInteractionEvent">addInteractionEvent</a></li><li data-type='method'><a href="Snap.Element.html#addLongpressEvent">addLongpressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addMessage">addMessage</a></li><li data-type='method'><a href="Snap.Element.html#addPressEvent">addPressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addTransform">addTransform</a></li><li data-type='method'><a href="Snap.Element.html#anchorEmbed">anchorEmbed</a></li><li data-type='method'><a href="Snap.Element.html#animateTransform">animateTransform</a></li><li data-type='method'><a href="Snap.Element.html#attrs">attrs</a></li><li data-type='method'><a href="Snap.Element.html#centerOfMass">centerOfMass</a></li><li data-type='method'><a href="Snap.Element.html#centerRotation">centerRotation</a></li><li data-type='method'><a href="Snap.Element.html#children">children</a></li><li data-type='method'><a href="Snap.Element.html#closest">closest</a></li><li data-type='method'><a href="Snap.Element.html#correctScale">correctScale</a></li><li data-type='method'><a href="Snap.Element.html#createClipPath">createClipPath</a></li><li data-type='method'><a href="Snap.Element.html#createMask">createMask</a></li><li data-type='method'><a href="Snap.Element.html#ellipseTransform">ellipseTransform</a></li><li data-type='method'><a href="Snap.Element.html#fitInBox">fitInBox</a></li><li data-type='method'><a href="Snap.Element.html#flatten">flatten</a></li><li data-type='method'><a href="Snap.Element.html#getAttributes">getAttributes</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxRot">getBBoxRot</a></li><li data-type='method'><a href="Snap.Element.html#getBitmap">getBitmap</a></li><li data-type='method'><a href="Snap.Element.html#getCanvasOverly">getCanvasOverly</a></li><li data-type='method'><a href="Snap.Element.html#getClientHeight">getClientHeight</a></li><li data-type='method'><a href="Snap.Element.html#getClientWidth">getClientWidth</a></li><li data-type='method'><a href="Snap.Element.html#getCoordMatrix">getCoordMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getCursorPoint">getCursorPoint</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLine">getDirectionLine</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLineWithGui">getDirectionLineWithGui</a></li><li data-type='method'><a href="Snap.Element.html#getFirstPoint">getFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#getFromScreenDistance">getFromScreenDistance</a></li><li data-type='method'><a href="Snap.Element.html#getGeometryAttr">getGeometryAttr</a></li><li data-type='method'><a href="Snap.Element.html#getId">getId</a></li><li data-type='method'><a href="Snap.Element.html#getLastPoint">getLastPoint</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBox">getRealBBox</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBoxExact">getRealBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getReferringToMe">getReferringToMe</a></li><li data-type='method'><a href="Snap.Element.html#getTopSVG">getTopSVG</a></li><li data-type='method'><a href="Snap.Element.html#globalToLocal">globalToLocal</a></li><li data-type='method'><a href="Snap.Element.html#hide">hide</a></li><li data-type='method'><a href="Snap.Element.html#hideSlowly">hideSlowly</a></li><li data-type='method'><a href="Snap.Element.html#isAbove">isAbove</a></li><li data-type='method'><a href="Snap.Element.html#isBelow">isBelow</a></li><li data-type='method'><a href="Snap.Element.html#isChildOf">isChildOf</a></li><li data-type='method'><a href="Snap.Element.html#isInRect">isInRect</a></li><li data-type='method'><a href="Snap.Element.html#isLocal">isLocal</a></li><li data-type='method'><a href="Snap.Element.html#isOverlap">isOverlap</a></li><li data-type='method'><a href="Snap.Element.html#isOverlapRect">isOverlapRect</a></li><li data-type='method'><a href="Snap.Element.html#isParentOf">isParentOf</a></li><li data-type='method'><a href="Snap.Element.html#linkedElementLocalise">linkedElementLocalise</a></li><li data-type='method'><a href="Snap.Element.html#localOnly">localOnly</a></li><li data-type='method'><a href="Snap.Element.html#makeDraggable">makeDraggable</a></li><li data-type='method'><a href="Snap.Element.html#makePath">makePath</a></li><li data-type='method'><a href="Snap.Element.html#move">move</a></li><li data-type='method'><a href="Snap.Element.html#pathFirstPoint">pathFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#rasterize">rasterize</a></li><li data-type='method'><a href="Snap.Element.html#readChanges">readChanges</a></li><li data-type='method'><a href="Snap.Element.html#recordChange">recordChange</a></li><li data-type='method'><a href="Snap.Element.html#reflect">reflect</a></li><li data-type='method'><a href="Snap.Element.html#regionSelect">regionSelect</a></li><li data-type='method'><a href="Snap.Element.html#remove">remove</a></li><li data-type='method'><a href="Snap.Element.html#removeMessage">removeMessage</a></li><li data-type='method'><a href="Snap.Element.html#removeSlowly">removeSlowly</a></li><li data-type='method'><a href="Snap.Element.html#repositionInGroup">repositionInGroup</a></li><li data-type='method'><a href="Snap.Element.html#revolve">revolve</a></li><li data-type='method'><a href="Snap.Element.html#rotate">rotate</a></li><li data-type='method'><a href="Snap.Element.html#scale">scale</a></li><li data-type='method'><a href="Snap.Element.html#selectParent">selectParent</a></li><li data-type='method'><a href="Snap.Element.html#setCursor">setCursor</a></li><li data-type='method'><a href="Snap.Element.html#setFirstPoint">setFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#setIdFollowRefs">setIdFollowRefs</a></li><li data-type='method'><a href="Snap.Element.html#show">show</a></li><li data-type='method'><a href="Snap.Element.html#showSlowly">showSlowly</a></li><li data-type='method'><a href="Snap.Element.html#toJSON">toJSON</a></li><li data-type='method'><a href="Snap.Element.html#toPolyBezier">toPolyBezier</a></li><li data-type='method'><a href="Snap.Element.html#translate">translate</a></li><li data-type='method'><a href="Snap.Element.html#translate_glob">translate_glob</a></li><li data-type='method'><a href="Snap.Element.html#translateAnimate">translateAnimate</a></li><li data-type='method'><a href="Snap.Element.html#transparentToMouse">transparentToMouse</a></li><li data-type='method'><a href="Snap.Element.html#addStop">addStop</a></li><li data-type='method'><a href="Snap.Element.html#setStops">setStops</a></li><li data-type='method'><a href="Snap.Element.html#stops">stops</a></li></ul></li><li></li><li><a href="Snap.Fragment.html">Fragment</a></li><li></li><li><a href="Snap.html#.Matrix">Matrix</a><ul class='methods'><li data-type='method'><a href="Snap.html#.Matrix#multLeft">multLeft</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransform">twoPointTransform</a></li><li data-type='method'><a href="Snap.html#.Matrix#apply">apply</a></li></ul></li><li><a href="Snap.Paper.html">Paper</a><ul class='methods'><li data-type='method'><a href="Snap.Paper.html#circle">circle</a></li><li data-type='method'><a href="Snap.Paper.html#clear">clear</a></li><li data-type='method'><a href="Snap.Paper.html#ellipse">ellipse</a></li><li data-type='method'><a href="Snap.Paper.html#g">g</a></li><li data-type='method'><a href="Snap.Paper.html#gradient">gradient</a></li><li data-type='method'><a href="Snap.Paper.html#gradientLinear">gradientLinear</a></li><li data-type='method'><a href="Snap.Paper.html#gradientRadial">gradientRadial</a></li><li data-type='method'><a href="Snap.Paper.html#image">image</a></li><li data-type='method'><a href="Snap.Paper.html#line">line</a></li><li data-type='method'><a href="Snap.Paper.html#mask">mask</a></li><li data-type='method'><a href="Snap.Paper.html#path">path</a></li><li data-type='method'><a href="Snap.Paper.html#polygon">polygon</a></li><li data-type='method'><a href="Snap.Paper.html#polyline">polyline</a></li><li data-type='method'><a href="Snap.Paper.html#ptrn">ptrn</a></li><li data-type='method'><a href="Snap.Paper.html#rect">rect</a></li><li data-type='method'><a href="Snap.Paper.html#svg">svg</a></li><li data-type='method'><a href="Snap.Paper.html#symbol">symbol</a></li><li data-type='method'><a href="Snap.Paper.html#text">text</a></li><li data-type='method'><a href="Snap.Paper.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Paper.html#toString">toString</a></li><li data-type='method'><a href="Snap.Paper.html#use">use</a></li><li data-type='method'><a href="Snap.Paper.html#a">a</a></li><li data-type='method'><a href="Snap.Paper.html#addExtension">addExtension</a></li><li data-type='method'><a href="Snap.Paper.html#arcFan">arcFan</a></li><li data-type='method'><a href="Snap.Paper.html#borderImage">borderImage</a></li><li data-type='method'><a href="Snap.Paper.html#button">button</a></li><li data-type='method'><a href="Snap.Paper.html#canvas">canvas</a></li><li data-type='method'><a href="Snap.Paper.html#circleCentPoint">circleCentPoint</a></li><li data-type='method'><a href="Snap.Paper.html#circleThreePoints">circleThreePoints</a></li><li data-type='method'><a href="Snap.Paper.html#circleTwoPoints">circleTwoPoints</a></li><li data-type='method'><a href="Snap.Paper.html#clipPath">clipPath</a></li><li data-type='method'><a href="Snap.Paper.html#disk">disk</a></li><li data-type='method'><a href="Snap.Paper.html#diskSegments">diskSegments</a></li><li data-type='method'><a href="Snap.Paper.html#ellipseFromEquation">ellipseFromEquation</a></li><li data-type='method'><a href="Snap.Paper.html#embeddedSVG">embeddedSVG</a></li><li data-type='method'><a href="Snap.Paper.html#foreignObject">foreignObject</a></li><li data-type='method'><a href="Snap.Paper.html#grid">grid</a></li><li data-type='method'><a href="Snap.Paper.html#htmlInsert">htmlInsert</a></li><li data-type='method'><a href="Snap.Paper.html#measureText">measureText</a></li><li data-type='method'><a href="Snap.Paper.html#multilineText">multilineText</a></li><li data-type='method'><a href="Snap.Paper.html#point">point</a></li><li data-type='method'><a href="Snap.Paper.html#processExtensions">processExtensions</a></li><li data-type='method'><a href="Snap.Paper.html#textInputBox">textInputBox</a></li><li data-type='method'><a href="Snap.Paper.html#zigzag">zigzag</a></li></ul></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li><a href="Snap.Set.html">Set</a></li><li></li></ul><h3>Namespaces</h3><ul><li><a href="Snap.bbox.html">bbox</a></li><li><a href="Snap.polygons.html">polygons</a><ul class='methods'><li data-type='method'><a href="Snap.polygons.html#.findPointInsidePolygon">findPointInsidePolygon</a></li><li data-type='method'><a href="Snap.polygons.html#.intersect">intersect</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonArea">polygonArea</a></li></ul></li><li></li><li></li></ul><h3>Global</h3><ul><li><a href="global.html#Checksifthegiveneventisregisteredwiththegivenfunction.">Checks if the given event is registered with the given function.</a></li><li><a href="global.html#compareInt">compareInt</a></li><li><a href="global.html#getLengthFactory">getLengthFactory</a></li><li><a href="global.html#O">O</a></li><li><a href="global.html#reverse_seg">reverse_seg</a></li><li><a href="global.html#voronoi">voronoi</a></li><li><a href="global.html#voronoi1D">voronoi1D</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">mouse.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// Copyright (c) 2013 Adobe Systems Incorporated. All rights reserved.
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+// http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+    const elproto = Element.prototype,
+        has = "hasOwnProperty";
+    // const supportsTouch = matchMedia('(hover: none)').matches;
+
+    const supportsTouch = 'ontouchstart' in glob.win || (glob.win.navigator &amp;&amp; navigator.maxTouchPoints > 0);
+
+    const supportsPointer = false &amp;&amp; !!glob.win.PointerEvent;
+    Snap.supportsTouch = supportsTouch;
+    Snap.poinertSupport = supportsPointer;
+    const events = [
+            "click", "dblclick", "mousedown", "mousemove", "mouseout", "mouseleave",
+            "mouseover", "mouseenter", "mouseup", "touchstart", "touchmove", "touchend",
+            "touchcancel"
+        ],
+        touchMap = {
+            mousedown: "touchstart",
+            mousemove: "touchmove",
+            mouseup: "touchend"
+        },
+        pointerMap = {
+            mousedown: 'pointerdown',
+            mousemove: 'pointermove',
+            mouseup: 'pointerup',
+            mouseout: 'pointerout',
+            mouseover: 'pointerover',
+            mouseenter: 'pointerenter',
+            mouseleave: 'pointerleave',
+        },
+        /**
+         * Retrieves the current scroll offset for the specified axis.
+         *
+         * @param {"x"|"y"} xy Indicates which axis to measure.
+         * @param {Element|Snap|undefined} [el] Optional element used to resolve the owning document.
+         * @returns {number} The scroll offset in pixels for the requested axis.
+         */
+        getScroll = function (xy, el) {
+            const name = xy == "y" ? "scrollTop" : "scrollLeft",
+                doc = el &amp;&amp; el.node ? el.node.ownerDocument : Snap.document();
+            return doc[name in doc.documentElement ? "documentElement" : "body"][name];
+        },
+        preventDefault = function () {
+            this.returnValue = false;
+        },
+        preventTouch = function () {
+            console.log("prevent touch");
+            return this.originalEvent.preventDefault();
+        },
+        stopPropagation = function () {
+            this.cancelBubble = true;
+        },
+        stopTouch = function () {
+            return this.originalEvent.stopPropagation();
+        },
+        /**
+         * Normalises DOM, touch, and pointer events for Snap elements.
+         *
+         * @param {HTMLElement|Document} obj A DOM node to attach the native listener to.
+         * @param {string} type The canonical mouse event name.
+         * @param {Function} fn The handler invoked with normalised coordinates.
+         * @param {Element} element The Snap element used as `this` when invoking the handler.
+         * @returns {Function} A disposer that removes the underlying native listeners.
+         */
+        addEvent = function (obj, type, fn, element) {
+            let realName = (supportsPointer &amp;&amp; pointerMap[type])
+                ? pointerMap[type] : (supportsTouch &amp;&amp; touchMap[type] ? touchMap[type] : type);
+            const snap = Snap(element);
+            // console.log("add event", type, realName, snap &amp;&amp; snap.id);
+            const f = function (e) {
+                // console.log(type, e.currentTarget.id);
+                const scrollY = getScroll("y", element),
+                    scrollX = getScroll("x", element);
+                // if (supportsPointer &amp;&amp; pointerMap[has](type)){
+                //     //todo
+                // }
+                if (supportsTouch &amp;&amp; touchMap[has](type)) {
+                    for (let i = 0, ii = e.targetTouches &amp;&amp; e.targetTouches.length; i &lt; ii; ++i) {
+                        if (e.targetTouches[i].target === obj || obj.contains(e.targetTouches[i].target)) {
+                            const olde = e;
+                            e = e.targetTouches[i];
+                            e.originalEvent = olde;
+                            e.preventDefault = preventTouch;
+                            e.stopPropagation = stopTouch;
+                            break;
+                        }
+                    }
+                }
+                const x = e.clientX + scrollX,
+                    y = e.clientY + scrollY;
+                const resutl = fn.call(element, e, x, y);
+                // e.preventDefault();
+                return resutl;
+            };
+
+
+            if (type !== realName) {
+                const f_touch = function (e) {
+                    // console.log(type, realName, e.currentTarget.id);
+                    const scrollY = getScroll("y", element),
+                        scrollX = getScroll("x", element);
+                    for (let i = 0, ii = e.targetTouches &amp;&amp; e.targetTouches.length; i &lt; ii; ++i) {
+                        if (e.targetTouches[i].target === obj || obj.contains(e.targetTouches[i].target)) {
+                            const olde = e;
+                            e = e.targetTouches[i];
+                            e.originalEvent = olde;
+                            e.preventDefault = preventTouch;
+                            e.stopPropagation = stopTouch;
+                            break;
+                        }
+                    }
+                    const x = e.clientX + scrollX,
+                        y = e.clientY + scrollY;
+                    const result = fn.call(element, e, x, y);
+                    // e.preventDefault();
+                    return result;
+                }
+                // obj.addEventListener(type, f, false);
+                obj.addEventListener(type, f_touch, false);
+                // console.log("add touch event", type, realName);
+            }
+
+            obj.addEventListener(realName, f, false);
+
+            return function () {
+                // console.log("remove event", type, realName, snap &amp;&amp; snap.id);
+
+                if (type !== realName) {
+                    obj.removeEventListener(type, f, false);
+                }
+
+                obj.removeEventListener(realName, f, false);
+
+                return true;
+            };
+        };
+    let drag = [];
+    /**
+     * Handles the active drag gesture by relaying movement coordinates to registered listeners.
+     *
+     * @param {MouseEvent|TouchEvent} e The original DOM event.
+     */
+    const dragMove = function (e) {
+            let x = e.clientX,
+                y = e.clientY;
+            const scrollY = getScroll("y"),
+                scrollX = getScroll("x");
+            let dragi,
+                j = drag.length;
+            while (j--) {
+                dragi = drag[j];
+                if (supportsTouch) {
+                    let i = e.touches &amp;&amp; e.touches.length,
+                        touch;
+                    while (i--) {
+                        touch = e.touches[i];
+                        if (touch.identifier == dragi.el._drag.id || dragi.el.node.contains(touch.target)) {
+                            x = touch.clientX;
+                            y = touch.clientY;
+                            (e.originalEvent ? e.originalEvent : e).preventDefault();
+                            break;
+                        }
+                    }
+                } else {
+                    e.preventDefault();
+                }
+                const node = dragi.el.node;
+                // let o;
+                // const next = node.nextSibling,
+                //     parent = node.parentNode,
+                //     display = node.style.display;
+                // glob.win.opera &amp;&amp; parent.removeChild(node);
+                // node.style.display = "none";
+                // o = dragi.el.paper.getElementByPoint(x, y);
+                // node.style.display = display;
+                // glob.win.opera &amp;&amp; (next ? parent.insertBefore(node, next) : parent.appendChild(node));
+                // o &amp;&amp; eve(["snap","drag","over",dragi.el.id], dragi.el, o);
+                x += scrollX;
+                y += scrollY;
+                eve(["snap", "drag", "move", dragi.el.id], dragi.move_scope || dragi.el, x - dragi.el._drag.x, y - dragi.el._drag.y, x, y, e);
+                // console.log("drag move", dragi.el.id, x, y);
+            }
+        },
+        /**
+         * Concludes all active drag gestures and removes the shared move/up listeners.
+         *
+         * @param {MouseEvent|TouchEvent} e The original DOM event that ended the drag.
+         */
+        dragUp = function (e) {
+            Snap.unmousemove(dragMove).unmouseup(dragUp);
+            let i = drag.length,
+                dragi;
+            while (i--) {
+                dragi = drag[i];
+                dragi.el._drag = {};
+                eve(["snap", "drag", "end", dragi.el.id], dragi.end_scope || dragi.start_scope || dragi.move_scope || dragi.el, e);
+                eve.off("snap.drag.*." + dragi.el.id);
+            }
+            drag = [];
+        };
+    /**
+     * Generates pointer helper methods such as `element.click`, `element.mousemove`, and their
+     * corresponding `un*` counterparts. These helpers normalise mouse, touch, and pointer events,
+     * optionally invoke handlers with a custom scope, and expose the event coordinates adjusted for
+     * document scroll.
+     *
+     * Each generated method supports two calling conventions:
+     * - `element.eventName(handler, [scope], [data])` to bind a listener.
+     * - `element.eventName()` to trigger previously bound listeners for the same event type.
+     *
+     * @param {Function} fn The event handler. When omitted the previously registered handlers are invoked.
+     * @param {Object} [scope] Optional `this` context passed to the handler.
+     * @param {*} [data] Arbitrary data stored alongside the handler metadata.
+     * @returns {Element} The current element, allowing chaining.
+     *
+     * @example
+     * element.click(function (event, x, y) {
+     *     console.log("Clicked at", x, y);
+     * });
+     *
+     * @example
+     * element.unclick(handler);
+     */
+    for (var i = events.length; i--;) {
+        (function (eventName) {
+            Snap[eventName] = elproto[eventName] = function (fn, scope, data) {
+                if (Snap.is(fn, "function")) {
+                    this.events = this.events || [];
+                    const remove_event_fun = addEvent(this.node || Snap.document(), eventName, fn, scope || this);
+                    this.events.push({
+                        name: eventName,
+                        f: fn,
+                        unbind: remove_event_fun,
+                        scope: scope,
+                        data: data
+                    });
+                } else {
+                    let i = 0;
+                    const ii = this.events.length;
+                    for (; i &lt; ii; ++i) if (this.events[i].name == eventName) {
+                        try {
+                            this.events[i].f.call(this);
+                        } catch (e) {
+                            eve("global.error", undefined, e, this.events[i].f);
+                        }
+                    }
+                }
+                return this;
+            };
+            Snap["un" + eventName] =
+                elproto["un" + eventName] = function (fn) {
+                    const events = this.events || [];
+                    let l = events.length;
+                    while (l--) if (events[l].name == eventName &amp;&amp;
+                        (events[l].f == fn || !fn)) {
+                        events[l].unbind();
+                        events.splice(l, 1);
+                        !events.length &amp;&amp; delete this.events;
+                        return this;
+                    }
+                    return this;
+                };
+        })(events[i]);
+    }
+    /**
+     * Adds hover-in and hover-out handlers to the element using `mouseover` and `mouseout` events.
+     *
+     * @param {Function} f_in Handler executed when the pointer enters the element.
+     * @param {Function} f_out Handler executed when the pointer leaves the element.
+     * @param {Object} [scope_in] Optional context bound to the hover-in handler.
+     * @param {Object} [scope_out] Optional context bound to the hover-out handler.
+     * @returns {Element} The current element for chaining.
+     */
+    elproto.hover = function (f_in, f_out, scope_in, scope_out) {
+        return this.mouseover(f_in, scope_in).mouseout(f_out, scope_out || scope_in);
+    };
+    /**
+     * Removes previously registered hover handlers from the element.
+     *
+     * @param {Function} f_in The hover-in handler to unregister.
+     * @param {Function} f_out The hover-out handler to unregister.
+     * @returns {Element} The current element for chaining.
+     */
+    elproto.unhover = function (f_in, f_out) {
+        return this.unmouseover(f_in).unmouseout(f_out);
+    };
+    const draggable = [];
+    // SIERRA unclear what _context_ refers to for starting, ending, moving the drag gesture.
+    // SIERRA Element.drag(): _x position of the mouse_: Where are the x/y values offset from?
+    // SIERRA Element.drag(): much of this member's doc appears to be duplicated for some reason.
+    // SIERRA Unclear about this sentence: _Additionally following drag events will be triggered: drag.start.&lt;id> on start, drag.end.&lt;id> on end and drag.move.&lt;id> on every move._ Is there a global _drag_ object to which you can assign handlers keyed by an element's ID?
+    /**
+     * Adds drag gesture handlers to the element.
+     *
+     * Additional `drag` events are triggered for convenience:
+     * - `drag.start.&lt;id>` when the gesture begins.
+     * - `drag.move.&lt;id>` while the pointer moves.
+     * - `drag.end.&lt;id>` when the gesture finishes.
+     * - `drag.over.&lt;id>` when the element is dragged over another element.
+     *
+     * Handler invocation details:
+     * - The start handler receives `(x, y, event)` where `x` and `y` are the pointer coordinates.
+     * - The move handler receives `(dx, dy, x, y, event)` where `dx`/`dy` are deltas from the start point.
+     * - The end handler receives `(event)`.
+     *
+     * @param {Function} [onmove] Handler for pointer movement.
+     * @param {Function} [onstart] Handler fired when the drag starts.
+     * @param {Function} [onend] Handler fired when the drag ends.
+     * @param {Object} [move_scope] Optional context for the move handler.
+     * @param {Object} [start_scope] Optional context for the start handler.
+     * @param {Object} [end_scope] Optional context for the end handler.
+    * @param {AltClickEventSpecification} [alt_click_event] Optional alternate click trigger when the drag is extremely short. Accepts a timeout in milliseconds or `[event, timeout]` where `event` can be an event name or callback.
+     * @returns {Element} The current element to support chaining.
+     */
+    elproto.drag = function (onmove, onstart, onend, move_scope, start_scope, end_scope, alt_click_event) {
+        const el = this;
+        if (!arguments.length) {
+            let origTransform;
+            return el.drag(function (dx, dy) {
+                this.attr({
+                    transform: origTransform + (origTransform ? "T" : "t") + [dx, dy]
+                });
+            }, function () {
+                origTransform = this.transform().local;
+            });
+        }
+
+        let time;
+
+        function start(e, x, y) {
+            // (e.originalEvent || e).preventDefault();
+            if (alt_click_event) time = Date.now();
+            el._drag.x = x;
+            el._drag.y = y;
+            el._drag.id = e.identifier;
+            !drag.length &amp;&amp; Snap.mousemove(dragMove)
+                .mouseup(dragUp);
+            drag.push({el: el, move_scope: move_scope, start_scope: start_scope, end_scope: end_scope});
+            onstart &amp;&amp; eve.on("snap.drag.start." + el.id, onstart);
+            onmove &amp;&amp; eve.on("snap.drag.move." + el.id, onmove);
+            if (alt_click_event) {
+                eve.on("snap.drag.end." + el.id, () => {
+                    let cl_t = (typeof alt_click_event === "number") ? alt_click_event : 500;
+                    if (Array.isArray(alt_click_event)
+                        &amp;&amp; typeof alt_click_event[1] === "number"
+                        &amp;&amp; (typeof alt_click_event[0] === "string"
+                            || typeof alt_click_event[0] === "function")) {
+                        [alt_click_event, cl_t] = alt_click_event;
+                    }
+                    if (Date.now() - time &lt; cl_t) {
+                        if (typeof alt_click_event === "string") {
+                            eve(alt_click_event)
+                        }
+                        if (typeof alt_click_event === "function") {
+                            alt_click_event()
+                        } else {
+                           el.node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+                        }
+                        eve("snap.drag.click." + el.id)
+                    }
+                })
+            }
+            onend &amp;&amp; eve.on("snap.drag.end." + el.id, onend);
+            eve(["snap", "drag", "start", el.id], start_scope || move_scope || el, x, y, e);
+        }
+
+        function init(e, x, y) {
+            // Prevent execution if more than one button or finger is pressed
+            if ((e.touches &amp;&amp; e.touches.length > 1) || (e.buttons &amp;&amp; e.buttons > 1)) {
+                return;
+            }
+            eve(["drag", "init", el.id], el, e, x, y);
+        }
+
+        eve.on(["drag", "init", el.id], start);
+        el._drag = {};
+        draggable.push({el: el, start: start, init: init});
+        el.mousedown(init, undefined, {
+            type: "drag",
+            params: [onmove, onstart, onend, move_scope, start_scope, end_scope]
+        });
+        return el;
+    };
+    /*
+     * Element.onDragOver @method *
+     * Shortcut to assign event handler for `drag.over.&lt;id>` event, where `id` is the element's `id` (see @Element.id) * @param {function} f - handler for event, first argument would be the element you are dragging over
+    */
+    // elproto.onDragOver = function (f) {
+    //     f ? eve.on("snap.drag.over." + this.id, f) : eve.unbind("snap.drag.over." + this.id);
+    // };
+    /**
+     * Removes all drag-related handlers from the element and detaches shared listeners when applicable.
+     *
+     * @returns {Element} The current element for chaining.
+     */
+    elproto.undrag = function () {
+        let i = draggable.length;
+        while (i--) if (draggable[i].el == this) {
+            this.unmousedown(draggable[i].init);
+            draggable.splice(i, 1);
+            eve.unbind("drag.*." + this.id);
+            eve.unbind("drag.init." + this.id);
+        }
+        !draggable.length &amp;&amp; Snap.unmousemove(dragMove).unmouseup(dragUp);
+        return this;
+    };
+
+    /**
+     * Removes every registered mouse, touch, and drag listener from the element.
+     *
+     * @returns {Element} The current element for chaining.
+     */
+    elproto.removeAllMouseListeners = function () {
+        const events = this.events || [];
+        let l = events.length;
+        while (l--) {
+            const event = events[l];
+            this["un" + event.name] &amp;&amp; this["un" + event.name](event.f)
+        }
+
+        this.undrag();
+        this.unhover();
+        return this;
+    };
+
+    /**
+     * Copies registered event listeners from another element, optionally preserving the original scopes.
+     *
+     * @param {Element} el Source element whose listeners should be duplicated.
+     * @param {boolean} [preserveScopes=false] When `true`, retains the original listener scopes.
+     * @param {boolean} [skip_drag=false] When `true`, drag handlers are ignored.
+     * @returns {Element} The current element for chaining.
+     */
+    elproto.copyListeners = function (el, preserveScopes, skip_drag) {
+        if (!el.events) return this;
+
+        el.events.forEach((ev) => {
+            if (ev.data &amp;&amp; ev.data.type === "drag") {
+                if (!skip_drag) this.drag.apply(this, ev.data.params)
+            } else {
+                this[ev.name](ev.f, (preserveScopes) ? ev.scope : undefined);
+            }
+        });
+
+        return this;
+    };
+});
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.11</a> on Fri Oct 03 2025 13:35:34 GMT-0700 (Pacific Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

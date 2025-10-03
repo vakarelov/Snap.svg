@@ -15,7 +15,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var mmax = Math.max,
         mmin = Math.min;
 
-    // Set
+    /**
+     * Set object constructor - creates a collection of Snap elements
+     * @class Set
+     * @param {Array} [items] - array of initial items to add to the set
+     */
     var Set = function (items) {
             this.items = [];
             this.bindings = {};
@@ -32,13 +36,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         },
         setproto = Set.prototype;
-    /*\
-     * Set.push
-     [ method ]
-     **
+    /**
      * Adds each argument to the current set
-     = (object) original element
-    \*/
+     * @method Set.push
+     * @returns {Set} original set for chaining
+     */
     setproto.push = function () {
         var item,
             len;
@@ -52,29 +54,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this;
     };
-    /*\
-     * Set.pop
-     [ method ]
-     **
+    /**
      * Removes last element and returns it
-     = (object) element
-    \*/
+     * @method Set.pop
+     * @returns {Element} element that was removed
+     */
     setproto.pop = function () {
         this.length && delete this[this.length--];
         return this.items.pop();
     };
-    /*\
-     * Set.forEach
-     [ method ]
-     **
+    /**
      * Executes given function for each element in the set
-     *
+     * 
      * If the function returns `false`, the loop stops running.
-     **
-     - callback (function) function to run
-     - thisArg (object) context object for the callback
-     = (object) Set object
-    \*/
+     * @method Set.forEach
+     * @param {Function} callback - function to run
+     * @param {Object} thisArg - context object for the callback
+     * @returns {Set} Set object for chaining
+     */
     setproto.forEach = function (callback, thisArg) {
         for (var i = 0, ii = this.items.length; i < ii; ++i) {
             if (callback.call(thisArg, this.items[i], i) === false) {
@@ -83,27 +80,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this;
     };
-    /*\
-     * Set.animate
-     [ method ]
-     **
+    /**
      * Animates each element in set in sync.
-     *
-     **
-     - attrs (object) key-value pairs of destination attributes
-     - duration (number) duration of the animation in milliseconds
-     - easing (function) #optional easing function from @mina or custom
-     - callback (function) #optional callback function that executes when the animation ends
-     * or
-     - animation (array) array of animation parameter for each element in set in format `[attrs, duration, easing, callback]`
-     > Usage
-     | // animate all elements in set to radius 10
-     | set.animate({r: 10}, 500, mina.easein);
-     | // or
-     | // animate first element to radius 10, but second to radius 20 and in different time
-     | set.animate([{r: 10}, 500, mina.easein], [{r: 20}, 1500, mina.easein]);
-     = (Element) the current element
-    \*/
+     * 
+     * @method Set.animate
+     * @param {Object|Array} attrs - key-value pairs of destination attributes or array of animation parameters
+     * @param {Number} [duration] - duration of the animation in milliseconds
+     * @param {Function} [easing] - easing function from mina or custom
+     * @param {Function} [callback] - callback function that executes when the animation ends
+     * @returns {Set} the current set for chaining
+     * 
+     * @example
+     * // animate all elements in set to radius 10
+     * set.animate({r: 10}, 500, mina.easein);
+     * 
+     * @example
+     * // animate first element to radius 10, but second to radius 20 and in different time
+     * set.animate([{r: 10}, 500, mina.easein], [{r: 20}, 1500, mina.easein]);
+     */
     setproto.animate = function (attrs, ms, easing, callback) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;
@@ -143,39 +137,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         });
     };
-    /*\
-     * Set.remove
-     [ method ]
-     **
+    /**
      * Removes all children of the set.
-     *
-     = (object) Set object
-    \*/
+     * @method Set.remove
+     * @returns {Set} Set object for chaining
+     */
     setproto.remove = function () {
         while (this.length) {
             this.pop().remove();
         }
         return this;
     };
-    /*\
-     * Set.bind
-     [ method ]
-     **
-     * Specifies how to handle a specific attribute when applied
-     * to a set.
-     *
-     **
-     - attr (string) attribute name
-     - callback (function) function to run
-     * or
-     - attr (string) attribute name
-     - element (Element) specific element in the set to apply the attribute to
-     * or
-     - attr (string) attribute name
-     - element (Element) specific element in the set to apply the attribute to
-     - eattr (string) attribute on the element to bind the attribute to
-     = (object) Set object
-    \*/
+    /**
+     * Specifies how to handle a specific attribute when applied to a set.
+     * @method Set.bind
+     * @param {String} attr - attribute name
+     * @param {Function|Element} a - function to run or element to bind to
+     * @param {String} [b] - attribute on the element to bind the attribute to
+     * @returns {Set} Set object for chaining
+     */
     setproto.bind = function (attr, a, b) {
         var data = {};
         if (typeof a == "function") {
@@ -189,13 +169,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this;
     };
-    /*\
-     * Set.attr
-     [ method ]
-     **
-     * Equivalent of @Element.attr.
-     = (object) Set object
-    \*/
+    /**
+     * Equivalent of Element.attr - sets or gets attributes for all elements in the set.
+     * @method Set.attr
+     * @param {Object} value - key-value pairs of attributes to set
+     * @returns {Set} Set object for chaining
+     */
     setproto.attr = function (value) {
         var unbound = {};
         for (var k in value) {
@@ -210,28 +189,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this;
     };
-    /*\
-     * Set.clear
-     [ method ]
-     **
+    /**
      * Removes all elements from the set
-    \*/
+     * @method Set.clear
+     */
     setproto.clear = function () {
         while (this.length) {
             this.pop();
         }
     };
-    /*\
-     * Set.splice
-     [ method ]
-     **
+    /**
      * Removes range of elements from the set
-     **
-     - index (number) position of the deletion
-     - count (number) number of element to remove
-     - insertion… (object) #optional elements to insert
-     = (object) set elements that were deleted
-    \*/
+     * @method Set.splice
+     * @param {Number} index - position of the deletion
+     * @param {Number} count - number of element to remove
+     * @param {...any} insertion - optional elements to insert
+     * @returns {Set} set elements that were deleted
+     */
     setproto.splice = function (index, count, insertion) {
         index = index < 0 ? mmax(this.length + index, 0) : index;
         count = mmax(0, mmin(this.length - index, count));
@@ -258,15 +232,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return new Set(todel);
     };
-    /*\
-     * Set.exclude
-     [ method ]
-     **
+    /**
      * Removes given element from the set
-     **
-     - element (object) element to remove
-     = (boolean) `true` if object was found and removed from the set
-    \*/
+     * @method Set.exclude
+     * @param {Element} element - element to remove
+     * @returns {Boolean} true if element was found and removed, false otherwise
+     */
     setproto.exclude = function (el) {
         for (var i = 0, ii = this.length; i < ii; ++i) if (this[i] == el) {
             this.splice(i, 1);
@@ -274,15 +245,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return false;
     };
-    /*\
-     * Set.insertAfter
-     [ method ]
-     **
+    /**
      * Inserts set elements after given element.
-     **
-     - element (object) set will be inserted after this element
-     = (object) Set object
-    \*/
+     * @method Set.insertAfter
+     * @param {Element} element - set will be inserted after this element
+     * @returns {Set} Set object for chaining
+     */
     setproto.insertAfter = function (el) {
         var i = this.items.length;
         while (i--) {
@@ -290,13 +258,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this;
     };
-    /*\
-     * Set.getBBox
-     [ method ]
-     **
-     * Union of all bboxes of the set. See @Element.getBBox.
-     = (object) bounding box descriptor. See @Element.getBBox.
-    \*/
+    /**
+     * Union of all bboxes of the set. See Element.getBBox.
+     * @method Set.getBBox
+     * @returns {BBox} bounding box descriptor. See Element.getBBox.
+     */
     setproto.getBBox = function () {
         var x = [],
             y = [],
@@ -313,30 +279,53 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return box;
     };
 
+    /**
+     * Creates a new set with items that pass the test implemented by the provided function.
+     * @method Set.filter
+     * @param {Function} callback - function to test each element
+     * @param {Object} [thisArg] - value to use as this when executing callback
+     * @returns {Array} filtered array of items
+     */
     setproto.filter = function (callback, thisArg) {
         return this.items.filter(callback, thisArg)
     };
 
+    /**
+     * Creates a new array with the results of calling a provided function on every element.
+     * @method Set.map
+     * @param {Function} callback - function that produces an element of the new array
+     * @param {Object} [thisArg] - value to use as this when executing callback
+     * @returns {Array} new array with each element being the result of the callback function
+     */
     setproto.map = function (callback, thisArg) {
         return this.items.map(callback, thisArg)
     };
 
+    /**
+     * Returns array of all values in the set.
+     * @method Set.values
+     * @returns {Array} array of values
+     */
     setproto.values = function () {
         return this.items.filter(values)
     };
 
+    /**
+     * Determines whether a set includes a certain element, returning true or false.
+     * @method Set.includes
+     * @param {*} valueToFind - the value to search for
+     * @param {Number} [fromIndex] - the position in this set at which to begin searching
+     * @returns {Boolean} true if the value was found, false otherwise
+     */
     setproto.includes = function (valueToFind, fromIndex) {
         return this.items.includes(valueToFind, fromIndex);
     };
 
-    /*\
-     * Set.insertAfter
-     [ method ]
-     **
+    /**
      * Creates a clone of the set.
-     **
-     = (object) New Set object
-    \*/
+     * @method Set.clone
+     * @returns {Set} New Set object
+     */
     setproto.clone = function (s) {
         s = new Set;
         for (var i = 0, ii = this.items.length; i < ii; ++i) {
@@ -344,29 +333,33 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return s;
     };
+    
+    /**
+     * Returns string representation of the set.
+     * @method Set.toString
+     * @returns {String} string representation
+     */
     setproto.toString = function () {
         return "Snap\u2018s set";
     };
     setproto.type = "set";
     // export
-    /*\
-     * Snap.Set
-     [ property ]
-     **
+    /**
      * Set constructor.
-    \*/
+     * @class Snap.Set
+     * @param {Array} [items] - array of initial items
+     */
     Snap.Set = Set;
-    /*\
-     * Snap.set
-     [ method ]
-     **
+    /**
      * Creates a set and fills it with list of arguments.
-     **
-     = (object) New Set object
-     | var r = paper.rect(0, 0, 10, 10),
-     |     s1 = Snap.set(), // empty set
-     |     s2 = Snap.set(r, paper.circle(100, 100, 20)); // prefilled set
-    \*/
+     * @method Snap.set
+     * @param {...any} arguments - elements to add to the set
+     * @returns {Set} New Set object
+     * @example
+     * var r = paper.rect(0, 0, 10, 10),
+     *     s1 = Snap.set(), // empty set
+     *     s2 = Snap.set(r, paper.circle(100, 100, 20)); // prefilled set
+     */
     Snap.set = function () {
         var set = new Set;
         if (arguments.length) {

@@ -12,7 +12,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * 3. Individual numeric arguments matching the flat array forms above.
      *
     * @constructor
-    * @param {...(Array.<number>|Point3DList|number)} coords Control points defining the curve.
+    * @param {...any} coords Control points defining the curve.
      */
     const Bezier = function (coords) {
         this.id = String.rand(4);

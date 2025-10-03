@@ -38,28 +38,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         callback && (this.callback = callback);
     };
     Snap._.Animation = Animation;
-    /*\
-     * Snap.animation
-     [ method ]
-     **
-     * Creates an animation object
-     **
-     - attr (object) attributes of final destination
-     - duration (number) duration of the animation, in milliseconds
-     - easing (function) #optional one of easing functions of @mina or custom one
-     - callback (function) #optional callback function that fires when animation ends
-     = (object) animation object
-    \*/
+    /**
+     * Snap.animation @method *
+     * Creates an animation object * * @param {object} attr - attributes of final destination * @param {number} duration - duration of the animation, in milliseconds * @param {function} easing - #optional one of easing functions of @mina or custom one * @param {function} callback - #optional callback function that fires when animation ends * @returns {object} animation object
+    */
     Snap.animation = function (attr, ms, easing, callback) {
         return new Animation(attr, ms, easing, callback);
     };
-    /*\
-     * Element.inAnim
-     [ method ]
-     **
-     * Returns a set of animations that may be able to manipulate the current element
-     **
-     = (object) in format:
+    /**
+     * Element.inAnim @method *
+     * Returns a set of animations that may be able to manipulate the current element * * @returns {object} in format:
      o {
      o     anim (object) animation object,
      o     mina (object) @mina object,
@@ -67,7 +55,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      o     status (function) gets or sets the status of the animation,
      o     stop (function) stops the animation
      o }
-    \*/
+    */
     elproto.inAnim = function () {
         const el = this,
             res = [];
@@ -88,19 +76,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return res;
     };
-    /*\
-     * Snap.animate
-     [ method ]
-     **
-     * Runs generic animation of one number into another with a caring function
-     **
-     - from (number|array) number or array of numbers
-     - to (number|array) number or array of numbers
-     - setter (function) caring function that accepts one number argument
-     - duration (number) duration, in milliseconds
-     - easing (function) #optional easing function from @mina or custom
-     - callback (function) #optional callback function to execute when animation ends
-     = (object) animation object in @mina format
+    /**
+     * Snap.animate @method *
+     * Runs generic animation of one number into another with a caring function * * @param {number|array} from - number or array of numbers * @param {number|array} to - number or array of numbers * @param {function} setter - caring function that accepts one number argument * @param {number} duration - duration, in milliseconds * @param {function} easing - #optional easing function from @mina or custom * @param {function} callback - #optional callback function to execute when animation ends * @returns {object} animation object in @mina format
      o {
      o     id (string) animation id, consider it read-only,
      o     duration (function) gets or sets the duration of the animation,
@@ -117,7 +95,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      | }, 1000);
      | // in given context is equivalent to
      | rect.animate({x: 10}, 1000);
-    \*/
+    */
     Snap.animate = function (from, to, setter, ms, easing, callback) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;
@@ -128,14 +106,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         callback && eve.once("snap.mina.finish." + anim.id, callback);
         return anim;
     };
-    /*\
-     * Element.stop
-     [ method ]
-     **
-     * Stops all the animations for the current element
-     **
-     = (Element) the current element
-    \*/
+    /**
+     * Element.stop @method *
+     * Stops all the animations for the current element * * @returns {Element} the current element
+    */
     elproto.stop = function () {
         const anims = this.inAnim();
         let i = 0;
@@ -145,18 +119,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return this;
     };
-    /*\
-     * Element.animate
-     [ method ]
-     **
-     * Animates the given attributes of the element
-     **
-     - attrs (object) key-value pairs of destination attributes
-     - duration (number) duration of the animation in milliseconds
-     - easing (function) #optional easing function from @mina or custom
-     - callback (function) #optional callback function that executes when the animation ends
-     = (Element) the current element
-    \*/
+    /**
+     * Element.animate @method *
+     * Animates the given attributes of the element * * @param {object} attrs - key-value pairs of destination attributes * @param {number} duration - duration of the animation in milliseconds * @param {function} easing - #optional easing function from @mina or custom * @param {function} callback - #optional callback function that executes when the animation ends * @returns {Element} the current element
+    */
     elproto.animate = function (attrs, ms, easing, callback) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;

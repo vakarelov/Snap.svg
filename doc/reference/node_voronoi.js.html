@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>node/voronoi.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Animation.html">Animation</a><ul class='methods'><li data-type='method'><a href="Animation.html#done">done</a></li></ul></li><li></li><li><a href="BinaryHeap.html">BinaryHeap</a></li><li></li><li></li><li></li><li><a href="Set.html">Set</a><ul class='methods'><li data-type='method'><a href="Set.html#.animate">animate</a></li><li data-type='method'><a href="Set.html#.attr">attr</a></li><li data-type='method'><a href="Set.html#.bind">bind</a></li><li data-type='method'><a href="Set.html#.clear">clear</a></li><li data-type='method'><a href="Set.html#.forEach">forEach</a></li><li data-type='method'><a href="Set.html#.pop">pop</a></li><li data-type='method'><a href="Set.html#.push">push</a></li><li data-type='method'><a href="Set.html#.clone">clone</a></li><li data-type='method'><a href="Set.html#.exclude">exclude</a></li><li data-type='method'><a href="Set.html#.filter">filter</a></li><li data-type='method'><a href="Set.html#.getBBox">getBBox</a></li><li data-type='method'><a href="Set.html#.includes">includes</a></li><li data-type='method'><a href="Set.html#.insertAfter">insertAfter</a></li><li data-type='method'><a href="Set.html#.map">map</a></li><li data-type='method'><a href="Set.html#.remove">remove</a></li><li data-type='method'><a href="Set.html#.splice">splice</a></li><li data-type='method'><a href="Set.html#.toString">toString</a></li><li data-type='method'><a href="Set.html#.values">values</a></li></ul></li><li></li><li><a href="Snap.Element.html">Element</a><ul class='methods'><li data-type='method'><a href="Snap.Element.html#addClickEvent">addClickEvent</a></li><li data-type='method'><a href="Snap.Element.html#addHoldEvent">addHoldEvent</a></li><li data-type='method'><a href="Snap.Element.html#addInteractionEvent">addInteractionEvent</a></li><li data-type='method'><a href="Snap.Element.html#addLongpressEvent">addLongpressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addMessage">addMessage</a></li><li data-type='method'><a href="Snap.Element.html#addPressEvent">addPressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addTransform">addTransform</a></li><li data-type='method'><a href="Snap.Element.html#anchorEmbed">anchorEmbed</a></li><li data-type='method'><a href="Snap.Element.html#animateTransform">animateTransform</a></li><li data-type='method'><a href="Snap.Element.html#attrs">attrs</a></li><li data-type='method'><a href="Snap.Element.html#centerOfMass">centerOfMass</a></li><li data-type='method'><a href="Snap.Element.html#centerRotation">centerRotation</a></li><li data-type='method'><a href="Snap.Element.html#children">children</a></li><li data-type='method'><a href="Snap.Element.html#closest">closest</a></li><li data-type='method'><a href="Snap.Element.html#correctScale">correctScale</a></li><li data-type='method'><a href="Snap.Element.html#createClipPath">createClipPath</a></li><li data-type='method'><a href="Snap.Element.html#createMask">createMask</a></li><li data-type='method'><a href="Snap.Element.html#ellipseTransform">ellipseTransform</a></li><li data-type='method'><a href="Snap.Element.html#fitInBox">fitInBox</a></li><li data-type='method'><a href="Snap.Element.html#flatten">flatten</a></li><li data-type='method'><a href="Snap.Element.html#getAttributes">getAttributes</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxRot">getBBoxRot</a></li><li data-type='method'><a href="Snap.Element.html#getBitmap">getBitmap</a></li><li data-type='method'><a href="Snap.Element.html#getCanvasOverly">getCanvasOverly</a></li><li data-type='method'><a href="Snap.Element.html#getClientHeight">getClientHeight</a></li><li data-type='method'><a href="Snap.Element.html#getClientWidth">getClientWidth</a></li><li data-type='method'><a href="Snap.Element.html#getCoordMatrix">getCoordMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getCursorPoint">getCursorPoint</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLine">getDirectionLine</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLineWithGui">getDirectionLineWithGui</a></li><li data-type='method'><a href="Snap.Element.html#getFirstPoint">getFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#getFromScreenDistance">getFromScreenDistance</a></li><li data-type='method'><a href="Snap.Element.html#getGeometryAttr">getGeometryAttr</a></li><li data-type='method'><a href="Snap.Element.html#getId">getId</a></li><li data-type='method'><a href="Snap.Element.html#getLastPoint">getLastPoint</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBox">getRealBBox</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBoxExact">getRealBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getReferringToMe">getReferringToMe</a></li><li data-type='method'><a href="Snap.Element.html#getTopSVG">getTopSVG</a></li><li data-type='method'><a href="Snap.Element.html#globalToLocal">globalToLocal</a></li><li data-type='method'><a href="Snap.Element.html#hide">hide</a></li><li data-type='method'><a href="Snap.Element.html#hideSlowly">hideSlowly</a></li><li data-type='method'><a href="Snap.Element.html#isAbove">isAbove</a></li><li data-type='method'><a href="Snap.Element.html#isBelow">isBelow</a></li><li data-type='method'><a href="Snap.Element.html#isChildOf">isChildOf</a></li><li data-type='method'><a href="Snap.Element.html#isInRect">isInRect</a></li><li data-type='method'><a href="Snap.Element.html#isLocal">isLocal</a></li><li data-type='method'><a href="Snap.Element.html#isOverlap">isOverlap</a></li><li data-type='method'><a href="Snap.Element.html#isOverlapRect">isOverlapRect</a></li><li data-type='method'><a href="Snap.Element.html#isParentOf">isParentOf</a></li><li data-type='method'><a href="Snap.Element.html#linkedElementLocalise">linkedElementLocalise</a></li><li data-type='method'><a href="Snap.Element.html#localOnly">localOnly</a></li><li data-type='method'><a href="Snap.Element.html#makeDraggable">makeDraggable</a></li><li data-type='method'><a href="Snap.Element.html#makePath">makePath</a></li><li data-type='method'><a href="Snap.Element.html#move">move</a></li><li data-type='method'><a href="Snap.Element.html#pathFirstPoint">pathFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#rasterize">rasterize</a></li><li data-type='method'><a href="Snap.Element.html#readChanges">readChanges</a></li><li data-type='method'><a href="Snap.Element.html#recordChange">recordChange</a></li><li data-type='method'><a href="Snap.Element.html#reflect">reflect</a></li><li data-type='method'><a href="Snap.Element.html#regionSelect">regionSelect</a></li><li data-type='method'><a href="Snap.Element.html#remove">remove</a></li><li data-type='method'><a href="Snap.Element.html#removeMessage">removeMessage</a></li><li data-type='method'><a href="Snap.Element.html#removeSlowly">removeSlowly</a></li><li data-type='method'><a href="Snap.Element.html#repositionInGroup">repositionInGroup</a></li><li data-type='method'><a href="Snap.Element.html#revolve">revolve</a></li><li data-type='method'><a href="Snap.Element.html#rotate">rotate</a></li><li data-type='method'><a href="Snap.Element.html#scale">scale</a></li><li data-type='method'><a href="Snap.Element.html#selectParent">selectParent</a></li><li data-type='method'><a href="Snap.Element.html#setCursor">setCursor</a></li><li data-type='method'><a href="Snap.Element.html#setFirstPoint">setFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#setIdFollowRefs">setIdFollowRefs</a></li><li data-type='method'><a href="Snap.Element.html#show">show</a></li><li data-type='method'><a href="Snap.Element.html#showSlowly">showSlowly</a></li><li data-type='method'><a href="Snap.Element.html#toJSON">toJSON</a></li><li data-type='method'><a href="Snap.Element.html#toPolyBezier">toPolyBezier</a></li><li data-type='method'><a href="Snap.Element.html#translate">translate</a></li><li data-type='method'><a href="Snap.Element.html#translate_glob">translate_glob</a></li><li data-type='method'><a href="Snap.Element.html#translateAnimate">translateAnimate</a></li><li data-type='method'><a href="Snap.Element.html#transparentToMouse">transparentToMouse</a></li><li data-type='method'><a href="Snap.Element.html#addStop">addStop</a></li><li data-type='method'><a href="Snap.Element.html#setStops">setStops</a></li><li data-type='method'><a href="Snap.Element.html#stops">stops</a></li></ul></li><li></li><li><a href="Snap.Fragment.html">Fragment</a></li><li></li><li><a href="Snap.html#.Matrix">Matrix</a><ul class='methods'><li data-type='method'><a href="Snap.html#.Matrix#multLeft">multLeft</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransform">twoPointTransform</a></li><li data-type='method'><a href="Snap.html#.Matrix#apply">apply</a></li></ul></li><li><a href="Snap.Paper.html">Paper</a><ul class='methods'><li data-type='method'><a href="Snap.Paper.html#circle">circle</a></li><li data-type='method'><a href="Snap.Paper.html#clear">clear</a></li><li data-type='method'><a href="Snap.Paper.html#ellipse">ellipse</a></li><li data-type='method'><a href="Snap.Paper.html#g">g</a></li><li data-type='method'><a href="Snap.Paper.html#gradient">gradient</a></li><li data-type='method'><a href="Snap.Paper.html#gradientLinear">gradientLinear</a></li><li data-type='method'><a href="Snap.Paper.html#gradientRadial">gradientRadial</a></li><li data-type='method'><a href="Snap.Paper.html#image">image</a></li><li data-type='method'><a href="Snap.Paper.html#line">line</a></li><li data-type='method'><a href="Snap.Paper.html#mask">mask</a></li><li data-type='method'><a href="Snap.Paper.html#path">path</a></li><li data-type='method'><a href="Snap.Paper.html#polygon">polygon</a></li><li data-type='method'><a href="Snap.Paper.html#polyline">polyline</a></li><li data-type='method'><a href="Snap.Paper.html#ptrn">ptrn</a></li><li data-type='method'><a href="Snap.Paper.html#rect">rect</a></li><li data-type='method'><a href="Snap.Paper.html#svg">svg</a></li><li data-type='method'><a href="Snap.Paper.html#symbol">symbol</a></li><li data-type='method'><a href="Snap.Paper.html#text">text</a></li><li data-type='method'><a href="Snap.Paper.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Paper.html#toString">toString</a></li><li data-type='method'><a href="Snap.Paper.html#use">use</a></li><li data-type='method'><a href="Snap.Paper.html#a">a</a></li><li data-type='method'><a href="Snap.Paper.html#addExtension">addExtension</a></li><li data-type='method'><a href="Snap.Paper.html#arcFan">arcFan</a></li><li data-type='method'><a href="Snap.Paper.html#borderImage">borderImage</a></li><li data-type='method'><a href="Snap.Paper.html#button">button</a></li><li data-type='method'><a href="Snap.Paper.html#canvas">canvas</a></li><li data-type='method'><a href="Snap.Paper.html#circleCentPoint">circleCentPoint</a></li><li data-type='method'><a href="Snap.Paper.html#circleThreePoints">circleThreePoints</a></li><li data-type='method'><a href="Snap.Paper.html#circleTwoPoints">circleTwoPoints</a></li><li data-type='method'><a href="Snap.Paper.html#clipPath">clipPath</a></li><li data-type='method'><a href="Snap.Paper.html#disk">disk</a></li><li data-type='method'><a href="Snap.Paper.html#diskSegments">diskSegments</a></li><li data-type='method'><a href="Snap.Paper.html#ellipseFromEquation">ellipseFromEquation</a></li><li data-type='method'><a href="Snap.Paper.html#embeddedSVG">embeddedSVG</a></li><li data-type='method'><a href="Snap.Paper.html#foreignObject">foreignObject</a></li><li data-type='method'><a href="Snap.Paper.html#grid">grid</a></li><li data-type='method'><a href="Snap.Paper.html#htmlInsert">htmlInsert</a></li><li data-type='method'><a href="Snap.Paper.html#measureText">measureText</a></li><li data-type='method'><a href="Snap.Paper.html#multilineText">multilineText</a></li><li data-type='method'><a href="Snap.Paper.html#point">point</a></li><li data-type='method'><a href="Snap.Paper.html#processExtensions">processExtensions</a></li><li data-type='method'><a href="Snap.Paper.html#textInputBox">textInputBox</a></li><li data-type='method'><a href="Snap.Paper.html#zigzag">zigzag</a></li></ul></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li><a href="Snap.Set.html">Set</a></li><li></li></ul><h3>Namespaces</h3><ul><li><a href="Snap.bbox.html">bbox</a></li><li><a href="Snap.polygons.html">polygons</a><ul class='methods'><li data-type='method'><a href="Snap.polygons.html#.findPointInsidePolygon">findPointInsidePolygon</a></li><li data-type='method'><a href="Snap.polygons.html#.intersect">intersect</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonArea">polygonArea</a></li></ul></li><li></li><li></li></ul><h3>Global</h3><ul><li><a href="global.html#Checksifthegiveneventisregisteredwiththegivenfunction.">Checks if the given event is registered with the given function.</a></li><li><a href="global.html#compareInt">compareInt</a></li><li><a href="global.html#getLengthFactory">getLengthFactory</a></li><li><a href="global.html#O">O</a></li><li><a href="global.html#reverse_seg">reverse_seg</a></li><li><a href="global.html#voronoi">voronoi</a></li><li><a href="global.html#voronoi1D">voronoi1D</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">node/voronoi.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>"use strict"
+
+const triangulate = require("delaunay-triangulate");
+const circumcenter = require("circumcenter");
+const uniq = require("uniq");
+
+/** @type {Function} */
+module.exports = voronoi
+
+/**
+ * Numerical comparator optimized for integer values.
+ *
+ * Used to deduplicate Voronoi star indices when the geometry has a dimensionality greater than two.
+ * Keeping the comparator inline allows {@link module:uniq} to short-circuit quickly, reducing allocations
+ * in heavy diagram workloads.
+ *
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
+function compareInt(a, b) {
+  return a - b
+}
+
+/**
+ * Specialized Voronoi computation for the one-dimensional case.
+ *
+ * While uncommon, 1D inputs appear when snapping along a guide or evaluating parametric curves.  This
+ * helper arranges breakpoints along the line and computes midpoint separators without performing a full
+ * 2D triangulation.
+ *
+ * @param {Array&lt;Array&lt;number>>} points One-dimensional points expressed as `[x]` tuples.
+ * @returns {{cells:Array&lt;Array&lt;number>>, positions:Array&lt;Array&lt;number>>}} Voronoi descriptors for 1D.
+ * @example
+ * const {cells, positions} = voronoi1D([[0], [10], [35]]);
+ * // Each cell stores indices into `positions`, describing intervals on the line.
+ */
+function voronoi1D(points) {
+  if(points.length === 1) {
+    return {
+      cells: [ [-1] ],
+      positions: []
+    }
+  }
+  const tagged = points.map(function (p, i) {
+    return [p[0], i]
+  });
+  tagged.sort(function(a,b) {
+    return a-b
+  })
+  const cells = new Array(points.length);
+  for(var i=0; i&lt;cells.length; ++i) {
+    cells[i] = [-1,-1]
+  }
+  const dualPoints = [];
+  for(let j=1; j&lt;tagged.length; ++j) {
+    var a = tagged[j-1]
+    var b = tagged[j]
+    const center = 0.5 * (a[0] + b[0]);
+    const n = dualPoints.length;
+    dualPoints.push([center])
+    cells[a[1]][1] = n
+    cells[b[1]][0] = n
+  }
+  cells[tagged[0][1]][1] = 0
+  cells[tagged[tagged.length-1][1]][0] = dualPoints.length-1
+  return {
+    cells: cells,
+    positions: dualPoints
+  }
+}
+
+
+
+/**
+ * Computes Voronoi cells for the supplied point cloud.
+ *
+ * The routine wraps a Delaunay triangulation produced by {@link module:delaunay-triangulate} and derives the
+ * circumcentres that form the Voronoi vertices.  Degenerate simplices that reference the super triangle are
+ * marked with `-1` so callers can easily skip unbounded faces.  The resulting structure is designed to be fed
+ * into higher level helpers such as {@link Snap.voronoi}.
+ *
+ * @param {Array&lt;Array&lt;number>>} points Input points.
+ * @returns {{cells:Array&lt;Array&lt;number>>, positions:Array&lt;Array&lt;number>>, triangles:Array&lt;Array&lt;number>>}} Voronoi diagram representation.
+ * @example
+ * const {cells, positions} = voronoi([[0, 0], [50, 10], [25, 75]]);
+ * // cells -> index references into positions array forming each Voronoi face
+ */
+function voronoi(points) {
+  const n = points.length;
+  if(n === 0) {
+    return { cells: [], positions: [] }
+  }
+  const d = points[0].length;
+  if(d &lt; 1) {
+    return { cells: [], positions: [] }
+  }
+  if(d === 1) {
+    return voronoi1D(points)
+  }
+
+  //First delaunay triangulate all points including point at infinity
+  const cells = triangulate(points, true);
+
+  //Construct dual points
+  const stars = new Array(n);
+  for(var i=0; i&lt;n; ++i) {
+    stars[i] = []
+  }
+  const nc = cells.length;
+  const tuple = new Array(d + 1);
+  const cellIndex = new Array(nc);
+  const dualPoints = [];
+  for(var i=0; i&lt;nc; ++i) {
+    const verts = cells[i];
+    let skip = false;
+    for(var j=0; j&lt;=d; ++j) {
+      const v = verts[j];
+      if(v &lt; 0) {
+        cellIndex[i] = -1
+        skip = true
+      } else {
+        stars[v].push(i)
+        tuple[j] = points[v]
+      }
+    }
+    if(skip) {
+      continue
+    }
+    cellIndex[i] = dualPoints.length
+    dualPoints.push(circumcenter(tuple))
+  }
+
+  //Build dual cells
+  let dualCells;
+  if(d === 2) {
+    dualCells = new Array(n)
+    for(var i=0; i&lt;n; ++i) {
+      const dual = stars[i];
+
+      // Handle empty stars case
+      if(dual.length === 0) {
+        dualCells[i] = [];
+        continue;
+      }
+
+      const c = [cellIndex[dual[0]]];
+      var s = cells[dual[0]][(cells[dual[0]].indexOf(i)+1) % 3]
+      for(var j=1; j&lt;dual.length; ++j) {
+        for(let k=1; k&lt;dual.length; ++k) {
+          const x = (cells[dual[k]].indexOf(i) + 2) % 3;
+          if(cells[dual[k]][x] === s) {
+            c.push(cellIndex[dual[k]])
+            s = cells[dual[k]][(x+2)%3]
+            break
+          }
+        }
+      }
+      dualCells[i] = c
+    }
+  } else {
+    for(var i=0; i&lt;n; ++i) {
+      var s = stars[i]
+      for(var j=0; j&lt;s.length; ++j) {
+        s[j] = cellIndex[s[j]]
+      }
+      uniq(s, compareInt)
+    }
+    dualCells = stars
+  }
+
+  //Return the resulting cells
+  return {
+    cells: dualCells,
+    positions: dualPoints,
+    triangles: cells
+  }
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.11</a> on Fri Oct 03 2025 13:35:34 GMT-0700 (Pacific Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

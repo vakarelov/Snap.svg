@@ -3,14 +3,15 @@ module.exports = function (grunt) {
     const pkg = grunt.file.readJSON('package.json');
     const core = [
         './src/mina.js',
-        './src/svg.js',
-        './src/element.js',
+        './src/snap.js',           // Renamed from svg.js - contains core utilities without constructors
+        './src/fragment-class.js', // Fragment constructor + registration
+        './src/element-class.js',  // Element constructor + prototype methods + registration
+        './src/paper-class.js',    // Paper constructor + prototype methods + registration
         './src/animation.js',
         './src/matrix.js',
         './src/attr.js',
         './src/class.js',
         './src/attradd.js',
-        './src/paper.js',
         './src/bbox.js',
         './src/path.js',
         './src/set.js',

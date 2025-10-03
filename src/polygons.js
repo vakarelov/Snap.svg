@@ -1,8 +1,43 @@
 
+/**
+ * @fileoverview Polygon intersection and geometric operations library
+ * Based on https://github.com/vrd/js-intersect
+ * Provides functions for polygon intersection, point-in-polygon testing, and related geometric calculations.
+ * 
+ * @typedef {Object} Point
+ * @property {Number} x - X coordinate
+ * @property {Number} y - Y coordinate
+ * @property {Number} [t] - Parametric position along edge (0-1)
+ * @property {Number} [theta] - Polar angle for point classification
+ * 
+ * @typedef {Array<Point>} Polygon
+ * Array of points representing polygon vertices in order
+ * 
+ * @typedef {Array<Point>} Edge
+ * Array of exactly two points representing an edge
+ */
+
 //code based on https://github.com/vrd/js-intersect
 
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+    /**
+     * Namespace for polygon-related operations
+     * @namespace Snap.polygons
+     */
     Snap.polygons = Snap.polygons || {}
+    
+    /**
+     * Finds the intersection of two polygons
+     * @function intersect
+     * @memberof Snap.polygons
+     * @param {Array<Point>} fig1 - First polygon as array of points
+     * @param {Array<Point>} fig2 - Second polygon as array of points
+     * @returns {Array<Array<Point>>|false} Array of intersection polygons or false if no intersection
+     * @example
+     * const poly1 = [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}, {x: 0, y: 10}];
+     * const poly2 = [{x: 5, y: 5}, {x: 15, y: 5}, {x: 15, y: 15}, {x: 5, y: 15}];
+     * const intersection = Snap.polygons.intersect(poly1, poly2);
+     */
     function intersect(fig1, fig2) {
         let fig2a = alignPolygon(fig2, fig1);
         if (!checkPolygons(fig1, fig2a)) {
@@ -16,6 +51,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     Snap.polygons.intersect = intersect;
 
+    /**
+     * Aligns vertices of one polygon with vertices of another polygon within tolerance
+     * @function alignPolygon
+     * @private
+     * @param {Array<Point>} polygon - Polygon to align
+     * @param {Array<Point>} points - Reference points for alignment
+     * @returns {Array<Point>} Aligned polygon
+     */
     function alignPolygon(polygon, points) {
         for (let i = 0; i < polygon.length; i++) {
             for (let j = 0; j < points.length; j++) {
@@ -26,13 +69,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return polygon;
     }
 
+    /**
+     * Calculates Euclidean distance between two points
+     * @function distance
+     * @private
+     * @param {Point} p1 - First point
+     * @param {Point} p2 - Second point
+     * @returns {Number} Distance between the points
+     */
     function distance(p1, p2) {
         const dx = Math.abs(p1.x - p2.x);
         const dy = Math.abs(p1.y - p2.y);
         return Math.sqrt(dx*dx + dy*dy);
     }
 
-//check polygons for correctness
+    /**
+     * Validates that polygons have at least 3 vertices
+     * @function checkPolygons
+     * @private
+     * @param {Array<Point>} fig1 - First polygon
+     * @param {Array<Point>} fig2 - Second polygon
+     * @returns {Boolean} True if both polygons are valid, false otherwise
+     */
+    //check polygons for correctness
     function checkPolygons(fig1, fig2) {
         const figs = [fig1, fig2];
         for (let i = 0; i < figs.length; i++) {
@@ -44,7 +103,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return true;
     }
 
-//create array of edges of all polygons
+    /**
+     * Creates array of all polygon edges with intersection points
+     * @function edgify
+     * @private
+     * @param {Array<Point>} fig1 - First polygon
+     * @param {Array<Point>} fig2 - Second polygon
+     * @returns {Array<Array<Point>>} Array of edge segments
+     */
+    //create array of edges of all polygons
     function edgify(fig1, fig2) {
         //create primary array from all edges
         const primEdges = getEdges(fig1).concat(getEdges(fig2));
@@ -83,6 +150,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return secEdges;
     }
 
+    /**
+     * Adds new unique points to a points array
+     * @function addNewPoints
+     * @private
+     * @param {Array<Point>} newPoints - Points to add
+     * @param {Array<Point>} points - Existing points array
+     */
     function addNewPoints(newPoints, points) {
         if (newPoints.length > 0) {
             //check for uniqueness
@@ -94,6 +168,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     }
 
+    /**
+     * Sorts points along an edge by their parametric position (t value)
+     * @function sortPoints
+     * @private
+     * @param {Array<Point>} points - Points with t values to sort
+     * @returns {Array<Point>} Sorted points array
+     */
     function sortPoints(points) {
         const p = points;
         p.sort((a,b) => {
@@ -103,6 +184,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return p;
     }
 
+    /**
+     * Converts polygon vertices to array of edges
+     * @function getEdges
+     * @private
+     * @param {Array<Point>} fig - Polygon vertices
+     * @returns {Array<Array<Point>>} Array of edges, each edge is array of two points
+     */
     function getEdges(fig) {
         const edges = [];
         const len = fig.length;
@@ -115,6 +203,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return edges;
     }
 
+    /**
+     * Finds intersection points between two edges
+     * @function findEdgeIntersection
+     * @private
+     * @param {Array<Point>} edge1 - First edge as array of two points
+     * @param {Array<Point>} edge2 - Second edge as array of two points
+     * @returns {Array<Point>} Array of intersection points with t parameter
+     */
     function findEdgeIntersection(edge1, edge2) {
         const x1 = edge1[0].x;
         const x2 = edge1[1].x;
@@ -170,6 +266,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return interPoints;
     }
 
+    /**
+     * Classifies position of a point relative to an edge
+     * @function classifyPoint
+     * @private
+     * @param {Point} p - Point to classify
+     * @param {Array<Point>} edge - Edge as array of two points
+     * @returns {Object} Classification result with location and theta/t values
+     */
     function classifyPoint(p, edge) {
         const ax = edge[1].x - edge[0].x;
         const ay = edge[1].y - edge[0].y;
@@ -208,6 +312,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return {loc: "BETWEEN", t: t};
     }
 
+    /**
+     * Calculates polar angle of an edge in degrees
+     * @function polarAngle
+     * @private
+     * @param {Array<Point>} edge - Edge as array of two points
+     * @returns {Number|Boolean} Angle in degrees or false if zero-length edge
+     */
     function polarAngle(edge) {
         const dx = edge[1].x - edge[0].x;
         const dy = edge[1].y - edge[0].y;
@@ -229,6 +340,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     }
 
+    /**
+     * Checks if a point exists in an array of points
+     * @function pointExists
+     * @private
+     * @param {Point} p - Point to check
+     * @param {Array<Point>} points - Array of points to search
+     * @returns {Boolean} True if point exists, false otherwise
+     */
     function pointExists(p, points) {
         if (points.length === 0) {
             return false;
@@ -241,6 +360,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return false;
     }
 
+    /**
+     * Checks if an edge exists in an array of edges
+     * @function edgeExists
+     * @private
+     * @param {Array<Point>} e - Edge to check
+     * @param {Array<Array<Point>>} edges - Array of edges to search
+     * @returns {Boolean} True if edge exists, false otherwise
+     */
     function edgeExists(e, edges) {
         if (edges.length === 0) {
             return false;
@@ -252,6 +379,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return false;
     }
 
+    /**
+     * Compares two edges for equality (considering both directions)
+     * @function equalEdges
+     * @private
+     * @param {Array<Point>} edge1 - First edge
+     * @param {Array<Point>} edge2 - Second edge
+     * @returns {Boolean} True if edges are equal, false otherwise
+     */
     function equalEdges(edge1, edge2) {
         if (((edge1[0].x === edge2[0].x) &&
             (edge1[0].y === edge2[0].y) &&
@@ -267,6 +402,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     }
 
+    /**
+     * Creates polygons from an array of edges using edge-following algorithm
+     * @function polygonate
+     * @private
+     * @param {Array<Array<Point>>} edges - Array of edges
+     * @returns {Array<Array<Point>>} Array of polygons found
+     */
     function polygonate(edges) {
         const polygons = [];
         let polygon = [];
@@ -350,6 +492,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return polygons;
     }
 
+    /**
+     * Checks if a polygon already exists in an array of polygons
+     * @function polygonExists
+     * @private
+     * @param {Array<Point>} polygon - Polygon to check
+     * @param {Array<Array<Point>>} polygons - Array of polygons to search
+     * @returns {Boolean} True if polygon exists, false otherwise
+     */
     function polygonExists(polygon, polygons) {
         //if array is empty element doesn't exist in it
         if (polygons.length === 0) return false;
@@ -374,6 +524,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return false;
     }
 
+    /**
+     * Filters polygons based on intersection mode and position relative to input polygons
+     * @function filterPolygons
+     * @private
+     * @param {Array<Array<Point>>} polygons - Array of polygons to filter
+     * @param {Array<Point>} fig1 - First input polygon
+     * @param {Array<Point>} fig2 - Second input polygon
+     * @param {String} mode - Filter mode: "intersect", "cut1", "cut2", or "sum"
+     * @returns {Array<Array<Point>>} Filtered polygons array
+     */
     function filterPolygons(polygons, fig1, fig2, mode) {
         const filtered = [];
         let c1, c2;
@@ -395,6 +555,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return filtered;
     }
 
+    /**
+     * Removes polygons smaller than minimum area threshold
+     * @function removeSmallPolygons
+     * @private
+     * @param {Array<Array<Point>>} polygons - Array of polygons
+     * @param {Number} minSize - Minimum area threshold
+     * @returns {Array<Array<Point>>} Array of polygons above threshold
+     */
     function removeSmallPolygons(polygons, minSize) {
         const big = [];
         for (let i = 0; i < polygons.length; i++) {
@@ -405,6 +573,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return big;
     }
 
+    /**
+     * Calculates the area of a polygon using the shoelace formula
+     * @function polygonArea
+     * @memberof Snap.polygons
+     * @param {Array<Point>} p - Polygon vertices
+     * @returns {Number} Area of the polygon
+     * @example
+     * const square = [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}, {x: 0, y: 10}];
+     * const area = Snap.polygons.polygonArea(square); // Returns 100
+     */
     function polygonArea(p) {
         const len = p.length;
         let s = 0;
@@ -417,6 +595,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     Snap.polygons.polygonArea = polygonArea;
 
+    /**
+     * Finds a point guaranteed to be inside a polygon
+     * @function getPointInsidePolygon
+     * @private
+     * @param {Array<Point>} polygon - Polygon vertices
+     * @returns {Point|undefined} Point inside polygon or undefined if none found
+     */
     function getPointInsidePolygon(polygon) {
         let point;
         const size = getSize(polygon);
@@ -456,6 +641,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return point;
     }
 
+    /**
+     * Gets the bounding box dimensions of a polygon
+     * @function getSize
+     * @private
+     * @param {Array<Point>} polygon - Polygon vertices
+     * @returns {Object} Object with min/max x and y coordinates
+     */
     function getSize(polygon) {
         const size = {
             x: {
@@ -476,6 +668,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return size;
     }
 
+    /**
+     * Tests if a point is inside a polygon using ray casting algorithm
+     * @function findPointInsidePolygon
+     * @memberof Snap.polygons
+     * @param {Point|Array<Number>} point - Point to test (object with x,y or array [x,y])
+     * @param {Array<Point>} polygon - Polygon vertices
+     * @param {Boolean} [count_side] - Whether to count points on polygon boundary as inside
+     * @returns {Boolean} True if point is inside polygon, false otherwise
+     * @example
+     * const polygon = [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}, {x: 0, y: 10}];
+     * const isInside = Snap.polygons.pointInPolygon({x: 5, y: 5}, polygon); // Returns true
+     */
     function findPointInsidePolygon(point, polygon, count_side) {
         if (Array.isArray(point)) point = {x:point[0], y:point[1]};
 
@@ -510,6 +714,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     Snap.polygons.pointInPolygon = findPointInsidePolygon;
 
+    /**
+     * Calculates midpoints of all edges
+     * @function getMidpoints
+     * @private
+     * @param {Array<Array<Point>>} edges - Array of edges
+     * @returns {Array<Point>} Array of midpoints
+     */
     function getMidpoints(edges) {
         const midpoints = [];
         let x, y;
@@ -521,6 +732,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return midpoints;
     }
 
+    /**
+     * Debug utility function to log objects as JSON
+     * @function log
+     * @private
+     * @param {*} obj - Object to log
+     */
     function log(obj) {
         console.log(JSON.stringify(obj));
     }

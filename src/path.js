@@ -1,3 +1,25 @@
+/**
+ * @fileoverview SVG Path manipulation and analysis library
+ * Copyright (c) 2018. Orlin Vakarelov
+ * 
+ * This module provides comprehensive SVG path manipulation, analysis, and geometric operations.
+ * It includes functions for path parsing, transformation, intersection detection, length calculations,
+ * point sampling, and various path-related geometric computations.
+ * 
+ * @typedef {Object} PathSegment
+ * @property {String} type - Segment type (M, L, C, Q, A, Z, etc.)
+ * @property {Array<Number>} args - Segment arguments/coordinates
+ * 
+ * @typedef {Array<PathSegment>} PathArray
+ * Array representation of an SVG path
+ * 
+ * @typedef {Object} PointOnPath
+ * @property {Number} x - X coordinate
+ * @property {Number} y - Y coordinate
+ * @property {Number} [alpha] - Tangent angle at point
+ * @property {Number} [t] - Parametric position (0-1)
+ */
+
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
@@ -13,6 +35,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
 //Snap begins here
+    /**
+     * Converts transform string to matrix with strict parsing (only matrix transforms)
+     * @function Snap._.transform2matrixStrict
+     * @param {String} tstr - Transform string
+     * @returns {Snap.Matrix} Matrix representation of the transform
+     */
     Snap._.transform2matrixStrict = function transform2matrixStrict(tstr) {
         const tdata = Snap.parseTransformString(tstr),
             m = new Snap.Matrix;
@@ -98,6 +126,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         abs = Math.abs,
         STRICT_MODE = true;
 
+    /**
+     * Caches path parsing results for performance
+     * @function paths
+     * @private
+     * @param {String} ps - Path string to cache
+     * @returns {Object} Cache object for the path
+     */
     function paths(ps) {
         // return;
         const p = paths.ps = paths.ps || {};
@@ -117,17 +152,46 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return p[ps];
     }
 
+    /**
+     * Converts path array to string representation
+     * @function toString
+     * @private
+     * @param {PathArray} path - Path array to convert
+     * @returns {String} String representation of the path
+     */
     function toString(path) {
         path = path || this;
         return path.join(',').replace(p2s, '$1');
     }
 
+    /**
+     * Creates a deep clone of a path array with toString method
+     * @function pathClone
+     * @private
+     * @param {PathArray} pathArray - Path array to clone
+     * @returns {PathArray} Cloned path array
+     */
     function pathClone(pathArray) {
         const res = clone(pathArray);
         res.toString = toString;
         return res;
     }
 
+    /**
+     * Gets point at specified length along a Bézier curve segment or calculates segment length
+     * @function getPointAtSegmentLength
+     * @private
+     * @param {Number} p1x - Start point x coordinate
+     * @param {Number} p1y - Start point y coordinate  
+     * @param {Number} c1x - First control point x coordinate
+     * @param {Number} c1y - First control point y coordinate
+     * @param {Number} c2x - Second control point x coordinate
+     * @param {Number} c2y - Second control point y coordinate
+     * @param {Number} p2x - End point x coordinate
+     * @param {Number} p2y - End point y coordinate
+     * @param {Number} [length] - Length along curve. If null, returns total length
+     * @returns {Number|PointOnPath} Length or point at specified length
+     */
     function getPointAtSegmentLength(
         p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y, length) {
         if (length == null) {
@@ -138,7 +202,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     }
 
+    /**
+     * Factory function for creating length calculation functions
+     * @function getLengthFactory
+     * @param {Boolean} istotal - Whether to calculate total length
+     * @param {Boolean} subpath - Whether to handle subpaths
+     * @returns {Function} Length calculation function
+     */
     function getLengthFactory(istotal, subpath) {
+        /**
+         * Rounds a value to 3 decimal places
+         * @function O
+         * @param {Number} val - Value to round
+         * @returns {Number} Rounded value
+         */
         function O(val) {
             return +(+val).toFixed(3);
         }
@@ -217,6 +294,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         getPointAtLength = getLengthFactory(),
         getSubpathsAtLength = getLengthFactory(0, 1);
 
+    /**
+     * Calculates point and tangent information at parameter t on a Bézier curve
+     * @function findDotsAtSegment
+     * @private
+     * @param {Number} p1x - Start point x coordinate
+     * @param {Number} p1y - Start point y coordinate
+     * @param {Number} c1x - First control point x coordinate
+     * @param {Number} c1y - First control point y coordinate
+     * @param {Number} c2x - Second control point x coordinate
+     * @param {Number} c2y - Second control point y coordinate
+     * @param {Number} p2x - End point x coordinate
+     * @param {Number} p2y - End point y coordinate
+     * @param {Number} t - Parameter value (0-1)
+     * @param {Boolean} [point_only] - If true, returns only x,y coordinates
+     * @returns {PointOnPath} Point with coordinates, control points, and tangent angle
+     */
     function findDotsAtSegment(
         p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y, t, point_only) {
         const t1 = 1 - t,
@@ -248,6 +341,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
     }
 
+    /**
+     * Calculates bounding box of a Bézier curve
+     * @function bezierBBox
+     * @private
+     * @param {Number} p1x - Start point x coordinate
+     * @param {Number} p1y - Start point y coordinate
+     * @param {Number} c1x - First control point x coordinate
+     * @param {Number} c1y - First control point y coordinate
+     * @param {Number} c2x - Second control point x coordinate
+     * @param {Number} c2y - Second control point y coordinate
+     * @param {Number} p2x - End point x coordinate
+     * @param {Number} p2y - End point y coordinate
+     * @returns {BBox} Bounding box of the curve
+     */
     function bezierBBox(p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y) {
         if (!Snap.is(p1x, 'array')) {
             p1x = [p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y];
@@ -261,6 +368,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         );
     }
 
+    /**
+     * Tests if a point is inside a bounding box
+     * @function isPointInsideBBox
+     * @private
+     * @param {BBox} bbox - Bounding box to test
+     * @param {Number} x - Point x coordinate
+     * @param {Number} y - Point y coordinate
+     * @returns {Boolean} True if point is inside the bounding box
+     */
     function isPointInsideBBox(bbox, x, y) {
         return x >= bbox.x &&
             x <= bbox.x + bbox.width &&
@@ -268,6 +384,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             y <= bbox.y + bbox.height;
     }
 
+    /**
+     * Tests if two bounding boxes intersect
+     * @function isBBoxIntersect
+     * @private
+     * @param {BBox} bbox1 - First bounding box
+     * @param {BBox} bbox2 - Second bounding box
+     * @returns {Boolean} True if bounding boxes intersect
+     */
     function isBBoxIntersect(bbox1, bbox2) {
         bbox1 = box(bbox1);
         bbox2 = box(bbox2);
@@ -291,12 +415,38 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         //     || bbox2.y < bbox1.y2 && bbox2.y > bbox1.y);
     }
 
+    /**
+     * Calculates cubic Bézier curve derivative at parameter t
+     * @function base3
+     * @private
+     * @param {Number} t - Parameter value (0-1)
+     * @param {Number} p1 - First control value
+     * @param {Number} p2 - Second control value
+     * @param {Number} p3 - Third control value
+     * @param {Number} p4 - Fourth control value
+     * @returns {Number} Derivative value at parameter t
+     */
     function base3(t, p1, p2, p3, p4) {
         const t1 = -3 * p1 + 9 * p2 - 9 * p3 + 3 * p4,
             t2 = t * t1 + 6 * p1 - 12 * p2 + 6 * p3;
         return t * t2 - 3 * p1 + 3 * p2;
     }
 
+    /**
+     * Calculates length of a Bézier curve from start to parameter z
+     * @function bezlen
+     * @private
+     * @param {Number} x1 - Start point x coordinate
+     * @param {Number} y1 - Start point y coordinate
+     * @param {Number} x2 - First control point x coordinate
+     * @param {Number} y2 - First control point y coordinate
+     * @param {Number} x3 - Second control point x coordinate
+     * @param {Number} y3 - Second control point y coordinate
+     * @param {Number} x4 - End point x coordinate
+     * @param {Number} y4 - End point y coordinate
+     * @param {Number} [z=1] - Parameter value (0-1)
+     * @returns {Number} Length of curve segment
+     */
     function bezlen(x1, y1, x2, y2, x3, y3, x4, y4, z) {
         if (z == null) {
             z = 1;
@@ -1377,11 +1527,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return p2 ? [p, p2] : p;
     }
 
+    /**
+     * Converts path element to array representation with optional curve expansion
+     * @method Element.toPathArray
+     * @param {Boolean} [expand_only] - If true, only expands arcs and curves without converting to absolute
+     * @param {Boolean} [process_arc] - If true, processes arc segments
+     * @returns {PathArray} Array representation of the path
+     */
     elproto.toPathArray = function (expand_only, process_arc) {
         if (this.type !== "path") return [];
         return path2curve(this, undefined, expand_only, process_arc);
     }
 
+    /**
+     * Gets the number of path segments after curve conversion
+     * @method Element.getNumberPathSegments
+     * @returns {Number} Number of path segments
+     */
     elproto.getNumberPathSegments = function () {
         let path_str = getPath[this.type](this);
 
@@ -1578,46 +1740,35 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // export
     Snap.path = paths;
 
-    /*\
-     * Snap.path.getTotalLength
-     [ method ]
-     **
+    /**
      * Returns the length of the given path in pixels
-     **
-     - path (string) SVG path string
-     **
-     = (number) length
-     \*/
+     * @method getTotalLength
+     * @memberof Snap.path
+     * @param {string} path - SVG path string
+     * @returns {number} length
+     */
     Snap.path.getTotalLength = getTotalLength;
-    /*\
-     * Snap.path.getPointAtLength
-     [ method ]
-     **
+    /**
      * Returns the coordinates of the point located at the given length along the given path
-     **
-     - path (string) SVG path string
-     - length (number) length, in pixels, from the start of the path, excluding non-rendering jumps
-     **
-     = (object) representation of the point:
-     o {
-     o     x: (number) x coordinate,
-     o     y: (number) y coordinate,
-     o     alpha: (number) angle of derivative
-     o }
-     \*/
+     * @method getPointAtLength
+     * @memberof Snap.path
+     * @param {string} path - SVG path string
+     * @param {number} length - length, in pixels, from the start of the path, excluding non-rendering jumps
+     * @returns {object} representation of the point:
+     * @returns {number} returns.x - x coordinate
+     * @returns {number} returns.y - y coordinate
+     * @returns {number} returns.alpha - angle of derivative
+     */
     Snap.path.getPointAtLength = getPointAtLength;
-    /*\
-     * Snap.path.getSubpath
-     [ method ]
-     **
+    /**
      * Returns the subpath of a given path between given start and end lengths
-     **
-     - path (string) SVG path string
-     - from (number) length, in pixels, from the start of the path to the start of the segment
-     - to (number) length, in pixels, from the start of the path to the end of the segment
-     **
-     = (string) path string definition for the segment
-     \*/
+     * @method getSubpath
+     * @memberof Snap.path
+     * @param {string} path - SVG path string
+     * @param {number} from - length, in pixels, from the start of the path to the start of the segment
+     * @param {number} to - length, in pixels, from the start of the path to the end of the segment
+     * @returns {string} path string definition for the segment
+     */
     Snap.path.getSubpath = function (path, from, to) {
         if (this.getTotalLength(path) - to < 1e-6) {
             return getSubpathsAtLength(path, from).end;
@@ -1626,6 +1777,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return from ? getSubpathsAtLength(a, from).end : a;
     };
 
+    /**
+     * Converts an element to a path representation
+     * @method toPath
+     * @memberof Snap.path
+     * @param {Element} el - Element to convert to path
+     * @param {boolean} string_only - If true, returns only the path string, otherwise returns a path element
+     * @returns {string|Element} Path string or path element depending on string_only parameter
+     */
     Snap.path.toPath = function (el, string_only) {
         const type = el.type;
         if (type === 'path') return (string_only) ? el.attr('d') : el;
@@ -1660,6 +1819,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return segs.length > 1;
     }
 
+    /**
+     * Checks if a path contains compound segments (multiple move commands)
+     * @method isCompound
+     * @memberof Snap.path
+     * @param {string|Array|Element} path - Path string, path array, or path element
+     * @returns {boolean} True if path has multiple move commands
+     */
     Snap.path.isCompound = isCompound;
 
     /**
@@ -1669,9 +1835,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     elproto.isCompound = isCompound;
 
     elproto.getControlPoints = getControlPoints;
+    /**
+     * Gets control points for path segments
+     * @method getControlPoints
+     * @memberof Snap.path
+     * @param {string|Array|Element} path - Path string, path array, or path element
+     * @returns {Array} Array of control point coordinates
+     */
     Snap.path.getControlPoints = getControlPoints;
 
     elproto.isPolygon = isPolygon;
+    /**
+     * Checks if a path represents a closed polygon
+     * @method isPolygon
+     * @memberof Snap.path
+     * @param {string|Array|Element} path - Path string, path array, or path element
+     * @returns {boolean} True if path is a closed polygon
+     */
     Snap.path.isPolygon = isPolygon;
 
     function getPathCompoundSegments(path) {
@@ -1706,6 +1886,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return result;
     }
 
+    /**
+     * Splits a compound path into individual path segments
+     * @method getCompoundSegments
+     * @memberof Snap.path
+     * @param {string|Array|Element} path - Path string, path array, or path element
+     * @returns {Array} Array of individual path segments
+     */
     Snap.path.getCompoundSegments = getPathCompoundSegments;
     elproto.getCompoundSegments = getPathCompoundSegments;
 
@@ -1734,13 +1921,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return length;
     }
 
-    /*\
-     * Element.getTotalLength
-     [ method ]
-     **
+    /**
+     * Element.getTotalLength @method
+ *
      * Returns the length of the path in pixels (only works for `path` elements)
-     = (number) length
-     \*/
+ * @returns {number} length
+     */
     elproto.getTotalLength = function () {
         if (this.type === 'path' && this.node.getTotalLength) {
             return this.node.getTotalLength();
@@ -1804,21 +1990,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     };
 // SIERRA Element.getPointAtLength()/Element.getTotalLength(): If a <path> is broken into different segments, is the jump distance to the new coordinates set by the _M_ or _m_ commands calculated as part of the path's total length?
-    /*\
-     * Element.getPointAtLength
-     [ method ]
-     **
+    /**
+     * Element.getPointAtLength @method
+ *
      * Returns coordinates of the point located at the given length on the given path (only works for `path` elements)
-     **
-     - length (number) length, in pixels, from the start of the path, excluding non-rendering jumps
-     **
-     = (object) representation of the point:
+ *
+ * @param {number} length - length, in pixels, from the start of the path, excluding non-rendering jumps
+ *
+ * @returns {object} representation of the point:
      o {
      o     x: (number) x coordinate,
      o     y: (number) y coordinate,
      o     alpha: (number) angle of derivative
      o }
-     \*/
+     */
     elproto.getPointAtLength = function (length) {
         {
             let path_str = getPath[this.type](this);
@@ -1827,14 +2012,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
 
     /**
-     * Gets the point at a parametric value
-     * @param t an number in [0,1].
+     * Gets the point at a parametric value along the path
+     * @method Element.getPointAt
+     * @param {Number} t - Parametric value between 0 and 1
+     * @returns {PointOnPath} Point coordinates and angle at parameter t
      */
     elproto.getPointAt = function (t) {
         t = Math.max(Math.min(1, t), 0);
         return this.getPointAtLength(t * this.getTotalLength());
     };
 
+    /**
+     * Reverses a path segment
+     * @function reverse_seg
+     * @param {Array} seg - Path segment to reverse
+     * @returns {Array} Reversed path segment
+     */
     function reverse_seg(seg) {
         function last(com) {
             return com.splice(-2)
@@ -1873,6 +2066,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         })
     }
 
+    /**
+     * Reverses the direction of a path, polygon, or polyline
+     * @method Element.reverse
+     * @returns {Element} Element for chaining
+     */
     elproto.reverse = function () {
         const type = this.type;
         if (type !== "path" && type !== "polygon" && type !== "polyline") {
@@ -1912,17 +2110,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
 // SIERRA Element.getSubpath(): Similar to the problem for Element.getPointAtLength(). Unclear how this would work for a segmented path. Overall, the concept of _subpath_ and what I'm calling a _segment_ (series of non-_M_ or _Z_ commands) is unclear.
-    /*\
-     * Element.getSubpath
-     [ method ]
-     **
+    /**
+     * Element.getSubpath @method
+ *
      * Returns subpath of a given element from given start and end lengths (only works for `path` elements)
-     **
-     - from (number) length, in pixels, from the start of the path to the start of the segment
-     - to (number) length, in pixels, from the start of the path to the end of the segment
-     **
-     = (string) path string definition for the segment
-     \*/
+ *
+ * @param {number} from - length, in pixels, from the start of the path to the start of the segment
+ * @param {number} to - length, in pixels, from the start of the path to the end of the segment
+     * Extracts a substring from a path definition based on start and end positions
+     * @method Element.getSubpath
+     * @param {number} from - Start position as percentage (0-1) of total path length
+     * @param {number} to - End position as percentage (0-1) of total path length
+     * @returns {string} Path string definition for the extracted segment
+     */
     elproto.getSubpath = function (from, to) {
         return Snap.path.getSubpath(this.attr('d'), from, to);
     };
@@ -1982,6 +2182,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return PathPoint.CORNER;
     }
 
+    /**
+     * Determines the type of a path point based on its control handles
+     * @method getPointType
+     * @memberof Snap.path
+     * @param {Object} c - Center point coordinates
+     * @param {Object} a - After control handle
+     * @param {Object} b - Before control handle
+     * @returns {string} Point type: 'corner', 'smooth', or 'symmetric'
+     */
     Snap.path.getPointType = getPointType;
 
     PathPoint.prototype.clone = function () {
@@ -2072,7 +2281,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Recomputes tangent handles to smooth the curve through a {@link PathPoint}.
-     *
+     * @method smoothCorner
+     * @memberof Snap.path
      * @param {{x:number,y:number}} center
      *        The anchor to be smoothed.
      * @param {{x:number,y:number}} after
@@ -2309,14 +2519,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return bezs;
     }
 
+    /**
+     * Converts path to array of Bézier curves
+     * @method Element.toBeziers
+     * @param {Boolean} [segmented] - If true, returns segmented curves
+     * @returns {Array} Array of Bézier curve definitions
+     */
     elproto.toBeziers = toBeziers;
+    /**
+     * Converts path to array of Bézier curves
+     * @method toBeziers
+     * @memberof Snap.path
+     * @param {string|Array} path - Path string or path array
+     * @param {Boolean} [segmented] - If true, returns segmented curves
+     * @returns {Array} Array of Bézier curve definitions
+     */
     Snap.path.toBeziers = toBeziers
 
     /**
      * Converts the current path element into a {@link Snap.polyBezier} instance.
-     *
-     * @returns {Snap.PolyBezier}
-     *          A poly-bézier representation of the element suitable for tessellation.
+     * @method Element.toPolyBezier
+     * @returns {Snap.PolyBezier} A poly-bézier representation of the element suitable for tessellation
      */
     elproto.toPolyBezier = function () {
         return Snap.polyBezier(this.toBeziers());
@@ -2360,6 +2583,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             p4];
     }
 
+    /**
+     * Creates cubic Bézier control points from three intermediate points
+     * @method cubicFromThirdPoints
+     * @memberof Snap.path
+     * @param {Object} p1 - Start point
+     * @param {Object} p2 - First intermediate point
+     * @param {Object} p3 - Second intermediate point
+     * @param {Object} p4 - End point
+     * @returns {Array} Array of cubic Bézier control points
+     */
     Snap.path.cubicFromThirdPoints = cubicFromThirdPoints;
 
     Snap._.box = box; //for backward compatibility
@@ -2367,86 +2600,59 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     Snap.registerType("bbox", BBox)
 
-    /*\
-     * Snap.path.findDotsAtSegment
-     [ method ]
-     **
-     * Utility method
-     **
+    /**
      * Finds dot coordinates on the given cubic beziér curve at the given t
-     - p1x (number) x of the first point of the curve
-     - p1y (number) y of the first point of the curve
-     - c1x (number) x of the first anchor of the curve
-     - c1y (number) y of the first anchor of the curve
-     - c2x (number) x of the second anchor of the curve
-     - c2y (number) y of the second anchor of the curve
-     - p2x (number) x of the second point of the curve
-     - p2y (number) y of the second point of the curve
-     - t (number) position on the curve (0..1)
-     = (object) point information in format:
-     o {
-     o     x: (number) x coordinate of the point,
-     o     y: (number) y coordinate of the point,
-     o     m: {
-     o         x: (number) x coordinate of the left anchor,
-     o         y: (number) y coordinate of the left anchor
-     o     },
-     o     n: {
-     o         x: (number) x coordinate of the right anchor,
-     o         y: (number) y coordinate of the right anchor
-     o     },
-     o     start: {
-     o         x: (number) x coordinate of the start of the curve,
-     o         y: (number) y coordinate of the start of the curve
-     o     },
-     o     end: {
-     o         x: (number) x coordinate of the end of the curve,
-     o         y: (number) y coordinate of the end of the curve
-     o     },
-     o     alpha: (number) angle of the curve derivative at the point
-     o }
-     \*/
+     * @method findDotsAtSegment
+     * @memberof Snap.path
+     * @param {number} p1x - x of the first point of the curve
+     * @param {number} p1y - y of the first point of the curve
+     * @param {number} c1x - x of the first anchor of the curve
+     * @param {number} c1y - y of the first anchor of the curve
+     * @param {number} c2x - x of the second anchor of the curve
+     * @param {number} c2y - y of the second anchor of the curve
+     * @param {number} p2x - x of the second point of the curve
+     * @param {number} p2y - y of the second point of the curve
+     * @param {number} t - position on the curve (0..1)
+     * @returns {object} point information including coordinates and anchor points
+     * @returns {number} returns.x - x coordinate of the point
+     * @returns {number} returns.y - y coordinate of the point
+     * @returns {object} returns.m - left anchor coordinates
+     * @returns {object} returns.n - right anchor coordinates
+     * @returns {object} returns.start - start point coordinates
+     * @returns {object} returns.end - end point coordinates
+     * @returns {number} returns.alpha - angle of the curve derivative at the point
+     */
     Snap.path.findDotsAtSegment = findDotsAtSegment;
-    /*\
-     * Snap.path.bezierBBox
-     [ method ]
-     **
-     * Utility method
-     **
+    /**
      * Returns the bounding box of a given cubic beziér curve
-     - p1x (number) x of the first point of the curve
-     - p1y (number) y of the first point of the curve
-     - c1x (number) x of the first anchor of the curve
-     - c1y (number) y of the first anchor of the curve
-     - c2x (number) x of the second anchor of the curve
-     - c2y (number) y of the second anchor of the curve
-     - p2x (number) x of the second point of the curve
-     - p2y (number) y of the second point of the curve
-     * or
-     - bez (array) array of six points for beziér curve
-     = (object) bounding box
-     o {
-     o     x: (number) x coordinate of the left top point of the box,
-     o     y: (number) y coordinate of the left top point of the box,
-     o     x2: (number) x coordinate of the right bottom point of the box,
-     o     y2: (number) y coordinate of the right bottom point of the box,
-     o     width: (number) width of the box,
-     o     height: (number) height of the box
-     o }
-     \*/
+     * @method bezierBBox
+     * @memberof Snap.path
+     * @param {number} p1x - x of the first point of the curve
+     * @param {number} p1y - y of the first point of the curve
+     * @param {number} c1x - x of the first anchor of the curve
+     * @param {number} c1y - y of the first anchor of the curve
+     * @param {number} c2x - x of the second anchor of the curve
+     * @param {number} c2y - y of the second anchor of the curve
+     * @param {number} p2x - x of the second point of the curve
+     * @param {number} p2y - y of the second point of the curve
+     * @returns {object} bounding box
+     * @returns {number} returns.x - x coordinate of the left top point of the box
+     * @returns {number} returns.y - y coordinate of the left top point of the box
+     * @returns {number} returns.x2 - x coordinate of the right bottom point of the box
+     * @returns {number} returns.y2 - y coordinate of the right bottom point of the box
+     * @returns {number} returns.width - width of the box
+     * @returns {number} returns.height - height of the box
+     */
     Snap.path.bezierBBox = bezierBBox;
-    /*\
-     * Snap.path.isPointInsideBBox
-     [ method ]
-     **
-     * Utility method
-     **
+    /**
      * Returns `true` if given point is inside bounding box
-     - bbox (string) bounding box
-     - x (string) x coordinate of the point
-     - y (string) y coordinate of the point
-     = (boolean) `true` if point is inside
-     \*/
+     * @method isPointInsideBBox
+     * @memberof Snap.path
+     * @param {object} bbox - bounding box
+     * @param {number} x - x coordinate of the point
+     * @param {number} y - y coordinate of the point
+     * @returns {boolean} `true` if point is inside
+     */
     Snap.path.isPointInsideBBox = isPointInsideBBox;
     Snap.closest = function (x, y, X, Y) {
         let r = 100,
@@ -2493,68 +2699,65 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return res;
     };
-    /*\
-     * Snap.path.isBBoxIntersect
-     [ method ]
-     **
-     * Utility method
-     **
+    /**
      * Returns `true` if two bounding boxes intersect
-     - bbox1 (string) first bounding box
-     - bbox2 (string) second bounding box
-     = (boolean) `true` if bounding boxes intersect
-     \*/
+     * @method isBBoxIntersect
+     * @memberof Snap.path
+     * @param {object} bbox1 - first bounding box
+     * @param {object} bbox2 - second bounding box
+     * @returns {boolean} `true` if bounding boxes intersect
+     */
     Snap.path.isBBoxIntersect = isBBoxIntersect;
-    /*\
-     * Snap.path.intersection
-     [ method ]
-     **
-     * Utility method
-     **
+    /**
      * Finds intersections of two paths
-     - path1 (string) path string
-     - path2 (string) path string
-     = (array) dots of intersection
-     o [
-     o     {
-     o         x: (number) x coordinate of the point,
-     o         y: (number) y coordinate of the point,
-     o         t1: (number) t value for segment of path1,
-     o         t2: (number) t value for segment of path2,
-     o         segment1: (number) order number for segment of path1,
-     o         segment2: (number) order number for segment of path2,
-     o         bez1: (array) eight coordinates representing beziér curve for the segment of path1,
-     o         bez2: (array) eight coordinates representing beziér curve for the segment of path2
-     o     }
-     o ]
-     \*/
+     * @method intersection
+     * @memberof Snap.path
+     * @param {string} path1 - path string
+     * @param {string} path2 - path string
+     * @returns {array} Array of intersection points with coordinates and segment information
+     */
     Snap.path.intersection = pathIntersection;
+    /**
+     * Returns number of intersections between two paths
+     * @method intersectionNumber
+     * @memberof Snap.path
+     * @param {string} path1 - path string
+     * @param {string} path2 - path string
+     * @returns {number} Number of intersection points
+     */
     Snap.path.intersectionNumber = pathIntersectionNumber;
+    /**
+     * Checks if path overlaps with rectangle
+     * @method isPathOverlapRect
+     * @memberof Snap.path
+     * @param {string} path - path string
+     * @param {object} rect - rectangle definition
+     * @returns {boolean} `true` if path overlaps rectangle
+     */
     Snap.path.isPathOverlapRect = isPathOverlapRect;
-    /*\
-     * Snap.path.isPointInside
-     [ method ]
-     **
+    /**
+     * Snap.path.isPointInside @method
+ *
      * Utility method
-     **
+ *
      * Returns `true` if given point is inside a given closed path.
      *
      * Note: fill mode doesn’t affect the result of this method.
-     - path (string) path string
-     - x (number) x of the point
-     - y (number) y of the point
-     = (boolean) `true` if point is inside the path
-     \*/
+ * @param {string} path - path string
+ * @param {number} x - x of the point
+ * @param {number} y - y of the point
+ * @returns {boolean} `true` if point is inside the path
+     */
     Snap.path.isPointInside = isPointInsidePath;
-    /*\
-     * Snap.path.getBBox
-     [ method ]
-     **
+    /**
+     * Snap.path.getBBox @method
+ *
      * Utility method
-     **
+ *
      * Returns the bounding box of a given path
-     - path (string) path string
-     = (object) bounding box
+     * @memberof Snap.path
+ * @param {string} path - path string
+ * @returns {object} bounding box
      o {
      o     x: (number) x coordinate of the left top point of the box,
      o     y: (number) y coordinate of the left top point of the box,
@@ -2563,51 +2766,47 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      o     width: (number) width of the box,
      o     height: (number) height of the box
      o }
-     \*/
+     */
     Snap.path.getBBox = pathBBox;
     Snap.path.get = getPath;
-    /*\
-     * Snap.path.toRelative
-     [ method ]
-     **
+    /**
+     * Snap.path.toRelative @method
+ *
      * Utility method
-     **
+ *
      * Converts path coordinates into relative values
-     - path (string) path string
-     = (array) path string
-     \*/
+ * @param {string} path - path string
+ * @returns {array} path string
+     */
     Snap.path.toRelative = pathToRelative;
-    /*\
-     * Snap.path.toAbsolute
-     [ method ]
-     **
+    /**
+     * Snap.path.toAbsolute @method
+ *
      * Utility method
-     **
+ *
      * Converts path coordinates into absolute values
-     - path (string) path string
-     = (array) path string
-     \*/
+ * @param {string} path - path string
+ * @returns {array} path string
+     */
     Snap.path.toAbsolute = pathToAbsolute;
-    /*\
-     * Snap.path.toCubic
-     [ method ]
-     **
+    /**
+     * Snap.path.toCubic @method
+ *
      * Utility method
-     **
+ *
      * Converts path to a new path where all segments are cubic beziér curves
-     - pathString (string|array) path string or array of segments
-     = (array) array of segments
-     \*/
+ * @param {string|array} pathString - path string or array of segments
+ * @returns {array} array of segments
+     */
     Snap.path.toCubic = path2curve;
-    /*\
-     * Snap.path.map
-     [ method ]
-     **
+    /**
+     * Snap.path.map @method
+ *
      * Transform the path string with the given matrix
-     - path (string) path string
-     - matrix (object) see @Matrix
-     = (string) transformed path string
-     \*/
+ * @param {string} path - path string
+ * @param {object} matrix - see @Matrix
+ * @returns {string} transformed path string
+     */
     Snap.path.map = mapPath;
     Snap.path.toString = toString;
     Snap.path.clone = pathClone;

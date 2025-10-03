@@ -18,21 +18,20 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
       Str = String,
       $ = Snap._.$;
   Snap.filter = {};
-  /*\
-   * Paper.filter
-   [ method ]
-   **
+  /**
+   * Paper.filter @method
+ *
    * Creates a `<filter>` element
-   **
-   - filstr (string) SVG fragment of filter provided as a string
-   = (object) @Element
+ *
+ * @param {string} filstr - SVG fragment of filter provided as a string
+ * @returns {object} @Element
    * Note: It is recommended to use filters embedded into the page inside an empty SVG element.
    > Usage
    | var f = paper.filter('<feGaussianBlur stdDeviation="2"/>'),
    |     c = paper.circle(10, 10, 10).attr({
    |         filter: f
    |     });
-  \*/
+  */
   pproto.filter = function(filstr, local) {
     var paper = this;
     if (paper.type != 'svg') {
@@ -49,7 +48,8 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
     });
     filter.appendChild(f.node);
     paper.defs.appendChild(filter);
-    const element = new Element(filter);
+    const ElementClass = Snap.getClass("Element");
+    const element = new ElementClass(filter);
     let deffun = filter.querySelector('[deffun]');
     if (deffun) {
       let type = deffun.getAttribute('deffun');
@@ -86,21 +86,20 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
       this.node.removeAttribute('filter');
     }
   })(-1);
-  /*\
-   * Snap.filter.blur
-   [ method ]
-   **
+  /**
+   * Snap.filter.blur @method
+ *
    * Returns an SVG markup string for the blur filter
-   **
-   - x (number) amount of horizontal blur, in pixels
-   - y (number) #optional amount of vertical blur, in pixels
-   = (string) filter representation
+ *
+ * @param {number} x - amount of horizontal blur, in pixels
+ * @param {number} y - #optional amount of vertical blur, in pixels
+ * @returns {string} filter representation
    > Usage
    | var f = paper.filter(Snap.filter.blur(5, 10)),
    |     c = paper.circle(10, 10, 10).attr({
    |         filter: f
    |     });
-  \*/
+  */
   Snap.filter.blur = function(x, y) {
     if (x == null) {
       x = 2;
@@ -125,33 +124,32 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
     feGaussianBlur.node.setAttribute('stdDeviation',
         Snap.format('{def}', {def: def}));
   };
-  /*\
-   * Snap.filter.shadow
-   [ method ]
-   **
+  /**
+   * Snap.filter.shadow @method
+ *
    * Returns an SVG markup string for the shadow filter
-   **
-   - dx (number) #optional horizontal shift of the shadow, in pixels
-   - dy (number) #optional vertical shift of the shadow, in pixels
-   - blur (number) #optional amount of blur
-   - color (string) #optional color of the shadow
-   - opacity (number) #optional `0..1` opacity of the shadow
+ *
+ * @param {number} dx - #optional horizontal shift of the shadow, in pixels
+ * @param {number} dy - #optional vertical shift of the shadow, in pixels
+ * @param {number} blur - #optional amount of blur
+ * @param {string} color - #optional color of the shadow
+ * @param {number} opacity - #optional `0..1` opacity of the shadow
    * or
-   - dx (number) #optional horizontal shift of the shadow, in pixels
-   - dy (number) #optional vertical shift of the shadow, in pixels
-   - color (string) #optional color of the shadow
-   - opacity (number) #optional `0..1` opacity of the shadow
+ * @param {number} dx - #optional horizontal shift of the shadow, in pixels
+ * @param {number} dy - #optional vertical shift of the shadow, in pixels
+ * @param {string} color - #optional color of the shadow
+ * @param {number} opacity - #optional `0..1` opacity of the shadow
    * which makes blur default to `4`. Or
-   - dx (number) #optional horizontal shift of the shadow, in pixels
-   - dy (number) #optional vertical shift of the shadow, in pixels
-   - opacity (number) #optional `0..1` opacity of the shadow
-   = (string) filter representation
+ * @param {number} dx - #optional horizontal shift of the shadow, in pixels
+ * @param {number} dy - #optional vertical shift of the shadow, in pixels
+ * @param {number} opacity - #optional `0..1` opacity of the shadow
+ * @returns {string} filter representation
    > Usage
    | var f = paper.filter(Snap.filter.shadow(0, 2, .3)),
    |     c = paper.circle(10, 10, 10).attr({
    |         filter: f
    |     });
-  \*/
+  */
   Snap.filter.shadow = function(dx, dy, blur, color, opacity) {
     if (opacity == null) {
       if (color == null) {
@@ -191,15 +189,14 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   Snap.filter.shadow.toString = function() {
     return this();
   };
-  /*\
-   * Snap.filter.grayscale
-   [ method ]
-   **
+  /**
+   * Snap.filter.grayscale @method
+ *
    * Returns an SVG markup string for the grayscale filter
-   **
-   - amount (number) amount of filter (`0..1`)
-   = (string) filter representation
-  \*/
+ *
+ * @param {number} amount - amount of filter (`0..1`)
+ * @returns {string} filter representation
+  */
   Snap.filter.grayscale = function(amount) {
     if (amount == null) {
       amount = 1;
@@ -220,15 +217,14 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   Snap.filter.grayscale.toString = function() {
     return this();
   };
-  /*\
-   * Snap.filter.sepia
-   [ method ]
-   **
+  /**
+   * Snap.filter.sepia @method
+ *
    * Returns an SVG markup string for the sepia filter
-   **
-   - amount (number) amount of filter (`0..1`)
-   = (string) filter representation
-  \*/
+ *
+ * @param {number} amount - amount of filter (`0..1`)
+ * @returns {string} filter representation
+  */
   Snap.filter.sepia = function(amount) {
     if (amount == null) {
       amount = 1;
@@ -250,15 +246,14 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   Snap.filter.sepia.toString = function() {
     return this();
   };
-  /*\
-   * Snap.filter.saturate
-   [ method ]
-   **
+  /**
+   * Snap.filter.saturate @method
+ *
    * Returns an SVG markup string for the saturate filter
-   **
-   - amount (number) amount of filter (`0..1`)
-   = (string) filter representation
-  \*/
+ *
+ * @param {number} amount - amount of filter (`0..1`)
+ * @returns {string} filter representation
+  */
   Snap.filter.saturate = function(amount) {
     if (amount == null) {
       amount = 1;
@@ -270,15 +265,14 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   Snap.filter.saturate.toString = function() {
     return this();
   };
-  /*\
-   * Snap.filter.hueRotate
-   [ method ]
-   **
+  /**
+   * Snap.filter.hueRotate @method
+ *
    * Returns an SVG markup string for the hue-rotate filter
-   **
-   - angle (number) angle of rotation
-   = (string) filter representation
-  \*/
+ *
+ * @param {number} angle - angle of rotation
+ * @returns {string} filter representation
+  */
   Snap.filter.hueRotate = function(angle) {
     angle = angle || 0;
     return Snap.format(
@@ -290,15 +284,14 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   Snap.filter.hueRotate.toString = function() {
     return this();
   };
-  /*\
-   * Snap.filter.invert
-   [ method ]
-   **
+  /**
+   * Snap.filter.invert @method
+ *
    * Returns an SVG markup string for the invert filter
-   **
-   - amount (number) amount of filter (`0..1`)
-   = (string) filter representation
-  \*/
+ *
+ * @param {number} amount - amount of filter (`0..1`)
+ * @returns {string} filter representation
+  */
   Snap.filter.invert = function(amount) {
     if (amount == null) {
       amount = 1;
@@ -314,15 +307,14 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   Snap.filter.invert.toString = function() {
     return this();
   };
-  /*\
-   * Snap.filter.brightness
-   [ method ]
-   **
+  /**
+   * Snap.filter.brightness @method
+ *
    * Returns an SVG markup string for the brightness filter
-   **
-   - amount (number) amount of filter (`0..1`)
-   = (string) filter representation
-  \*/
+ *
+ * @param {number} amount - amount of filter (`0..1`)
+ * @returns {string} filter representation
+  */
   Snap.filter.brightness = function(amount) {
     if (amount == null) {
       amount = 1;
@@ -336,15 +328,14 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   Snap.filter.brightness.toString = function() {
     return this();
   };
-  /*\
-   * Snap.filter.contrast
-   [ method ]
-   **
+  /**
+   * Snap.filter.contrast @method
+ *
    * Returns an SVG markup string for the contrast filter
-   **
-   - amount (number) amount of filter (`0..1`)
-   = (string) filter representation
-  \*/
+ *
+ * @param {number} amount - amount of filter (`0..1`)
+ * @returns {string} filter representation
+  */
   Snap.filter.contrast = function(amount) {
     if (amount == null) {
       amount = 1;
