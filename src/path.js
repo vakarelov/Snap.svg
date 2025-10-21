@@ -1,18 +1,18 @@
 /**
  * @fileoverview SVG Path manipulation and analysis library
  * Copyright (c) 2018. Orlin Vakarelov
- * 
+ *
  * This module provides comprehensive SVG path manipulation, analysis, and geometric operations.
  * It includes functions for path parsing, transformation, intersection detection, length calculations,
  * point sampling, and various path-related geometric computations.
- * 
+ *
  * @typedef {Object} PathSegment
  * @property {String} type - Segment type (M, L, C, Q, A, Z, etc.)
  * @property {Array<Number>} args - Segment arguments/coordinates
- * 
+ *
  * @typedef {Array<PathSegment>} PathArray
  * Array representation of an SVG path
- * 
+ *
  * @typedef {Object} PointOnPath
  * @property {Number} x - X coordinate
  * @property {Number} y - Y coordinate
@@ -29,9 +29,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     const BBox = Snap.BBox || Snap._.BBox;
     const box = Snap.box || Snap._.box;
+    const math = Snap.window().math || {multiply: Snap.Matrix.gen.multiply};//if math.js not loaded, fallback to Snap,Matrix
 
     if (!BBox || !box) {
-        throw new Error('Snap BBox extension must be loaded before the path extension.');
+        throw new Error("Snap BBox extension must be loaded before the path extension.");
     }
 
 //Snap begins here
@@ -105,7 +106,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 //         }
                 //     }
                 // } else
-                if (command == 'm' && tlen == 7) {
+                if (command == "m" && tlen == 7) {
                     m.add(t[1], t[2], t[3], t[4], t[5], t[6]);
                 }
             }
@@ -116,7 +117,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const elproto = Element.prototype,
         is = Snap.is,
         clone = Snap._.clone,
-        has = 'hasOwnProperty',
+        has = "hasOwnProperty",
         p2s = /,?([a-z]),?/gi,
         toFloat = parseFloat,
         PI = Math.PI,
@@ -161,7 +162,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     function toString(path) {
         path = path || this;
-        return path.join(',').replace(p2s, '$1');
+        return path.join(",").replace(p2s, "$1");
     }
 
     /**
@@ -182,7 +183,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @function getPointAtSegmentLength
      * @private
      * @param {Number} p1x - Start point x coordinate
-     * @param {Number} p1y - Start point y coordinate  
+     * @param {Number} p1y - Start point y coordinate
      * @param {Number} c1x - First control point x coordinate
      * @param {Number} c1y - First control point y coordinate
      * @param {Number} c2x - Second control point x coordinate
@@ -225,7 +226,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 path = getPath[path.type](path);
             }
             path = path2curve(path);
-            let x, y, p, l, sp = '';
+            let x, y, p, l, sp = "";
             const subpaths = {};
             let point,
                 len = 0;
@@ -233,7 +234,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             const ii = path.length;
             for (; i < ii; ++i) {
                 p = path[i];
-                if (p[0] == 'M') {
+                if (p[0] == "M") {
                     x = +p[1];
                     y = +p[2];
                 } else {
@@ -243,7 +244,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             point = getPointAtSegmentLength(x, y, p[1], p[2], p[3], p[4],
                                 p[5], p[6], length - len);
                             sp += [
-                                'C' + O(point.start.x),
+                                "C" + O(point.start.x),
                                 O(point.start.y),
                                 O(point.m.x),
                                 O(point.m.y),
@@ -255,8 +256,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             }
                             subpaths.start = sp;
                             sp = [
-                                'M' + O(point.x),
-                                O(point.y) + 'C' + O(point.n.x),
+                                "M" + O(point.x),
+                                O(point.y) + "C" + O(point.n.x),
                                 O(point.n.y),
                                 O(point.end.x),
                                 O(point.end.y),
@@ -356,7 +357,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {BBox} Bounding box of the curve
      */
     function bezierBBox(p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y) {
-        if (!Snap.is(p1x, 'array')) {
+        if (!Snap.is(p1x, "array")) {
             p1x = [p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y];
         }
         const bbox = curveDim.apply(null, p1x);
@@ -581,8 +582,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     di1 = dots1[i + 1],
                     dj = dots2[j],
                     dj1 = dots2[j + 1],
-                    ci = abs(di1.x - di.x) < .001 ? 'y' : 'x',
-                    cj = abs(dj1.x - dj.x) < .001 ? 'y' : 'x',
+                    ci = abs(di1.x - di.x) < .001 ? "y" : "x",
+                    cj = abs(dj1.x - dj.x) < .001 ? "y" : "x",
                     is = intersect(di.x, di.y, di1.x, di1.y, dj.x, dj.y, dj1.x, dj1.y);
                 if (is) {
                     if (xy[is.x.toFixed(4)] == is.y.toFixed(4)) {
@@ -645,11 +646,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         const ii = path1.length;
         for (; i < ii; ++i) {
             const pi = path1[i];
-            if (pi[0] == 'M') {
+            if (pi[0] == "M") {
                 x1 = x1m = pi[1];
                 y1 = y1m = pi[2];
             } else {
-                if (pi[0] == 'C') {
+                if (pi[0] == "C") {
                     bez1 = [x1, y1].concat(pi.slice(1));
                     x1 = bez1[6];
                     y1 = bez1[7];
@@ -662,11 +663,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 const jj = path2.length;
                 for (; j < jj; j++) {
                     const pj = path2[j];
-                    if (pj[0] == 'M') {
+                    if (pj[0] == "M") {
                         x2 = x2m = pj[1];
                         y2 = y2m = pj[2];
                     } else {
-                        if (pj[0] == 'C') {
+                        if (pj[0] == "C") {
                             bez2 = [x2, y2].concat(pj.slice(1));
                             x2 = bez2[6];
                             y2 = bez2[7];
@@ -699,7 +700,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function isPointInsidePath(path, x, y) {
         const bbox = pathBBox(path);
         return isPointInsideBBox(bbox, x, y) &&
-            interPathHelper(path, [['M', x, y], ['H', bbox.x2 + 10]], 1) % 2 == 1;
+            interPathHelper(path, [["M", x, y], ["H", bbox.x2 + 10]], 1) % 2 == 1;
     }
 
     function pathBBox(path) {
@@ -722,7 +723,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         const ii = path.length;
         for (; i < ii; ++i) {
             p = path[i];
-            if (p[0] == 'M') {
+            if (p[0] == "M") {
                 x = p[1];
                 y = p[2];
                 X.push(x);
@@ -748,19 +749,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (rx) {
             if (!ry) ry = rx;
             return [
-                ['M', +x + +rx, y],
-                ['l', w - rx * 2, 0],
-                ['a', rx, ry, 0, 0, 1, rx, ry],
-                ['l', 0, h - ry * 2],
-                ['a', rx, ry, 0, 0, 1, -rx, ry],
-                ['l', rx * 2 - w, 0],
-                ['a', rx, ry, 0, 0, 1, -rx, -ry],
-                ['l', 0, ry * 2 - h],
-                ['a', rx, ry, 0, 0, 1, rx, -ry],
-                ['z'],
+                ["M", +x + +rx, y],
+                ["l", w - rx * 2, 0],
+                ["a", rx, ry, 0, 0, 1, rx, ry],
+                ["l", 0, h - ry * 2],
+                ["a", rx, ry, 0, 0, 1, -rx, ry],
+                ["l", rx * 2 - w, 0],
+                ["a", rx, ry, 0, 0, 1, -rx, -ry],
+                ["l", 0, ry * 2 - h],
+                ["a", rx, ry, 0, 0, 1, rx, -ry],
+                ["z"],
             ];
         }
-        const res = [['M', x, y], ['l', w, 0], ['l', 0, h], ['l', -w, 0], ['z']];
+        const res = [["M", x, y], ["l", w, 0], ["l", 0, h], ["l", -w, 0], ["z"]];
         res.toString = toString;
         return res;
     }
@@ -779,14 +780,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 x2 = x + rx * Math.cos(-a * rad),
                 y1 = y + rx * Math.sin(-ry * rad),
                 y2 = y + rx * Math.sin(-a * rad),
-                res = [['M', x1, y1], ['A', rx, rx, 0, +(a - ry > 180), 0, x2, y2]];
+                res = [["M", x1, y1], ["A", rx, rx, 0, +(a - ry > 180), 0, x2, y2]];
         } else {
             res = [
-                ['M', x, y],
-                ['m', 0, -ry],
-                ['a', rx, ry, 0, 1, 1, 0, 2 * ry],
-                ['a', rx, ry, 0, 1, 1, 0, -2 * ry],
-                ['z'],
+                ["M", x, y],
+                ["m", 0, -ry],
+                ["a", rx, ry, 0, 1, 1, 0, 2 * ry],
+                ["a", rx, ry, 0, 1, 1, 0, -2 * ry],
+                ["z"],
             ];
         }
         res.toString = toString;
@@ -796,7 +797,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function groupPathStrict(el) {
         const children = el.getChildren();
         let comp_path = [],
-            comp_path_string = '',
+            comp_path_string = "",
             pathfinder,
             child,
             path,
@@ -805,14 +806,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         for (var i = 0, max = children.length; i < max; ++i) {
             child = children[i];
 
-            while (child.type == 'use') { //process any use tags
-                m = m.add(el.getLocalMatrix(STRICT_MODE).translate(el.attr('x') || 0, el.attr('y') || 0));
+            while (child.type == "use") { //process any use tags
+                m = m.add(el.getLocalMatrix(STRICT_MODE).translate(el.attr("x") || 0, el.attr("y") || 0));
                 if (child.original) {
                     child = child.original;
                 } else {
-                    const href = el.attr('xlink:href');
+                    const href = el.attr("xlink:href");
                     child = child.original = child.node.ownerDocument.getElementById(
-                        href.substring(href.indexOf('#') + 1));
+                        href.substring(href.indexOf("#") + 1));
                 }
             }
 
@@ -834,7 +835,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var unit2px = Snap._unit2px,
         getPath = {
             path: function (el) {
-                return el.attr('d');
+                return el.attr("d");
             },
             circle: function (el) {
                 const attr = unit2px(el);
@@ -854,17 +855,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return rectPath(attr.x || 0, attr.y || 0, attr.width, attr.height);
             },
             line: function (el) {
-                return 'M' + [
-                    el.attr('x1') || 0,
-                    el.attr('y1') || 0,
-                    el.attr('x2'),
-                    el.attr('y2')];
+                return "M" + [
+                    el.attr("x1") || 0,
+                    el.attr("y1") || 0,
+                    el.attr("x2"),
+                    el.attr("y2")];
             },
             polyline: function (el) {
-                return 'M' + el.attr('points');
+                return "M" + el.attr("points");
             },
             polygon: function (el) {
-                return 'M' + el.attr('points') + 'z';
+                return "M" + el.attr("points") + "z";
             },
             foreignObject: function (el) {
                 var attr = unit2px(el);
@@ -883,7 +884,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return rectPath(bbox.x, bbox.y, bbox.width, bbox.height);
             },
         };
-    getPath['clipPath'] = getPath['g'];
+    getPath["clipPath"] = getPath["g"];
 
     function pathToRelative(pathArray) {
         const pth = paths(pathArray),
@@ -891,8 +892,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (pth.rel) {
             return pathClone(pth.rel);
         }
-        if (!Snap.is(pathArray, 'array') ||
-            !Snap.is(pathArray && pathArray[0], 'array')) {
+        if (!Snap.is(pathArray, "array") ||
+            !Snap.is(pathArray && pathArray[0], "array")) {
             pathArray = Snap.parsePathString(pathArray);
         }
         const res = [];
@@ -901,13 +902,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             mx = 0,
             my = 0,
             start = 0;
-        if (pathArray[0][0] == 'M') {
+        if (pathArray[0][0] == "M") {
             x = pathArray[0][1];
             y = pathArray[0][2];
             mx = x;
             my = y;
             start++;
-            res.push(['M', x, y]);
+            res.push(["M", x, y]);
         }
         let i = start;
         const ii = pathArray.length;
@@ -917,7 +918,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (pa[0] != lowerCase.call(pa[0])) {
                 r[0] = lowerCase.call(pa[0]);
                 switch (r[0]) {
-                    case 'a':
+                    case "a":
                         r[1] = pa[1];
                         r[2] = pa[2];
                         r[3] = pa[3];
@@ -926,10 +927,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         r[6] = +(pa[6] - x).toFixed(3);
                         r[7] = +(pa[7] - y).toFixed(3);
                         break;
-                    case 'v':
+                    case "v":
                         r[1] = +(pa[1] - y).toFixed(3);
                         break;
-                    case 'm':
+                    case "m":
                         mx = pa[1];
                         my = pa[2];
                     default:
@@ -941,7 +942,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             } else {
                 r = res[i] = [];
-                if (pa[0] == 'm') {
+                if (pa[0] == "m") {
                     mx = pa[1] + x;
                     my = pa[2] + y;
                 }
@@ -953,14 +954,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             const len = res[i].length;
             switch (res[i][0]) {
-                case 'z':
+                case "z":
                     x = mx;
                     y = my;
                     break;
-                case 'h':
+                case "h":
                     x += +res[i][len - 1];
                     break;
-                case 'v':
+                case "v":
                     y += +res[i][len - 1];
                     break;
                 default:
@@ -978,14 +979,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (pth.abs) {
             return pathClone(pth.abs);
         }
-        if (!is(pathArray, 'array') || !is(pathArray && pathArray[0], 'array')) { // rough assumption
-            if (is(pathArray, 'object') && pathArray.type) {
+        if (!is(pathArray, "array") || !is(pathArray && pathArray[0], "array")) { // rough assumption
+            if (is(pathArray, "object") && pathArray.type) {
                 pathArray = getPath[pathArray.type](pathArray);
             }
             pathArray = Snap.parsePathString(pathArray);
         }
         if (!pathArray || !pathArray.length) {
-            return [['M', 0, 0]];
+            return [["M", 0, 0]];
         }
         let res = [],
             x = 0,
@@ -994,18 +995,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             my = 0,
             start = 0,
             pa0;
-        if (pathArray[0][0] == 'M') {
+        if (pathArray[0][0] == "M") {
             x = +pathArray[0][1];
             y = +pathArray[0][2];
             mx = x;
             my = y;
             start++;
-            res[0] = ['M', x, y];
+            res[0] = ["M", x, y];
         }
         const crz = pathArray.length == 3 &&
-            pathArray[0][0] == 'M' &&
-            pathArray[1][0].toUpperCase() == 'R' &&
-            pathArray[2][0].toUpperCase() == 'Z';
+            pathArray[0][0] == "M" &&
+            pathArray[1][0].toUpperCase() == "R" &&
+            pathArray[2][0].toUpperCase() == "Z";
         let r, pa, i = start;
         const ii = pathArray.length;
         for (; i < ii; ++i) {
@@ -1015,7 +1016,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (pa0 != pa0.toUpperCase()) {
                 r[0] = pa0.toUpperCase();
                 switch (r[0]) {
-                    case 'A':
+                    case "A":
                         r[1] = pa[1];
                         r[2] = pa[2];
                         r[3] = pa[3];
@@ -1024,13 +1025,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         r[6] = +pa[6] + x;
                         r[7] = +pa[7] + y;
                         break;
-                    case 'V':
+                    case "V":
                         r[1] = +pa[1] + y;
                         break;
-                    case 'H':
+                    case "H":
                         r[1] = +pa[1] + x;
                         break;
-                    case 'R':
+                    case "R":
                         var dots = [x, y].concat(pa.slice(1));
                         for (var j = 2, jj = dots.length; j < jj; j++) {
                             dots[j] = +dots[j] + x;
@@ -1039,18 +1040,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         res.pop();
                         res = res.concat(catmullRom2bezier(dots, crz));
                         break;
-                    case 'O':
+                    case "O":
                         res.pop();
                         dots = ellipsePath(x, y, pa[1], pa[2]);
                         dots.push(dots[0]);
                         res = res.concat(dots);
                         break;
-                    case 'U':
+                    case "U":
                         res.pop();
                         res = res.concat(ellipsePath(x, y, pa[1], pa[2], pa[3]));
-                        r = ['U'].concat(res[res.length - 1].slice(-2));
+                        r = ["U"].concat(res[res.length - 1].slice(-2));
                         break;
-                    case 'M':
+                    case "M":
                         mx = +pa[1] + x;
                         my = +pa[2] + y;
                     default:
@@ -1058,20 +1059,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             r[j] = +pa[j] + (j % 2 ? x : y);
                         }
                 }
-            } else if (pa0 == 'R') {
+            } else if (pa0 == "R") {
                 dots = [x, y].concat(pa.slice(1));
                 res.pop();
                 res = res.concat(catmullRom2bezier(dots, crz));
-                r = ['R'].concat(pa.slice(-2));
-            } else if (pa0 == 'O') {
+                r = ["R"].concat(pa.slice(-2));
+            } else if (pa0 == "O") {
                 res.pop();
                 dots = ellipsePath(x, y, pa[1], pa[2]);
                 dots.push(dots[0]);
                 res = res.concat(dots);
-            } else if (pa0 == 'U') {
+            } else if (pa0 == "U") {
                 res.pop();
                 res = res.concat(ellipsePath(x, y, pa[1], pa[2], pa[3]));
-                r = ['U'].concat(res[res.length - 1].slice(-2));
+                r = ["U"].concat(res[res.length - 1].slice(-2));
             } else {
                 let k = 0;
                 const kk = pa.length;
@@ -1080,19 +1081,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             }
             pa0 = pa0.toUpperCase();
-            if (pa0 != 'O') {
+            if (pa0 != "O") {
                 switch (r[0]) {
-                    case 'Z':
+                    case "Z":
                         x = +mx;
                         y = +my;
                         break;
-                    case 'H':
+                    case "H":
                         x = r[1];
                         break;
-                    case 'V':
+                    case "V":
                         y = r[1];
                         break;
-                    case 'M':
+                    case "M":
                         mx = r[r.length - 2];
                         my = r[r.length - 1];
                     default:
@@ -1212,7 +1213,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (recursive) {
             return [m2, m3, m4].concat(res);
         } else {
-            res = [m2, m3, m4].concat(res).join().split(',');
+            res = [m2, m3, m4].concat(res).join().split(",");
             const newres = [];
             let i = 0;
             const ii = res.length;
@@ -1303,7 +1304,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     function path2curve(path, path2, expand_only, process_arc) {
-        if (typeof path2 === 'boolean' || typeof path2 === 'number') {
+        if (typeof path2 === "boolean" || typeof path2 === "number") {
             process_arc = expand_only;
             expand_only = path2;
             path2 = undefined;
@@ -1322,31 +1323,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             processPath = function (path, d, pcom) {
                 let nx, ny;
                 if (!path) {
-                    return ['C', d.x, d.y, d.x, d.y, d.x, d.y];
+                    return ["C", d.x, d.y, d.x, d.y, d.x, d.y];
                 }
                 !(path[0] in {T: 1, Q: 1}) && (d.qx = d.qy = null);
                 switch (path[0]) {
-                    case 'M':
+                    case "M":
                         d.X = path[1];
                         d.Y = path[2];
                         break;
-                    case 'A':
-                        if (!expand_only || process_arc) path = ['C'].concat(
+                    case "A":
+                        if (!expand_only || process_arc) path = ["C"].concat(
                             a2c.apply(0, [d.x, d.y].concat(path.slice(1))));
                         break;
-                    case 'S':
-                        if (pcom == 'C' || pcom == 'S') { // In "S" case we have to take into account, if the previous command is C/S.
+                    case "S":
+                        if (pcom == "C" || pcom == "S") { // In "S" case we have to take into account, if the previous command is C/S.
                             nx = d.x * 2 - d.bx;          // And reflect the previous
                             ny = d.y * 2 - d.by;          // command's control point relative to the current point.
                         } else {                            // or some else or nothing
                             nx = d.x;
                             ny = d.y;
                         }
-                        path = ['C', nx, ny].concat(path.slice(1));
+                        path = ["C", nx, ny].concat(path.slice(1));
                         break;
-                    case 'T':
+                    case "T":
 
-                        if (pcom == 'Q' || pcom == 'T') { // In "T" case we have to take into account, if the previous command is Q/T.
+                        if (pcom == "Q" || pcom == "T") { // In "T" case we have to take into account, if the previous command is Q/T.
                             d.qx = d.x * 2 - d.qx;        // And make a reflection similar
                             d.qy = d.y * 2 - d.qy;        // to case "S".
                         } else {                            // or something else or nothing
@@ -1355,48 +1356,48 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         }
 
                         if (expand_only) {
-                            path = ['Q', d.qx, d.qy, path[1], path[2]];
+                            path = ["Q", d.qx, d.qy, path[1], path[2]];
                         } else {
-                            path = ['C'].concat(
+                            path = ["C"].concat(
                                 q2c(d.x, d.y, d.qx, d.qy, path[1], path[2]));
                         }
 
                         break;
-                    case 'Q':
+                    case "Q":
                         if (!expand_only) {
                             d.qx = path[1];
                             d.qy = path[2];
-                            path = ['C'].concat(
+                            path = ["C"].concat(
                                 q2c(d.x, d.y, path[1], path[2], path[3], path[4]));
                         }
                         break;
-                    case 'L':
-                        if (!expand_only) path = ['C'].concat(
+                    case "L":
+                        if (!expand_only) path = ["C"].concat(
                             l2c(d.x, d.y, path[1], path[2]));
                         break;
-                    case 'H':
+                    case "H":
                         if (expand_only) {
-                            path = ['L', path[1], d.y];
+                            path = ["L", path[1], d.y];
                         } else {
-                            path = ['C'].concat(l2c(d.x, d.y, path[1], d.y));
+                            path = ["C"].concat(l2c(d.x, d.y, path[1], d.y));
                         }
 
                         break;
-                    case 'V':
+                    case "V":
                         if (expand_only) {
-                            path = ['L', d.x, path[1]];
+                            path = ["L", d.x, path[1]];
                         } else {
-                            path = ['C'].concat(l2c(d.x, d.y, d.x, path[1]));
+                            path = ["C"].concat(l2c(d.x, d.y, d.x, path[1]));
                         }
 
                         break;
-                    case 'Z':
+                    case "Z":
                         if (Math.abs(d.x - d.X) > ERROR
                             || Math.abs(d.y - d.Y) > ERROR) {
                             if (expand_only) {
-                                path = ['L', d.X, d.Y];
+                                path = ["L", d.X, d.Y];
                             } else {
-                                path = ['C'].concat(l2c(d.x, d.y, d.X, d.Y));
+                                path = ["C"].concat(l2c(d.x, d.y, d.X, d.Y));
                             }
                         } else {
                             path = null;
@@ -1413,17 +1414,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     pp[i].shift();
                     const pi = pp[i];
                     while (pi.length) {
-                        pcoms1[i] = 'A'; // if created multiple C:s, their original seg is saved
-                        p2 && (pcoms2[i] = 'A'); // the same as above
-                        pp.splice(i++, 0, ['C'].concat(pi.splice(0, 6)));
+                        pcoms1[i] = "A"; // if created multiple C:s, their original seg is saved
+                        p2 && (pcoms2[i] = "A"); // the same as above
+                        pp.splice(i++, 0, ["C"].concat(pi.splice(0, 6)));
                     }
                     pp.splice(i, 1);
                     ii = mmax(p.length, p2 && p2.length || 0);
                 }
             },
             fixM = function (path1, path2, a1, a2, i) {
-                if (path1 && path2 && path1[i][0] == 'M' && path2[i][0] != 'M') {
-                    path2.splice(i, 0, ['M', a2.x, a2.y]);
+                if (path1 && path2 && path1[i][0] == "M" && path2[i][0] != "M") {
+                    path2.splice(i, 0, ["M", a2.x, a2.y]);
                     a1.bx = 0;
                     a1.by = 0;
                     a1.x = path1[i][1];
@@ -1434,8 +1435,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             toIncr = function (attr, seg) {
                 let segleng = seg.length;
                 switch (seg[0]) {
-                    case 'C':
-                    case 'Q':
+                    case "C":
+                    case "Q":
                         attr.x = seg[segleng - 2];
                         attr.y = seg[segleng - 1];
                         attr.bx = toFloat(seg[segleng - 4]) || attr.x;
@@ -1451,13 +1452,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             },
             pcoms1 = [], // path commands of original path p
             pcoms2 = [], // path commands of original path p2
-            pfirst = '', // temporary holder for original path command
-            pcom = ''; // holder for previous path command of original path
+            pfirst = "", // temporary holder for original path command
+            pcom = ""; // holder for previous path command of original path
         let filter = false, filter2 = false;
         for (var i = 0, ii = mmax(p.length, p2 && p2.length || 0); i < ii; ++i) {
             p[i] && (pfirst = p[i][0]); // save current path command
 
-            if (pfirst != 'C') // C is not saved yet, because it may be result of conversion
+            if (pfirst != "C") // C is not saved yet, because it may be result of conversion
             {
                 pcoms1[i] = pfirst; // Save current path command
                 i && (pcom = pcoms1[i - 1]); // Get previous path command pcom
@@ -1470,7 +1471,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             if (!expand_only) {
-                if (pcoms1[i] != 'A' && pfirst == 'C') pcoms1[i] = 'C'; // A is the only command
+                if (pcoms1[i] != "A" && pfirst == "C") pcoms1[i] = "C"; // A is the only command
                 // which may produce multiple C:s
                 // so we have to make sure that C is also C in original path
 
@@ -1479,7 +1480,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             if (p2) { // the same procedures is done to p2
                 p2[i] && (pfirst = p2[i][0]);
-                if (pfirst != 'C') {
+                if (pfirst != "C") {
                     pcoms2[i] = pfirst;
                     i && (pcom = pcoms2[i - 1]);
                 }
@@ -1488,8 +1489,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     filter2 = true;
                 }
                 if (!expand_only) {
-                    if (pcoms2[i] != 'A' && pfirst == 'C') {
-                        pcoms2[i] = 'C';
+                    if (pcoms2[i] != "A" && pfirst == "C") {
+                        pcoms2[i] = "C";
                     }
 
                     fixArc(p2, i);
@@ -1570,7 +1571,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
 
     function getControlPoints(path, segment_points, skip_same_last) {
-        if (path === undefined || typeof path === 'boolean') {
+        if (path === undefined || typeof path === "boolean") {
             skip_same_last = segment_points;
             segment_points = path;
             path = this;
@@ -1583,7 +1584,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         for (let i = 0, l = path.length, command; i < l; ++i) {
             command = path[i];
             switch (command[0]) {
-                case 'M':
+                case "M":
                     if (skip_same_last && result.length) {
                         let s = result[last_start], e = result[result.length - 1];
                         if (Math.abs(s[0] - e[0]) < ERROR && Math.abs(s[1] - e[1]) <
@@ -1594,23 +1595,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     result.push([+command[1], +command[2]]);
                     last_start = result.length - 1;
                     break;
-                case 'L':
+                case "L":
                     result.push([+command[1], +command[2]]);
                     break;
-                case 'Q':
+                case "Q":
                     if (!segment_points) {
                         result.push([+command[1], +command[2]]);
                     }
                     result.push([+command[3], +command[4]]);
                     break;
-                case 'C':
+                case "C":
                     if (!segment_points) {
                         result.push([+command[1], +command[2]]);
                         result.push([+command[3], +command[4]]);
                     }
                     result.push([+command[5], +command[6]]);
                     break;
-                case 'A':
+                case "A":
                     result.push([+command[6], +command[7]]);
                     break;
 
@@ -1629,12 +1630,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function isPolygon(path) {
         path = path || this;
-        if (path.type === 'polygon' || path.type === 'polyline' || path.type === 'line') return true;
-        if (path.type !== 'path') return false;
+        if (path.type === "polygon" || path.type === "polyline" || path.type === "line") return true;
+        if (path.type !== "path") return false;
 
         if (isCompound(path)) return false;
         let path_instr = path2curve(path, undefined, true);
-        const coms = ['m', 'l', 'z'];
+        const coms = ["m", "l", "z"];
         for (let i = 0; i < path_instr.length; i++) {
             if (coms.indexOf(path_instr[i][0].toLowerCase()) === -1) return false;
         }
@@ -1646,11 +1647,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     function getPointSample(path, sample) {
-        if (!path || typeof path === 'number') {
+        if (!path || typeof path === "number") {
             sample = path;
             path = this;
         }
-        if (path.type !== 'path') return null;
+        if (path.type !== "path") return null;
 
         sample = Math.max((sample || 10), 2);
 
@@ -1724,7 +1725,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             }
             d.push([
-                'C',
+                "C",
                 (-p[0].x + 6 * p[1].x + p[2].x) / 6,
                 (-p[0].y + 6 * p[1].y + p[2].y) / 6,
                 (p[1].x + 6 * p[2].x - p[3].x) / 6,
@@ -1787,7 +1788,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     Snap.path.toPath = function (el, string_only) {
         const type = el.type;
-        if (type === 'path') return (string_only) ? el.attr('d') : el;
+        if (type === "path") return (string_only) ? el.attr("d") : el;
         if (!getPath.hasOwnProperty(type)) return null;
 
         const d = getPath[type](el);
@@ -1800,7 +1801,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (el.getGeometryAttr) {
             //This assumes iaDesigner
             const attrs = el.attrs(el.getGeometryAttr(), true); //Copy all attributes except the geometry ones
-            attrs.id = el.getId() + '_path';
+            attrs.id = el.getId() + "_path";
             path.attr(attrs);
         }
 
@@ -1809,12 +1810,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function isCompound(path) {
         if (!path) path = this;
-        if (typeof path === 'object' && path.type && path.type ===
-            'path') path = path.attr('d');
-        if (typeof path !== 'string' && !Array.isArray(path)) return false;
+        if (typeof path === "object" && path.type && path.type ===
+            "path") path = path.attr("d");
+        if (typeof path !== "string" && !Array.isArray(path)) return false;
         let segs = Array.isArray(path) ? path : pathToAbsolute(path);
         segs = segs.filter(function (instr) {
-            return instr[0] == 'M' || instr[0] == 'm';
+            return instr[0] == "M" || instr[0] == "m";
         });
         return segs.length > 1;
     }
@@ -1856,17 +1857,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function getPathCompoundSegments(path) {
         if (!path) path = this;
-        let ret_type = (typeof path === 'string') ? 'string' : 'array';
-        if (typeof path === 'object' && path.type && path.type ===
-            'path') path = path.attr('d');
-        if (typeof path !== 'string' && !Array.isArray(path)) return null;
+        let ret_type = (typeof path === "string") ? "string" : "array";
+        if (typeof path === "object" && path.type && path.type ===
+            "path") path = path.attr("d");
+        if (typeof path !== "string" && !Array.isArray(path)) return null;
         let segs = Array.isArray(path) ? path : pathToAbsolute(path);
 
         const result = [];
         try {
             for (let i = 0, l = segs.length, instr, part; i < l; ++i) {
                 instr = segs[i];
-                if (instr[0] == 'M' || instr[0] == 'm') {
+                if (instr[0] == "M" || instr[0] == "m") {
                     path = [instr];
                     result.push(path);
                 } else {
@@ -1877,7 +1878,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return null;
         }
 
-        if (ret_type === 'string') {
+        if (ret_type === "string") {
             return result.map(function (path) {
                 return toString(path);
             });
@@ -1898,7 +1899,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function polygonLength(el, close, matrix) {
 
-        let points = (Array.isArray(el)) ? el : el.attr('points');
+        let points = (Array.isArray(el)) ? el : el.attr("points");
 
         matrix = matrix || (el.getLocalMatrix && el.getLocalMatrix());
         let to_tarns = matrix && !matrix.isIdentity();
@@ -1923,38 +1924,38 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Element.getTotalLength @method
- *
+     *
      * Returns the length of the path in pixels (only works for `path` elements)
- * @returns {number} length
+     * @returns {number} length
      */
     elproto.getTotalLength = function () {
-        if (this.type === 'path' && this.node.getTotalLength) {
+        if (this.type === "path" && this.node.getTotalLength) {
             return this.node.getTotalLength();
         }
 
-        if (this.type === 'polyline') {
+        if (this.type === "polyline") {
             return polygonLength(this);
         }
 
-        if (this.type === 'polygon') {
+        if (this.type === "polygon") {
             return polygonLength(this, true);
         }
 
-        if (this.type === 'rect') {
-            const x = this.attr('x'),
-                y = this.attr('y'),
-                w = this.attr('width'),
-                h = this.attr('height');
+        if (this.type === "rect") {
+            const x = this.attr("x"),
+                y = this.attr("y"),
+                w = this.attr("width"),
+                h = this.attr("height");
 
             return polygonLength([x, y, x + w, y, x + w, y + h, x, y + h], true,
                 this.getLocalMatrix());
         }
 
-        if (this.type === 'line') {
-            let x1 = +this.attr('x1'),
-                y1 = +this.attr('y1'),
-                x2 = +this.attr('x2'),
-                y2 = +this.attr('y2');
+        if (this.type === "line") {
+            let x1 = +this.attr("x1"),
+                y1 = +this.attr("y1"),
+                x2 = +this.attr("x2"),
+                y2 = +this.attr("y2");
 
             let m = this.getLocalMatrix();
             if (!m.isIdentity()) {
@@ -1971,10 +1972,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         //no full affine transforms supported
-        if (this.type === 'ellipse') {
+        if (this.type === "ellipse") {
             //using Ramanujan approximation
-            let rx = +this.attr('rx'),
-                ry = +this.attr('ry');
+            let rx = +this.attr("rx"),
+                ry = +this.attr("ry");
 
             const h = (rx - ry) ** 2 / (rx + ry) ** 2;
 
@@ -1982,8 +1983,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         }
 
-        if (this.type === 'cirle') {
-            let r = +this.attr('r');
+        if (this.type === "cirle") {
+            let r = +this.attr("r");
 
             return 2 * Math.PI * r;
         }
@@ -1992,12 +1993,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // SIERRA Element.getPointAtLength()/Element.getTotalLength(): If a <path> is broken into different segments, is the jump distance to the new coordinates set by the _M_ or _m_ commands calculated as part of the path's total length?
     /**
      * Element.getPointAtLength @method
- *
+     *
      * Returns coordinates of the point located at the given length on the given path (only works for `path` elements)
- *
- * @param {number} length - length, in pixels, from the start of the path, excluding non-rendering jumps
- *
- * @returns {object} representation of the point:
+     *
+     * @param {number} length - length, in pixels, from the start of the path, excluding non-rendering jumps
+     *
+     * @returns {object} representation of the point:
      o {
      o     x: (number) x coordinate,
      o     y: (number) y coordinate,
@@ -2112,11 +2113,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // SIERRA Element.getSubpath(): Similar to the problem for Element.getPointAtLength(). Unclear how this would work for a segmented path. Overall, the concept of _subpath_ and what I'm calling a _segment_ (series of non-_M_ or _Z_ commands) is unclear.
     /**
      * Element.getSubpath @method
- *
+     *
      * Returns subpath of a given element from given start and end lengths (only works for `path` elements)
- *
- * @param {number} from - length, in pixels, from the start of the path to the start of the segment
- * @param {number} to - length, in pixels, from the start of the path to the end of the segment
+     *
+     * @param {number} from - length, in pixels, from the start of the path to the start of the segment
+     * @param {number} to - length, in pixels, from the start of the path to the end of the segment
      * Extracts a substring from a path definition based on start and end positions
      * @method Element.getSubpath
      * @param {number} from - Start position as percentage (0-1) of total path length
@@ -2124,17 +2125,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {string} Path string definition for the extracted segment
      */
     elproto.getSubpath = function (from, to) {
-        return Snap.path.getSubpath(this.attr('d'), from, to);
+        return Snap.path.getSubpath(this.attr("d"), from, to);
     };
 
-    PathPoint.MIDDLE = 'mid';//0;
-    PathPoint.END = 'end'; //1;
-    PathPoint.START = 'start'; //2;
-    PathPoint.START_END = 'start_end'; //3;
+    PathPoint.MIDDLE = "mid";//0;
+    PathPoint.END = "end"; //1;
+    PathPoint.START = "start"; //2;
+    PathPoint.START_END = "start_end"; //3;
 
-    PathPoint.CORNER = 'corner'; //1;
-    PathPoint.SMOOTH = 'smooth'; //2;
-    PathPoint.SYMMETRIC = 'symmetric'; //3;
+    PathPoint.CORNER = "corner"; //1;
+    PathPoint.SMOOTH = "smooth"; //2;
+    PathPoint.SYMMETRIC = "symmetric"; //3;
 
     /**
      * Describes a single anchor point within a path segment, including the
@@ -2424,7 +2425,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             if (i) last = joins[joins.length - 1];
 
-            if (seg[0] === 'M') {
+            if (seg[0] === "M") {
                 if (i) { //this is a later segment
                     if (last.c.x === seg[1] && last.c.y === seg[2]) {
                         //check for connection with previous
@@ -2595,11 +2596,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     Snap.path.cubicFromThirdPoints = cubicFromThirdPoints;
 
-    Snap._.box = box; //for backward compatibility
-    Snap.box = box;
-
-    Snap.registerType("bbox", BBox)
-
     /**
      * Finds dot coordinates on the given cubic beziér curve at the given t
      * @method findDotsAtSegment
@@ -2658,7 +2654,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         let r = 100,
             b = box(x - r / 2, y - r / 2, r, r);
         const inside = [],
-            getter = X[0].hasOwnProperty('x') ? function (i) {
+            getter = X[0].hasOwnProperty("x") ? function (i) {
                 return {
                     x: X[i].x,
                     y: X[i].y,
@@ -2737,27 +2733,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.path.isPathOverlapRect = isPathOverlapRect;
     /**
      * Snap.path.isPointInside @method
- *
+     *
      * Utility method
- *
+     *
      * Returns `true` if given point is inside a given closed path.
      *
      * Note: fill mode doesn’t affect the result of this method.
- * @param {string} path - path string
- * @param {number} x - x of the point
- * @param {number} y - y of the point
- * @returns {boolean} `true` if point is inside the path
+     * @param {string} path - path string
+     * @param {number} x - x of the point
+     * @param {number} y - y of the point
+     * @returns {boolean} `true` if point is inside the path
      */
     Snap.path.isPointInside = isPointInsidePath;
     /**
      * Snap.path.getBBox @method
- *
+     *
      * Utility method
- *
+     *
      * Returns the bounding box of a given path
      * @memberof Snap.path
- * @param {string} path - path string
- * @returns {object} bounding box
+     * @param {string} path - path string
+     * @returns {object} bounding box
      o {
      o     x: (number) x coordinate of the left top point of the box,
      o     y: (number) y coordinate of the left top point of the box,
@@ -2771,41 +2767,41 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.path.get = getPath;
     /**
      * Snap.path.toRelative @method
- *
+     *
      * Utility method
- *
+     *
      * Converts path coordinates into relative values
- * @param {string} path - path string
- * @returns {array} path string
+     * @param {string} path - path string
+     * @returns {array} path string
      */
     Snap.path.toRelative = pathToRelative;
     /**
      * Snap.path.toAbsolute @method
- *
+     *
      * Utility method
- *
+     *
      * Converts path coordinates into absolute values
- * @param {string} path - path string
- * @returns {array} path string
+     * @param {string} path - path string
+     * @returns {array} path string
      */
     Snap.path.toAbsolute = pathToAbsolute;
     /**
      * Snap.path.toCubic @method
- *
+     *
      * Utility method
- *
+     *
      * Converts path to a new path where all segments are cubic beziér curves
- * @param {string|array} pathString - path string or array of segments
- * @returns {array} array of segments
+     * @param {string|array} pathString - path string or array of segments
+     * @returns {array} array of segments
      */
     Snap.path.toCubic = path2curve;
     /**
      * Snap.path.map @method
- *
+     *
      * Transform the path string with the given matrix
- * @param {string} path - path string
- * @param {object} matrix - see @Matrix
- * @returns {string} transformed path string
+     * @param {string} path - path string
+     * @param {object} matrix - see @Matrix
+     * @returns {string} transformed path string
      */
     Snap.path.map = mapPath;
     Snap.path.toString = toString;

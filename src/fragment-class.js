@@ -9,12 +9,18 @@ Snap_ia.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
      * @class Snap.Fragment
      * @param {DocumentFragment} frag Native document fragment produced by Snap.
      */
-    function Fragment(frag) {
-        this.node = frag;
+    class Fragment {
+        constructor(frag) {
+            this.node = frag;
+        }
     }
 
     // Register the Fragment class with Snap
     Snap.registerClass("Fragment", Fragment);
+
+    // Note: select and selectAll methods will be added to Fragment.prototype
+    // in element-class.js after Element class is defined, since Fragment
+    // shares these methods with Element. See element-class.js for implementation.
 
     /**
      * Snap.fragment @method

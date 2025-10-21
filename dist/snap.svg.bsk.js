@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-10-03
+// build: 2025-10-10
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -1941,7 +1941,7 @@
         const xlink = "http://www.w3.org/1999/xlink";
         const xmlns = "http://www.w3.org/2000/svg";
         const hub = {};
-        const hub_rem = {};
+        Snap._.hub_rem = {};
         /**
          * Wraps an ID in a `url(#...)` reference.
          *
@@ -2028,6 +2028,7 @@
 
         Snap._.$ = $;
         Snap._.id = ID;
+        Snap._.make = make;
 
         /**
          * Extracts all attributes from a DOM element
@@ -3592,6 +3593,8 @@
             return new ElementClass(dom);
         }
 
+        Snap._.wrap = wrap;
+        
 
         //MeasureText
         Snap.measureTextClientRect = function (text_el) {
@@ -3892,12 +3895,18 @@ Snap_ia.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
      * @class Snap.Fragment
      * @param {DocumentFragment} frag Native document fragment produced by Snap.
      */
-    function Fragment(frag) {
-        this.node = frag;
+    class Fragment {
+        constructor(frag) {
+            this.node = frag;
+        }
     }
 
     // Register the Fragment class with Snap
     Snap.registerClass("Fragment", Fragment);
+
+    // Note: select and selectAll methods will be added to Fragment.prototype
+    // in element-class.js after Element class is defined, since Fragment
+    // shares these methods with Element. See element-class.js for implementation.
 
     /**
      * Snap.fragment @method
@@ -3936,60 +3945,63 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         const hub = Snap._.hub;
         const ID = Snap._.id;
         const $ = Snap._.$;
-        const has = 'hasOwnProperty';
+        const has = "hasOwnProperty";
+
 
         /**
-         * Element constructor
+         * Element class
          * Wraps an SVG element with Snap methods
-         * 
+         *
          * @class Snap.Element
          * @param {SVGElement} el Underlying DOM node.
          */
-        function Element(el) {
-            if (el.snap in hub) {
-                return hub[el.snap];
+        class Element {
+            constructor(el) {
+                if (el.snap in hub) {
+                    return hub[el.snap];
+                }
+                let svg;
+                try {
+                    svg = el.ownerSVGElement;
+                } catch (e) {
+                }
+                /**
+                 * Element.node
+                 [ property (object) ]
+                 *
+                 * Gives you a reference to the DOM object, so you can assign event handlers or just mess around.
+                 > Usage
+                 | // draw a circle at coordinate 10,10 with radius of 10
+                 | var c = paper.circle(10, 10, 10);
+                 | c.node.onclick = function () {
+                 |     c.attr("fill", "red");
+                 | };
+                 */
+                this.node = el;
+                if (svg) {
+                    const PaperClass = Snap.getClass("Paper");
+                    this.paper = new PaperClass(svg);
+                }
+                /**
+                 * Element.type
+                 [ property (string) ]
+                 *
+                 * SVG tag name of the given element.
+                 */
+                this.type = (el.tagName || el.nodeName
+                    || ((Snap._.glob.win.jQuery && el instanceof jQuery) ? "jquery" : null));
+                if (this.type) this.type = this.type.toLowerCase();
+                const id = this.id = ID(this);
+                this.anims = {};
+                this._ = {
+                    transform: [],
+                };
+                el.snap = id;
+                if (this.type === "div") {
+                    console.log(id, this.node);
+                }
+                hub[id] = this;
             }
-            let svg;
-            try {
-                svg = el.ownerSVGElement;
-            } catch (e) {
-            }
-            /**
-             * Element.node
-             [ property (object) ]
-             *
-             * Gives you a reference to the DOM object, so you can assign event handlers or just mess around.
-             > Usage
-             | // draw a circle at coordinate 10,10 with radius of 10
-             | var c = paper.circle(10, 10, 10);
-             | c.node.onclick = function () {
-             |     c.attr("fill", "red");
-             | };
-             */
-            this.node = el;
-            if (svg) {
-                const PaperClass = Snap.getClass("Paper");
-                this.paper = new PaperClass(svg);
-            }
-            /**
-             * Element.type
-             [ property (string) ]
-             *
-             * SVG tag name of the given element.
-             */
-            this.type = (el.tagName || el.nodeName
-                || ((Snap._.glob.win.jQuery && el instanceof jQuery) ? "jquery" : null));
-            if (this.type) this.type = this.type.toLowerCase();
-            const id = this.id = ID(this);
-            this.anims = {};
-            this._ = {
-                transform: [],
-            };
-            el.snap = id;
-            if (this.type === "div") {
-                console.log(id, this.node);
-            }
-            hub[id] = this;
         }
 
         // Register the Element class with Snap
@@ -4005,15 +4017,15 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             wrap = Snap._.wrap,
             min = Math.min,
             max = Math.max,
-            INITIAL_BBOX = 'initial_bbox';
+            INITIAL_BBOX = "initial_bbox";
 
-    /**
-     * Computes the minimal bounding box that encloses every box from the provided collection.
-     * @param {Snap.BBox[]} bboxes Collection of bounding boxes to merge.
-     * @returns {Snap.BBox|undefined} A Snap-ified bounding box describing the union of all input boxes, or
-     * `undefined` when no input boxes are provided.
-     */
-    Snap.joinBBoxes = function (bboxes) {
+        /**
+         * Computes the minimal bounding box that encloses every box from the provided collection.
+         * @param {Snap.BBox[]} bboxes Collection of bounding boxes to merge.
+         * @returns {Snap.BBox|undefined} A Snap-ified bounding box describing the union of all input boxes, or
+         * `undefined` when no input boxes are provided.
+         */
+        Snap.joinBBoxes = function (bboxes) {
             const len = bboxes.length;
             if (len == 1) return bboxes[0];
             if (!Snap.path) return;
@@ -4035,27 +4047,27 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return Snap.box(box);
         };
 
-    /**
-     * Converts a list of points into an axis-aligned bounding box in the current coordinate system.
-     * @function
-     * @name Snap.bBoxFromPoints
-    * @param {Point2DList} points Points that should be enclosed in the resulting bounding box.
-     * @param {Snap.Matrix} [matrix] Optional matrix to apply to every point before evaluating the box.
-     * @returns {Snap.BBox} Bounding box that contains the transformed point cloud.
-     */
-    Snap.bBoxFromPoints = boxFromPoints;
+        /**
+         * Converts a list of points into an axis-aligned bounding box in the current coordinate system.
+         * @function
+         * @name Snap.bBoxFromPoints
+         * @param {Point2DList} points Points that should be enclosed in the resulting bounding box.
+         * @param {Snap.Matrix} [matrix] Optional matrix to apply to every point before evaluating the box.
+         * @returns {Snap.BBox} Bounding box that contains the transformed point cloud.
+         */
+        Snap.bBoxFromPoints = boxFromPoints;
 
-    /**
-     * Intersects a bounding box with a clip-path region, optionally applying an additional matrix to the clip-path.
-     * @param {Snap.BBox|null} box Bounding box to adjust by the clip-path.
-     * @param {Element|null} clip_path Clip-path element that constrains the box.
-     * @param {Snap.Matrix} [matrix] Transformation applied to the clip-path before the intersection is computed.
-     * @returns {Snap.BBox|null} Intersected bounding box or `null` when no box is supplied.
-     */
-    const clip_path_box_helper = function (box, clip_path, matrix) {
+        /**
+         * Intersects a bounding box with a clip-path region, optionally applying an additional matrix to the clip-path.
+         * @param {Snap.BBox|null} box Bounding box to adjust by the clip-path.
+         * @param {Element|null} clip_path Clip-path element that constrains the box.
+         * @param {Snap.Matrix} [matrix] Transformation applied to the clip-path before the intersection is computed.
+         * @returns {Snap.BBox|null} Intersected bounding box or `null` when no box is supplied.
+         */
+        const clip_path_box_helper = function (box, clip_path, matrix) {
             if (box && clip_path) {
                 if (matrix && !matrix.isIdentity()) {
-                    const old_trans = clip_path.attr('transform');
+                    const old_trans = clip_path.attr("transform");
                     clip_path.attr({transform: matrix.toString()});
                     box = box.intersect(clip_path.getBBox());
                     clip_path.attr({transform: old_trans});
@@ -4066,27 +4078,27 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return box;
         };
 
-    /**
-     * Collects representative points for the element's geometry.
-     * @param {boolean} [use_local_transform=false] When true, applies the element's local matrix to the returned points.
-     * @param {boolean} [skip_hidden=false] When true, ignores children with `display: none`.
-    * @returns {Point2DList} Array of points that describe the element footprint.
-     */
-    elproto.getPoints = function (use_local_transform, skip_hidden) {
+        /**
+         * Collects representative points for the element's geometry.
+         * @param {boolean} [use_local_transform=false] When true, applies the element's local matrix to the returned points.
+         * @param {boolean} [skip_hidden=false] When true, ignores children with `display: none`.
+         * @returns {Point2DList} Array of points that describe the element footprint.
+         */
+        elproto.getPoints = function (use_local_transform, skip_hidden) {
             let result = [];
             let rx, ry, matrix;
             switch (this.type) {
-                case 'polyline':
-                case 'polygon':
-                    const points = this.attr('points');
+                case "polyline":
+                case "polygon":
+                    const points = this.attr("points");
                     for (let i = 0, l = Math.floor(points.length / 2) * 2; i < l; i = i +
                         2) {
                         result.push({x: +points[i], y: +points[i + 1]});
                     }
                     break;
-                case 'rect':
-                    const x = +this.attr('x'), y = +this.attr('y'), w = +this.attr('width'),
-                        h = +this.attr('height');
+                case "rect":
+                    const x = +this.attr("x"), y = +this.attr("y"), w = +this.attr("width"),
+                        h = +this.attr("height");
                     result = [
                         {x: x, y: y},
                         {x: x + w, y: y},
@@ -4094,23 +4106,23 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                         {x: x, y: y + h},
                     ];
                     break;
-                case 'path':
-                    result = this.getPointSample();
+                case "path":
+                    result =  this.getPointSample();
                     break;
-                case 'line':
+                case "line":
                     result = [
-                        {x: this.attr('x1'), y: this.attr('y1')},
-                        {x: this.attr('x2'), y: this.attr('y2')},
+                        {x: this.attr("x1"), y: this.attr("y1")},
+                        {x: this.attr("x2"), y: this.attr("y2")},
                     ];
                     break;
-                case 'circle':
-                    rx = +this.attr('r');
+                case "circle":
+                    rx = +this.attr("r");
                     ry = rx;
-                case 'ellipse':
-                    rx = rx || +this.attr('rx');
-                    ry = ry || +this.attr('ry');
-                    let cx = +this.attr('cx');
-                    let cy = +this.attr('cy');
+                case "ellipse":
+                    rx = rx || +this.attr("rx");
+                    ry = ry || +this.attr("ry");
+                    let cx = +this.attr("cx");
+                    let cy = +this.attr("cy");
                     let inc = Math.PI / 10;
                     let angles = [...Array(20).keys()].map((i) => i * inc);
                     result = angles.map((a) => {
@@ -4120,12 +4132,12 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                         };
                     });
                     break;
-                case 'g':
-                case 'symbol':
+                case "g":
+                case "symbol":
                     result = [];
                     let children = this.getChildren(true), ch;
                     for (let i = 0, l = children.length; i < l; ++i) {
-                        if (skip_hidden && (children[i].node.style.display === 'none' || children[i].attr("display") === "none")) continue;
+                        if (skip_hidden && (children[i].node.style.display === "none" || children[i].attr("display") === "none")) continue;
                         const pts = children[i].getPoints(true, skip_hidden);
                         if (window.now && children[i].type === "use") console.log(children[i], Snap.convexHull(pts));
                         pts && pts.length && (result = [...result, ...pts]);
@@ -4133,28 +4145,28 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     break;
                 // matrix = (this.getCoordMatrix) ? this.getCoordMatrix(true) : this.transform().diffMatrix;
                 // matrix = this.getLocalMatrix();
-                case 'use': //todo:
+                case "use": //todo:
                     let targ = this.getUseTarget();
                     if (targ) {
-                        let x = this.attr('x') || 0,
-                            y = this.attr('y') || 0;
+                        let x = this.attr("x") || 0,
+                            y = this.attr("y") || 0;
                         // matrix = Snap.matrix().add(this.getLocalMatrix().translate(this.attr('x') || 0, this.attr('y') || 0));
                         result = targ.getPoints(true);
                         if (x || y) {
                             const trans_m = Snap.matrix().translate(x, y);
                             result = result.map((p) => trans_m.apply(p));
                         }
-                        if (targ.type === 'symbol') {
-                            let height = +this.attr('height'),
-                                width = +this.attr('width');
+                        if (targ.type === "symbol") {
+                            let height = +this.attr("height"),
+                                width = +this.attr("width");
                             //todo: implement viewbox
                         }
                     }
                     break;
-                case 'text':
-                case 'tspan':
-                case 'image':
-                case 'foreignObject':
+                case "text":
+                case "tspan":
+                case "image":
+                case "foreignObject":
                 default:
                     let bb = this.getBBox({approx: false, without_transform: true});
                     result = [
@@ -4177,26 +4189,26 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return result;
         };
 
-    /**
-     * Builds the convex hull for an element, optionally applying its current transform.
-     * @param {boolean} [with_transform=false] When true, returns the hull in global coordinates.
-     * @param {boolean} [skip_hidden=false] When true, excludes hidden descendants while computing the hull.
-    * @returns {(Point2DList|null)} Array of hull vertices ordered clockwise, or `null` for unresolved targets.
-     */
-    elproto.getCHull = function (with_transform, skip_hidden) {
+        /**
+         * Builds the convex hull for an element, optionally applying its current transform.
+         * @param {boolean} [with_transform=false] When true, returns the hull in global coordinates.
+         * @param {boolean} [skip_hidden=false] When true, excludes hidden descendants while computing the hull.
+         * @returns {(Point2DList|null)} Array of hull vertices ordered clockwise, or `null` for unresolved targets.
+         */
+        elproto.getCHull = function (with_transform, skip_hidden) {
 
             let el = this.getUseTarget();
             if (!el) return null;
-            const is_use = this.type === 'use';
+            const is_use = this.type === "use";
 
             if (!with_transform && el.c_hull && (el.type !== "g" || !skip_hidden)) return el.c_hull;
 
             let m;
 
             if (is_use &&
-                (this.node.hasAttribute('x') || this.node.hasAttribute('y'))) {
-                const x = +this.attr('x')
-                const y = +this.attr('y');
+                (this.node.hasAttribute("x") || this.node.hasAttribute("y"))) {
+                const x = +this.attr("x")
+                const y = +this.attr("y");
                 if (x || y) {
                     m = Snap.matrix().translate(x, y);
                 }
@@ -4222,44 +4234,44 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return points;
         };
 
-    /**
-     * Resolves the underlying element referenced by a `<use>` node.
-     * @returns {Element|null} Resolved target element or `null` when no referenced node is available.
-     */
-    elproto.getUseTarget = function () {
-            if (this.type !== 'use') return this;
+        /**
+         * Resolves the underlying element referenced by a `<use>` node.
+         * @returns {Element|null} Resolved target element or `null` when no referenced node is available.
+         */
+        elproto.getUseTarget = function () {
+            if (this.type !== "use") return this;
             if (this.use_target) {
                 return this.use_target;
             } else {
-                const href = this.attr('xlink:href') || this.attr('href');
+                const href = this.attr("xlink:href") || this.attr("href");
                 if (href) {
-                    const elementId = href.substring(href.indexOf('#') + 1);
+                    const elementId = href.substring(href.indexOf("#") + 1);
                     return this.use_target = Snap.elementFormId(elementId) ||
-                        this.paper.select('#' + elementId) ||
+                        this.paper.select("#" + elementId) ||
                         wrap(this.node.ownerDocument.getElementById(elementId));
                 }
             }
             return null;
         };
 
-    /**
-     * Persists the provided matrix on the element instance for subsequent lookups.
-     * @param {Snap.Matrix} m Matrix to assign as the element's current transform cache.
-     */
-    elproto.saveMatrix = function (m) {
+        /**
+         * Persists the provided matrix on the element instance for subsequent lookups.
+         * @param {Snap.Matrix} m Matrix to assign as the element's current transform cache.
+         */
+        elproto.saveMatrix = function (m) {
             this.matrix = m;
-            if (this.type === 'image' && m.f) {
+            if (this.type === "image" && m.f) {
                 // console.log("saving matrix", this.getId(), m.toString())
             }
         }
 
-    /**
-    * Generates a bounding box from a set of points, optionally applying a matrix prior to evaluation.
-    * @param {Point2DList} points Collection of 2D points to enclose.
-     * @param {Snap.Matrix} [matrix] Matrix used to transform the points before computing the bounds.
-     * @returns {Snap.BBox} Bounding box covering the (transformed) points.
-     */
-    function boxFromPoints(points, matrix) {
+        /**
+         * Generates a bounding box from a set of points, optionally applying a matrix prior to evaluation.
+         * @param {Point2DList} points Collection of 2D points to enclose.
+         * @param {Snap.Matrix} [matrix] Matrix used to transform the points before computing the bounds.
+         * @returns {Snap.BBox} Bounding box covering the (transformed) points.
+         */
+        function boxFromPoints(points, matrix) {
             let min_x = Infinity, max_x = -Infinity, min_y = Infinity,
                 max_y = -Infinity;
             if (matrix && !matrix.isIdentity()) {
@@ -4275,26 +4287,26 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return Snap.box(min_x, min_y, max_x - min_x, max_y - min_y);
         }
 
-    /**
-     * Returns the bounding-box descriptor for the current element with optional control over caching, transforms, and
-     * clip-path intersection.
-     * The returned descriptor exposes the canonical {@link Snap.BBox} API enriched with helper fields such as `cx`,
-     * `cy`, `path`, `vb`, and circle radii (`r0`, `r1`, `r2`).
-     * @param {boolean|Element|Snap.Matrix|Object} [settings] When `true`, omits the local transform from the answer. A
-     * {@link Element} scopes the result relative to an ancestor. A {@link Snap.Matrix} explicitly defines the applied
-     * transform. An options object may contain `without_transform`, `cache_bbox`, `include_clip_path`, `approx`,
-     * `skip_hidden`, `relative_parent`, `relative_coord`, or `matrix` flags for fine-grained control.
-     * @returns {Snap.BBox|null} Bounding-box descriptor or `null` if it can't be resolved (e.g. hidden `<use>` target).
-     */
+        /**
+         * Returns the bounding-box descriptor for the current element with optional control over caching, transforms, and
+         * clip-path intersection.
+         * The returned descriptor exposes the canonical {@link Snap.BBox} API enriched with helper fields such as `cx`,
+         * `cy`, `path`, `vb`, and circle radii (`r0`, `r1`, `r2`).
+         * @param {boolean|Element|Snap.Matrix|Object} [settings] When `true`, omits the local transform from the answer. A
+         * {@link Element} scopes the result relative to an ancestor. A {@link Snap.Matrix} explicitly defines the applied
+         * transform. An options object may contain `without_transform`, `cache_bbox`, `include_clip_path`, `approx`,
+         * `skip_hidden`, `relative_parent`, `relative_coord`, or `matrix` flags for fine-grained control.
+         * @returns {Snap.BBox|null} Bounding-box descriptor or `null` if it can't be resolved (e.g. hidden `<use>` target).
+         */
         elproto.getBBox = function (settings) {
             if (!this.paper) {
                 // console.log("No paper", this.getId());
             }
             let isWithoutTransform, cache_bbox, include_clip_path, relative_parent,
                 matrix, approx = true, skip_hidden = false;
-            if (typeof settings === 'boolean') {
+            if (typeof settings === "boolean") {
                 isWithoutTransform = settings;
-            } else if (typeof settings === 'object') {
+            } else if (typeof settings === "object") {
                 if (settings instanceof Element) {
                     if (this.isChildOf && this.isChildOf(settings)) {
                         relative_parent = settings;
@@ -4327,7 +4339,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 matrix = this.getLocalMatrix();
                 let p = this;
                 //get the transform between this and the relative_parent
-                while ((p = p.parent()) && p !== relative_parent && p.type !== 'svg') {
+                while ((p = p.parent()) && p !== relative_parent && p.type !== "svg") {
                     matrix.multLeft(p.getLocalMatrix());
                 }
             }
@@ -4343,19 +4355,19 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             let clip_path;
             if (include_clip_path) {
                 //todo: fix this
-                clip_path = this.attr('clip-path');
-                if (clip_path === 'none') clip_path = undefined;
+                clip_path = this.attr("clip-path");
+                if (clip_path === "none") clip_path = undefined;
                 if (clip_path) {
                     clip_path = clip_path.trim().slice(4, -1);
                     clip_path = this.paper.select(clip_path);
                 }
             }
 
-            let saved_bb = this.attr('bbox');
+            let saved_bb = this.attr("bbox");
             if (saved_bb) { //todo
-                saved_bb = saved_bb.split(' ');
+                saved_bb = saved_bb.split(" ");
                 //todo make sure this works with realative parent
-                if (!include_clip_path || saved_bb[4] === 'cp') return Snap.box(saved_bb);
+                if (!include_clip_path || saved_bb[4] === "cp") return Snap.box(saved_bb);
             }
 
             if (!Snap.Matrix || !Snap.path) {
@@ -4367,7 +4379,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 return Snap.box();
             }
 
-            if (this.type === 'tspan' || this.type === 'text') {
+            if (this.type === "tspan" || this.type === "text") {
                 let clientRect = Snap.measureTextClientRect(this);
 
                 let p = {x: +clientRect.left, y: clientRect.top};
@@ -4381,9 +4393,9 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 return bBox1;
             }
 
-            while (el.type === 'use') {
+            while (el.type === "use") {
                 if (!isWithoutTransform) {
-                    matrix_for_x_y_attrs = matrix_for_x_y_attrs.add(el.getLocalMatrix().translate(el.attr('x') || 0, el.attr('y') || 0));
+                    matrix_for_x_y_attrs = matrix_for_x_y_attrs.add(el.getLocalMatrix().translate(el.attr("x") || 0, el.attr("y") || 0));
                 }
 
                 el = this.getUseTarget();
@@ -4391,20 +4403,20 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 if (!el) return null;
             }
 
-            if (el.type === 'g') {
+            if (el.type === "g") {
                 el.saveMatrix(el.getLocalMatrix(true));
 
-                let protected_region = el.attr('protected');
+                let protected_region = el.attr("protected");
                 if (!!protected_region) {
-                    const region = el.select('[region="1"]'); //todo: optimize and rework this
+                    const region = el.select("[region=\"1\"]"); //todo: optimize and rework this
                     if (region) {
                         const clone = region.clone(true, undefined, true);
                         var box = clone.addTransform(el.matrix).getBBox(isWithoutTransform);
                         clone.remove();
                         if (cache_bbox) {
-                            this.attr('bbox',
-                                box.x + ' ' + box.y + ' ' + box.width + ' ' + box.height +
-                                ((clip_path) ? ' cp' : ''));
+                            this.attr("bbox",
+                                box.x + " " + box.y + " " + box.width + " " + box.height +
+                                ((clip_path) ? " cp" : ""));
                             this.data(INITIAL_BBOX,
                                 {bbox: box, matrix: this.getLocalMatrix(true)});
                         }
@@ -4416,12 +4428,12 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 let bboxes = children.map(function (elm) {
                     // console.log(el.id + " - " + elm.id + ": " + (Date.now() - timer));
                     // timer = Date.now();
-                    if (skip_hidden && (elm.node.style.display === 'none' || elm.attr("display") === "none")) {
+                    if (skip_hidden && (elm.node.style.display === "none" || elm.attr("display") === "none")) {
                         console.log("In empty");
                         return null;
                     }
                     let box;
-                    if (elm.hasOwnProperty('getBBox')) {
+                    if (elm.hasOwnProperty("getBBox")) {
                         let m = el.matrix;
                         if (matrix) m = m.clone().multLeft(matrix);
                         box = elm.getBBox(m);
@@ -4431,9 +4443,9 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                         if (matrix) elm_cl.addTransform(matrix);
                         box = elm_cl.getBBox(isWithoutTransform);
                         if (+cache_bbox === 1) {
-                            elm.attr('bbox',
-                                box.x + ' ' + box.y + ' ' + box.width + ' ' + box.height +
-                                ((clip_path) ? ' cp' : ''));
+                            elm.attr("bbox",
+                                box.x + " " + box.y + " " + box.width + " " + box.height +
+                                ((clip_path) ? " cp" : ""));
                             elm.data(INITIAL_BBOX, {bbox: box, matrix: elm.getLocalMatrix(true)});
                         }
                         elm_cl.remove(true, true);
@@ -4450,9 +4462,9 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     var box = Snap.joinBBoxes(bboxes);
                     box.translate(matrix_for_x_y_attrs);
                     if (cache_bbox) {
-                        this.attr('bbox',
-                            box.x + ' ' + box.y + ' ' + box.width + ' ' + box.height +
-                            ((clip_path) ? ' cp' : ''));
+                        this.attr("bbox",
+                            box.x + " " + box.y + " " + box.width + " " + box.height +
+                            ((clip_path) ? " cp" : ""));
                         this.data(INITIAL_BBOX,
                             {bbox: box, matrix: this.getLocalMatrix(true)});
                     }
@@ -4462,9 +4474,9 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                         p2 = el.matrix.apply({x: box.x2, y: box.y2});
                     var box = Snap.box({x: p1.x, y: p1.y, x2: p2.x, y2: p2.y});
                     if (cache_bbox) {
-                        this.attr('bbox',
-                            box.x + ' ' + box.y + ' ' + box.width + ' ' + box.height +
-                            ((clip_path) ? ' cp' : ''));
+                        this.attr("bbox",
+                            box.x + " " + box.y + " " + box.width + " " + box.height +
+                            ((clip_path) ? " cp" : ""));
                         this.data(INITIAL_BBOX,
                             {bbox: box, matrix: this.getLocalMatrix(true)});
                     }
@@ -4473,18 +4485,18 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     try {
                         let box;
                         if (matrix && !matrix.isIdentity()) {
-                            const t = el.attr('transform');
+                            const t = el.attr("transform");
                             el.addTransform(matrix);
                             box = el.node.getBBox();
-                            el.attr('transform', t);
+                            el.attr("transform", t);
                         } else {
                             box = el.node.getBBox();
                         }
 
                         if (cache_bbox) {
-                            this.attr('bbox',
-                                box.x + ' ' + box.y + ' ' + box.width + ' ' + box.height +
-                                ((clip_path) ? ' cp' : ''));
+                            this.attr("bbox",
+                                box.x + " " + box.y + " " + box.width + " " + box.height +
+                                ((clip_path) ? " cp" : ""));
                             this.data(INITIAL_BBOX,
                                 {bbox: box, matrix: this.getLocalMatrix(true)});
                         }
@@ -4493,7 +4505,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
                     } catch (e) {
                         //Display:none is set and an exception is called.
-                        this.attr('bbox', '');
+                        this.attr("bbox", "");
                         this.removeData(INITIAL_BBOX);
                         return null;
                     }
@@ -4517,8 +4529,8 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     _.bbox = Snap.path.getBBox(
                         Snap.path.map(el.realPath, matrix_for_x_y_attrs));
                     let box = Snap.box(_.bbox);
-                    if (cache_bbox) this.attr('bbox',
-                        box.x + ' ' + box.y + ' ' + box.width + ' ' + box.height);
+                    if (cache_bbox) this.attr("bbox",
+                        box.x + " " + box.y + " " + box.width + " " + box.height);
                     return clip_path_box_helper(box, clip_path, el.matrix);
                 }
             } catch (e) {
@@ -4527,40 +4539,40 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         };
 
-    /**
-     * Convenience wrapper around {@link Element#getBBox} that enforces approximate convex-hull evaluation.
-     * @param {Object} [setting={}] Optional settings forwarded to {@link Element#getBBox}.
-     * @returns {Snap.BBox|null} Approximate bounding box or `null` on failure.
-     */
-    elproto.getBBoxApprox = function (setting) {
+        /**
+         * Convenience wrapper around {@link Element#getBBox} that enforces approximate convex-hull evaluation.
+         * @param {Object} [setting={}] Optional settings forwarded to {@link Element#getBBox}.
+         * @returns {Snap.BBox|null} Approximate bounding box or `null` on failure.
+         */
+        elproto.getBBoxApprox = function (setting) {
             setting = setting || {};
             setting.approx = true;
             return this.getBBox(setting);
         };
-    /**
-     * Forces precise bounding-box computation for the element, ignoring cached approximations.
-     * @param {boolean|Object|Snap.Matrix} [settigns] Options forwarded to {@link Element#getBBox}.
-     * @returns {Snap.BBox|null} Exact bounding box or `null` on failure.
-     */
-    elproto.getBBoxExact = function (settigns) {
-            if (settigns && typeof settigns === 'object' && settigns.isMatrix) {
+        /**
+         * Forces precise bounding-box computation for the element, ignoring cached approximations.
+         * @param {boolean|Object|Snap.Matrix} [settigns] Options forwarded to {@link Element#getBBox}.
+         * @returns {Snap.BBox|null} Exact bounding box or `null` on failure.
+         */
+        elproto.getBBoxExact = function (settigns) {
+            if (settigns && typeof settigns === "object" && settigns.isMatrix) {
                 return this.getBBox({approx: false, matrix: settigns});
             }
-            if (typeof settigns === 'boolean') settigns = {without_transform: settigns};
+            if (typeof settigns === "boolean") settigns = {without_transform: settigns};
             settigns = settigns || {};
             settigns.approx = false;
             return this.getBBox(settigns);
         };
 
-    /**
-     * Registers or triggers attribute change monitors on the element.
-     * @param {string|string[]} attr Attribute name or list of names to monitor.
-     * @param {Function} [callback_val] Callback invoked with the attribute's current value when changes occur. When
-     * omitted, previously registered callbacks for `attr` are executed immediately.
-     * @returns {Element} The current element for chaining.
-     */
-    elproto.attrMonitor = function (attr, callback_val) {
-            if (typeof callback_val === 'function') {
+        /**
+         * Registers or triggers attribute change monitors on the element.
+         * @param {string|string[]} attr Attribute name or list of names to monitor.
+         * @param {Function} [callback_val] Callback invoked with the attribute's current value when changes occur. When
+         * omitted, previously registered callbacks for `attr` are executed immediately.
+         * @returns {Element} The current element for chaining.
+         */
+        elproto.attrMonitor = function (attr, callback_val) {
+            if (typeof callback_val === "function") {
                 if (!this._attr_monitor) {
                     this._attr_monitor = {};
                 }
@@ -4580,24 +4592,24 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return this.string;
         };
 
-    /**
-     * Parses the transform attribute of an element, caching and returning the corresponding matrix.
-     * @param {Element} el Element whose transform should be extracted.
-     * @param {string|Array|Snap.Matrix} [tstr] Optional transform override in string, array, or matrix form.
-     * @returns {Snap.Matrix|undefined} Parsed matrix when no explicit transform is supplied.
-     */
-    function extractTransform(el, tstr) {
+        /**
+         * Parses the transform attribute of an element, caching and returning the corresponding matrix.
+         * @param {Element} el Element whose transform should be extracted.
+         * @param {string|Array|Snap.Matrix} [tstr] Optional transform override in string, array, or matrix form.
+         * @returns {Snap.Matrix|undefined} Parsed matrix when no explicit transform is supplied.
+         */
+        function extractTransform(el, tstr) {
             if (tstr == null) {
                 var doReturn = true;
-                if (el.type == 'linearGradient' || el.type == 'radialGradient') {
-                    tstr = el.node.getAttribute('gradientTransform');
-                } else if (el.type == 'pattern') {
-                    tstr = el.node.getAttribute('patternTransform');
+                if (el.type == "linearGradient" || el.type == "radialGradient") {
+                    tstr = el.node.getAttribute("gradientTransform");
+                } else if (el.type == "pattern") {
+                    tstr = el.node.getAttribute("patternTransform");
                 } else {
                     if (!el.node.getAttribute) {
-                        console.log('node problem');
+                        console.log("node problem");
                     } else {
-                        tstr = el.node.getAttribute('transform') || el.node.style.transform;
+                        tstr = el.node.getAttribute("transform") || el.node.style.transform;
                     }
 
                 }
@@ -4609,16 +4621,16 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 if (!Snap._.rgTransform.test(tstr)) {
                     tstr = Snap._.svgTransform2string(tstr);
                 } else {
-                    tstr = Str(tstr).replace(/\.{3}|\u2026/g, el._.transform || '');
+                    tstr = Str(tstr).replace(/\.{3}|\u2026/g, el._.transform || "");
                 }
-                if (is(tstr, 'array')) {
+                if (is(tstr, "array")) {
                     tstr = Snap.path ? Snap.path.toString.call(tstr) : Str(tstr);
                 }
                 el._.transform = tstr;
             }
             const command = Str(tstr[0]).toLowerCase()[0];
             let m;
-            if (!tstr || command == 'm') {
+            if (!tstr || command == "m") {
                 m = Snap._.transform2matrix(tstr);
             } else {
                 m = Snap._.transform2matrix(tstr, el.getBBoxExact(true));
@@ -4630,21 +4642,21 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         }
 
-    /**
-     * Strict transform parser that bypasses compatibility heuristics used by {@link extractTransform}.
-     * @param {Element} el Element whose transform should be parsed.
-     * @param {string|Array|Snap.Matrix} [tstr] Optional transform override.
-     * @returns {Snap.Matrix|undefined} Parsed matrix when reading from the DOM.
-     */
-    function extractTransformStrict(el, tstr) {
+        /**
+         * Strict transform parser that bypasses compatibility heuristics used by {@link extractTransform}.
+         * @param {Element} el Element whose transform should be parsed.
+         * @param {string|Array|Snap.Matrix} [tstr] Optional transform override.
+         * @returns {Snap.Matrix|undefined} Parsed matrix when reading from the DOM.
+         */
+        function extractTransformStrict(el, tstr) {
             if (tstr == null) {
                 var doReturn = true;
-                if (el.type == 'linearGradient' || el.type == 'radialGradient') {
-                    tstr = el.node.getAttribute('gradientTransform');
-                } else if (el.type == 'pattern') {
-                    tstr = el.node.getAttribute('patternTransform');
+                if (el.type == "linearGradient" || el.type == "radialGradient") {
+                    tstr = el.node.getAttribute("gradientTransform");
+                } else if (el.type == "pattern") {
+                    tstr = el.node.getAttribute("patternTransform");
                 } else {
-                    tstr = el.node.getAttribute('transform');
+                    tstr = el.node.getAttribute("transform");
                 }
                 if (!tstr) {
                     return new Snap.Matrix;
@@ -4654,9 +4666,9 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     tstr = Snap._.svgTransform2string(tstr);
                     tstr = Snap._.svgTransform2string(tstr);
                 } else {
-                    tstr = Str(tstr).replace(/\.{3}|\u2026/g, el._.transform || '');
+                    tstr = Str(tstr).replace(/\.{3}|\u2026/g, el._.transform || "");
                 }
-                if (is(tstr, 'array')) {
+                if (is(tstr, "array")) {
                     tstr = Snap.path ? Snap.path.toString.call(tstr) : Str(tstr);
                 }
                 el._.transform = tstr;
@@ -4668,14 +4680,14 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         }
 
-    /**
-     * Clears cached convex hull data for the element's ancestors.
-     * @param {Element} el Element whose parents should be invalidated.
-     * @param {boolean} [efficient=false] When true, stops once an ancestor without cached hull data is found.
-     */
-    function clearParentCHull(el, efficient) {
+        /**
+         * Clears cached convex hull data for the element's ancestors.
+         * @param {Element} el Element whose parents should be invalidated.
+         * @param {boolean} [efficient=false] When true, stops once an ancestor without cached hull data is found.
+         */
+        function clearParentCHull(el, efficient) {
             let parent = el.parent();
-            while (parent && parent.type !== 'svg') {
+            while (parent && parent.type !== "svg") {
                 if (parent.c_hull) {
                     parent.c_hull = undefined;
                 } else if (efficient) {
@@ -4685,11 +4697,11 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         }
 
-    /**
-     * Clears cached convex hull data for the element and optionally its ancestors.
-     * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
-     */
-    elproto.clearCHull = function (force_top) {
+        /**
+         * Clears cached convex hull data for the element and optionally its ancestors.
+         * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
+         */
+        elproto.clearCHull = function (force_top) {
             force_top = true;
             this.c_hull = undefined;
             clearParentCHull(this, !force_top);
@@ -4697,13 +4709,13 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Element.transform @method
- *
+         *
          * Gets or sets transformation of the element
- *
- * @param {string} tstr - transform string in Snap or SVG format
- * @returns {Element} the current element
+         *
+         * @param {string} tstr - transform string in Snap or SVG format
+         * @returns {Element} the current element
          * or
- * @returns {object} transformation descriptor:
+         * @returns {object} transformation descriptor:
          o {
          o     string (string) transform string,
          o     globalMatrix (Matrix) matrix of all transformations applied to element or its parents,
@@ -4714,19 +4726,19 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          o     toString (function) returns `string` property
          o }
          */
-    /**
-     * Gets or sets the element transform.
-     * @param {string|Snap.Matrix} [tstr] Transform string or matrix to apply. When omitted, returns a descriptor with
-     * the current transform matrices.
-     * @param {boolean} [do_update=false] When true, refreshes cached bounding boxes after applying the transform.
-     * @param {Snap.Matrix|boolean} [matrix] Optional matrix used for cache updates or a boolean forwarded as the
-     * `apply` flag.
-     * @param {boolean} [apply] Internal flag controlling partner propagation.
-     * @returns {Element|Object} Element for chaining when setting transforms, or an object with aggregate matrices when
-     * querying.
-     */
-    elproto.transform = function (tstr, do_update, matrix, apply) {
-            if (typeof matrix === 'boolean') {
+        /**
+         * Gets or sets the element transform.
+         * @param {string|Snap.Matrix} [tstr] Transform string or matrix to apply. When omitted, returns a descriptor with
+         * the current transform matrices.
+         * @param {boolean} [do_update=false] When true, refreshes cached bounding boxes after applying the transform.
+         * @param {Snap.Matrix|boolean} [matrix] Optional matrix used for cache updates or a boolean forwarded as the
+         * `apply` flag.
+         * @param {boolean} [apply] Internal flag controlling partner propagation.
+         * @returns {Element|Object} Element for chaining when setting transforms, or an object with aggregate matrices when
+         * querying.
+         */
+        elproto.transform = function (tstr, do_update, matrix, apply) {
+            if (typeof matrix === "boolean") {
                 apply = matrix;
                 matrix = undefined;
             }
@@ -4742,7 +4754,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 const localString = local.toTransformString(),
                     string = Str(local) == Str(this.matrix) ?
                         Str(_.transform) : localString;
-                while ((papa.type != 'svg' && papa.type != 'body') && (papa = papa.parent())) {
+                while ((papa.type != "svg" && papa.type != "body") && (papa = papa.parent())) {
                     ms.push(extractTransform(papa));
                 }
                 i = ms.length;
@@ -4770,9 +4782,9 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
 
             if (this.node) {
-                if (this.type == 'linearGradient' || this.type == 'radialGradient') {
+                if (this.type == "linearGradient" || this.type == "radialGradient") {
                     $(this.node, {gradientTransform: this.matrix});
-                } else if (this.type == 'pattern') {
+                } else if (this.type == "pattern") {
                     $(this.node, {patternTransform: this.matrix});
                 } else {
                     if (do_update) this.updateBBoxCache(undefined, apply);
@@ -4799,7 +4811,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                                 if (top_matrix) {
                                     tars_str = top_matrix.clone().add(this.getLocalMatrix()).toString();
                                 } else {
-                                    tars_str = this.node.getAttribute('transform');
+                                    tars_str = this.node.getAttribute("transform");
                                 }
                                 if (dom.css) {
                                     dom.css({transform: tars_str});
@@ -4837,27 +4849,27 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return this;
         };
 
-    /**
-     * Translates a parsed transform token array into a {@link Snap.Matrix} instance.
-     * @param {Array} tdata Result from {@link Snap._.svgTransform2string} parsing.
-     * @returns {Snap.Matrix} Matrix representing the combined transform.
-     */
-    function transform2matrix(tdata) {
+        /**
+         * Translates a parsed transform token array into a {@link Snap.Matrix} instance.
+         * @param {Array} tdata Result from {@link Snap._.svgTransform2string} parsing.
+         * @returns {Snap.Matrix} Matrix representing the combined transform.
+         */
+        function transform2matrix(tdata) {
             let m = new Snap.Matrix;
             if (tdata) {
                 for (var i = 0, l = tdata.length; i < l; ++i) {
                     let t = tdata[i],
                         tlen = t.length,
                         command = Str(t[0]).toLowerCase();
-                    if (command === 't' && tlen === 2) {
+                    if (command === "t" && tlen === 2) {
                         m.translate(t[1], 0);
-                    } else if (command === 't' && tlen === 3) {
+                    } else if (command === "t" && tlen === 3) {
                         m.translate(t[1], t[2]);
-                    } else if (command === 'r') {
+                    } else if (command === "r") {
                         m.rotate(t[1], t[2], t[3]);
-                    } else if (command === 's') {
+                    } else if (command === "s") {
                         m.scale(t[1], t[2], t[3], t[4]);
-                    } else if (command === 'm' && tlen === 7) {
+                    } else if (command === "m" && tlen === 7) {
                         m.add(t[1], t[2], t[3], t[4], t[5], t[6]);
                     }
                 }
@@ -4865,34 +4877,34 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return m;
         }
 
-    /**
-     * Normalises the element's current transform attribute and saves it as a matrix.
-     */
-    elproto.transToMatrix = function () {
+        /**
+         * Normalises the element's current transform attribute and saves it as a matrix.
+         */
+        elproto.transToMatrix = function () {
             let tstr = "";
-            if (this.type === 'linearGradient' || this.type === 'radialGradient') {
-                tstr = this.node.getAttribute('gradientTransform') || "";
-            } else if (this.type === 'pattern') {
-                tstr = this.node.getAttribute('patternTransform') || "";
+            if (this.type === "linearGradient" || this.type === "radialGradient") {
+                tstr = this.node.getAttribute("gradientTransform") || "";
+            } else if (this.type === "pattern") {
+                tstr = this.node.getAttribute("patternTransform") || "";
             } else {
-                tstr = this.node.getAttribute('transform') || "";
+                tstr = this.node.getAttribute("transform") || "";
             }
 
             tstr = tstr.trim().toLowerCase();
             if (tstr &&
-                !(tstr.startsWith('matrix(') && tstr.indexOf(')') === tstr.length -
+                !(tstr.startsWith("matrix(") && tstr.indexOf(")") === tstr.length -
                     1)) {
                 let tarr = Snap._.svgTransform2string(tstr);
                 const matrix = transform2matrix(tarr);
                 let m = matrix.toString();
 
                 // console.log("Fixing transform for", this.getId(), tstr, "to", m);
-                if (this.type === 'linearGradient' || this.type === 'radialGradient') {
-                    this.node.setAttribute('gradientTransform', m); //getAttribute("gradientTransform");
-                    this.attrMonitor('gradientTransform')
-                } else if (this.type === 'pattern') {
-                    this.node.setAttribute('patternTransform', m);
-                    this.attrMonitor('patternTransform')
+                if (this.type === "linearGradient" || this.type === "radialGradient") {
+                    this.node.setAttribute("gradientTransform", m); //getAttribute("gradientTransform");
+                    this.attrMonitor("gradientTransform")
+                } else if (this.type === "pattern") {
+                    this.node.setAttribute("patternTransform", m);
+                    this.attrMonitor("patternTransform")
                 } else {
                     // this.node.setAttribute('transform', m);
                     this.transform(m)
@@ -4901,14 +4913,14 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         };
 
-    /**
-     * Updates the cached bounding box after a transformation or clears it when the new transform is incompatible.
-     * @param {Snap.Matrix} [matrix] Matrix describing the current transformation.
-     * @param {boolean|number} [apply] When `-1`, clears the cache entirely. Otherwise controls whether child caches are
-     * updated.
-     * @param {boolean} [_skip_parent=false] Skips parent cache updates when truthy.
-     */
-    elproto.updateBBoxCache = function (matrix, apply, _skip_parent) {
+        /**
+         * Updates the cached bounding box after a transformation or clears it when the new transform is incompatible.
+         * @param {Snap.Matrix} [matrix] Matrix describing the current transformation.
+         * @param {boolean|number} [apply] When `-1`, clears the cache entirely. Otherwise controls whether child caches are
+         * updated.
+         * @param {boolean} [_skip_parent=false] Skips parent cache updates when truthy.
+         */
+        elproto.updateBBoxCache = function (matrix, apply, _skip_parent) {
             //if apply is negative, erase all bbox catches
             if (apply === -1) {
                 this.eraseBBoxCache();
@@ -4960,7 +4972,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             const new_bbox = Snap.box(Math.min(p1.x, p2.x), Math.min(p1.y, p2.y),
                 Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y));
             this.attr({
-                bbox: new_bbox.x + ' ' + new_bbox.y + ' ' + new_bbox.width + ' ' +
+                bbox: new_bbox.x + " " + new_bbox.y + " " + new_bbox.width + " " +
                     new_bbox.height,
             });
 
@@ -4979,17 +4991,17 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         };
 
-    /**
-     * Expands cached bounding boxes up the parent chain when the current element grows in size.
-     * @param {Snap.BBox|{x:number,y:number,r:number}} bbox_circ Bounding region describing the new extent.
-     * @param {boolean} [is_circle=false] Indicates that `bbox_circ` represents a circle definition.
-     */
-    elproto.expandParenBBoxCatch = function (bbox_circ, is_circle) {
+        /**
+         * Expands cached bounding boxes up the parent chain when the current element grows in size.
+         * @param {Snap.BBox|{x:number,y:number,r:number}} bbox_circ Bounding region describing the new extent.
+         * @param {boolean} [is_circle=false] Indicates that `bbox_circ` represents a circle definition.
+         */
+        elproto.expandParenBBoxCatch = function (bbox_circ, is_circle) {
             const parent = this.parent();
             if (!parent) return;
-            let saved_bb = parent.attr('bbox');
+            let saved_bb = parent.attr("bbox");
             if (!saved_bb) return;
-            saved_bb = saved_bb.split(' ');
+            saved_bb = saved_bb.split(" ");
             const p_bbox = Snap.box(saved_bb);
 
             if (is_circle) {
@@ -5017,23 +5029,23 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @param bbox_circle a bbox or a circle region that contains the element. If provided, parent (and higher) bboxes
          * are erased only if region extrudes from the parent bbox. Otherwise, there is no need to remove.
          */
-    /**
-     * Invalidates cached bounding boxes stored on parent elements.
-     * @param {Snap.BBox|{x:number,y:number,r:number}} [bbox_circle] Bounding region used to decide whether the parent
-     * caches still contain the element.
-     */
-    elproto.eraseParentBBoxCache = function (bbox_circle) {
+        /**
+         * Invalidates cached bounding boxes stored on parent elements.
+         * @param {Snap.BBox|{x:number,y:number,r:number}} [bbox_circle] Bounding region used to decide whether the parent
+         * caches still contain the element.
+         */
+        elproto.eraseParentBBoxCache = function (bbox_circle) {
             const parent = this.parent();
             if (!parent) return;
-            let parent_bb = parent.attr('bbox');
+            let parent_bb = parent.attr("bbox");
             if (!parent_bb) return;
 
             if (bbox_circle) {
-                const parent_bbox = Snap.box(parent_bb.split(' '));
+                const parent_bbox = Snap.box(parent_bb.split(" "));
                 //circle is provided
-                if (typeof bbox_circle.r === 'number') {
+                if (typeof bbox_circle.r === "number") {
                     if (!parent_bbox.containsCircle(bbox_circle)) {
-                        parent.attr({bbox: ''}); //erase
+                        parent.attr({bbox: ""}); //erase
                         parent.removeData(INITIAL_BBOX);
                         const expanded_bb = Snap.joinBBoxes([
                             parent_bbox,
@@ -5044,7 +5056,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     }
                 } else {
                     if (!parent_bbox.contains(bbox_circle)) {
-                        parent.attr({bbox: ''}); //erase
+                        parent.attr({bbox: ""}); //erase
                         parent.removeData(INITIAL_BBOX);
                         const expanded_bb = Snap.joinBBoxes([parent_bbox, bbox_circle]);
                         parent.eraseParentBBoxCache(expanded_bb);
@@ -5054,17 +5066,17 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 return;
             }
 
-            parent.attr({bbox: ''}); //erase
+            parent.attr({bbox: ""}); //erase
             parent.removeData(INITIAL_BBOX);
             parent.eraseParentBBoxCache();
 
         };
 
-    /**
-     * Removes the cached bounding box from the element and, recursively, its children.
-     */
-    elproto.eraseBBoxCache = function () {
-            this.attr({bbox: ''});
+        /**
+         * Removes the cached bounding box from the element and, recursively, its children.
+         */
+        elproto.eraseBBoxCache = function () {
+            this.attr({bbox: ""});
             this.removeData(INITIAL_BBOX);
             if (this.isGroupLike()) {
                 this.getChildren().forEach(function (el) {
@@ -5073,12 +5085,12 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         };
 
-    /**
-     * Retrieves the element's local matrix, parsing it from the DOM when not cached.
-     * @param {boolean} [strict=false] Enforces strict parsing semantics for the transform attribute.
-     * @returns {Snap.Matrix} Local transformation matrix.
-     */
-    elproto.getLocalMatrix = function (strict) {
+        /**
+         * Retrieves the element's local matrix, parsing it from the DOM when not cached.
+         * @param {boolean} [strict=false] Enforces strict parsing semantics for the transform attribute.
+         * @returns {Snap.Matrix} Local transformation matrix.
+         */
+        elproto.getLocalMatrix = function (strict) {
             if (this.matrix) return this.matrix;
             if (strict) {
                 return extractTransformStrict(this);
@@ -5087,22 +5099,22 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         };
 
-    /**
-     * Returns the element's current global transformation matrix using the DOM CTM API.
-     * @returns {Snap.Matrix} Global matrix representing the element's absolute transform.
-     */
-    elproto.getGlobalMatrix = function () {
+        /**
+         * Returns the element's current global transformation matrix using the DOM CTM API.
+         * @returns {Snap.Matrix} Global matrix representing the element's absolute transform.
+         */
+        elproto.getGlobalMatrix = function () {
             const ctm = this.node.getCTM ? this.node.getCTM() : null;
             let matrix = new Snap.Matrix(ctm);
             return matrix;
         }
 
-    /**
-     * Registers a DOM or Snap partner that should mirror this element's transformations and style updates.
-     * @param {Element|HTMLElement|Object} el_dom Partner reference (Snap element, DOM node, or jQuery-like wrapper).
-     * @param {boolean} [strict] Reserved flag for stricter partner synchronisation.
-     */
-    elproto.setPartner = function (el_dom, strict) {
+        /**
+         * Registers a DOM or Snap partner that should mirror this element's transformations and style updates.
+         * @param {Element|HTMLElement|Object} el_dom Partner reference (Snap element, DOM node, or jQuery-like wrapper).
+         * @param {boolean} [strict] Reserved flag for stricter partner synchronisation.
+         */
+        elproto.setPartner = function (el_dom, strict) {
             if (el_dom.paper && this.paper === el_dom.paper
                 // || el_dom instanceof Element
             ) {
@@ -5114,7 +5126,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 this._element_partner = el_part;
             } else
                 // if (el_dom instanceof HTMLElement || el_dom.css)
-                {
+            {
                 const dom_part = this._dom_partner || [];
                 if (el_dom instanceof HTMLElement) el_dom = Snap(el_dom);
                 if (!dom_part.includes(el_dom)) {
@@ -5133,14 +5145,14 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             // }
         };
 
-    /**
-     * Updates the registry of partner children when elements are added or removed.
-     * @param {Element} el Child element that was added or removed.
-     * @param {boolean} [remove=false] Indicates whether the child should be removed from the registry.
-     * @returns {Element} Current element for chaining.
-     */
-    elproto._updatePartnerChild = function (el, remove) {
-            if (this.type === 'svg' || this.type === 'defs') return;
+        /**
+         * Updates the registry of partner children when elements are added or removed.
+         * @param {Element} el Child element that was added or removed.
+         * @param {boolean} [remove=false] Indicates whether the child should be removed from the registry.
+         * @returns {Element} Current element for chaining.
+         */
+        elproto._updatePartnerChild = function (el, remove) {
+            if (this.type === "svg" || this.type === "defs") return;
 
             if (remove) {
                 if (this._partner_childern && this._partner_childern.length) {
@@ -5168,12 +5180,12 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         }
 
-    /**
-     * Propagates transformation updates to partner children.
-     * @param {Element} el Partner child receiving the propagated transform.
-     * @param {Snap.Matrix} [trans] Matrix to apply; defaults to the current element's global matrix.
-     */
-    elproto._propagateTransToPartnersChild = function (el, trans) {
+        /**
+         * Propagates transformation updates to partner children.
+         * @param {Element} el Partner child receiving the propagated transform.
+         * @param {Snap.Matrix} [trans] Matrix to apply; defaults to the current element's global matrix.
+         */
+        elproto._propagateTransToPartnersChild = function (el, trans) {
             if (!el) return;
             if (trans) {
                 let matrix = trans.clone().add(this.getLocalMatrix(true));
@@ -5183,11 +5195,11 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         };
 
-    /**
-     * Applies the provided matrix to each registered partner, keeping their transforms aligned.
-     * @param {Snap.Matrix} matrix Matrix to propagate.
-     */
-    elproto._applyToPartner = function (matrix) {
+        /**
+         * Applies the provided matrix to each registered partner, keeping their transforms aligned.
+         * @param {Snap.Matrix} matrix Matrix to propagate.
+         */
+        elproto._applyToPartner = function (matrix) {
             const partners = this.getPartners();
             if (partners) {
                 const loc = this.getLocalMatrix();
@@ -5210,29 +5222,29 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         }
 
 
-    /**
-     * Removes partner associations or optionally deletes the partner nodes themselves.
-     * @param {'dom'|'element'|Element|HTMLElement|Snap|boolean} [el_type] Partner type or specific partner reference.
-     * @param {boolean} [remove_elements=false] When true, removes the partner elements from the DOM/SVG tree.
-     */
-    elproto.removePartner = function (el_type, remove_elements) {
+        /**
+         * Removes partner associations or optionally deletes the partner nodes themselves.
+         * @param {"dom"|"element"|Element|HTMLElement|Snap|boolean} [el_type] Partner type or specific partner reference.
+         * @param {boolean} [remove_elements=false] When true, removes the partner elements from the DOM/SVG tree.
+         */
+        elproto.removePartner = function (el_type, remove_elements) {
 
-            if (typeof el_type === 'boolean') {
+            if (typeof el_type === "boolean") {
                 remove_elements = el_type;
                 el_type = undefined;
             }
             if (!el_type) {
-                this.removePartner('dom', remove_elements);
-                this.removePartner('element', remove_elements);
+                this.removePartner("dom", remove_elements);
+                this.removePartner("element", remove_elements);
 
-            } else if (el_type === 'dom') {
+            } else if (el_type === "dom") {
                 remove_elements && this._dom_partner &&
                 this._dom_partner.forEach((el) => el.remove());
-                this.removeData('dom_partner');
-            } else if (el_type === 'element') {
+                this.removeData("dom_partner");
+            } else if (el_type === "element") {
                 remove_elements && this._element_partner &&
                 this._element_partner.forEach((el) => el.remove());
-                this.removeData('element_partner');
+                this.removeData("element_partner");
             } else if (el_type instanceof Element) {
                 let dom_parts = this._dom_partner;
                 if (dom_parts) {
@@ -5242,7 +5254,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                         remove_elements && dom_parts[index].remove();
                         dom_parts.splice(index, 1);
                         if (!dom_parts.length) {
-                            this.removeData('dom_partner');
+                            this.removeData("dom_partner");
                         }
                     }
                 }
@@ -5254,7 +5266,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                         remove_elements && element_partner[index].remove();
                         element_partner.splice(index, 1);
                         if (!element_partner.length) {
-                            this.removeData('element_partner');
+                            this.removeData("element_partner");
                         }
                     }
                 }
@@ -5267,41 +5279,41 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         };
 
-    /**
-     * Determines whether any partners are currently registered with the element.
-     * @returns {boolean} True when at least one DOM or Snap partner exists.
-     */
-    elproto.hasPartner = function () {
+        /**
+         * Determines whether any partners are currently registered with the element.
+         * @returns {boolean} True when at least one DOM or Snap partner exists.
+         */
+        elproto.hasPartner = function () {
             return !!(this._dom_partner || this._element_partner);
         };
 
-    /**
-     * Returns registered partners filtered by type.
-     * @param {'dom'|'element'|'both'} [el_type] Desired partner category.
-     * @returns {Array|Object|undefined} Matching partners or `undefined` when none exist.
-     */
-    elproto.getPartners = function (el_type) {
+        /**
+         * Returns registered partners filtered by type.
+         * @param {"dom"|"element"|"both"} [el_type] Desired partner category.
+         * @returns {Array|Object|undefined} Matching partners or `undefined` when none exist.
+         */
+        elproto.getPartners = function (el_type) {
             if (!el_type) {
                 return this._dom_partner || this._element_partner;
-            } else if (el_type === 'dom') {
+            } else if (el_type === "dom") {
                 return this._dom_partner;
-            } else if (el_type === 'element') {
+            } else if (el_type === "element") {
                 return this._element_partner;
             } else if (el_type === "both") {
                 return {dom: this._dom_partner, element: this._element_partner};
             }
         }
 
-    /**
-     * Applies style updates to registered partners, mirroring key display-related properties.
-     * @param {Object} style_obj Style object whose `opacity` and `display` values are forwarded to partners.
-     */
-    elproto.setPartnerStyle = function (style_obj) {
+        /**
+         * Applies style updates to registered partners, mirroring key display-related properties.
+         * @param {Object} style_obj Style object whose `opacity` and `display` values are forwarded to partners.
+         */
+        elproto.setPartnerStyle = function (style_obj) {
             let obj = {};
             if (style_obj.hasOwnProperty(
-                'opacity')) obj.opacity = style_obj.opacity;
+                "opacity")) obj.opacity = style_obj.opacity;
             if (style_obj.hasOwnProperty(
-                'display')) obj.display = style_obj.display;
+                "display")) obj.display = style_obj.display;
             let dom = this._dom_partner;
             dom && dom.forEach((e) => e.css(obj));
             let el = this._element_partner;
@@ -5340,7 +5352,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
             if (el) {
                 clearParentCHull(this);
-                if (el.type === 'set' || Array.isArray(el)) {
+                if (el.type === "set" || Array.isArray(el)) {
                     const it = this;
                     el.forEach(function (el) {
                         it.add(el);
@@ -5364,7 +5376,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 // } else {
                 //     this.sub_children = [el];
                 // }
-                if (el.setPaper && this.paper && el.type !== 'svg' && el.paper !== this.paper) {
+                if (el.setPaper && this.paper && el.type !== "svg" && el.paper !== this.paper) {
                     el.setPaper(this.paper);
                 }
 
@@ -5374,11 +5386,11 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-    /**
-     * Appends the current element to the specified parent.
-     * @param {Element} el Parent element that will receive this node.
-     * @returns {Element} Child element for chaining.
-     */
+        /**
+         * Appends the current element to the specified parent.
+         * @param {Element} el Parent element that will receive this node.
+         * @returns {Element} Child element for chaining.
+         */
         elproto.appendTo = function (el) {
             if (el) {
                 clearParentCHull(this);
@@ -5387,15 +5399,15 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-    /**
-     * Prepends the specified element (or set) to the current element.
-     * @param {Element|Set} el Element to prepend.
-     * @returns {Element} Parent element for chaining.
-     */
+        /**
+         * Prepends the specified element (or set) to the current element.
+         * @param {Element|Set} el Element to prepend.
+         * @returns {Element} Parent element for chaining.
+         */
         elproto.prepend = function (el) {
             if (el) {
                 clearParentCHull(this);
-                if (el.type == 'set') {
+                if (el.type == "set") {
                     const it = this;
                     let first;
                     el.forEach(function (el) {
@@ -5418,24 +5430,24 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
             return this;
         };
-    /**
-     * Prepends this element to the specified parent.
-     * @param {Element} el Parent element to receive this node.
-     * @returns {Element} Child element for chaining.
-     */
+        /**
+         * Prepends this element to the specified parent.
+         * @param {Element} el Parent element to receive this node.
+         * @returns {Element} Child element for chaining.
+         */
         elproto.prependTo = function (el) {
             el = wrap(el);
             el.prepend(this);
             return this;
         };
-    /**
-     * Inserts the provided element before the current element.
-     * @param {Element|Set} el Element to insert.
-     * @returns {Element} Parent element for chaining.
-     */
+        /**
+         * Inserts the provided element before the current element.
+         * @param {Element|Set} el Element to insert.
+         * @returns {Element} Parent element for chaining.
+         */
         elproto.before = function (el) {
             clearParentCHull(this);
-            if (el.type == 'set') {
+            if (el.type == "set") {
                 const it = this;
                 el.forEach(function (el) {
                     const parent = el.parent();
@@ -5453,11 +5465,11 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el.paper = this.paper;
             return this;
         };
-    /**
-     * Inserts the provided element after the current element.
-     * @param {Element} el Element to insert.
-     * @returns {Element} Parent element for chaining.
-     */
+        /**
+         * Inserts the provided element after the current element.
+         * @param {Element} el Element to insert.
+         * @returns {Element} Parent element for chaining.
+         */
         elproto.after = function (el) {
             el = wrap(el);
             clearParentCHull(this);
@@ -5477,11 +5489,11 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el.paper = this.paper;
             return this;
         };
-    /**
-     * Inserts the current element before the provided sibling.
-     * @param {Element} el Sibling element used as insertion point.
-     * @returns {Element} Parent element for chaining.
-     */
+        /**
+         * Inserts the current element before the provided sibling.
+         * @param {Element} el Sibling element used as insertion point.
+         * @returns {Element} Parent element for chaining.
+         */
         elproto.insertBefore = function (el) {
             el = wrap(el);
             clearParentCHull(el);
@@ -5492,11 +5504,11 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el.parent() && el.parent().add();
             return this;
         };
-    /**
-     * Inserts the current element after the provided sibling.
-     * @param {Element} el Sibling element used as insertion reference.
-     * @returns {Element} Parent element for chaining.
-     */
+        /**
+         * Inserts the current element after the provided sibling.
+         * @param {Element} el Sibling element used as insertion reference.
+         * @returns {Element} Parent element for chaining.
+         */
         elproto.insertAfter = function (el) {
             el = wrap(el);
             clearParentCHull(el);
@@ -5507,10 +5519,10 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el.parent() && el.parent().add();
             return this;
         };
-    /**
-     * Removes the element from the DOM and detaches partner associations.
-     * @returns {Array<Element>} Collection of child elements that were detached alongside this element.
-     */
+        /**
+         * Removes the element from the DOM and detaches partner associations.
+         * @returns {Array<Element>} Collection of child elements that were detached alongside this element.
+         */
         elproto.remove = function () {
             clearParentCHull(this);
             const parent = this.parent();
@@ -5530,14 +5542,14 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             // parent && parent.add();
             return this.getChildren();
         };
-    /**
-     * Removes all child elements from the DOM.
-     */
+        /**
+         * Removes all child elements from the DOM.
+         */
         elproto.removeChildren = function () {
             this.getChildren().forEach(function (el) {
                 el.remove();
             });
-            if (this.hasOwnProperty('sub_children')) this.sub_children = [];
+            if (this.hasOwnProperty("sub_children")) this.sub_children = [];
 
             return this;
         };
@@ -5564,18 +5576,18 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     if (el._ghost_element) return false;
 
                     el.paper = that.paper;
-                    if (typeof visible === 'string') return (visible === el.type);
+                    if (typeof visible === "string") return (visible === el.type);
 
                     if (visible) {
-                        return (el.type === 'circle' || el.type === 'ellipse' || el.type ===
-                            'line' || el.type === 'g' || el.type === 'path' || el.type ===
-                            'polygon' || el.type === 'polyline' || el.type === 'rect' ||
-                            el.type === 'text' || el.type === 'tspan' || el.type ===
-                            'use' || el.type === 'image');
+                        return (el.type === "circle" || el.type === "ellipse" || el.type ===
+                            "line" || el.type === "g" || el.type === "path" || el.type ===
+                            "polygon" || el.type === "polyline" || el.type === "rect" ||
+                            el.type === "text" || el.type === "tspan" || el.type ===
+                            "use" || el.type === "image");
                     } else {
                         return !(el.node.nodeType > 1 ||
-                            el.type === 'defs' ||
-                            el.type === 'desc');
+                            el.type === "defs" ||
+                            el.type === "desc");
                     }
                 },
             );
@@ -5592,22 +5604,22 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             // });
         };
 
-    /**
-     * Determines whether the element contains any non-meta child nodes.
-     * @returns {boolean} True when at least one meaningful child exists.
-     */
-    elproto.hasChildren = function () {
-            if (this.type !== 'g' || this.type !== 'svg' || this.type !== 'clipPath') {
+        /**
+         * Determines whether the element contains any non-meta child nodes.
+         * @returns {boolean} True when at least one meaningful child exists.
+         */
+        elproto.hasChildren = function () {
+            if (this.type !== "g" || this.type !== "svg" || this.type !== "clipPath") {
                 return false;
             }
             const children = this.children();
             let i = 0, el;
             for (; i < children.length; ++i) {
                 el = children[i];
-                if (!(el.type === '#text' ||
-                    el.type === '#comment' ||
-                    el.type === 'defs' ||
-                    el.type === 'desc')) {
+                if (!(el.type === "#text" ||
+                    el.type === "#comment" ||
+                    el.type === "defs" ||
+                    el.type === "desc")) {
                     return true;
                 }
             }
@@ -5638,12 +5650,12 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return set;
         };
 
-    /**
-     * Transforms numeric ID selectors into attribute selectors for SVG compatibility.
-     * @param {string} cssQuery Raw CSS selector string.
-     * @returns {string} Selector with numeric ID references translated.
-     */
-    function replaceNumericIdSelectors(cssQuery) {
+        /**
+         * Transforms numeric ID selectors into attribute selectors for SVG compatibility.
+         * @param {string} cssQuery Raw CSS selector string.
+         * @returns {string} Selector with numeric ID references translated.
+         */
+        function replaceNumericIdSelectors(cssQuery) {
             // Regular expression to match ID selectors starting with a number
             const regex = /#(\d[\w-]*)/g;
 
@@ -5653,12 +5665,12 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return modifiedQuery;
         }
 
-    /**
-     * Resolves an attribute value into pixels.
-     * @param {string} attr Attribute name.
-     * @param {string|number} [value] Optional raw value; defaults to the current attribute.
-     * @returns {number} Attribute value converted to pixels.
-     */
+        /**
+         * Resolves an attribute value into pixels.
+         * @param {string} attr Attribute name.
+         * @param {string|number} [value] Optional raw value; defaults to the current attribute.
+         * @returns {number} Attribute value converted to pixels.
+         */
         elproto.asPX = function (attr, value) {
             if (value == null) {
                 value = this.attr(attr);
@@ -5666,22 +5678,22 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return +unit2px(this, attr, value);
         };
 // SIERRA Element.use(): I suggest adding a note about how to access the original element the returned <use> instantiates. It's a part of SVG with which ordinary web developers may be least familiar.
-    /**
-     * Creates a `<use>` element referencing this element or one matched by the provided selector and appends it.
-     * @param {string} [css_ref] CSS reference resolving to an element to clone.
-     * @param {number} [x] Optional x-offset applied to the generated `<use>`.
-     * @param {number} [y] Optional y-offset applied to the generated `<use>`.
-     * @returns {Element|undefined} The newly created `<use>` element, or `undefined` when the selector fails.
-     */
+        /**
+         * Creates a `<use>` element referencing this element or one matched by the provided selector and appends it.
+         * @param {string} [css_ref] CSS reference resolving to an element to clone.
+         * @param {number} [x] Optional x-offset applied to the generated `<use>`.
+         * @param {number} [y] Optional y-offset applied to the generated `<use>`.
+         * @returns {Element|undefined} The newly created `<use>` element, or `undefined` when the selector fails.
+         */
         elproto.addUse = function (css_ref, x, y) {
             let use,
                 id = this.node.id;
 
-            if (css_ref !== undefined && typeof css_ref === 'string') {
+            if (css_ref !== undefined && typeof css_ref === "string") {
                 var select = this.paper.select(css_ref);
                 if (select) {
                     use = select.use();
-                    if (typeof x == 'number' && typeof y == 'number') {
+                    if (typeof x == "number" && typeof y == "number") {
                         use.attr({x: x, y: y});
                     }
                     this.append(use);
@@ -5695,17 +5707,17 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     id: id,
                 });
             }
-            if (this.type === 'linearGradient' || this.type === 'radialGradient' ||
-                this.type === 'pattern') {
+            if (this.type === "linearGradient" || this.type === "radialGradient" ||
+                this.type === "pattern") {
                 use = make(this.type, this.node.parentNode);
             }
-            if (this.type === 'svg') {
-                use = make('use', this.node);
+            if (this.type === "svg") {
+                use = make("use", this.node);
             } else {
-                use = make('use', this.node.parentNode);
+                use = make("use", this.node.parentNode);
             }
             $(use.node, {
-                'href': '#' + id,
+                "href": "#" + id,
             });
             use.use_target = this;
             return use;
@@ -5713,13 +5725,13 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         elproto.use = elproto.addUse;
 
-    /**
-     * Normalises IDs within a cloned subtree to avoid collisions.
-     * @param {Element} el Root element containing cloned nodes.
-     * @param {Function} [id_rename_callback] Callback returning the new ID for a given current ID.
-     */
-    function fixids(el, id_rename_callback) {
-            const els = el.selectAll('*');
+        /**
+         * Normalises IDs within a cloned subtree to avoid collisions.
+         * @param {Element} el Root element containing cloned nodes.
+         * @param {Function} [id_rename_callback] Callback returning the new ID for a given current ID.
+         */
+        function fixids(el, id_rename_callback) {
+            const els = el.selectAll("*");
             let it;
             const url = /^\s*url\(("|'|)(.*)\1\)\s*$/,
                 ids = [],
@@ -5729,7 +5741,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 let val = $(it.node, name);
                 val = val && val.match(url);
                 val = val && val[2];
-                if (val && val.charAt() == '#') {
+                if (val && val.charAt() == "#") {
                     val = val.substring(1);
                 } else {
                     return;
@@ -5744,28 +5756,28 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
 
             function linktest(it) {
-                let val = $(it.node, 'href');
-                if (val && val.charAt() == '#') {
+                let val = $(it.node, "href");
+                if (val && val.charAt() == "#") {
                     val = val.substring(1);
                 } else {
                     return;
                 }
                 if (val) {
                     uses[val] = (uses[val] || []).concat(function (id) {
-                        it.attr('href', '#' + id);
+                        it.attr("href", "#" + id);
                     });
                 }
             }
 
             for (var i = 0, ii = els.length; i < ii; ++i) {
                 it = els[i];
-                urltest(it, 'fill');
-                urltest(it, 'stroke');
-                urltest(it, 'filter');
-                urltest(it, 'mask');
-                urltest(it, 'clip-path');
+                urltest(it, "fill");
+                urltest(it, "stroke");
+                urltest(it, "filter");
+                urltest(it, "mask");
+                urltest(it, "clip-path");
                 linktest(it);
-                const oldid = $(it.node, 'id');
+                const oldid = $(it.node, "id");
                 if (oldid) {
                     const new_id = (id_rename_callback) ? id_rename_callback(oldid) : it.id;
                     $(it.node, {id: new_id});
@@ -5787,68 +5799,68 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         }
 
-    /**
-     * Clones the element, optionally hiding it, renaming IDs, or performing a deep `use` expansion.
-     * @param {boolean} [hidden] When true, skips inserting the clone into the DOM.
-     * @param {Function} [id_rename_callback] Callback used to generate unique IDs for the clone and descendants.
-     * @param {boolean} [deep_copy=false] When true, expands `<use>` references into actual nodes.
-     * @returns {Element} Cloned element.
-     */
+        /**
+         * Clones the element, optionally hiding it, renaming IDs, or performing a deep `use` expansion.
+         * @param {boolean} [hidden] When true, skips inserting the clone into the DOM.
+         * @param {Function} [id_rename_callback] Callback used to generate unique IDs for the clone and descendants.
+         * @param {boolean} [deep_copy=false] When true, expands `<use>` references into actual nodes.
+         * @returns {Element} Cloned element.
+         */
         elproto.clone = function (hidden, id_rename_callback, deep_copy) {
-            if (typeof hidden === 'function') {
+            if (typeof hidden === "function") {
                 id_rename_callback = hidden;
                 hidden = undefined;
             }
-            const id = this.attr('id');
+            const id = this.attr("id");
             const clone = wrap(this.node.cloneNode(true));
             if (!hidden) clone.insertAfter(this);
-            if ($(clone.node, 'id')) {
+            if ($(clone.node, "id")) {
                 const new_id = (id_rename_callback) ?
-                    id_rename_callback($(clone.node, 'id')) :
+                    id_rename_callback($(clone.node, "id")) :
                     clone.id;
                 $(clone.node, {id: new_id});
             }
             fixids(clone, id_rename_callback);
             clone.paper = this.paper;
-            if (id && !id_rename_callback) clone.attr('id', id);
+            if (id && !id_rename_callback) clone.attr("id", id);
             if (deep_copy) clone.removeUses();
             return clone;
         };
 
         const groupLikeTest = {
             //svg tags
-           g: true,
-           mask: true,
-           pattern: true,
-           symbol: true,
-           clippath: true,
-           defs: true,
-           svg: true,
+            g: true,
+            mask: true,
+            pattern: true,
+            symbol: true,
+            clippath: true,
+            defs: true,
+            svg: true,
             //html tags now
-           body: true,
-           head: true,
-           div: true,
-           p: true,
-           span: true,
-           ul: true,
-           ol: true,
-           li: true,
-           table: true,
-           tbody: true,
-           thead: true,
-           tfoot: true,
-           tr: true,
-           td: true,
-           th: true,
-           section: true,
-           article: true,
-           aside: true,
-           nav: true,
-           main: true,
-           form: true,
-           fieldset: true,
-           legend: true,
-           label: true
+            body: true,
+            head: true,
+            div: true,
+            p: true,
+            span: true,
+            ul: true,
+            ol: true,
+            li: true,
+            table: true,
+            tbody: true,
+            thead: true,
+            tfoot: true,
+            tr: true,
+            td: true,
+            th: true,
+            section: true,
+            article: true,
+            aside: true,
+            nav: true,
+            main: true,
+            form: true,
+            fieldset: true,
+            legend: true,
+            label: true
         };
         /**
          * Determines whether the element behaves like a grouping container.
@@ -5869,26 +5881,26 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 return;
             }
 
-            if (this.type === 'use') {
+            if (this.type === "use") {
                 let matrix = this.getLocalMatrix(true);
-                const x = +this.attr('x');
-                const y = +this.attr('y');
+                const x = +this.attr("x");
+                const y = +this.attr("y");
                 matrix = matrix.multLeft(Snap.matrix().translate(x, y));
                 if (!this.use_target) {
-                    const href = this.attr('xlink:href') || this.attr('href');
+                    const href = this.attr("xlink:href") || this.attr("href");
                     if (href) {
-                        const elementId = href.substring(href.indexOf('#') + 1);
+                        const elementId = href.substring(href.indexOf("#") + 1);
                         this.use_target = Snap.elementFormId(elementId) ||
                             wrap(this.node.ownerDocument.getElementById(elementId));
                         if (!this.use_target) {
-                            console.log('Cannot fine use');
+                            console.log("Cannot fine use");
                         }
                     } else {
                         return;
                     }
                 }
                 let clone;
-                if (this.use_target.type === 'symbol') {
+                if (this.use_target.type === "symbol") {
                     clone = this.paper.g();
                     clone.add(this.getChildren());
                 } else {
@@ -5898,34 +5910,34 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 this.after(clone);
                 clone.removeUses();
                 clone.addTransform(matrix);
-                clone.attr('id', this.getId());
+                clone.attr("id", this.getId());
                 this.remove();
             }
         };
 
-    /**
-     * Moves the element into the shared `<defs>` section.
-     * @returns {Element} Current element for chaining.
-     */
+        /**
+         * Moves the element into the shared `<defs>` section.
+         * @returns {Element} Current element for chaining.
+         */
         elproto.toDefs = function () {
             const defs = getSomeDefs(this);
             defs.appendChild(this.node);
             return this;
         };
-    /**
-     * Converts the current element into a reusable `<pattern>` definition.
-     * @param {number|Object} [x] X coordinate or bounding-box object.
-     * @param {number} [y]
-     * @param {number} [width]
-     * @param {number} [height]
-     * @returns {Element} Pattern element that now owns the node.
-     */
+        /**
+         * Converts the current element into a reusable `<pattern>` definition.
+         * @param {number|Object} [x] X coordinate or bounding-box object.
+         * @param {number} [y]
+         * @param {number} [width]
+         * @param {number} [height]
+         * @returns {Element} Pattern element that now owns the node.
+         */
         elproto.pattern = elproto.toPattern = function (x, y, width, height) {
-            const p = make('pattern', getSomeDefs(this));
+            const p = make("pattern", getSomeDefs(this));
             if (x == null) {
                 x = this.getBBox();
             }
-            if (is(x, 'object') && 'x' in x) {
+            if (is(x, "object") && "x" in x) {
                 y = x.y;
                 width = x.width;
                 height = x.height;
@@ -5936,9 +5948,9 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 y: y,
                 width: width,
                 height: height,
-                patternUnits: 'userSpaceOnUse',
+                patternUnits: "userSpaceOnUse",
                 id: p.id,
-                viewBox: [x, y, width, height].join(' '),
+                viewBox: [x, y, width, height].join(" "),
             });
             p.node.appendChild(this.node);
             return p;
@@ -5955,11 +5967,11 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @returns {Element} Marker element referencing the current node.
          */
         elproto.marker = function (x, y, width, height, refX, refY) {
-            const p = make('marker', getSomeDefs(this));
+            const p = make("marker", getSomeDefs(this));
             if (x == null) {
                 x = this.getBBox();
             }
-            if (is(x, 'object') && 'x' in x) {
+            if (is(x, "object") && "x" in x) {
                 y = x.y;
                 width = x.width;
                 height = x.height;
@@ -5968,10 +5980,10 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 x = x.x;
             }
             $(p.node, {
-                viewBox: [x, y, width, height].join(' '),
+                viewBox: [x, y, width, height].join(" "),
                 markerWidth: width,
                 markerHeight: height,
-                orient: 'auto',
+                orient: "auto",
                 refX: refX || 0,
                 refY: refY || 0,
                 id: p.id,
@@ -5982,16 +5994,16 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         const eldata = {};
         /**
          * Element.data @method
- *
+         *
          * Adds or retrieves given value associated with given key. (Don’t confuse
          * with `data-` attributes)
          *
          * See also @Element.removeData
- * @param {string} key - key to store data
- * @param {any} value - #optional value to store
- * @returns {object} @Element
+         * @param {string} key - key to store data
+         * @param {any} value - #optional value to store
+         * @returns {object} @Element
          * or, if value is not specified:
- * @returns {any} value
+         * @returns {any} value
          > Usage
          | for (var i = 0, i < 5, i++) {
          |     paper.circle(10 + 15 * i, 10, 10)
@@ -6005,30 +6017,30 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         elproto.data = function (key, value) {
             const data = eldata[this.id] = eldata[this.id] || {};
             if (arguments.length == 0) {
-                Snap._dataEvents && eve(['snap', 'data', 'get', this.id], this, data, null);
+                Snap._dataEvents && eve(["snap", "data", "get", this.id], this, data, null);
                 return data;
             }
             if (arguments.length == 1) {
-                if (Snap.is(key, 'object')) {
+                if (Snap.is(key, "object")) {
                     for (let i in key) if (key[has](i)) {
                         this.data(i, key[i]);
                     }
                     return this;
                 }
-                Snap._dataEvents && eve(['snap', 'data', 'get', this.id], this, data[key], key);
+                Snap._dataEvents && eve(["snap", "data", "get", this.id], this, data[key], key);
                 return data[key];
             }
             data[key] = value;
-            Snap._dataEvents && eve(['snap', 'data', 'set', this.id], this, value, key);
+            Snap._dataEvents && eve(["snap", "data", "set", this.id], this, value, key);
             return this;
         };
         /**
          * Element.removeData @method
- *
+         *
          * Removes value associated with an element by given key.
          * If key is not provided, removes all the data of the element.
- * @param {string} key - #optional key
- * @returns {object} @Element
+         * @param {string} key - #optional key
+         * @returns {object} @Element
          */
         elproto.removeData = function (key) {
             if (key == null) {
@@ -6040,29 +6052,29 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Element.outerSVG @method
- *
+         *
          * Returns SVG code for the element, equivalent to HTML's `outerHTML`.
          *
          * See also @Element.innerSVG
- * @returns {string} SVG code for the element
+         * @returns {string} SVG code for the element
          */
         /**
          * Element.toString @method
- *
+         *
          * See @Element.outerSVG
          */
         elproto.outerSVG = elproto.toString = toString(1);
         /**
          * Element.innerSVG @method
- *
+         *
          * Returns SVG code for the element's contents, equivalent to HTML's `innerHTML`
- * @returns {string} SVG code for the element
+         * @returns {string} SVG code for the element
          */
         elproto.innerSVG = toString();
 
         function toString(type) {
             return function () {
-                let res = type ? '<' + this.type : '';
+                let res = type ? "<" + this.type : "";
                 const attr = this.node.attributes,
                     chld = this.node.childNodes;
 
@@ -6075,13 +6087,13 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 if (type) {
                     let quote_rep;
                     for (var i = 0, ii = attr.length; i < ii; ++i) {
-                        quote_rep = (attr[i].name === 'style') ? '\'' : '\\"';
-                        res += ' ' + attr[i].name + '="' +
-                            attr[i].value.replace(/"/g, quote_rep) + '"';
+                        quote_rep = (attr[i].name === "style") ? "'" : "\\\"";
+                        res += " " + attr[i].name + "=\"" +
+                            attr[i].value.replace(/"/g, quote_rep) + "\"";
                     }
                 }
                 if (chld.length) {
-                    type && (res += '>');
+                    type && (res += ">");
                     for (i = 0, ii = chld.length; i < ii; ++i) {
                         if (chld[i].nodeType == 3) {
                             res += chld[i].nodeValue;
@@ -6089,9 +6101,9 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                             res += wrap(chld[i]).toString();
                         }
                     }
-                    type && (res += '</' + this.type + '>');
+                    type && (res += "</" + this.type + ">");
                 } else {
-                    type && (res += '/>');
+                    type && (res += "/>");
                 }
                 return res;
             };
@@ -6101,7 +6113,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             if (window && window.btoa) {
                 const bb = this.getBBox(),
                     svg = Snap.format(
-                        '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{width}" height="{height}" viewBox="{x} {y} {width} {height}">{contents}</svg>',
+                        "<svg version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{width}\" height=\"{height}\" viewBox=\"{x} {y} {width} {height}\">{contents}</svg>",
                         {
                             x: +bb.x.toFixed(3),
                             y: +bb.y.toFixed(3),
@@ -6109,7 +6121,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                             height: +bb.height.toFixed(3),
                             contents: this.outerSVG(),
                         });
-                return 'data:image/svg+xml;base64,' +
+                return "data:image/svg+xml;base64," +
                     btoa(unescape(encodeURIComponent(svg)));
             }
         };
@@ -6240,13 +6252,13 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Fragment.select @method
- *
+         *
          * See @Element.select
          */
         Fragment.prototype.select = elproto.select;
         /**
          * Fragment.selectAll @method
- *
+         *
          * See @Element.selectAll
          */
         Fragment.prototype.selectAll = elproto.selectAll;
@@ -6282,37 +6294,39 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * @param {(number|string|SVGElement)} w Width of the surface or an existing SVG element.
      * @param {(number|string)} [h] Height of the surface when `w` is a numeric or string size.
      */
-    function Paper(w, h) {
-        let res,
-            defs;
-        const proto = Paper.prototype;
-        if (w && w.tagName && w.tagName.toLowerCase() === "svg") {
-            if (w.snap in hub) {
-                return hub[w.snap];
+    class Paper {
+        constructor(w, h) {
+            let res,
+                defs;
+            const proto = Paper.prototype;
+            if (w && w.tagName && w.tagName.toLowerCase() === "svg") {
+                if (w.snap in hub) {
+                    return hub[w.snap];
+                }
+                const doc = w.ownerDocument;
+                const ElementClass = Snap.getClass("Element");
+                res = new ElementClass(w);
+                defs = w.getElementsByTagName("defs")[0];
+                if (!defs) {
+                    defs = $("defs");
+                    res.node.appendChild(defs);
+                }
+                res.defs = defs;
+                for (let key in proto) if (proto[has](key)) {
+                    res[key] = proto[key];
+                }
+                res.paper = res.root = res;
+            } else {
+                res = Snap._.make("svg", glob.doc.body);
+                $(res.node, {
+                    height: h,
+                    version: 1.1,
+                    width: w,
+                    xmlns: xmlns,
+                });
             }
-            const doc = w.ownerDocument;
-            const ElementClass = Snap.getClass("Element");
-            res = new ElementClass(w);
-            defs = w.getElementsByTagName("defs")[0];
-            if (!defs) {
-                defs = $("defs");
-                res.node.appendChild(defs);
-            }
-            res.defs = defs;
-            for (let key in proto) if (proto[has](key)) {
-                res[key] = proto[key];
-            }
-            res.paper = res.root = res;
-        } else {
-            res = make("svg", glob.doc.body);
-            $(res.node, {
-                height: h,
-                version: 1.1,
-                width: w,
-                xmlns: xmlns,
-            });
+            return res;
         }
-        return res;
     }
 
     // Register the Paper class with Snap
@@ -6324,6 +6338,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a rectangle on the paper.
      *
      * @function Snap.Paper#rect
+     * @function Snap.Element#rect
      * @param {number} x X coordinate of the top-left corner.
      * @param {number} y Y coordinate of the top-left corner.
      * @param {number} width Rectangle width.
@@ -6377,6 +6392,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a circle.
      *
      * @function Snap.Paper#circle
+     * @function Snap.Element#circle
      * @param {number} x X coordinate of the centre.
      * @param {number} y Y coordinate of the centre.
      * @param {number} r Circle radius.
@@ -6422,6 +6438,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Places an image on the surface.
      *
      * @function Snap.Paper#image
+     * @function Snap.Element#image
      * @param {string|Object} src Image URL or attribute map containing at least a `src` property.
      * @param {number} [x] Horizontal offset on the paper.
      * @param {number} [y] Vertical offset on the paper.
@@ -6466,6 +6483,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws an ellipse.
      *
      * @function Snap.Paper#ellipse
+     * @function Snap.Element#ellipse
      * @param {number} x X coordinate of the centre.
      * @param {number} y Y coordinate of the centre.
      * @param {number} rx Horizontal radius.
@@ -6496,6 +6514,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * comma- or space-separated numeric arguments (for example, `"M10,20L30,40"`).
      *
      * @function Snap.Paper#path
+     * @function Snap.Element#path
      * @param {(string|Array|Object)} [pathString] SVG path string, an array of segments, or an
      *        attribute map applied to the created element.
      * @returns {Snap.Element} The resulting path element.
@@ -6519,6 +6538,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * The last argument may be an attribute map applied to the created group.
      *
      * @function Snap.Paper#g
+     * @function Snap.Element#g
      * @alias Snap.Paper#def_group
      * @param {...any} elements Elements to append to the group. When the final argument
      *        is a plain object without `type` or `paper` properties, it is treated as the attribute map.
@@ -6550,6 +6570,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates a nested `<svg>` element.
      *
      * @function Snap.Paper#svg
+     * @function Snap.Element#svg
      * @param {number} [x] X coordinate of the embedded SVG.
      * @param {number} [y] Y coordinate of the embedded SVG.
      * @param {number|string} [width] Viewport width.
@@ -6590,6 +6611,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * parameters are added to the mask as children.
      *
      * @function Snap.Paper#mask
+     * @function Snap.Element#mask
      * @param {...any} nodes Elements to include in the mask or a terminating attribute map.
      * @returns {Snap.Element} The mask element.
      */
@@ -6607,6 +6629,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates an SVG `<pattern>` element, optionally configuring its position, size, and viewBox.
      *
      * @function Snap.Paper#ptrn
+     * @function Snap.Element#ptrn
      * @param {number} [x] X coordinate of the pattern.
      * @param {number} [y] Y coordinate of the pattern.
      * @param {number} [width] Width of the pattern tile.
@@ -6649,6 +6672,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates an SVG `<use>` element referencing an existing symbol or node.
      *
      * @function Snap.Paper#use
+     * @function Snap.Element#use
      * @param {(string|Snap.Element|Object)} [id] ID of the element to reference, the element itself,
      *        or an attribute map containing an `id` property. When omitted the method defers to the
      *        {@link Snap.Element#use} behaviour.
@@ -6684,6 +6708,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates an SVG `<symbol>` element.
      *
      * @function Snap.Paper#symbol
+     * @function Snap.Element#symbol
      * @param {number} [vbx] ViewBox x origin.
      * @param {number} [vby] ViewBox y origin.
      * @param {number} [vbw] ViewBox width.
@@ -6703,6 +6728,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a text string.
      *
      * @function Snap.Paper#text
+     * @function Snap.Element#text
      * @param {number} x X coordinate of the baseline origin.
      * @param {number} y Y coordinate of the baseline origin.
      * @param {(string|Array.<string>)} text Text content or an array of strings that become nested `<tspan>` elements.
@@ -6729,6 +6755,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a line segment between two points.
      *
      * @function Snap.Paper#line
+     * @function Snap.Element#line
      * @param {number} x1 Start point X coordinate.
      * @param {number} y1 Start point Y coordinate.
      * @param {number} x2 End point X coordinate.
@@ -6777,6 +6804,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a polyline through a list of coordinates.
      *
      * @function Snap.Paper#polyline
+     * @function Snap.Element#polyline
      * @param {(Array.<number>|...number)} points Coordinate list. Provide either a flat array or individual arguments.
      * @param {Object} [attr] Attribute map applied to the element.
      * @returns {Snap.Element} The polyline element.
@@ -6791,6 +6819,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a closed polygon by joining supplied coordinates.
      *
      * @function Snap.Paper#polygon
+     * @function Snap.Element#polygon
      * @see Snap.Paper#polyline
      * @param {(Array.<number>|...number)} points Coordinate list as an array or individual numbers.
      * @param {Object} [attr] Attribute map for the polygon element.
@@ -6977,6 +7006,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
          * `:offset` suffixes.
          *
          * @function Snap.Paper#gradient
+         * @function Snap.Element#gradient
          * @param {string} str Gradient descriptor.
          * @returns {Snap.Element} The gradient element.
          * @example
@@ -6989,6 +7019,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         /**
          * Creates a linear gradient with the given bounding coordinates.
          * @function Snap.Paper#gradientLinear
+         * @function Snap.Element#gradientLinear
          * @param {number} x1 Start x coordinate.
          * @param {number} y1 Start y coordinate.
          * @param {number} x2 End x coordinate.
@@ -7001,6 +7032,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         /**
          * Creates a radial gradient centred at the supplied coordinates.
          * @function Snap.Paper#gradientRadial
+         * @function Snap.Element#gradientRadial
          * @param {number} cx Centre x coordinate.
          * @param {number} cy Centre y coordinate.
          * @param {number} r Radius of the gradient.
@@ -7069,6 +7101,8 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      *
      * Creates an element on paper with a given name and no attributes
      *
+     * @function Snap.Paper#el
+     * @function Snap.Element#el
      * @param {string} name - tag name
      * @param {object} attr - attributes
      * @returns {Element} the current element
@@ -7110,6 +7144,423 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
     }
 })
 ;
+
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+function _ccw(p1, p2, p3) {
+    return (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0]) <= 0;
+}
+
+function _tangent(pointset) {
+    const res = [];
+    for (let t = 0; t < pointset.length; t++) {
+        while (res.length > 1 && _ccw(res[res.length - 2], res[res.length - 1], pointset[t])) {
+            res.pop();
+        }
+        res.push(pointset[t]);
+    }
+    res.pop();
+    return res;
+}
+
+// pointset has to be sorted by X
+function convex(pointset) {
+    const upper = _tangent(pointset),
+          lower = _tangent(pointset.reverse());
+    const convex = lower.concat(upper);
+    convex.push(pointset[0]);
+    return convex;
+}
+
+module.exports = convex;
+
+},{}],2:[function(require,module,exports){
+module.exports = {
+
+    toXy: function(pointset, format) {
+        if (format === undefined) {
+            return pointset.slice();
+        }
+
+        const xPropertyName = format[0].slice(1);
+        const yPropertyName = format[1].slice(1);
+        const _getXY = function(pt) {
+            return [pt[xPropertyName], pt[yPropertyName]];
+        };
+
+        return pointset.map(_getXY);
+    },
+
+    fromXy: function(pointset, format) {
+        if (format === undefined) {
+            return pointset.slice();
+        }
+
+        const xPropertyName = format[0].slice(1);
+        const yPropertyName = format[1].slice(1);
+        const _getObj = function(pt) {
+            const obj = {};
+            obj[xPropertyName] = pt[0];
+            obj[yPropertyName] = pt[1];
+            return obj;
+        };
+
+        return pointset.map(function(pt) {
+            return _getObj(pt);
+        });
+    }
+
+};
+},{}],3:[function(require,module,exports){
+function Grid(points, cellSize) {
+    this._cells = [];
+    this._cellSize = cellSize;
+    this._reverseCellSize = 1 / cellSize;
+
+    for (let i = 0; i < points.length; i++) {
+        const point = points[i];
+        const x = this.coordToCellNum(point[0]);
+        const y = this.coordToCellNum(point[1]);
+        if (!this._cells[x]) {
+            const array = [];
+            array[y] = [point];
+            this._cells[x] = array;
+        } else if (!this._cells[x][y]) {
+            this._cells[x][y] = [point];
+        } else {
+            this._cells[x][y].push(point);
+        }
+    }
+}
+
+Grid.prototype = {
+    cellPoints: function(x, y) { // (Number, Number) -> Array
+        return (this._cells[x] !== undefined && this._cells[x][y] !== undefined) ? this._cells[x][y] : [];
+    },
+
+    rangePoints: function(bbox) { // (Array) -> Array
+        const tlCellX = this.coordToCellNum(bbox[0]);
+        const tlCellY = this.coordToCellNum(bbox[1]);
+        const brCellX = this.coordToCellNum(bbox[2]);
+        const brCellY = this.coordToCellNum(bbox[3]);
+        const points = [];
+
+        for (let x = tlCellX; x <= brCellX; x++) {
+            for (let y = tlCellY; y <= brCellY; y++) {
+                // replaced Array.prototype.push.apply to avoid hitting stack size limit on larger arrays.
+                for (let i = 0; i < this.cellPoints(x, y).length; i++) {
+                    points.push(this.cellPoints(x, y)[i]);
+                }
+            }
+        }
+
+        return points;
+    },
+
+    removePoint: function(point) { // (Array) -> Array
+        const cellX = this.coordToCellNum(point[0]);
+        const cellY = this.coordToCellNum(point[1]);
+        const cell = this._cells[cellX][cellY];
+        let pointIdxInCell;
+
+        for (let i = 0; i < cell.length; i++) {
+            if (cell[i][0] === point[0] && cell[i][1] === point[1]) {
+                pointIdxInCell = i;
+                break;
+            }
+        }
+
+        cell.splice(pointIdxInCell, 1);
+
+        return cell;
+    },
+
+    trunc: Math.trunc || function(val) { // (number) -> number
+        return val - val % 1;
+    },
+
+    coordToCellNum: function(x) { // (number) -> number
+        return this.trunc(x * this._reverseCellSize);
+    },
+
+    extendBbox: function(bbox, scaleFactor) { // (Array, Number) -> Array
+        return [
+            bbox[0] - (scaleFactor * this._cellSize),
+            bbox[1] - (scaleFactor * this._cellSize),
+            bbox[2] + (scaleFactor * this._cellSize),
+            bbox[3] + (scaleFactor * this._cellSize)
+        ];
+    }
+};
+
+function grid(points, cellSize) {
+    return new Grid(points, cellSize);
+}
+
+module.exports = grid;
+},{}],4:[function(require,module,exports){
+/* The license text can be found in the LICENSE file */
+
+'use strict';
+
+const intersect = require('./intersect.js');
+const grid = require('./grid.js');
+const formatUtil = require('./format.js');
+const convexHull = require('./convex.js');
+
+function _filterDuplicates(pointset) {
+    const unique = [pointset[0]];
+    let lastPoint = pointset[0];
+    for (let i = 1; i < pointset.length; i++) {
+        const currentPoint = pointset[i];
+        if (lastPoint[0] !== currentPoint[0] || lastPoint[1] !== currentPoint[1]) {
+            unique.push(currentPoint);
+        }
+        lastPoint = currentPoint;
+    }
+    return unique;
+}
+
+function _sortByX(pointset) {
+    return pointset.sort(function(a, b) {
+        return (a[0] - b[0]) || (a[1] - b[1]);
+    });
+}
+
+function _sqLength(a, b) {
+    return Math.pow(b[0] - a[0], 2) + Math.pow(b[1] - a[1], 2);
+}
+
+function _cos(o, a, b) {
+    const aShifted = [a[0] - o[0], a[1] - o[1]],
+        bShifted = [b[0] - o[0], b[1] - o[1]],
+        sqALen = _sqLength(o, a),
+        sqBLen = _sqLength(o, b),
+        dot = aShifted[0] * bShifted[0] + aShifted[1] * bShifted[1];
+
+    return dot / Math.sqrt(sqALen * sqBLen);
+}
+
+function _intersect(segment, pointset) {
+    for (let i = 0; i < pointset.length - 1; i++) {
+        const seg = [pointset[i], pointset[i + 1]];
+        if (segment[0][0] === seg[0][0] && segment[0][1] === seg[0][1] ||
+            segment[0][0] === seg[1][0] && segment[0][1] === seg[1][1]) {
+            continue;
+        }
+        if (intersect(segment, seg)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function _occupiedArea(pointset) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (let i = pointset.length - 1; i >= 0; i--) {
+        if (pointset[i][0] < minX) {
+            minX = pointset[i][0];
+        }
+        if (pointset[i][1] < minY) {
+            minY = pointset[i][1];
+        }
+        if (pointset[i][0] > maxX) {
+            maxX = pointset[i][0];
+        }
+        if (pointset[i][1] > maxY) {
+            maxY = pointset[i][1];
+        }
+    }
+
+    return [
+        maxX - minX, // width
+        maxY - minY  // height
+    ];
+}
+
+function _bBoxAround(edge) {
+    return [
+        Math.min(edge[0][0], edge[1][0]), // left
+        Math.min(edge[0][1], edge[1][1]), // top
+        Math.max(edge[0][0], edge[1][0]), // right
+        Math.max(edge[0][1], edge[1][1])  // bottom
+    ];
+}
+
+function _midPoint(edge, innerPoints, convex) {
+    let point = null,
+        angle1Cos = MAX_CONCAVE_ANGLE_COS,
+        angle2Cos = MAX_CONCAVE_ANGLE_COS,
+        a1Cos, a2Cos;
+
+    for (let i = 0; i < innerPoints.length; i++) {
+        a1Cos = _cos(edge[0], edge[1], innerPoints[i]);
+        a2Cos = _cos(edge[1], edge[0], innerPoints[i]);
+
+        if (a1Cos > angle1Cos && a2Cos > angle2Cos &&
+            !_intersect([edge[0], innerPoints[i]], convex) &&
+            !_intersect([edge[1], innerPoints[i]], convex)) {
+
+            angle1Cos = a1Cos;
+            angle2Cos = a2Cos;
+            point = innerPoints[i];
+        }
+    }
+
+    return point;
+}
+
+function _concave(convex, maxSqEdgeLen, maxSearchArea, grid, edgeSkipList) {
+    let midPointInserted = false;
+
+    for (let i = 0; i < convex.length - 1; i++) {
+        const edge = [convex[i], convex[i + 1]];
+        // generate a key in the format X0,Y0,X1,Y1
+        const keyInSkipList = edge[0][0] + ',' + edge[0][1] + ',' + edge[1][0] + ',' + edge[1][1];
+
+        if (_sqLength(edge[0], edge[1]) < maxSqEdgeLen ||
+            edgeSkipList.has(keyInSkipList)) { continue; }
+
+        let scaleFactor = 0;
+        let bBoxAround = _bBoxAround(edge);
+        let bBoxWidth;
+        let bBoxHeight;
+        let midPoint;
+        do {
+            bBoxAround = grid.extendBbox(bBoxAround, scaleFactor);
+            bBoxWidth = bBoxAround[2] - bBoxAround[0];
+            bBoxHeight = bBoxAround[3] - bBoxAround[1];
+
+            midPoint = _midPoint(edge, grid.rangePoints(bBoxAround), convex);
+            scaleFactor++;
+        }  while (midPoint === null && (maxSearchArea[0] > bBoxWidth || maxSearchArea[1] > bBoxHeight));
+
+        if (bBoxWidth >= maxSearchArea[0] && bBoxHeight >= maxSearchArea[1]) {
+            edgeSkipList.add(keyInSkipList);
+        }
+
+        if (midPoint !== null) {
+            convex.splice(i + 1, 0, midPoint);
+            grid.removePoint(midPoint);
+            midPointInserted = true;
+        }
+    }
+
+    if (midPointInserted) {
+        return _concave(convex, maxSqEdgeLen, maxSearchArea, grid, edgeSkipList);
+    }
+
+    return convex;
+}
+
+function hull(pointset, concavity, format) {
+    let maxEdgeLen = concavity || 20;
+
+    const points = _filterDuplicates(_sortByX(formatUtil.toXy(pointset, format)));
+
+    if (points.length < 4) {
+        const concave = points.concat([points[0]]);
+        return format ? formatUtil.fromXy(concave, format) : concave;
+    }
+
+    const occupiedArea = _occupiedArea(points);
+    const maxSearchArea = [
+        occupiedArea[0] * MAX_SEARCH_BBOX_SIZE_PERCENT,
+        occupiedArea[1] * MAX_SEARCH_BBOX_SIZE_PERCENT
+    ];
+
+    const convex = convexHull(points);
+    const innerPoints = points.filter(function(pt) {
+        return convex.indexOf(pt) < 0;
+    });
+
+    const cellSize = Math.ceil(1 / (points.length / (occupiedArea[0] * occupiedArea[1])));
+
+    const concave = _concave(
+        convex, Math.pow(maxEdgeLen, 2),
+        maxSearchArea, grid(innerPoints, cellSize), new Set());
+
+    return format ? formatUtil.fromXy(concave, format) : concave;
+}
+
+const MAX_CONCAVE_ANGLE_COS = Math.cos(90 / (180 / Math.PI)); // angle = 90 deg
+const MAX_SEARCH_BBOX_SIZE_PERCENT = 0.6;
+
+module.exports = hull;
+
+},{"./convex.js":1,"./format.js":2,"./grid.js":3,"./intersect.js":5}],5:[function(require,module,exports){
+function ccw(x1, y1, x2, y2, x3, y3) {           
+    const cw = ((y3 - y1) * (x2 - x1)) - ((y2 - y1) * (x3 - x1));
+    return cw > 0 ? true : cw < 0 ? false : true; // colinear
+}
+
+function intersect(seg1, seg2) {
+  const x1 = seg1[0][0], y1 = seg1[0][1],
+      x2 = seg1[1][0], y2 = seg1[1][1],
+      x3 = seg2[0][0], y3 = seg2[0][1],
+      x4 = seg2[1][0], y4 = seg2[1][1];
+
+    return ccw(x1, y1, x3, y3, x4, y4) !== ccw(x2, y2, x3, y3, x4, y4) && ccw(x1, y1, x2, y2, x3, y3) !== ccw(x1, y1, x2, y2, x4, y4);
+}
+
+module.exports = intersect;
+},{}],6:[function(require,module,exports){
+Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+    const _hull = require("hull.js");
+    /**
+     * Computes a concave hull for a given set of points and proxies the call to the underlying hull.js implementation.
+     *
+    * @param {PointCollection} points - Collection of points.
+    *        Accepts an array of coordinate tuples, a flat numeric array, or point objects with `x`/`y`.
+     * @param {number} [concavity] - Maximum concavity allowed by hull.js. Use `Infinity` (or omit) for a convex hull.
+     * @param {"simple"|undefined} [format] - Optional hull.js format flag. When omitted the output matches the input shape.
+    * @returns {(Array.<NumberPair>|Point2DList|null)} The computed hull or `null` when the input is invalid.
+     */
+    Snap.hull = function (points, concavity, format) {
+        //filter incorrect pionts;
+        points = points.filter(function (p){
+            return (!isNaN(p[0]) && !isNaN(p[1]))
+                ||  (!isNaN(p["x"]) && !isNaN(p["y"]))
+        })
+
+        if (Array.isArray(points[0])) {
+            return _hull(points, concavity, format);
+        }
+        if (!isNaN(points[0]) && points.length % 2 === 0) {
+            let pts = [];
+            for (let i = 0, l = points.length; i < l; i += 2) {
+                pts.push([+points[i], +points[i + 1]]);
+            }
+            return _hull(pts, concavity, format);
+        }
+        if (typeof points[0] === "object" && points[0].hasOwnProperty("x") && points[0].hasOwnProperty("y")) {
+            points = points.map((p) => [+p.x, +p.y]);
+            return _hull(points, concavity, format).map((p) => {
+                return {x: p[0], y: p[1]}
+            });
+        }
+
+        return null;
+    };
+
+    /**
+     * Convenience wrapper for `Snap.hull` that forces a convex hull by setting concavity to `Infinity`.
+     *
+    * @param {PointCollection} points - Collection of input points.
+     * @param {"simple"|undefined} [format] - Optional hull.js format flag.
+    * @returns {(Array.<NumberPair>|Point2DList|null)} Closed convex hull without the repeated last point.
+     */
+    Snap.convexHull = function (points, format) {
+        const hull = Snap.hull(points, Infinity, format);
+        hull && hull.pop();
+        return hull
+    }
+
+});
+},{"hull.js":4}]},{},[6]);
 
 // Copyright (c) 2016 Adobe Systems Incorporated. All rights reserved.
 //
@@ -7307,7 +7758,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var objectToString = Object.prototype.toString,
         Str = String,
-        math = Math,
         E = "";
 
     /**
@@ -7317,67 +7767,68 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      *
      * @class
      * @alias Snap.Matrix
-     * @param {number|SVGMatrix|string|Matrix} [a=1] - Either an existing matrix representation or the `a` component.
-     * @param {number} [b=0] - The `b` coefficient when numeric values are provided.
-     * @param {number} [c=0] - The `c` coefficient when numeric values are provided.
-     * @param {number} [d=1] - The `d` coefficient when numeric values are provided.
-     * @param {number} [e=0] - The `e` translation component when numeric values are provided.
-     * @param {number} [f=0] - The `f` translation component when numeric values are provided.
      */
-    function Matrix(a, b, c, d, e, f) {
-        if (b == null && objectToString.call(a) == "[object SVGMatrix]") {
-            this.a = a.a;
-            this.b = a.b;
-            this.c = a.c;
-            this.d = a.d;
-            this.e = a.e;
-            this.f = a.f;
-            return;
+    class Matrix {
+        /**
+         * Creates a new Matrix instance.
+         * @param {number|SVGMatrix|string|Matrix} [a=1] - Either an existing matrix representation or the `a` component.
+         * @param {number} [b=0] - The `b` coefficient when numeric values are provided.
+         * @param {number} [c=0] - The `c` coefficient when numeric values are provided.
+         * @param {number} [d=1] - The `d` coefficient when numeric values are provided.
+         * @param {number} [e=0] - The `e` translation component when numeric values are provided.
+         * @param {number} [f=0] - The `f` translation component when numeric values are provided.
+         */
+        constructor(a, b, c, d, e, f) {
+            if (b == null && objectToString.call(a) == "[object SVGMatrix]") {
+                this.a = a.a;
+                this.b = a.b;
+                this.c = a.c;
+                this.d = a.d;
+                this.e = a.e;
+                this.f = a.f;
+                return;
+            }
+            if (b == null && typeof a === "string") {
+                a = a.replace("matrix(", "").replace("(", "").replace(")", "");
+                a = a.split(",");
+                this.a = +a[0] || 0;
+                this.b = +a[1] || 0;
+                this.c = +a[2] || 0;
+                this.d = +a[3] || 0;
+                this.e = +a[4] || 0;
+                this.f = +a[5] || 0;
+                return;
+            }
+            if (a != null) {
+                this.a = +a;
+                this.b = +b;
+                this.c = +c;
+                this.d = +d;
+                this.e = +e;
+                this.f = +f;
+            } else {
+                this.a = 1;
+                this.b = 0;
+                this.c = 0;
+                this.d = 1;
+                this.e = 0;
+                this.f = 0;
+            }
         }
-        if (b == null && typeof a === "string") {
-            a = a.replace("matrix(", "").replace("(", "").replace(")", "");
-            a = a.split(",");
-            this.a = +a[0] || 0;
-            this.b = +a[1] || 0;
-            this.c = +a[2] || 0;
-            this.d = +a[3] || 0;
-            this.e = +a[4] || 0;
-            this.f = +a[5] || 0;
-            return;
-        }
-        if (a != null) {
-            this.a = +a;
-            this.b = +b;
-            this.c = +c;
-            this.d = +d;
-            this.e = +e;
-            this.f = +f;
-        } else {
-            this.a = 1;
-            this.b = 0;
-            this.c = 0;
-            this.d = 1;
-            this.e = 0;
-            this.f = 0;
-        }
-    }
 
-    Snap.registerType("matrix", Matrix);
-
-    (function (matrixproto) {
-    /**
-     * Multiplies the current matrix on the right by the supplied affine transform.
-     * If another {@link Matrix} instance is provided, its coefficients will be applied directly.
-     *
-     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
-     * @param {number} [b] - The `b` coefficient of the multiplier.
-     * @param {number} [c] - The `c` coefficient of the multiplier.
-     * @param {number} [d] - The `d` coefficient of the multiplier.
-     * @param {number} [e] - The `e` translation component of the multiplier.
-     * @param {number} [f] - The `f` translation component of the multiplier.
-     * @returns {Matrix} The matrix instance for chaining.
-     */
-        matrixproto.add = function (a, b, c, d, e, f) {
+        /**
+         * Multiplies the current matrix on the right by the supplied affine transform.
+         * If another {@link Matrix} instance is provided, its coefficients will be applied directly.
+         *
+         * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+         * @param {number} [b] - The `b` coefficient of the multiplier.
+         * @param {number} [c] - The `c` coefficient of the multiplier.
+         * @param {number} [d] - The `d` coefficient of the multiplier.
+         * @param {number} [e] - The `e` translation component of the multiplier.
+         * @param {number} [f] - The `f` translation component of the multiplier.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        add(a, b, c, d, e, f) {
             if (a && a instanceof Matrix) {
                 return this.add(a.a, a.b, a.c, a.d, a.e, a.f);
             }
@@ -7391,35 +7842,42 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.a = aNew;
             this.b = bNew;
             return this;
-        };
+        }
 
-        matrixproto.multRight = matrixproto.add;
+        /**
+         * Alias for {@link add} - multiplies on the right.
+         * @see add
+         */
+        multRight(a, b, c, d, e, f) {
+            return this.add(a, b, c, d, e, f);
+        }
 
-    /**
-     * Returns a clone of the current matrix multiplied on the right by the supplied transform.
-     *
-     * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
-     * @param {number} [b] - The `b` coefficient of the multiplier.
-     * @param {number} [c] - The `c` coefficient of the multiplier.
-     * @param {number} [d] - The `d` coefficient of the multiplier.
-     * @param {number} [e] - The `e` translation component of the multiplier.
-     * @param {number} [f] - The `f` translation component of the multiplier.
-     * @returns {Matrix} A new matrix containing the multiplied result.
-     */
-    matrixproto.plus = function (a, b, c, d, e, f) {
+        /**
+         * Returns a clone of the current matrix multiplied on the right by the supplied transform.
+         *
+         * @param {number|Matrix} a - Either another matrix or the `a` coefficient of the multiplier.
+         * @param {number} [b] - The `b` coefficient of the multiplier.
+         * @param {number} [c] - The `c` coefficient of the multiplier.
+         * @param {number} [d] - The `d` coefficient of the multiplier.
+         * @param {number} [e] - The `e` translation component of the multiplier.
+         * @param {number} [f] - The `f` translation component of the multiplier.
+         * @returns {Matrix} A new matrix containing the multiplied result.
+         */
+        plus(a, b, c, d, e, f) {
             if (a && a instanceof Matrix) {
                 return this.plus(a.a, a.b, a.c, a.d, a.e, a.f);
             }
 
             return this.clone().add(a, b, c, d, e, f);
-        };
-    /**
-     * Multiplies all affine coefficients by a scalar.
-     *
-     * @param {number} c - Scalar value applied to each coefficient.
-     * @returns {Matrix} The matrix instance for chaining.
-     */
-    matrixproto.scMult = function (c) {
+        }
+
+        /**
+         * Multiplies all affine coefficients by a scalar.
+         *
+         * @param {number} c - Scalar value applied to each coefficient.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        scMult(c) {
             this.a *= c;
             this.b *= c;
             this.c *= c;
@@ -7427,29 +7885,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.f *= c;
             this.e *= c;
             return this;
-        };
-    /**
-     * Returns a clone of the matrix scaled by the supplied scalar.
-     *
-     * @param {number} c - Scalar value applied to each coefficient.
-     * @returns {Matrix} A new matrix instance with scaled coefficients.
-     */
-    matrixproto.timesSc = function (c) {
+        }
+
+        /**
+         * Returns a clone of the matrix scaled by the supplied scalar.
+         *
+         * @param {number} c - Scalar value applied to each coefficient.
+         * @returns {Matrix} A new matrix instance with scaled coefficients.
+         */
+        timesSc(c) {
             return this.clone().scMult(c);
-        };
-    /**
-     * Multiplies the current matrix on the left by the supplied affine transform (pre-multiplication).
-     * Accepts a single matrix, an array of matrices, or individual coefficients.
-     *
-     * @param {number|Matrix|Array<number|Matrix>} a - Matrix, array of matrices, or the `a` coefficient of the multiplier.
-     * @param {number} [b] - The `b` coefficient when numeric values are provided.
-     * @param {number} [c] - The `c` coefficient when numeric values are provided.
-     * @param {number} [d] - The `d` coefficient when numeric values are provided.
-     * @param {number} [e] - The `e` translation component when numeric values are provided.
-     * @param {number} [f] - The `f` translation component when numeric values are provided.
-     * @returns {Matrix} The matrix instance for chaining.
-     */
-        Matrix.prototype.multLeft = function (a, b, c, d, e, f) {
+        }
+
+        /**
+         * Multiplies the current matrix on the left by the supplied affine transform (pre-multiplication).
+         * Accepts a single matrix, an array of matrices, or individual coefficients.
+         *
+         * @param {number|Matrix|Array<number|Matrix>} a - Matrix, array of matrices, or the `a` coefficient of the multiplier.
+         * @param {number} [b] - The `b` coefficient when numeric values are provided.
+         * @param {number} [c] - The `c` coefficient when numeric values are provided.
+         * @param {number} [d] - The `d` coefficient when numeric values are provided.
+         * @param {number} [e] - The `e` translation component when numeric values are provided.
+         * @param {number} [f] - The `f` translation component when numeric values are provided.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        multLeft(a, b, c, d, e, f) {
             if (Array.isArray(a)) {
                 if (a[0] instanceof Matrix) {
                     for (let i = a.length - 1; i > -1; --i) {
@@ -7478,25 +7938,28 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.c = cNew;
             this.e = eNew;
             return this;
-        };
+        }
+
         /**
          * Computes the inverse of the affine matrix.
          *
          * @returns {Matrix} A new matrix representing the inverse transform.
          */
-        matrixproto.invert = function () {
+        invert() {
             var me = this,
                 x = me.a * me.d - me.b * me.c;
             return new Matrix(me.d / x, -me.b / x, -me.c / x, me.a / x, (me.c * me.f - me.d * me.e) / x, (me.b * me.e - me.a * me.f) / x);
-        };
+        }
+
         /**
          * Creates an exact copy of the matrix.
          *
          * @returns {Matrix} A new matrix with identical coefficients.
          */
-        matrixproto.clone = function () {
+        clone() {
             return new Matrix(this.a, this.b, this.c, this.d, this.e, this.f);
-        };
+        }
+
         /**
          * Applies a translation to the matrix.
          *
@@ -7504,11 +7967,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {number} y - Vertical translation distance.
          * @returns {Matrix} The matrix instance for chaining.
          */
-        matrixproto.translate = function (x, y) {
+        translate(x, y) {
             this.e += x * this.a + y * this.c;
             this.f += x * this.b + y * this.d;
             return this;
-        };
+        }
+
         /**
          * Applies a scale transformation to the matrix.
          *
@@ -7518,7 +7982,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {number} [cy] - Optional vertical origin around which to scale.
          * @returns {Matrix} The matrix instance for chaining.
          */
-        matrixproto.scale = function (x, y, cx, cy) {
+        scale(x, y, cx, cy) {
             y == null && (y = x);
             (cx || cy) && this.translate(cx, cy);
             this.a *= x;
@@ -7527,7 +7991,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.d *= y;
             (cx || cy) && this.translate(-cx, -cy);
             return this;
-        };
+        }
+
         /**
          * Applies a rotation to the matrix.
          *
@@ -7536,33 +8001,36 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {number} [y=0] - Vertical origin around which to rotate.
          * @returns {Matrix} The matrix instance for chaining.
          */
-        matrixproto.rotate = function (a, x, y) {
+        rotate(a, x, y) {
             a = Snap.rad(a);
             x = x || 0;
             y = y || 0;
-            var cos = +math.cos(a).toFixed(9),
-                sin = +math.sin(a).toFixed(9);
+            var cos = +Math.cos(a).toFixed(9),
+                sin = +Math.sin(a).toFixed(9);
             this.add(cos, sin, -sin, cos, x, y);
             return this.add(1, 0, 0, 1, -x, -y);
-        };
+        }
+
         /**
          * Skews the matrix along the x-axis.
          *
          * @param {number} x - Angle, in degrees, to skew along the x-axis.
          * @returns {Matrix} The matrix instance for chaining.
          */
-        matrixproto.skewX = function (x) {
+        skewX(x) {
             return this.skew(x, 0);
-        };
+        }
+
         /**
          * Skews the matrix along the y-axis.
          *
          * @param {number} y - Angle, in degrees, to skew along the y-axis.
          * @returns {Matrix} The matrix instance for chaining.
          */
-        matrixproto.skewY = function (y) {
+        skewY(y) {
             return this.skew(0, y);
-        };
+        }
+
         /**
          * Applies a simultaneous skew transform on both axes.
          *
@@ -7570,15 +8038,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {number} [y=0] - Angle, in degrees, to skew along the y-axis.
          * @returns {Matrix} The matrix instance for chaining.
          */
-        matrixproto.skew = function (x, y) {
+        skew(x, y) {
             x = x || 0;
             y = y || 0;
             x = Snap.rad(x);
             y = Snap.rad(y);
-            var c = math.tan(x).toFixed(9);
-            var b = math.tan(y).toFixed(9);
+            var c = Math.tan(x).toFixed(9);
+            var b = Math.tan(y).toFixed(9);
             return this.add(1, b, c, 1, 0, 0);
-        };
+        }
+
         /**
          * Transforms a point and returns its x-coordinate.
          *
@@ -7586,9 +8055,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {number} y - Original y-coordinate.
          * @returns {number} The transformed x-coordinate.
          */
-        matrixproto.x = function (x, y) {
+        x(x, y) {
             return x * this.a + y * this.c + this.e;
-        };
+        }
+
         /**
          * Transforms a point and returns its y-coordinate.
          *
@@ -7596,24 +8066,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {number} y - Original y-coordinate.
          * @returns {number} The transformed y-coordinate.
          */
-        matrixproto.y = function (x, y) {
+        y(x, y) {
             return x * this.b + y * this.d + this.f;
-        };
+        }
 
-    /**
-     * Applies a pseudo-random translation, rotation, and scaling around an optional origin.
-     * Useful for generating varied transforms for effects or automated testing.
-     *
-     * @param {number} [cx=0] - Horizontal origin for rotation and scaling.
-     * @param {number} [cy=0] - Vertical origin for rotation and scaling.
-     * @param {boolean} [positive=false] - When `true`, restricts translations to positive offsets.
-     * @param {number} [distance=300] - Maximum translation distance along each axis.
-     * @param {boolean} [diff_scale=false] - When `true`, allows non-uniform (x/y) scaling.
-     * @param {boolean} [skip_rotation=false] - When `true`, prevents random rotation.
-     * @param {boolean} [skip_scale=false] - When `true`, prevents random scaling.
-     * @returns {Matrix} The matrix instance for chaining.
-     */
-    matrixproto.randomTrans = function (cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
+        /**
+         * Applies a pseudo-random translation, rotation, and scaling around an optional origin.
+         * Useful for generating varied transforms for effects or automated testing.
+         *
+         * @param {number} [cx=0] - Horizontal origin for rotation and scaling.
+         * @param {number} [cy=0] - Vertical origin for rotation and scaling.
+         * @param {boolean} [positive=false] - When `true`, restricts translations to positive offsets.
+         * @param {number} [distance=300] - Maximum translation distance along each axis.
+         * @param {boolean} [diff_scale=false] - When `true`, allows non-uniform (x/y) scaling.
+         * @param {boolean} [skip_rotation=false] - When `true`, prevents random rotation.
+         * @param {boolean} [skip_scale=false] - When `true`, prevents random scaling.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        randomTrans(cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
             distance = distance || 300;
             cx = cx || 0;
             cy = cy || 0;
@@ -7630,7 +8100,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 dy = (positive) ? distance * Math.random() : distance * (Math.random() - .5);
 
             return this.translate(dx, dy).rotate(angle, cx + dx, cy + dy).scale(scalex, scaley, cx + dx, cy + dy);
-        };
+        }
 
         /**
          * Returns a coefficient of the matrix by index (`0 → a`, `5 → f`).
@@ -7638,25 +8108,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {number} i - Index of the coefficient (0-5).
          * @returns {number} The coefficient rounded to nine decimal places.
          */
-        matrixproto.get = function (i) {
+        get(i) {
             return +this[Str.fromCharCode(97 + i)].toFixed(9);
-        };
+        }
+
         /**
          * Serialises the matrix into an SVG `matrix(a,b,c,d,e,f)` transform string.
          *
          * @returns {string} SVG transform string representing the matrix.
          */
-        matrixproto.toString = function () {
+        toString() {
             return "matrix(" + [this.get(0), this.get(1), this.get(2), this.get(3), this.get(4), this.get(5)].join() + ")";
-        };
+        }
+
         /**
          * Returns the translation components (`e`, `f`) rounded to nine decimal places.
          *
          * @returns {number[]} A two-item array `[e, f]`.
          */
-        matrixproto.offset = function () {
+        offset() {
             return [this.e.toFixed(9), this.f.toFixed(9)];
-        };
+        }
 
         /**
          * Compares the matrix with another instance within an optional tolerance.
@@ -7665,7 +8137,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {number} [error] - Optional absolute tolerance per coefficient.
          * @returns {boolean} `true` if all coefficients match within the tolerance.
          */
-        matrixproto.equals = function (m, error) {
+        equals(m, error) {
             if (!m) return false;
             if (error == null) {
                 return this.a === m.a && this.b === m.b && this.c === m.c && this.d === m.d && this.e === m.e && this.f === m.f;
@@ -7677,33 +8149,28 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 Math.abs(this.e - m.e) <= error &&
                 Math.abs(this.f - m.f) <= error;
         }
+
         /**
          * Checks whether the matrix equals the identity transform.
          *
          * @returns {boolean} `true` when all non-identity coefficients are zero.
          */
-        matrixproto.isIdentity = function () {
+        isIdentity() {
             return this.a === 1 && !this.b && !this.c && this.d === 1 &&
                 !this.e && !this.f;
-        };
+        }
 
         /**
          * Returns the matrix coefficients as an array `[a, b, c, d, e, f]`.
          *
          * @returns {number[]} Array of the six coefficients.
          */
-        matrixproto.toArray = function () {
+        toArray() {
             return [this.a, this.b, this.c, this.d, this.e, this.f];
-        };
-
-        function norm(a) {
-            return a[0] * a[0] + a[1] * a[1];
         }
 
-        function normalize(a) {
-            var mag = math.sqrt(norm(a));
-            a[0] && (a[0] /= mag);
-            a[1] && (a[1] /= mag);
+        to2dArray() {
+            return [[this.a, this.c, this.e], [this.b, this.d, this.f], [0, 0, 1]];
         }
 
         /**
@@ -7711,28 +8178,29 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          *
          * @returns {number} Determinant value (`a * d - b * c`).
          */
-        matrixproto.determinant = function () {
+        determinant() {
             return this.a * this.d - this.b * this.c;
-        };
-    /**
-     * Decomposes the matrix into intuitive primitives (translation, rotation, scale, shear).
-     * Optionally records any pre-translation that occurred before the core linear transform.
-     *
-     * @param {boolean} [add_pre_translation=false] - When `true`, include the pre-translation offset (`px`, `py`).
-     * @returns {object} Parts describing the transform.
-     * @returns {number} return.dx - Final translation along the x-axis.
-     * @returns {number} return.dy - Final translation along the y-axis.
-     * @returns {number} [return.px] - Optional pre-translation along the x-axis (only when `add_pre_translation` is `true`).
-     * @returns {number} [return.py] - Optional pre-translation along the y-axis (only when `add_pre_translation` is `true`).
-     * @returns {number} return.scalex - Scale factor applied along the x-axis. Negative when the matrix mirrors across an axis.
-     * @returns {number} return.scaley - Scale factor applied along the y-axis.
-     * @returns {number} return.shear - Shear factor that skews the y-axis relative to the x-axis.
-     * @returns {number} return.rotate - Rotation in degrees, measured after the scale/shear decomposition.
-     * @returns {boolean} return.isSimple - `true` when the matrix can be expressed as translate → rotate → uniform scale (or no rotation).
-     * @returns {boolean} return.isSuperSimple - `true` when the matrix is only translate → uniform scale (no rotation or shear).
-     * @returns {boolean} return.noRotation - `true` when the matrix has neither rotation nor shear.
-     */
-        matrixproto.split = function (add_pre_translation) {
+        }
+
+        /**
+         * Decomposes the matrix into intuitive primitives (translation, rotation, scale, shear).
+         * Optionally records any pre-translation that occurred before the core linear transform.
+         *
+         * @param {boolean} [add_pre_translation=false] - When `true`, include the pre-translation offset (`px`, `py`).
+         * @returns {object} Parts describing the transform.
+         * @returns {number} return.dx - Final translation along the x-axis.
+         * @returns {number} return.dy - Final translation along the y-axis.
+         * @returns {number} [return.px] - Optional pre-translation along the x-axis (only when `add_pre_translation` is `true`).
+         * @returns {number} [return.py] - Optional pre-translation along the y-axis (only when `add_pre_translation` is `true`).
+         * @returns {number} return.scalex - Scale factor applied along the x-axis. Negative when the matrix mirrors across an axis.
+         * @returns {number} return.scaley - Scale factor applied along the y-axis.
+         * @returns {number} return.shear - Shear factor that skews the y-axis relative to the x-axis.
+         * @returns {number} return.rotate - Rotation in degrees, measured after the scale/shear decomposition.
+         * @returns {boolean} return.isSimple - `true` when the matrix can be expressed as translate → rotate → uniform scale (or no rotation).
+         * @returns {boolean} return.isSuperSimple - `true` when the matrix is only translate → uniform scale (no rotation or shear).
+         * @returns {boolean} return.noRotation - `true` when the matrix has neither rotation nor shear.
+         */
+        split(add_pre_translation) {
             var out = {};
             // translation
             out.dx = this.e;
@@ -7754,13 +8222,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             // scale and shear
             var row = [[this.a, this.b], [this.c, this.d]];
-            out.scalex = math.sqrt(norm(row[0]));
+            out.scalex = Math.sqrt(norm(row[0]));
             normalize(row[0]);
 
             out.shear = row[0][0] * row[1][0] + row[0][1] * row[1][1];
             row[1] = [row[1][0] - row[0][0] * out.shear, row[1][1] - row[0][1] * out.shear];
 
-            out.scaley = math.sqrt(norm(row[1]));
+            out.scaley = Math.sqrt(norm(row[1]));
             normalize(row[1]);
             out.shear /= out.scaley;
 
@@ -7772,26 +8240,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             var sin = row[0][1],
                 cos = row[1][1];
             if (cos < 0) {
-                out.rotate = Snap.deg(math.acos(cos));
+                out.rotate = Snap.deg(Math.acos(cos));
                 if (sin < 0) {
                     out.rotate = 360 - out.rotate;
                 }
             } else {
-                out.rotate = Snap.deg(math.asin(sin));
+                out.rotate = Snap.deg(Math.asin(sin));
             }
 
             out.isSimple = !+out.shear.toFixed(9) && (out.scalex.toFixed(9) == out.scaley.toFixed(9) || !out.rotate);
             out.isSuperSimple = !+out.shear.toFixed(9) && out.scalex.toFixed(9) == out.scaley.toFixed(9) && !out.rotate;
             out.noRotation = !+out.shear.toFixed(9) && !out.rotate;
             return out;
-        };
+        }
 
-    /**
-     * Provides a lightweight decomposition returning translation, rotation, and scale components.
-     *
-     * @returns {{dx:number, dy:number, r:number, scalex:number, scaley:number}} Simplified transform description.
-     */
-    matrixproto.split2 = function getTransform() {
+        /**
+         * Provides a lightweight decomposition returning translation, rotation, and scale components.
+         *
+         * @returns {{dx:number, dy:number, r:number, scalex:number, scaley:number}} Simplified transform description.
+         */
+        split2() {
             let a = this.a,
                 b = this.b,
                 c = this.c,
@@ -7814,7 +8282,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {object} [shorter] - Optional decomposition result to reuse.
          * @returns {string} A transform string compatible with Snap.svg syntax.
          */
-        matrixproto.toTransformString = function (shorter) {
+        toTransformString(shorter) {
             var s = shorter || this.split();
             if (!+s.shear.toFixed(9)) {
                 s.scalex = +s.scalex.toFixed(9);
@@ -7826,31 +8294,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             } else {
                 return "m" + [this.get(0), this.get(1), this.get(2), this.get(3), this.get(4), this.get(5)];
             }
-        };
+        }
 
         /**
          * Identifies the object as a matrix instance.
          *
          * @returns {boolean} Always returns `true` for matrix instances.
          */
-        matrixproto.isMatrix = function () {
+        isMatrix() {
             return true;
         }
 
-    /**
-     * Computes an affine transform mapping two source points to two destination points.
-     *
-     * @param {number} x1 - X-coordinate of the first source point.
-     * @param {number} y1 - Y-coordinate of the first source point.
-     * @param {number} x1Prime - X-coordinate of the first destination point.
-     * @param {number} y1Prime - Y-coordinate of the first destination point.
-     * @param {number} x2 - X-coordinate of the second source point.
-     * @param {number} y2 - Y-coordinate of the second source point.
-     * @param {number} x2Prime - X-coordinate of the second destination point.
-     * @param {number} y2Prime - Y-coordinate of the second destination point.
-     * @returns {Matrix} A new matrix performing the inferred transform.
-     */
-    matrixproto.twoPointTransformMatrix = function (x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
+        /**
+         * Computes an affine transform mapping two source points to two destination points.
+         *
+         * @param {number} x1 - X-coordinate of the first source point.
+         * @param {number} y1 - Y-coordinate of the first source point.
+         * @param {number} x1Prime - X-coordinate of the first destination point.
+         * @param {number} y1Prime - Y-coordinate of the first destination point.
+         * @param {number} x2 - X-coordinate of the second source point.
+         * @param {number} y2 - Y-coordinate of the second source point.
+         * @param {number} x2Prime - X-coordinate of the second destination point.
+         * @param {number} y2Prime - Y-coordinate of the second destination point.
+         * @returns {Matrix} A new matrix performing the inferred transform.
+         */
+        twoPointTransformMatrix(x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
             // Calculate distances before and after transformation
             const distanceBefore = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
             const distanceAfter = Math.sqrt(Math.pow(x2Prime - x1Prime, 2) + Math.pow(y2Prime - y1Prime, 2));
@@ -7878,31 +8346,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         /**
-         * Conjugates an affine transform by a base matrix (`base * m * base^{-1}`).
-         *
-         * @param {Matrix} m - Matrix to conjugate.
-         * @param {Matrix} base - Base matrix providing the reference frame.
-         * @returns {Matrix} The conjugated matrix.
-         * @private
-         */
-        function rightLeftFlipMatrix(m, base) {
-            let inv = base.clone().invert();
-            return base.clone().multRight(m).multRight(inv);
-        }
-
-        /**
          * Splits a matrix into translation/scale and rotation/shear factors.
          *
          * @param {Matrix} [m=this] - Matrix to decompose.
          * @returns {{0:Matrix, 1:Matrix, trans_scale:Matrix, rot_shear:Matrix, scalex:number, scaley:number, rotate:number, shear:number, dx:number, dy:number}} Matrices and scalars describing the decomposition.
          */
-        function rotScaleSplit(m) {
+        rotScaleSplit(m) {
             m = m || this;
             const split = m.split();
             const tm = new Matrix().translate(split.dx, split.dy);
             const rm = new Matrix().rotate(split.rotate);
             const scm = new Matrix().scale(split.scalex, split.scaley);
             const shm = new Matrix().skew(split.shear);
+
+            /**
+             * Conjugates an affine transform by a base matrix (`base * m * base^{-1}`).
+             *
+             * @param {Matrix} m - Matrix to conjugate.
+             * @param {Matrix} base - Base matrix providing the reference frame.
+             * @returns {Matrix} The conjugated matrix.
+             * @private
+             */
+            function rightLeftFlipMatrix(m, base) {
+                let inv = base.clone().invert();
+                return base.clone().multRight(m).multRight(inv);
+            }
 
             const rot_shear = rightLeftFlipMatrix(rm.multRight(shm), tm);
             const trans_scale = scm.multLeft(tm);
@@ -7920,10 +8388,127 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 dy: split.dy
             };
         }
+    }
 
-        matrixproto.rotScaleSplit = rotScaleSplit;
+    // Helper functions for Matrix
+    function norm(a) {
+        return a[0] * a[0] + a[1] * a[1];
+    }
 
-    })(Matrix.prototype);
+    function normalize(a) {
+        var mag = Math.sqrt(norm(a));
+        a[0] && (a[0] /= mag);
+        a[1] && (a[1] /= mag);
+    }
+
+    Snap.registerType("matrix", Matrix);
+
+    /**
+     * General matrix operations for 2D array-based matrices.
+     * @namespace Matrix.gen
+     */
+    Matrix.gen = {
+        /**
+         * Adds two matrices element-wise.
+         * @param {number[][]|Matrix} A - First matrix as 2D array.
+         * @param {number[][]|Matrix} B - Second matrix as 2D array with same dimensions as A.
+         * @returns {number[][]} Result matrix C where C[i][j] = A[i][j] + B[i][j].
+         */
+        add: function(A, B) {
+            if (A instanceof Matrix) {
+                A = A.to2dArray();
+            }
+            if (B instanceof Matrix) {
+                B = B.to2dArray();
+            }
+            if (!A || !B || !A.length || !B.length) {
+                throw new Error("Invalid matrix input");
+            }
+            if (A.length !== B.length || A[0].length !== B[0].length) {
+                throw new Error("Matrix dimensions must match for addition");
+            }
+            
+            const rows = A.length;
+            const cols = A[0].length;
+            const C = [];
+            
+            for (let i = 0; i < rows; i++) {
+                C[i] = [];
+                for (let j = 0; j < cols; j++) {
+                    C[i][j] = A[i][j] + B[i][j];
+                }
+            }
+            
+            return C;
+        },
+        
+        /**
+         * Multiplies two matrices.
+         * @param {number[][]|Matrix} A - First matrix with dimensions m×n.
+         * @param {number[][]|Matrix} B - Second matrix with dimensions n×p.
+         * @returns {number[][]} Result matrix C with dimensions m×p where C[i][j] = Σ(A[i][k] * B[k][j]).
+         */
+        multiply: function(A, B) {
+             if (A instanceof Matrix) {
+                A = A.to2dArray();
+            }
+            if (B instanceof Matrix) {
+                B = B.to2dArray();
+            }
+            if (!A || !B || !A.length || !B.length) {
+                throw new Error("Invalid matrix input");
+            }
+            if (A[0].length !== B.length) {
+                throw new Error("Matrix dimensions incompatible for multiplication: A columns must equal B rows");
+            }
+            
+            const m = A.length;      // rows in A
+            const n = A[0].length;   // cols in A, rows in B
+            const p = B[0].length;   // cols in B
+            const C = [];
+            
+            for (let i = 0; i < m; i++) {
+                C[i] = [];
+                for (let j = 0; j < p; j++) {
+                    C[i][j] = 0;
+                    for (let k = 0; k < n; k++) {
+                        C[i][j] += A[i][k] * B[k][j];
+                    }
+                }
+            }
+            
+            return C;
+        },
+        
+        /**
+         * Multiplies a matrix by a scalar.
+         * @param {number} c - Scalar value.
+         * @param {number[][]|Matrix} A - Matrix as 2D array.
+         * @returns {number[][]} Result matrix C where C[i][j] = c * A[i][j].
+         */
+        cMultiply: function(c, A) {
+             if (A instanceof Matrix) {
+                A = A.to2dArray();
+            }
+            if (!A || !A.length) {
+                throw new Error("Invalid matrix input");
+            }
+            
+            const rows = A.length;
+            const cols = A[0].length;
+            const C = [];
+            
+            for (let i = 0; i < rows; i++) {
+                C[i] = [];
+                for (let j = 0; j < cols; j++) {
+                    C[i][j] = c * A[i][j];
+                }
+            }
+            
+            return C;
+        }
+    };
+
     /**
      * Exposes the {@link Matrix} constructor on the `Snap` namespace.
      *
@@ -8534,8 +9119,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             Str = String,
             elproto = Element.prototype;
         /**
-         * Element.addClass @method *
-         * Adds given class name or list of class names to the element. * @param {string} value - class name or space separated list of class names * * @returns {Element} original element.
+         * Element.addClass @method
+ *
+         * Adds given class name or list of class names to the element.
+ * @param {string} value - class name or space separated list of class names
+ *
+ * @returns {Element} original element.
         */
         elproto.addClass = function (value) {
             var classes = (Array.isArray(value)) ? value : Str(value || "").match(rgNotSpace) || [],
@@ -8578,8 +9167,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this;
         };
         /**
-             * Element.removeClass @method *
-             * Removes given class name or list of class names from the element. * @param {string} value - class name or space separated list of class names * @param {boolean} prefix - if true, removes all classes that start with the given class name * * @returns {Element} original element.
+             * Element.removeClass @method
+ *
+             * Removes given class name or list of class names from the element.
+ * @param {string} value - class name or space separated list of class names
+ * @param {boolean} prefix - if true, removes all classes that start with the given class name
+ *
+ * @returns {Element} original element.
             */
         elproto.removeClass = function (value, prefix = false) {
             if (Array.isArray(value)) {
@@ -8620,9 +9214,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         }
         /**
-         * Element.hasClass @method *
-         * Checks if the element has a given class name in the list of class names applied to it. * @param {string} value - class name * * @returns {boolean} `true` if the element has given class
-        */
+         * Element.hasClass @method
+ *
+         * Checks if the element has a given class name in the list of class names applied to it.
+         * @param {string} value - class name
+         *
+         * @param {boolean} conjunctive - if true, checks if all classes are present; if false, checks if any are present
+         * @returns {boolean} `true` if the element has given class
+         */
         elproto.hasClass = function (value, conjunctive = false) {
             var elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
@@ -8648,9 +9247,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this.matchClass(new RegExp("^" + value));
         }
         /**
-         * Element.toggleClass @method *
+         * Element.toggleClass @method
+ *
          * Add or remove one or more classes from the element, depending on either
-         * the class’s presence or the value of the `flag` argument. * @param {string} value - class name or space separated list of class names * @param {boolean} flag - value to determine whether the class should be added or removed * * @returns {Element} original element.
+         * the class’s presence or the value of the `flag` argument.
+ * @param {string} value - class name or space separated list of class names
+ * @param {boolean} flag - value to determine whether the class should be added or removed
+ *
+ * @returns {Element} original element.
         */
         elproto.toggleClass = function (value, flag) {
             if (flag != null) {
@@ -9372,18 +9976,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 /**
  * @fileoverview SVG Path manipulation and analysis library
  * Copyright (c) 2018. Orlin Vakarelov
- * 
+ *
  * This module provides comprehensive SVG path manipulation, analysis, and geometric operations.
  * It includes functions for path parsing, transformation, intersection detection, length calculations,
  * point sampling, and various path-related geometric computations.
- * 
+ *
  * @typedef {Object} PathSegment
  * @property {String} type - Segment type (M, L, C, Q, A, Z, etc.)
  * @property {Array<Number>} args - Segment arguments/coordinates
- * 
+ *
  * @typedef {Array<PathSegment>} PathArray
  * Array representation of an SVG path
- * 
+ *
  * @typedef {Object} PointOnPath
  * @property {Number} x - X coordinate
  * @property {Number} y - Y coordinate
@@ -9400,9 +10004,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     const BBox = Snap.BBox || Snap._.BBox;
     const box = Snap.box || Snap._.box;
+    const math = Snap.window().math || {multiply: Snap.Matrix.gen.multiply};//if math.js not loaded, fallback to Snap,Matrix
 
     if (!BBox || !box) {
-        throw new Error('Snap BBox extension must be loaded before the path extension.');
+        throw new Error("Snap BBox extension must be loaded before the path extension.");
     }
 
 //Snap begins here
@@ -9476,7 +10081,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 //         }
                 //     }
                 // } else
-                if (command == 'm' && tlen == 7) {
+                if (command == "m" && tlen == 7) {
                     m.add(t[1], t[2], t[3], t[4], t[5], t[6]);
                 }
             }
@@ -9487,7 +10092,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const elproto = Element.prototype,
         is = Snap.is,
         clone = Snap._.clone,
-        has = 'hasOwnProperty',
+        has = "hasOwnProperty",
         p2s = /,?([a-z]),?/gi,
         toFloat = parseFloat,
         PI = Math.PI,
@@ -9532,7 +10137,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     function toString(path) {
         path = path || this;
-        return path.join(',').replace(p2s, '$1');
+        return path.join(",").replace(p2s, "$1");
     }
 
     /**
@@ -9553,7 +10158,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @function getPointAtSegmentLength
      * @private
      * @param {Number} p1x - Start point x coordinate
-     * @param {Number} p1y - Start point y coordinate  
+     * @param {Number} p1y - Start point y coordinate
      * @param {Number} c1x - First control point x coordinate
      * @param {Number} c1y - First control point y coordinate
      * @param {Number} c2x - Second control point x coordinate
@@ -9596,7 +10201,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 path = getPath[path.type](path);
             }
             path = path2curve(path);
-            let x, y, p, l, sp = '';
+            let x, y, p, l, sp = "";
             const subpaths = {};
             let point,
                 len = 0;
@@ -9604,7 +10209,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             const ii = path.length;
             for (; i < ii; ++i) {
                 p = path[i];
-                if (p[0] == 'M') {
+                if (p[0] == "M") {
                     x = +p[1];
                     y = +p[2];
                 } else {
@@ -9614,7 +10219,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             point = getPointAtSegmentLength(x, y, p[1], p[2], p[3], p[4],
                                 p[5], p[6], length - len);
                             sp += [
-                                'C' + O(point.start.x),
+                                "C" + O(point.start.x),
                                 O(point.start.y),
                                 O(point.m.x),
                                 O(point.m.y),
@@ -9626,8 +10231,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             }
                             subpaths.start = sp;
                             sp = [
-                                'M' + O(point.x),
-                                O(point.y) + 'C' + O(point.n.x),
+                                "M" + O(point.x),
+                                O(point.y) + "C" + O(point.n.x),
                                 O(point.n.y),
                                 O(point.end.x),
                                 O(point.end.y),
@@ -9727,7 +10332,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {BBox} Bounding box of the curve
      */
     function bezierBBox(p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y) {
-        if (!Snap.is(p1x, 'array')) {
+        if (!Snap.is(p1x, "array")) {
             p1x = [p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y];
         }
         const bbox = curveDim.apply(null, p1x);
@@ -9952,8 +10557,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     di1 = dots1[i + 1],
                     dj = dots2[j],
                     dj1 = dots2[j + 1],
-                    ci = abs(di1.x - di.x) < .001 ? 'y' : 'x',
-                    cj = abs(dj1.x - dj.x) < .001 ? 'y' : 'x',
+                    ci = abs(di1.x - di.x) < .001 ? "y" : "x",
+                    cj = abs(dj1.x - dj.x) < .001 ? "y" : "x",
                     is = intersect(di.x, di.y, di1.x, di1.y, dj.x, dj.y, dj1.x, dj1.y);
                 if (is) {
                     if (xy[is.x.toFixed(4)] == is.y.toFixed(4)) {
@@ -10016,11 +10621,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         const ii = path1.length;
         for (; i < ii; ++i) {
             const pi = path1[i];
-            if (pi[0] == 'M') {
+            if (pi[0] == "M") {
                 x1 = x1m = pi[1];
                 y1 = y1m = pi[2];
             } else {
-                if (pi[0] == 'C') {
+                if (pi[0] == "C") {
                     bez1 = [x1, y1].concat(pi.slice(1));
                     x1 = bez1[6];
                     y1 = bez1[7];
@@ -10033,11 +10638,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 const jj = path2.length;
                 for (; j < jj; j++) {
                     const pj = path2[j];
-                    if (pj[0] == 'M') {
+                    if (pj[0] == "M") {
                         x2 = x2m = pj[1];
                         y2 = y2m = pj[2];
                     } else {
-                        if (pj[0] == 'C') {
+                        if (pj[0] == "C") {
                             bez2 = [x2, y2].concat(pj.slice(1));
                             x2 = bez2[6];
                             y2 = bez2[7];
@@ -10070,7 +10675,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function isPointInsidePath(path, x, y) {
         const bbox = pathBBox(path);
         return isPointInsideBBox(bbox, x, y) &&
-            interPathHelper(path, [['M', x, y], ['H', bbox.x2 + 10]], 1) % 2 == 1;
+            interPathHelper(path, [["M", x, y], ["H", bbox.x2 + 10]], 1) % 2 == 1;
     }
 
     function pathBBox(path) {
@@ -10093,7 +10698,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         const ii = path.length;
         for (; i < ii; ++i) {
             p = path[i];
-            if (p[0] == 'M') {
+            if (p[0] == "M") {
                 x = p[1];
                 y = p[2];
                 X.push(x);
@@ -10119,19 +10724,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (rx) {
             if (!ry) ry = rx;
             return [
-                ['M', +x + +rx, y],
-                ['l', w - rx * 2, 0],
-                ['a', rx, ry, 0, 0, 1, rx, ry],
-                ['l', 0, h - ry * 2],
-                ['a', rx, ry, 0, 0, 1, -rx, ry],
-                ['l', rx * 2 - w, 0],
-                ['a', rx, ry, 0, 0, 1, -rx, -ry],
-                ['l', 0, ry * 2 - h],
-                ['a', rx, ry, 0, 0, 1, rx, -ry],
-                ['z'],
+                ["M", +x + +rx, y],
+                ["l", w - rx * 2, 0],
+                ["a", rx, ry, 0, 0, 1, rx, ry],
+                ["l", 0, h - ry * 2],
+                ["a", rx, ry, 0, 0, 1, -rx, ry],
+                ["l", rx * 2 - w, 0],
+                ["a", rx, ry, 0, 0, 1, -rx, -ry],
+                ["l", 0, ry * 2 - h],
+                ["a", rx, ry, 0, 0, 1, rx, -ry],
+                ["z"],
             ];
         }
-        const res = [['M', x, y], ['l', w, 0], ['l', 0, h], ['l', -w, 0], ['z']];
+        const res = [["M", x, y], ["l", w, 0], ["l", 0, h], ["l", -w, 0], ["z"]];
         res.toString = toString;
         return res;
     }
@@ -10150,14 +10755,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 x2 = x + rx * Math.cos(-a * rad),
                 y1 = y + rx * Math.sin(-ry * rad),
                 y2 = y + rx * Math.sin(-a * rad),
-                res = [['M', x1, y1], ['A', rx, rx, 0, +(a - ry > 180), 0, x2, y2]];
+                res = [["M", x1, y1], ["A", rx, rx, 0, +(a - ry > 180), 0, x2, y2]];
         } else {
             res = [
-                ['M', x, y],
-                ['m', 0, -ry],
-                ['a', rx, ry, 0, 1, 1, 0, 2 * ry],
-                ['a', rx, ry, 0, 1, 1, 0, -2 * ry],
-                ['z'],
+                ["M", x, y],
+                ["m", 0, -ry],
+                ["a", rx, ry, 0, 1, 1, 0, 2 * ry],
+                ["a", rx, ry, 0, 1, 1, 0, -2 * ry],
+                ["z"],
             ];
         }
         res.toString = toString;
@@ -10167,7 +10772,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function groupPathStrict(el) {
         const children = el.getChildren();
         let comp_path = [],
-            comp_path_string = '',
+            comp_path_string = "",
             pathfinder,
             child,
             path,
@@ -10176,14 +10781,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         for (var i = 0, max = children.length; i < max; ++i) {
             child = children[i];
 
-            while (child.type == 'use') { //process any use tags
-                m = m.add(el.getLocalMatrix(STRICT_MODE).translate(el.attr('x') || 0, el.attr('y') || 0));
+            while (child.type == "use") { //process any use tags
+                m = m.add(el.getLocalMatrix(STRICT_MODE).translate(el.attr("x") || 0, el.attr("y") || 0));
                 if (child.original) {
                     child = child.original;
                 } else {
-                    const href = el.attr('xlink:href');
+                    const href = el.attr("xlink:href");
                     child = child.original = child.node.ownerDocument.getElementById(
-                        href.substring(href.indexOf('#') + 1));
+                        href.substring(href.indexOf("#") + 1));
                 }
             }
 
@@ -10205,7 +10810,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var unit2px = Snap._unit2px,
         getPath = {
             path: function (el) {
-                return el.attr('d');
+                return el.attr("d");
             },
             circle: function (el) {
                 const attr = unit2px(el);
@@ -10225,17 +10830,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return rectPath(attr.x || 0, attr.y || 0, attr.width, attr.height);
             },
             line: function (el) {
-                return 'M' + [
-                    el.attr('x1') || 0,
-                    el.attr('y1') || 0,
-                    el.attr('x2'),
-                    el.attr('y2')];
+                return "M" + [
+                    el.attr("x1") || 0,
+                    el.attr("y1") || 0,
+                    el.attr("x2"),
+                    el.attr("y2")];
             },
             polyline: function (el) {
-                return 'M' + el.attr('points');
+                return "M" + el.attr("points");
             },
             polygon: function (el) {
-                return 'M' + el.attr('points') + 'z';
+                return "M" + el.attr("points") + "z";
             },
             foreignObject: function (el) {
                 var attr = unit2px(el);
@@ -10254,7 +10859,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return rectPath(bbox.x, bbox.y, bbox.width, bbox.height);
             },
         };
-    getPath['clipPath'] = getPath['g'];
+    getPath["clipPath"] = getPath["g"];
 
     function pathToRelative(pathArray) {
         const pth = paths(pathArray),
@@ -10262,8 +10867,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (pth.rel) {
             return pathClone(pth.rel);
         }
-        if (!Snap.is(pathArray, 'array') ||
-            !Snap.is(pathArray && pathArray[0], 'array')) {
+        if (!Snap.is(pathArray, "array") ||
+            !Snap.is(pathArray && pathArray[0], "array")) {
             pathArray = Snap.parsePathString(pathArray);
         }
         const res = [];
@@ -10272,13 +10877,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             mx = 0,
             my = 0,
             start = 0;
-        if (pathArray[0][0] == 'M') {
+        if (pathArray[0][0] == "M") {
             x = pathArray[0][1];
             y = pathArray[0][2];
             mx = x;
             my = y;
             start++;
-            res.push(['M', x, y]);
+            res.push(["M", x, y]);
         }
         let i = start;
         const ii = pathArray.length;
@@ -10288,7 +10893,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (pa[0] != lowerCase.call(pa[0])) {
                 r[0] = lowerCase.call(pa[0]);
                 switch (r[0]) {
-                    case 'a':
+                    case "a":
                         r[1] = pa[1];
                         r[2] = pa[2];
                         r[3] = pa[3];
@@ -10297,10 +10902,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         r[6] = +(pa[6] - x).toFixed(3);
                         r[7] = +(pa[7] - y).toFixed(3);
                         break;
-                    case 'v':
+                    case "v":
                         r[1] = +(pa[1] - y).toFixed(3);
                         break;
-                    case 'm':
+                    case "m":
                         mx = pa[1];
                         my = pa[2];
                     default:
@@ -10312,7 +10917,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             } else {
                 r = res[i] = [];
-                if (pa[0] == 'm') {
+                if (pa[0] == "m") {
                     mx = pa[1] + x;
                     my = pa[2] + y;
                 }
@@ -10324,14 +10929,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             const len = res[i].length;
             switch (res[i][0]) {
-                case 'z':
+                case "z":
                     x = mx;
                     y = my;
                     break;
-                case 'h':
+                case "h":
                     x += +res[i][len - 1];
                     break;
-                case 'v':
+                case "v":
                     y += +res[i][len - 1];
                     break;
                 default:
@@ -10349,14 +10954,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (pth.abs) {
             return pathClone(pth.abs);
         }
-        if (!is(pathArray, 'array') || !is(pathArray && pathArray[0], 'array')) { // rough assumption
-            if (is(pathArray, 'object') && pathArray.type) {
+        if (!is(pathArray, "array") || !is(pathArray && pathArray[0], "array")) { // rough assumption
+            if (is(pathArray, "object") && pathArray.type) {
                 pathArray = getPath[pathArray.type](pathArray);
             }
             pathArray = Snap.parsePathString(pathArray);
         }
         if (!pathArray || !pathArray.length) {
-            return [['M', 0, 0]];
+            return [["M", 0, 0]];
         }
         let res = [],
             x = 0,
@@ -10365,18 +10970,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             my = 0,
             start = 0,
             pa0;
-        if (pathArray[0][0] == 'M') {
+        if (pathArray[0][0] == "M") {
             x = +pathArray[0][1];
             y = +pathArray[0][2];
             mx = x;
             my = y;
             start++;
-            res[0] = ['M', x, y];
+            res[0] = ["M", x, y];
         }
         const crz = pathArray.length == 3 &&
-            pathArray[0][0] == 'M' &&
-            pathArray[1][0].toUpperCase() == 'R' &&
-            pathArray[2][0].toUpperCase() == 'Z';
+            pathArray[0][0] == "M" &&
+            pathArray[1][0].toUpperCase() == "R" &&
+            pathArray[2][0].toUpperCase() == "Z";
         let r, pa, i = start;
         const ii = pathArray.length;
         for (; i < ii; ++i) {
@@ -10386,7 +10991,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (pa0 != pa0.toUpperCase()) {
                 r[0] = pa0.toUpperCase();
                 switch (r[0]) {
-                    case 'A':
+                    case "A":
                         r[1] = pa[1];
                         r[2] = pa[2];
                         r[3] = pa[3];
@@ -10395,13 +11000,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         r[6] = +pa[6] + x;
                         r[7] = +pa[7] + y;
                         break;
-                    case 'V':
+                    case "V":
                         r[1] = +pa[1] + y;
                         break;
-                    case 'H':
+                    case "H":
                         r[1] = +pa[1] + x;
                         break;
-                    case 'R':
+                    case "R":
                         var dots = [x, y].concat(pa.slice(1));
                         for (var j = 2, jj = dots.length; j < jj; j++) {
                             dots[j] = +dots[j] + x;
@@ -10410,18 +11015,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         res.pop();
                         res = res.concat(catmullRom2bezier(dots, crz));
                         break;
-                    case 'O':
+                    case "O":
                         res.pop();
                         dots = ellipsePath(x, y, pa[1], pa[2]);
                         dots.push(dots[0]);
                         res = res.concat(dots);
                         break;
-                    case 'U':
+                    case "U":
                         res.pop();
                         res = res.concat(ellipsePath(x, y, pa[1], pa[2], pa[3]));
-                        r = ['U'].concat(res[res.length - 1].slice(-2));
+                        r = ["U"].concat(res[res.length - 1].slice(-2));
                         break;
-                    case 'M':
+                    case "M":
                         mx = +pa[1] + x;
                         my = +pa[2] + y;
                     default:
@@ -10429,20 +11034,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             r[j] = +pa[j] + (j % 2 ? x : y);
                         }
                 }
-            } else if (pa0 == 'R') {
+            } else if (pa0 == "R") {
                 dots = [x, y].concat(pa.slice(1));
                 res.pop();
                 res = res.concat(catmullRom2bezier(dots, crz));
-                r = ['R'].concat(pa.slice(-2));
-            } else if (pa0 == 'O') {
+                r = ["R"].concat(pa.slice(-2));
+            } else if (pa0 == "O") {
                 res.pop();
                 dots = ellipsePath(x, y, pa[1], pa[2]);
                 dots.push(dots[0]);
                 res = res.concat(dots);
-            } else if (pa0 == 'U') {
+            } else if (pa0 == "U") {
                 res.pop();
                 res = res.concat(ellipsePath(x, y, pa[1], pa[2], pa[3]));
-                r = ['U'].concat(res[res.length - 1].slice(-2));
+                r = ["U"].concat(res[res.length - 1].slice(-2));
             } else {
                 let k = 0;
                 const kk = pa.length;
@@ -10451,19 +11056,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             }
             pa0 = pa0.toUpperCase();
-            if (pa0 != 'O') {
+            if (pa0 != "O") {
                 switch (r[0]) {
-                    case 'Z':
+                    case "Z":
                         x = +mx;
                         y = +my;
                         break;
-                    case 'H':
+                    case "H":
                         x = r[1];
                         break;
-                    case 'V':
+                    case "V":
                         y = r[1];
                         break;
-                    case 'M':
+                    case "M":
                         mx = r[r.length - 2];
                         my = r[r.length - 1];
                     default:
@@ -10583,7 +11188,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (recursive) {
             return [m2, m3, m4].concat(res);
         } else {
-            res = [m2, m3, m4].concat(res).join().split(',');
+            res = [m2, m3, m4].concat(res).join().split(",");
             const newres = [];
             let i = 0;
             const ii = res.length;
@@ -10674,7 +11279,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     function path2curve(path, path2, expand_only, process_arc) {
-        if (typeof path2 === 'boolean' || typeof path2 === 'number') {
+        if (typeof path2 === "boolean" || typeof path2 === "number") {
             process_arc = expand_only;
             expand_only = path2;
             path2 = undefined;
@@ -10693,31 +11298,31 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             processPath = function (path, d, pcom) {
                 let nx, ny;
                 if (!path) {
-                    return ['C', d.x, d.y, d.x, d.y, d.x, d.y];
+                    return ["C", d.x, d.y, d.x, d.y, d.x, d.y];
                 }
                 !(path[0] in {T: 1, Q: 1}) && (d.qx = d.qy = null);
                 switch (path[0]) {
-                    case 'M':
+                    case "M":
                         d.X = path[1];
                         d.Y = path[2];
                         break;
-                    case 'A':
-                        if (!expand_only || process_arc) path = ['C'].concat(
+                    case "A":
+                        if (!expand_only || process_arc) path = ["C"].concat(
                             a2c.apply(0, [d.x, d.y].concat(path.slice(1))));
                         break;
-                    case 'S':
-                        if (pcom == 'C' || pcom == 'S') { // In "S" case we have to take into account, if the previous command is C/S.
+                    case "S":
+                        if (pcom == "C" || pcom == "S") { // In "S" case we have to take into account, if the previous command is C/S.
                             nx = d.x * 2 - d.bx;          // And reflect the previous
                             ny = d.y * 2 - d.by;          // command's control point relative to the current point.
                         } else {                            // or some else or nothing
                             nx = d.x;
                             ny = d.y;
                         }
-                        path = ['C', nx, ny].concat(path.slice(1));
+                        path = ["C", nx, ny].concat(path.slice(1));
                         break;
-                    case 'T':
+                    case "T":
 
-                        if (pcom == 'Q' || pcom == 'T') { // In "T" case we have to take into account, if the previous command is Q/T.
+                        if (pcom == "Q" || pcom == "T") { // In "T" case we have to take into account, if the previous command is Q/T.
                             d.qx = d.x * 2 - d.qx;        // And make a reflection similar
                             d.qy = d.y * 2 - d.qy;        // to case "S".
                         } else {                            // or something else or nothing
@@ -10726,48 +11331,48 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         }
 
                         if (expand_only) {
-                            path = ['Q', d.qx, d.qy, path[1], path[2]];
+                            path = ["Q", d.qx, d.qy, path[1], path[2]];
                         } else {
-                            path = ['C'].concat(
+                            path = ["C"].concat(
                                 q2c(d.x, d.y, d.qx, d.qy, path[1], path[2]));
                         }
 
                         break;
-                    case 'Q':
+                    case "Q":
                         if (!expand_only) {
                             d.qx = path[1];
                             d.qy = path[2];
-                            path = ['C'].concat(
+                            path = ["C"].concat(
                                 q2c(d.x, d.y, path[1], path[2], path[3], path[4]));
                         }
                         break;
-                    case 'L':
-                        if (!expand_only) path = ['C'].concat(
+                    case "L":
+                        if (!expand_only) path = ["C"].concat(
                             l2c(d.x, d.y, path[1], path[2]));
                         break;
-                    case 'H':
+                    case "H":
                         if (expand_only) {
-                            path = ['L', path[1], d.y];
+                            path = ["L", path[1], d.y];
                         } else {
-                            path = ['C'].concat(l2c(d.x, d.y, path[1], d.y));
+                            path = ["C"].concat(l2c(d.x, d.y, path[1], d.y));
                         }
 
                         break;
-                    case 'V':
+                    case "V":
                         if (expand_only) {
-                            path = ['L', d.x, path[1]];
+                            path = ["L", d.x, path[1]];
                         } else {
-                            path = ['C'].concat(l2c(d.x, d.y, d.x, path[1]));
+                            path = ["C"].concat(l2c(d.x, d.y, d.x, path[1]));
                         }
 
                         break;
-                    case 'Z':
+                    case "Z":
                         if (Math.abs(d.x - d.X) > ERROR
                             || Math.abs(d.y - d.Y) > ERROR) {
                             if (expand_only) {
-                                path = ['L', d.X, d.Y];
+                                path = ["L", d.X, d.Y];
                             } else {
-                                path = ['C'].concat(l2c(d.x, d.y, d.X, d.Y));
+                                path = ["C"].concat(l2c(d.x, d.y, d.X, d.Y));
                             }
                         } else {
                             path = null;
@@ -10784,17 +11389,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     pp[i].shift();
                     const pi = pp[i];
                     while (pi.length) {
-                        pcoms1[i] = 'A'; // if created multiple C:s, their original seg is saved
-                        p2 && (pcoms2[i] = 'A'); // the same as above
-                        pp.splice(i++, 0, ['C'].concat(pi.splice(0, 6)));
+                        pcoms1[i] = "A"; // if created multiple C:s, their original seg is saved
+                        p2 && (pcoms2[i] = "A"); // the same as above
+                        pp.splice(i++, 0, ["C"].concat(pi.splice(0, 6)));
                     }
                     pp.splice(i, 1);
                     ii = mmax(p.length, p2 && p2.length || 0);
                 }
             },
             fixM = function (path1, path2, a1, a2, i) {
-                if (path1 && path2 && path1[i][0] == 'M' && path2[i][0] != 'M') {
-                    path2.splice(i, 0, ['M', a2.x, a2.y]);
+                if (path1 && path2 && path1[i][0] == "M" && path2[i][0] != "M") {
+                    path2.splice(i, 0, ["M", a2.x, a2.y]);
                     a1.bx = 0;
                     a1.by = 0;
                     a1.x = path1[i][1];
@@ -10805,8 +11410,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             toIncr = function (attr, seg) {
                 let segleng = seg.length;
                 switch (seg[0]) {
-                    case 'C':
-                    case 'Q':
+                    case "C":
+                    case "Q":
                         attr.x = seg[segleng - 2];
                         attr.y = seg[segleng - 1];
                         attr.bx = toFloat(seg[segleng - 4]) || attr.x;
@@ -10822,13 +11427,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             },
             pcoms1 = [], // path commands of original path p
             pcoms2 = [], // path commands of original path p2
-            pfirst = '', // temporary holder for original path command
-            pcom = ''; // holder for previous path command of original path
+            pfirst = "", // temporary holder for original path command
+            pcom = ""; // holder for previous path command of original path
         let filter = false, filter2 = false;
         for (var i = 0, ii = mmax(p.length, p2 && p2.length || 0); i < ii; ++i) {
             p[i] && (pfirst = p[i][0]); // save current path command
 
-            if (pfirst != 'C') // C is not saved yet, because it may be result of conversion
+            if (pfirst != "C") // C is not saved yet, because it may be result of conversion
             {
                 pcoms1[i] = pfirst; // Save current path command
                 i && (pcom = pcoms1[i - 1]); // Get previous path command pcom
@@ -10841,7 +11446,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             if (!expand_only) {
-                if (pcoms1[i] != 'A' && pfirst == 'C') pcoms1[i] = 'C'; // A is the only command
+                if (pcoms1[i] != "A" && pfirst == "C") pcoms1[i] = "C"; // A is the only command
                 // which may produce multiple C:s
                 // so we have to make sure that C is also C in original path
 
@@ -10850,7 +11455,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             if (p2) { // the same procedures is done to p2
                 p2[i] && (pfirst = p2[i][0]);
-                if (pfirst != 'C') {
+                if (pfirst != "C") {
                     pcoms2[i] = pfirst;
                     i && (pcom = pcoms2[i - 1]);
                 }
@@ -10859,8 +11464,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     filter2 = true;
                 }
                 if (!expand_only) {
-                    if (pcoms2[i] != 'A' && pfirst == 'C') {
-                        pcoms2[i] = 'C';
+                    if (pcoms2[i] != "A" && pfirst == "C") {
+                        pcoms2[i] = "C";
                     }
 
                     fixArc(p2, i);
@@ -10941,7 +11546,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
 
     function getControlPoints(path, segment_points, skip_same_last) {
-        if (path === undefined || typeof path === 'boolean') {
+        if (path === undefined || typeof path === "boolean") {
             skip_same_last = segment_points;
             segment_points = path;
             path = this;
@@ -10954,7 +11559,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         for (let i = 0, l = path.length, command; i < l; ++i) {
             command = path[i];
             switch (command[0]) {
-                case 'M':
+                case "M":
                     if (skip_same_last && result.length) {
                         let s = result[last_start], e = result[result.length - 1];
                         if (Math.abs(s[0] - e[0]) < ERROR && Math.abs(s[1] - e[1]) <
@@ -10965,23 +11570,23 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     result.push([+command[1], +command[2]]);
                     last_start = result.length - 1;
                     break;
-                case 'L':
+                case "L":
                     result.push([+command[1], +command[2]]);
                     break;
-                case 'Q':
+                case "Q":
                     if (!segment_points) {
                         result.push([+command[1], +command[2]]);
                     }
                     result.push([+command[3], +command[4]]);
                     break;
-                case 'C':
+                case "C":
                     if (!segment_points) {
                         result.push([+command[1], +command[2]]);
                         result.push([+command[3], +command[4]]);
                     }
                     result.push([+command[5], +command[6]]);
                     break;
-                case 'A':
+                case "A":
                     result.push([+command[6], +command[7]]);
                     break;
 
@@ -11000,12 +11605,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function isPolygon(path) {
         path = path || this;
-        if (path.type === 'polygon' || path.type === 'polyline' || path.type === 'line') return true;
-        if (path.type !== 'path') return false;
+        if (path.type === "polygon" || path.type === "polyline" || path.type === "line") return true;
+        if (path.type !== "path") return false;
 
         if (isCompound(path)) return false;
         let path_instr = path2curve(path, undefined, true);
-        const coms = ['m', 'l', 'z'];
+        const coms = ["m", "l", "z"];
         for (let i = 0; i < path_instr.length; i++) {
             if (coms.indexOf(path_instr[i][0].toLowerCase()) === -1) return false;
         }
@@ -11017,11 +11622,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     function getPointSample(path, sample) {
-        if (!path || typeof path === 'number') {
+        if (!path || typeof path === "number") {
             sample = path;
             path = this;
         }
-        if (path.type !== 'path') return null;
+        if (path.type !== "path") return null;
 
         sample = Math.max((sample || 10), 2);
 
@@ -11095,7 +11700,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             }
             d.push([
-                'C',
+                "C",
                 (-p[0].x + 6 * p[1].x + p[2].x) / 6,
                 (-p[0].y + 6 * p[1].y + p[2].y) / 6,
                 (p[1].x + 6 * p[2].x - p[3].x) / 6,
@@ -11158,7 +11763,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     Snap.path.toPath = function (el, string_only) {
         const type = el.type;
-        if (type === 'path') return (string_only) ? el.attr('d') : el;
+        if (type === "path") return (string_only) ? el.attr("d") : el;
         if (!getPath.hasOwnProperty(type)) return null;
 
         const d = getPath[type](el);
@@ -11171,7 +11776,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (el.getGeometryAttr) {
             //This assumes iaDesigner
             const attrs = el.attrs(el.getGeometryAttr(), true); //Copy all attributes except the geometry ones
-            attrs.id = el.getId() + '_path';
+            attrs.id = el.getId() + "_path";
             path.attr(attrs);
         }
 
@@ -11180,12 +11785,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function isCompound(path) {
         if (!path) path = this;
-        if (typeof path === 'object' && path.type && path.type ===
-            'path') path = path.attr('d');
-        if (typeof path !== 'string' && !Array.isArray(path)) return false;
+        if (typeof path === "object" && path.type && path.type ===
+            "path") path = path.attr("d");
+        if (typeof path !== "string" && !Array.isArray(path)) return false;
         let segs = Array.isArray(path) ? path : pathToAbsolute(path);
         segs = segs.filter(function (instr) {
-            return instr[0] == 'M' || instr[0] == 'm';
+            return instr[0] == "M" || instr[0] == "m";
         });
         return segs.length > 1;
     }
@@ -11227,17 +11832,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function getPathCompoundSegments(path) {
         if (!path) path = this;
-        let ret_type = (typeof path === 'string') ? 'string' : 'array';
-        if (typeof path === 'object' && path.type && path.type ===
-            'path') path = path.attr('d');
-        if (typeof path !== 'string' && !Array.isArray(path)) return null;
+        let ret_type = (typeof path === "string") ? "string" : "array";
+        if (typeof path === "object" && path.type && path.type ===
+            "path") path = path.attr("d");
+        if (typeof path !== "string" && !Array.isArray(path)) return null;
         let segs = Array.isArray(path) ? path : pathToAbsolute(path);
 
         const result = [];
         try {
             for (let i = 0, l = segs.length, instr, part; i < l; ++i) {
                 instr = segs[i];
-                if (instr[0] == 'M' || instr[0] == 'm') {
+                if (instr[0] == "M" || instr[0] == "m") {
                     path = [instr];
                     result.push(path);
                 } else {
@@ -11248,7 +11853,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return null;
         }
 
-        if (ret_type === 'string') {
+        if (ret_type === "string") {
             return result.map(function (path) {
                 return toString(path);
             });
@@ -11269,7 +11874,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function polygonLength(el, close, matrix) {
 
-        let points = (Array.isArray(el)) ? el : el.attr('points');
+        let points = (Array.isArray(el)) ? el : el.attr("points");
 
         matrix = matrix || (el.getLocalMatrix && el.getLocalMatrix());
         let to_tarns = matrix && !matrix.isIdentity();
@@ -11294,38 +11899,38 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Element.getTotalLength @method
- *
+     *
      * Returns the length of the path in pixels (only works for `path` elements)
- * @returns {number} length
+     * @returns {number} length
      */
     elproto.getTotalLength = function () {
-        if (this.type === 'path' && this.node.getTotalLength) {
+        if (this.type === "path" && this.node.getTotalLength) {
             return this.node.getTotalLength();
         }
 
-        if (this.type === 'polyline') {
+        if (this.type === "polyline") {
             return polygonLength(this);
         }
 
-        if (this.type === 'polygon') {
+        if (this.type === "polygon") {
             return polygonLength(this, true);
         }
 
-        if (this.type === 'rect') {
-            const x = this.attr('x'),
-                y = this.attr('y'),
-                w = this.attr('width'),
-                h = this.attr('height');
+        if (this.type === "rect") {
+            const x = this.attr("x"),
+                y = this.attr("y"),
+                w = this.attr("width"),
+                h = this.attr("height");
 
             return polygonLength([x, y, x + w, y, x + w, y + h, x, y + h], true,
                 this.getLocalMatrix());
         }
 
-        if (this.type === 'line') {
-            let x1 = +this.attr('x1'),
-                y1 = +this.attr('y1'),
-                x2 = +this.attr('x2'),
-                y2 = +this.attr('y2');
+        if (this.type === "line") {
+            let x1 = +this.attr("x1"),
+                y1 = +this.attr("y1"),
+                x2 = +this.attr("x2"),
+                y2 = +this.attr("y2");
 
             let m = this.getLocalMatrix();
             if (!m.isIdentity()) {
@@ -11342,10 +11947,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         //no full affine transforms supported
-        if (this.type === 'ellipse') {
+        if (this.type === "ellipse") {
             //using Ramanujan approximation
-            let rx = +this.attr('rx'),
-                ry = +this.attr('ry');
+            let rx = +this.attr("rx"),
+                ry = +this.attr("ry");
 
             const h = (rx - ry) ** 2 / (rx + ry) ** 2;
 
@@ -11353,8 +11958,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         }
 
-        if (this.type === 'cirle') {
-            let r = +this.attr('r');
+        if (this.type === "cirle") {
+            let r = +this.attr("r");
 
             return 2 * Math.PI * r;
         }
@@ -11363,12 +11968,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // SIERRA Element.getPointAtLength()/Element.getTotalLength(): If a <path> is broken into different segments, is the jump distance to the new coordinates set by the _M_ or _m_ commands calculated as part of the path's total length?
     /**
      * Element.getPointAtLength @method
- *
+     *
      * Returns coordinates of the point located at the given length on the given path (only works for `path` elements)
- *
- * @param {number} length - length, in pixels, from the start of the path, excluding non-rendering jumps
- *
- * @returns {object} representation of the point:
+     *
+     * @param {number} length - length, in pixels, from the start of the path, excluding non-rendering jumps
+     *
+     * @returns {object} representation of the point:
      o {
      o     x: (number) x coordinate,
      o     y: (number) y coordinate,
@@ -11483,11 +12088,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // SIERRA Element.getSubpath(): Similar to the problem for Element.getPointAtLength(). Unclear how this would work for a segmented path. Overall, the concept of _subpath_ and what I'm calling a _segment_ (series of non-_M_ or _Z_ commands) is unclear.
     /**
      * Element.getSubpath @method
- *
+     *
      * Returns subpath of a given element from given start and end lengths (only works for `path` elements)
- *
- * @param {number} from - length, in pixels, from the start of the path to the start of the segment
- * @param {number} to - length, in pixels, from the start of the path to the end of the segment
+     *
+     * @param {number} from - length, in pixels, from the start of the path to the start of the segment
+     * @param {number} to - length, in pixels, from the start of the path to the end of the segment
      * Extracts a substring from a path definition based on start and end positions
      * @method Element.getSubpath
      * @param {number} from - Start position as percentage (0-1) of total path length
@@ -11495,17 +12100,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {string} Path string definition for the extracted segment
      */
     elproto.getSubpath = function (from, to) {
-        return Snap.path.getSubpath(this.attr('d'), from, to);
+        return Snap.path.getSubpath(this.attr("d"), from, to);
     };
 
-    PathPoint.MIDDLE = 'mid';//0;
-    PathPoint.END = 'end'; //1;
-    PathPoint.START = 'start'; //2;
-    PathPoint.START_END = 'start_end'; //3;
+    PathPoint.MIDDLE = "mid";//0;
+    PathPoint.END = "end"; //1;
+    PathPoint.START = "start"; //2;
+    PathPoint.START_END = "start_end"; //3;
 
-    PathPoint.CORNER = 'corner'; //1;
-    PathPoint.SMOOTH = 'smooth'; //2;
-    PathPoint.SYMMETRIC = 'symmetric'; //3;
+    PathPoint.CORNER = "corner"; //1;
+    PathPoint.SMOOTH = "smooth"; //2;
+    PathPoint.SYMMETRIC = "symmetric"; //3;
 
     /**
      * Describes a single anchor point within a path segment, including the
@@ -11795,7 +12400,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             if (i) last = joins[joins.length - 1];
 
-            if (seg[0] === 'M') {
+            if (seg[0] === "M") {
                 if (i) { //this is a later segment
                     if (last.c.x === seg[1] && last.c.y === seg[2]) {
                         //check for connection with previous
@@ -11966,11 +12571,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     Snap.path.cubicFromThirdPoints = cubicFromThirdPoints;
 
-    Snap._.box = box; //for backward compatibility
-    Snap.box = box;
-
-    Snap.registerType("bbox", BBox)
-
     /**
      * Finds dot coordinates on the given cubic beziér curve at the given t
      * @method findDotsAtSegment
@@ -12029,7 +12629,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         let r = 100,
             b = box(x - r / 2, y - r / 2, r, r);
         const inside = [],
-            getter = X[0].hasOwnProperty('x') ? function (i) {
+            getter = X[0].hasOwnProperty("x") ? function (i) {
                 return {
                     x: X[i].x,
                     y: X[i].y,
@@ -12108,27 +12708,27 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.path.isPathOverlapRect = isPathOverlapRect;
     /**
      * Snap.path.isPointInside @method
- *
+     *
      * Utility method
- *
+     *
      * Returns `true` if given point is inside a given closed path.
      *
      * Note: fill mode doesn’t affect the result of this method.
- * @param {string} path - path string
- * @param {number} x - x of the point
- * @param {number} y - y of the point
- * @returns {boolean} `true` if point is inside the path
+     * @param {string} path - path string
+     * @param {number} x - x of the point
+     * @param {number} y - y of the point
+     * @returns {boolean} `true` if point is inside the path
      */
     Snap.path.isPointInside = isPointInsidePath;
     /**
      * Snap.path.getBBox @method
- *
+     *
      * Utility method
- *
+     *
      * Returns the bounding box of a given path
      * @memberof Snap.path
- * @param {string} path - path string
- * @returns {object} bounding box
+     * @param {string} path - path string
+     * @returns {object} bounding box
      o {
      o     x: (number) x coordinate of the left top point of the box,
      o     y: (number) y coordinate of the left top point of the box,
@@ -12142,41 +12742,41 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.path.get = getPath;
     /**
      * Snap.path.toRelative @method
- *
+     *
      * Utility method
- *
+     *
      * Converts path coordinates into relative values
- * @param {string} path - path string
- * @returns {array} path string
+     * @param {string} path - path string
+     * @returns {array} path string
      */
     Snap.path.toRelative = pathToRelative;
     /**
      * Snap.path.toAbsolute @method
- *
+     *
      * Utility method
- *
+     *
      * Converts path coordinates into absolute values
- * @param {string} path - path string
- * @returns {array} path string
+     * @param {string} path - path string
+     * @returns {array} path string
      */
     Snap.path.toAbsolute = pathToAbsolute;
     /**
      * Snap.path.toCubic @method
- *
+     *
      * Utility method
- *
+     *
      * Converts path to a new path where all segments are cubic beziér curves
- * @param {string|array} pathString - path string or array of segments
- * @returns {array} array of segments
+     * @param {string|array} pathString - path string or array of segments
+     * @returns {array} array of segments
      */
     Snap.path.toCubic = path2curve;
     /**
      * Snap.path.map @method
- *
+     *
      * Transform the path string with the given matrix
- * @param {string} path - path string
- * @param {object} matrix - see @Matrix
- * @returns {string} transformed path string
+     * @param {string} path - path string
+     * @param {object} matrix - see @Matrix
+     * @returns {string} transformed path string
      */
     Snap.path.map = mapPath;
     Snap.path.toString = toString;

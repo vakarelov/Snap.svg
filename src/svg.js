@@ -112,13 +112,12 @@
             Str = String,
             toFloat = parseFloat,
             toInt = parseInt,
-            math = Math,
-            mmax = math.max,
-            mmin = math.min,
-            abs = math.abs,
-            pow = math.pow,
-            PI = math.PI,
-            round = math.round,
+            mmax = Math.max,
+            mmin = Math.min,
+            abs = Math.abs,
+            pow = Math.pow,
+            PI = Math.PI,
+            round = Math.round,
             E = "";
         let S = " ";
         const objectToString = Object.prototype.toString;
@@ -524,7 +523,7 @@
                 if (!x && !y) {
                     return 0;
                 }
-                return (180 + math.atan2(-y, -x) * 180 / PI + 360) % 360;
+                return (180 + Math.atan2(-y, -x) * 180 / PI + 360) % 360;
             } else {
                 return angle(x1, y1, x3, y3) - angle(x2, y2, x3, y3);
             }
@@ -599,7 +598,7 @@
          * @returns {number} Sine of the angle.
          */
         Snap.sin = function (angle) {
-            return math.sin(Snap.rad(angle));
+            return Math.sin(Snap.rad(angle));
         };
         /**
          * Calculates the tangent of an angle specified in degrees.
@@ -610,7 +609,7 @@
          * @returns {number} Tangent of the angle.
          */
         Snap.tan = function (angle) {
-            return math.tan(Snap.rad(angle));
+            return Math.tan(Snap.rad(angle));
         };
         /**
          * Calculates the cotangent of an angle specified in degrees.
@@ -632,7 +631,7 @@
          * @returns {number} Cosine of the angle.
          */
         Snap.cos = function (angle) {
-            return math.cos(Snap.rad(angle));
+            return Math.cos(Snap.rad(angle));
         };
         /**
          * Snap.asin @method
@@ -642,7 +641,7 @@
          * @returns {number} asin in degrees
          */
         Snap.asin = function (num) {
-            return Snap.deg(math.asin(num));
+            return Snap.deg(Math.asin(num));
         };
         /**
          * Snap.acos @method
@@ -652,7 +651,7 @@
          * @returns {number} acos in degrees
          */
         Snap.acos = function (num) {
-            return Snap.deg(math.acos(num));
+            return Snap.deg(Math.acos(num));
         };
         /**
          * Snap.atan @method
@@ -662,7 +661,7 @@
          * @returns {number} atan in degrees
          */
         Snap.atan = function (num) {
-            return Snap.deg(math.atan(num));
+            return Snap.deg(Math.atan(num));
         };
         /**
          * Snap.atan2 @method
@@ -672,7 +671,7 @@
          * @returns {number} atan2 in degrees
          */
         Snap.atan2 = function (num) {
-            return Snap.deg(math.atan2(num));
+            return Snap.deg(Math.atan2(num));
         };
         /**
          * Snap.angle @method
@@ -972,9 +971,9 @@
                     values[3] && values[3].slice(-1) === "%" && (opacity /= 100);
                     return Snap.hsl2rgb(red, green, blue, opacity);
                 }
-                red = mmin(math.round(red), 255);
-                green = mmin(math.round(green), 255);
-                blue = mmin(math.round(blue), 255);
+                red = mmin(Math.round(red), 255);
+                green = mmin(Math.round(green), 255);
+                blue = mmin(Math.round(blue), 255);
                 opacity = mmin(mmax(opacity, 0), 1);
                 rgb = {r: red, g: green, b: blue, toString: rgbtoString};
                 rgb.hex = "#" +
@@ -1026,7 +1025,7 @@
          */
         Snap.rgb = cacher(function (r, g, b, o) {
             if (is(o, "finite")) {
-                const round = math.round;
+                const round = Math.round;
                 return "rgba(" + [round(r), round(g), round(b), +o.toFixed(2)] + ")";
             }
             return "#" + (16777216 | b | g << 8 | r << 16).toString(16).slice(1);
@@ -1079,9 +1078,9 @@
                 return [r, g, b];
             },
             packageRGB = function (r, g, b, o) {
-                r = math.round(r * 255);
-                g = math.round(g * 255);
-                b = math.round(b * 255);
+                r = Math.round(r * 255);
+                g = Math.round(g * 255);
+                b = Math.round(b * 255);
                 const rgb = {
                     r: r,
                     g: g,
@@ -1414,9 +1413,9 @@
                         }
                     }
                     if (name === "skewX") {
-                        res.push(["m", 1, 0, math.tan(rad(params[0])), 1, 0, 0]);
+                        res.push(["m", 1, 0, Math.tan(rad(params[0])), 1, 0, 0]);
                     } else if (name === "skewY") {
-                        res.push(["m", 1, math.tan(rad(params[0])), 0, 1, 0, 0]);
+                        res.push(["m", 1, Math.tan(rad(params[0])), 0, 1, 0, 0]);
                     } else {
                         res.push([name.charAt(0)].concat(params));
                     }

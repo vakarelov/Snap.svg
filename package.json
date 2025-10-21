@@ -23,7 +23,8 @@
         "grunt-jsdoc": "^2.4.1",
         "grunt-prettify": "^0.4.0",
         "grunt-terser": "^2.0.0",
-        "mocha": "*"
+        "mocha": "*",
+        "typescript": "^5.9.3"
     },
     "eslintConfig": {
         "globals": {

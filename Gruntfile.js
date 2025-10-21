@@ -7,6 +7,7 @@ module.exports = function (grunt) {
         './src/fragment-class.js', // Fragment constructor + registration
         './src/element-class.js',  // Element constructor + prototype methods + registration
         './src/paper-class.js',    // Paper constructor + prototype methods + registration
+        './src/hull.js',           //hull is needed by element to compute fast BBoxes
         './src/animation.js',
         './src/matrix.js',
         './src/attr.js',
@@ -22,7 +23,6 @@ module.exports = function (grunt) {
         './src/colors.js',
 
         // './src/bezier.js',
-        // './src/hull.js',
         // './src/polygons.js',
         // './src/convex_overlap.js',
         // './src/point_utils.js',
@@ -34,7 +34,6 @@ module.exports = function (grunt) {
 
     const adv = [
         './src/bezier.js',
-        './src/hull.js',
         './src/polygons.js',
         './src/convex_overlap.js',
         './src/point_utils.js',

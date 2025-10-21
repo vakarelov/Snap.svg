@@ -43,6 +43,7 @@
              * Creates a `<clipPath>` element and optionally populates it with content or attributes.
              *
              * @function Snap.Paper#clipPath
+             * @function Snap.Element#clipPath
              * @param {Object|Snap.Element} [first] Attribute map or element to append immediately.
              * @returns {Snap.Element} Newly created clipPath element.
              * @example
@@ -64,6 +65,7 @@
              * Creates an SVG `<a>` anchor element and assigns optional href/target attributes.
              *
              * @function Snap.Paper#a
+             * @function Snap.Element#a
              * @param {string} [href] Hyperlink reference (internal or external).
              * @param {string} [target] Target attribute such as `_blank`.
              * @returns {Snap.Element} Anchor element ready for child content.
@@ -86,6 +88,7 @@
              * Wraps an element (or text) with a styled rectangle and optional click handler to form a button.
              *
              * @function Snap.Paper#button
+             * @function Snap.Element#button
              * @param {Snap.Element|string} el Element or string label to display inside the button.
              * @param {number} [border=0] Padding around the element in SVG units.
              * @param {function(MouseEvent):void} [action] Click handler assigned to the button group.
@@ -123,6 +126,7 @@
              * Creates a `<foreignObject>` container, injecting optional HTML markup into the node.
              *
              * @function Snap.Paper#foreignObject
+             * @function Snap.Element#foreignObject
              * @param {number|Object} [x] X coordinate or attribute object.
              * @param {number} [y] Y coordinate when numeric arguments are used.
              * @param {number|string} [width] Width of the foreignObject.
@@ -160,6 +164,7 @@
              * easier manipulation. Accepts HTML, Snap elements, or arrays of elements.
              *
              * @function Snap.Paper#htmlInsert
+             * @function Snap.Element#htmlInsert
              * @param {number} x X coordinate.
              * @param {number} y Y coordinate.
              * @param {number|string} width Width of the container.
@@ -201,6 +206,7 @@
              * embedded instance via `el.embeddedSvg`.
              *
              * @function Snap.Paper#embeddedSVG
+             * @function Snap.Element#embeddedSVG
              * @param {number} x X coordinate of the container.
              * @param {number} y Y coordinate of the container.
              * @param {number} width Width of the embedded SVG viewport.
@@ -238,6 +244,7 @@
              * Creates a `<canvas>` element inside a foreignObject and exposes the native node via `el.canvas`.
              *
              * @function Snap.Paper#canvas
+             * @function Snap.Element#canvas
              * @param {number} x X coordinate of the foreignObject.
              * @param {number} y Y coordinate of the foreignObject.
              * @param {number} width Canvas width in pixels.
@@ -385,6 +392,7 @@
              * consistently when transforms are applied.
              *
              * @function Snap.Paper#circle
+             * @function Snap.Element#circle
              * @param {number} x X coordinate of the centre.
              * @param {number} y Y coordinate of the centre.
              * @param {number} r Circle radius.
@@ -419,6 +427,7 @@
              * Renders text containing newline characters as stacked tspans, with configurable spacing.
              *
              * @function Snap.Paper#multilineText
+             * @function Snap.Element#multilineText
              * @param {number} x X coordinate of the first baseline.
              * @param {number} y Y coordinate of the first baseline.
              * @param {string|string[]} text Text value or list of lines.
@@ -448,6 +457,7 @@
              * Creates an image-based border using nine-slice scaling and optional background colour fill.
              *
              * @function Snap.Paper#borderImage
+             * @function Snap.Element#borderImage
              * @param {Snap.Element|string} image_url Image element or URL used for the border slices.
              * @param {number} [border=0] Border width around the target rectangle.
              * @param {number} x X coordinate of the top-left corner.
@@ -732,6 +742,7 @@
                  * Builds a circle from a centre point and a point lying on its circumference.
                  *
                  * @function Snap.Paper#circleCentPoint
+                 * @function Snap.Element#circleCentPoint
                  * @param {number|Object} x1 Centre x coordinate or `{x, y}` object.
                  * @param {number|Object} y1 Centre y coordinate or `{x, y}` object when `x1` is numeric.
                  * @param {number} x2 X coordinate of the circumference point.
@@ -758,6 +769,7 @@
                  * Builds a circle from two points defining the endpoints of a diameter.
                  *
                  * @function Snap.Paper#circleTwoPoints
+                 * @function Snap.Element#circleTwoPoints
                  * @param {number|Object} x1 First point x coordinate or `{x, y}` object.
                  * @param {number|Object} y1 First point y coordinate or `{x, y}` object when `x1` is numeric.
                  * @param {number} x2 Second point x coordinate.
@@ -783,6 +795,7 @@
                  * Builds a circle that passes through three distinct points.
                  *
                  * @function Snap.Paper#circleThreePoints
+                 * @function Snap.Element#circleThreePoints
                  * @param {number|Object} x1 First point x coordinate or `{x, y}` object.
                  * @param {number|Object} y1 First point y coordinate or `{x, y}` object when `x1` is numeric.
                  * @param {number|Object} x2 Second point x coordinate or `{x, y}` object.
@@ -833,6 +846,7 @@
                  * Constructs an ellipse from the general quadratic equation coefficients.
                  *
                  * @function Snap.Paper#ellipseFromEquation
+                 * @function Snap.Element#ellipseFromEquation
                  * @param {number} A Coefficient for $x^2$.
                  * @param {number} B Coefficient for $xy$.
                  * @param {number} C Coefficient for $y^2$.
@@ -946,6 +960,7 @@
                  * Splits an annulus into equal angular segments and renders them as path elements.
                  *
                  * @function Snap.Paper#diskSegments
+                 * @function Snap.Element#diskSegments
                  * @param {number} num_segments Number of segments to generate.
                  * @param {number} [angle] Angular span in radians; defaults to a full circle.
                  * @param {number} [start_angle=0] Angle offset applied to the first segment.
@@ -1006,6 +1021,7 @@
                  * Creates a donut-shaped path by subtracting an inner circle from an outer circle.
                  *
                  * @function Snap.Paper#disk
+                 * @function Snap.Element#disk
                  * @param {number} cx Centre x coordinate.
                  * @param {number} cy Centre y coordinate.
                  * @param {number} our_rad Outer radius of the disk.
@@ -1028,6 +1044,7 @@
                  * Places repeated symbols along an arc, rotating each instance to face outward.
                  *
                  * @function Snap.Paper#arcFan
+                 * @function Snap.Element#arcFan
                  * @param {number} rad Radius of the arc.
                  * @param {number} angle Total angular span in degrees.
                  * @param {number} step Number of symbol placements along the arc.
@@ -1093,6 +1110,7 @@
                  * Creates a uniform rectangular grid of `<rect>` elements.
                  *
                  * @function Snap.Paper#grid
+                 * @function Snap.Element#grid
                  * @param {number} width Overall grid width.
                  * @param {number} height Overall grid height.
                  * @param {number} rows Number of rows.
@@ -1140,6 +1158,7 @@
                  * Creates a zigzag polyline between two points or across a specified horizontal width.
                  *
                  * @function Snap.Paper#zigzag
+                 * @function Snap.Element#zigzag
                  * @param {Object} p1 Starting point `{x, y}`.
                  * @param {Object|number} p2_width Second point `{x, y}` or horizontal length in pixels.
                  * @param {number} period Length of a single zigzag period.
@@ -1181,9 +1200,36 @@
 
 
             /**
-             * If placed as the first argument for an element constructor function called on a element, the new element is
-             * placed after current. This overrides the behaviour where the new element will be added inside group-like elements.
-             * @type {string}
+             * Special constant that controls placement behavior when calling element constructor methods
+             * on **group-like elements** (such as `<g>`, `<svg>`, `<a>`, `<clipPath>`, `<mask>`, etc.).
+             * 
+             * **Important:** This constant is **only relevant for group-like elements**. When calling
+             * constructor methods on non-group elements (like circles, rectangles, paths), new elements
+             * are always placed after the current element by default, so `FORCE_AFTER` has no effect.
+             *
+             * **Default Behavior on Groups:**
+             * - `group.circle(50, 50, 20)` → new circle is added **inside** the group (as a child)
+             *
+             * **With FORCE_AFTER:**
+             * - `group.circle(Snap.FORCE_AFTER, 50, 50, 20)` → new circle is placed **after** the group (as a sibling)
+             *
+             * @constant {string} Snap.FORCE_AFTER
+             * @memberof Snap
+             * @example
+             * // On group-like elements: Default adds inside the group
+             * const group = paper.g();
+             * const circle1 = group.circle(50, 50, 20); // circle1 is a CHILD of group
+             *
+             * @example
+             * // Using FORCE_AFTER on a group: Places after the group instead
+             * const group = paper.g();
+             * const circle2 = group.circle(Snap.FORCE_AFTER, 50, 50, 20); // circle2 is a SIBLING of group
+             *
+             * @example
+             * // On non-group elements: FORCE_AFTER has no effect (always places after anyway)
+             * const rect = paper.rect(10, 10, 50, 50);
+             * const newRect1 = rect.rect(70, 10, 50, 50);              // Placed after rect
+             * const newRect2 = rect.rect(Snap.FORCE_AFTER, 70, 10, 50, 50); // Also placed after rect (same result)
              */
             Snap.FORCE_AFTER = Snap.FORCE_AFTER || '__force_after';
 
