@@ -1,4 +1,24 @@
-#0.5.1
+##1.1
+
+* Major fork enhancements across geometry, interactions, UI, and typing
+* Geometry:
+	* Added comprehensive Bezier and PolyBezier utilities (split, length, normals, offset/outline, intersections, arcs)
+	* Added polygon operations (intersection, point-in-polygon, area) and SAT-based convex overlap checks
+	* Integrated concave/convex hull helpers (`Snap.hull`, `Snap.convexHull`)
+	* Introduced rich `Snap.BBox` class and `Snap.box(...)` helpers
+		* BBox computations optimized via cached convex hull (CHull) for fast rotated bbox/overlap after transforms
+* Element:
+	* Coordinate helpers (global/local transforms, cursor/screen points), overlap checks, center of mass/rotation
+	* Interaction primitives: `move`, `revolve`, and `makeDraggable({ bounds, snap, ... })`
+	* Utilities: path conversions, clipPath/mask creation, flatten, embed anchors/HTML, visibility helpers
+* Paper:
+	* Builders: `grid`, `zigzag`, `arcFan`, `diskSegments`/`disk`, circle/ellipse conveniences
+	* Embedding/UI: `foreignObject`, `htmlInsert`, `embeddedSVG`, `canvas`, `button`, text measurement and multiline text
+	* Border image tiling system with auto-update
+	* Paper constructors/methods copied to Elements to enable method-chaining during SVG construction
+* GUI helpers: region-select, cursor helpers, message tooltips, rasterization and canvas overlays
+* Colors/types: exposed color utilities and added comprehensive ambient TypeScript declarations
+* See `doc/WHATS_NEW.md` for details and examples
 
 * Bug fix
 
