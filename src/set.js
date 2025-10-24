@@ -12,43 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var mmax = Math.max,
+    const mmax = Math.max,
         mmin = Math.min;
+
+    // Check if native Set is available
+    const hasNativeSet = typeof Set !== 'undefined' && Set.prototype && Set.prototype.has;
+    const NativeSet = hasNativeSet ? Set : null;
 
     /**
      * Set object constructor - creates a collection of Snap elements
      * @class Set
      * @param {Array} [items] - array of initial items to add to the set
      */
-    var Set = function (items) {
-            this.items = [];
+    const SnapSet = function (items) {
+            // Use native Set if available, otherwise use array
+            this.items = hasNativeSet ? new NativeSet() : [];
+            this._isNativeSet = hasNativeSet;
             this.bindings = {};
             this.length = 0;
             this.type = "set";
             if (items) {
-                for (var i = 0, ii = items.length; i < ii; ++i) {
+                let i = 0;
+                const ii = items.length;
+                for (; i < ii; ++i) {
                     if (items[i]) {
-                        // this[this.items.length] = this.items[this.items.length] = items[i];
-                        // this.length++;
                         this.push(items[i])
                     }
                 }
             }
         },
-        setproto = Set.prototype;
+        setproto = SnapSet.prototype;
     /**
      * Adds each argument to the current set
      * @method Set.push
      * @returns {Set} original set for chaining
      */
     setproto.push = function () {
-        var item,
-            len;
-        for (var i = 0, ii = arguments.length; i < ii; ++i) {
+        let item;
+        let i = 0;
+        const ii = arguments.length;
+        for (; i < ii; ++i) {
             item = arguments[i];
             if (item) {
-                len = this.items.length;
-                this[len] = this.items[len] = item;
+                if (this._isNativeSet) {
+                    // Native Set automatically handles uniqueness
+                    this.items.add(item);
+                } else {
+                    // Array fallback - no uniqueness check
+                    this.items.push(item);
+                }
+                // Update indexed access and length
+                this[this.length] = item;
                 this.length++;
             }
         }
@@ -60,8 +74,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Element} element that was removed
      */
     setproto.pop = function () {
-        this.length && delete this[this.length--];
-        return this.items.pop();
+        if (this.length === 0) return undefined;
+
+        const item = this[this.length - 1];
+        delete this[--this.length];
+
+        if (this._isNativeSet) {
+            // For Set, we need to delete the specific item
+            this.items.delete(item);
+        } else {
+            // For Array, just pop it
+            this.items.pop();
+        }
+
+        return item;
     };
     /**
      * Executes given function for each element in the set
@@ -73,9 +99,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} Set object for chaining
      */
     setproto.forEach = function (callback, thisArg) {
-        for (var i = 0, ii = this.items.length; i < ii; ++i) {
-            if (callback.call(thisArg, this.items[i], i) === false) {
-                return this;
+        if (this._isNativeSet) {
+            // Native Set forEach
+            let i = 0;
+            for (const item of this.items) {
+                if (callback.call(thisArg, item, i++) === false) {
+                    return this;
+                }
+            }
+        } else {
+            // Array forEach
+            let i = 0;
+            const ii = this.items.length;
+            for (; i < ii; ++i) {
+                if (callback.call(thisArg, this.items[i], i) === false) {
+                    return this;
+                }
             }
         }
         return this;
@@ -109,20 +148,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             ms = easing.dur;
             attrs = attrs.attr;
         }
-        var args = arguments;
+        const args = arguments;
         if (Snap.is(attrs, "array") && Snap.is(args[args.length - 1], "array")) {
             var each = true;
         }
-        var begin,
-            handler = function () {
-                if (begin) {
-                    this.b = begin;
-                } else {
-                    begin = this.b;
-                }
-            },
-            cb = 0,
-            set = this,
+        let begin;
+        const handler = function () {
+            if (begin) {
+                this.b = begin;
+            } else {
+                begin = this.b;
+            }
+        };
+        let cb = 0;
+        const set = this,
             callbacker = callback && function () {
                 if (++cb == set.length) {
                     callback.call(this);
@@ -157,11 +196,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} Set object for chaining
      */
     setproto.bind = function (attr, a, b) {
-        var data = {};
+        const data = {};
         if (typeof a == "function") {
             this.bindings[attr] = a;
         } else {
-            var aname = b || attr;
+            const aname = b || attr;
             this.bindings[attr] = function (v) {
                 data[aname] = v;
                 a.attr(data);
@@ -176,16 +215,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} Set object for chaining
      */
     setproto.attr = function (value) {
-        var unbound = {};
-        for (var k in value) {
+        const unbound = {};
+        for (let k in value) {
             if (this.bindings[k]) {
                 this.bindings[k](value[k]);
             } else {
                 unbound[k] = value[k];
             }
         }
-        for (var i = 0, ii = this.items.length; i < ii; ++i) {
-            this.items[i].attr(unbound);
+        if (this._isNativeSet) {
+            // Native Set iteration
+            for (const item of this.items) {
+                item.attr(unbound);
+            }
+        } else {
+            // Array iteration
+            let i = 0;
+            const ii = this.items.length;
+            for (; i < ii; ++i) {
+                this.items[i].attr(unbound);
+            }
         }
         return this;
     };
@@ -209,28 +258,70 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     setproto.splice = function (index, count, insertion) {
         index = index < 0 ? mmax(this.length + index, 0) : index;
         count = mmax(0, mmin(this.length - index, count));
-        var tail = [],
-            todel = [],
-            args = [],
-            i;
+        const todel = [],
+            args = [];
+        let i;
+
+        // Collect insertion arguments
         for (i = 2; i < arguments.length; ++i) {
             args.push(arguments[i]);
         }
-        for (i = 0; i < count; ++i) {
-            todel.push(this[index + i]);
+
+        if (this._isNativeSet) {
+            // For Set, convert to array for splice operation, then rebuild
+            const itemsArray = Array.from(this.items);
+
+            // Collect items to delete
+            for (i = 0; i < count; ++i) {
+                todel.push(this[index + i]);
+            }
+
+            // Perform splice on array
+            itemsArray.splice(index, count, ...args);
+
+            // Rebuild Set from modified array
+            this.items.clear();
+            for (i = 0; i < itemsArray.length; ++i) {
+                this.items.add(itemsArray[i]);
+                this[i] = itemsArray[i];
+            }
+
+            // Update length and clean up extra indices
+            this.length = itemsArray.length;
+            i = this.length;
+            while (this[i]) {
+                delete this[i++];
+            }
+        } else {
+            // For Array, use native splice
+            const tail = [];
+
+            // Collect items to delete
+            for (i = 0; i < count; ++i) {
+                todel.push(this[index + i]);
+            }
+
+            // Collect tail items
+            for (i = count; i < this.length - index; ++i) {
+                tail.push(this[index + i]);
+            }
+
+            const arglen = args.length;
+
+            // Rebuild items array and indexed access
+            for (i = 0; i < arglen + tail.length; ++i) {
+                this.items[index + i] = this[index + i] = i < arglen ? args[i] : tail[i - arglen];
+            }
+
+            // Update length and clean up
+            this.items.length = this.length -= count - arglen;
+            i = this.length;
+            while (this[i]) {
+                delete this[i++];
+            }
         }
-        for (; i < this.length - index; ++i) {
-            tail.push(this[index + i]);
-        }
-        var arglen = args.length;
-        for (i = 0; i < arglen + tail.length; ++i) {
-            this.items[index + i] = this[index + i] = i < arglen ? args[i] : tail[i - arglen];
-        }
-        i = this.items.length = this.length -= count - arglen;
-        while (this[i]) {
-            delete this[i++];
-        }
-        return new Set(todel);
+
+        return new SnapSet(todel);
     };
     /**
      * Removes given element from the set
@@ -239,7 +330,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Boolean} true if element was found and removed, false otherwise
      */
     setproto.exclude = function (el) {
-        for (var i = 0, ii = this.length; i < ii; ++i) if (this[i] == el) {
+        let i = 0;
+        const ii = this.length;
+        for (; i < ii; ++i) if (this[i] == el) {
             this.splice(i, 1);
             return true;
         }
@@ -252,9 +345,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} Set object for chaining
      */
     setproto.insertAfter = function (el) {
-        var i = this.items.length;
-        while (i--) {
-            this.items[i].insertAfter(el);
+        if (this._isNativeSet) {
+            // Convert Set to array for reverse iteration
+            const itemsArray = Array.from(this.items);
+            let i = itemsArray.length;
+            while (i--) {
+                itemsArray[i].insertAfter(el);
+            }
+        } else {
+            // Array reverse iteration
+            let i = this.items.length;
+            while (i--) {
+                this.items[i].insertAfter(el);
+            }
         }
         return this;
     };
@@ -264,16 +367,28 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {BBox} bounding box descriptor. See Element.getBBox.
      */
     setproto.getBBox = function () {
-        var x = [],
-            y = [],
-            x2 = [],
-            y2 = [];
         let box;
-        for (var i = this.items.length; i--;) if (!this.items[i].removed) {
-            if (box){
-                box = box.union(this.items[i].getBBox());
-            } else {
-                box = this.items[i].getBBox().clone();
+        if (this._isNativeSet) {
+            // Native Set iteration
+            for (const item of this.items) {
+                if (!item.removed) {
+                    if (box) {
+                        box = box.union(item.getBBox());
+                    } else {
+                        box = item.getBBox().clone();
+                    }
+                }
+            }
+        } else {
+            // Array iteration (backwards for consistency)
+            for (let i = this.items.length; i--;) {
+                if (!this.items[i].removed) {
+                    if (box) {
+                        box = box.union(this.items[i].getBBox());
+                    } else {
+                        box = this.items[i].getBBox().clone();
+                    }
+                }
             }
         }
         return box;
@@ -287,7 +402,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Array} filtered array of items
      */
     setproto.filter = function (callback, thisArg) {
-        return this.items.filter(callback, thisArg)
+        if (this._isNativeSet) {
+            // Convert Set to array, then filter
+            return Array.from(this.items).filter(callback, thisArg);
+        } else {
+            return this.items.filter(callback, thisArg);
+        }
     };
 
     /**
@@ -298,7 +418,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Array} new array with each element being the result of the callback function
      */
     setproto.map = function (callback, thisArg) {
-        return this.items.map(callback, thisArg)
+        if (this._isNativeSet) {
+            // Convert Set to array, then map
+            return Array.from(this.items).map(callback, thisArg);
+        } else {
+            return this.items.map(callback, thisArg);
+        }
     };
 
     /**
@@ -307,7 +432,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Array} array of values
      */
     setproto.values = function () {
-        return this.items.filter(values)
+        if (this._isNativeSet) {
+            return Array.from(this.items.values());
+        } else {
+            return this.items.slice();
+        }
     };
 
     /**
@@ -318,7 +447,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Boolean} true if the value was found, false otherwise
      */
     setproto.includes = function (valueToFind, fromIndex) {
-        return this.items.includes(valueToFind, fromIndex);
+        if (this._isNativeSet) {
+            // Native Set has() method
+            return this.items.has(valueToFind);
+        } else {
+            // Array includes() method
+            return this.items.includes(valueToFind, fromIndex);
+        }
     };
 
     /**
@@ -327,9 +462,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} New Set object
      */
     setproto.clone = function (s) {
-        s = new Set;
-        for (var i = 0, ii = this.items.length; i < ii; ++i) {
-            s.push(this.items[i].clone());
+        s = new SnapSet;
+        if (this._isNativeSet) {
+            // Iterate over Set
+            for (const item of this.items) {
+                s.push(item.clone());
+            }
+        } else {
+            // Iterate over Array
+            let i = 0;
+            const ii = this.items.length;
+            for (; i < ii; ++i) {
+                s.push(this.items[i].clone());
+            }
         }
         return s;
     };
@@ -349,7 +494,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @class Snap.Set
      * @param {Array} [items] - array of initial items
      */
-    Snap.Set = Set;
+    Snap.Set = SnapSet;
     /**
      * Creates a set and fills it with list of arguments.
      * @method Snap.set
@@ -361,7 +506,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      *     s2 = Snap.set(r, paper.circle(100, 100, 20)); // prefilled set
      */
     Snap.set = function () {
-        var set = new Set;
+        const set = new SnapSet;
         if (arguments.length) {
             set.push.apply(set, Array.prototype.slice.call(arguments, 0));
         }

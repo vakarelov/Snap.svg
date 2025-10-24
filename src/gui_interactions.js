@@ -1,51 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    
-    <meta charset="utf-8">
-    <title>gui_interactions.js - Documentation</title>
-    
-    
-    <script src="scripts/prettify/prettify.js"></script>
-    <script src="scripts/prettify/lang-css.js"></script>
-    <!--[if lt IE 9]>
-      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-    <![endif]-->
-    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
-    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
-    <script src="scripts/nav.js" defer></script>
-    
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-
-<input type="checkbox" id="nav-trigger" class="nav-trigger" />
-<label for="nav-trigger" class="navicon-button x">
-  <div class="navicon"></div>
-</label>
-
-<label for="nav-trigger" class="overlay"></label>
-
-<nav >
-    
-    
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Animation.html">Animation</a><ul class='methods'><li data-type='method'><a href="Animation.html#done">done</a></li></ul></li><li></li><li><a href="BinaryHeap.html">BinaryHeap</a></li><li></li><li></li><li></li><li><a href="Set.html">Set</a><ul class='methods'><li data-type='method'><a href="Set.html#.animate">animate</a></li><li data-type='method'><a href="Set.html#.attr">attr</a></li><li data-type='method'><a href="Set.html#.bind">bind</a></li><li data-type='method'><a href="Set.html#.clear">clear</a></li><li data-type='method'><a href="Set.html#.exclude">exclude</a></li><li data-type='method'><a href="Set.html#.forEach">forEach</a></li><li data-type='method'><a href="Set.html#.getBBox">getBBox</a></li><li data-type='method'><a href="Set.html#.insertAfter">insertAfter</a></li><li data-type='method'><a href="Set.html#.pop">pop</a></li><li data-type='method'><a href="Set.html#.push">push</a></li><li data-type='method'><a href="Set.html#.remove">remove</a></li><li data-type='method'><a href="Set.html#.clone">clone</a></li><li data-type='method'><a href="Set.html#.filter">filter</a></li><li data-type='method'><a href="Set.html#.includes">includes</a></li><li data-type='method'><a href="Set.html#.map">map</a></li><li data-type='method'><a href="Set.html#.splice">splice</a></li><li data-type='method'><a href="Set.html#.toString">toString</a></li><li data-type='method'><a href="Set.html#.values">values</a></li></ul></li><li></li><li><a href="Snap.Element.html">Element</a><ul class='methods'><li data-type='method'><a href="Snap.Element.html#addClickEvent">addClickEvent</a></li><li data-type='method'><a href="Snap.Element.html#addHoldEvent">addHoldEvent</a></li><li data-type='method'><a href="Snap.Element.html#addInteractionEvent">addInteractionEvent</a></li><li data-type='method'><a href="Snap.Element.html#addLongpressEvent">addLongpressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addMessage">addMessage</a></li><li data-type='method'><a href="Snap.Element.html#addPressEvent">addPressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addTransform">addTransform</a></li><li data-type='method'><a href="Snap.Element.html#anchorEmbed">anchorEmbed</a></li><li data-type='method'><a href="Snap.Element.html#animateTransform">animateTransform</a></li><li data-type='method'><a href="Snap.Element.html#attrs">attrs</a></li><li data-type='method'><a href="Snap.Element.html#centerOfMass">centerOfMass</a></li><li data-type='method'><a href="Snap.Element.html#centerRotation">centerRotation</a></li><li data-type='method'><a href="Snap.Element.html#children">children</a></li><li data-type='method'><a href="Snap.Element.html#closest">closest</a></li><li data-type='method'><a href="Snap.Element.html#correctScale">correctScale</a></li><li data-type='method'><a href="Snap.Element.html#createClipPath">createClipPath</a></li><li data-type='method'><a href="Snap.Element.html#createMask">createMask</a></li><li data-type='method'><a href="Snap.Element.html#ellipseTransform">ellipseTransform</a></li><li data-type='method'><a href="Snap.Element.html#fitInBox">fitInBox</a></li><li data-type='method'><a href="Snap.Element.html#flatten">flatten</a></li><li data-type='method'><a href="Snap.Element.html#getAttributes">getAttributes</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxRot">getBBoxRot</a></li><li data-type='method'><a href="Snap.Element.html#getBitmap">getBitmap</a></li><li data-type='method'><a href="Snap.Element.html#getCanvasOverly">getCanvasOverly</a></li><li data-type='method'><a href="Snap.Element.html#getClientHeight">getClientHeight</a></li><li data-type='method'><a href="Snap.Element.html#getClientWidth">getClientWidth</a></li><li data-type='method'><a href="Snap.Element.html#getCoordMatrix">getCoordMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getCursorPoint">getCursorPoint</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLineWithGui">getDirectionLineWithGui</a></li><li data-type='method'><a href="Snap.Element.html#getFirstPoint">getFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#getFromScreenDistance">getFromScreenDistance</a></li><li data-type='method'><a href="Snap.Element.html#getGeometryAttr">getGeometryAttr</a></li><li data-type='method'><a href="Snap.Element.html#getId">getId</a></li><li data-type='method'><a href="Snap.Element.html#getLastPoint">getLastPoint</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBox">getRealBBox</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBoxExact">getRealBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getReferringToMe">getReferringToMe</a></li><li data-type='method'><a href="Snap.Element.html#getTopSVG">getTopSVG</a></li><li data-type='method'><a href="Snap.Element.html#globalToLocal">globalToLocal</a></li><li data-type='method'><a href="Snap.Element.html#hide">hide</a></li><li data-type='method'><a href="Snap.Element.html#hideSlowly">hideSlowly</a></li><li data-type='method'><a href="Snap.Element.html#isAbove">isAbove</a></li><li data-type='method'><a href="Snap.Element.html#isBelow">isBelow</a></li><li data-type='method'><a href="Snap.Element.html#isChildOf">isChildOf</a></li><li data-type='method'><a href="Snap.Element.html#isInRect">isInRect</a></li><li data-type='method'><a href="Snap.Element.html#isLocal">isLocal</a></li><li data-type='method'><a href="Snap.Element.html#isOverlap">isOverlap</a></li><li data-type='method'><a href="Snap.Element.html#isOverlapRect">isOverlapRect</a></li><li data-type='method'><a href="Snap.Element.html#isParentOf">isParentOf</a></li><li data-type='method'><a href="Snap.Element.html#linkedElementLocalise">linkedElementLocalise</a></li><li data-type='method'><a href="Snap.Element.html#localOnly">localOnly</a></li><li data-type='method'><a href="Snap.Element.html#makeDraggable">makeDraggable</a></li><li data-type='method'><a href="Snap.Element.html#makePath">makePath</a></li><li data-type='method'><a href="Snap.Element.html#move">move</a></li><li data-type='method'><a href="Snap.Element.html#pathFirstPoint">pathFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#rasterize">rasterize</a></li><li data-type='method'><a href="Snap.Element.html#readChanges">readChanges</a></li><li data-type='method'><a href="Snap.Element.html#recordChange">recordChange</a></li><li data-type='method'><a href="Snap.Element.html#reflect">reflect</a></li><li data-type='method'><a href="Snap.Element.html#regionSelect">regionSelect</a></li><li data-type='method'><a href="Snap.Element.html#remove">remove</a></li><li data-type='method'><a href="Snap.Element.html#removeMessage">removeMessage</a></li><li data-type='method'><a href="Snap.Element.html#removeSlowly">removeSlowly</a></li><li data-type='method'><a href="Snap.Element.html#repositionInGroup">repositionInGroup</a></li><li data-type='method'><a href="Snap.Element.html#revolve">revolve</a></li><li data-type='method'><a href="Snap.Element.html#rotate">rotate</a></li><li data-type='method'><a href="Snap.Element.html#scale">scale</a></li><li data-type='method'><a href="Snap.Element.html#selectParent">selectParent</a></li><li data-type='method'><a href="Snap.Element.html#setCursor">setCursor</a></li><li data-type='method'><a href="Snap.Element.html#setFirstPoint">setFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#setIdFollowRefs">setIdFollowRefs</a></li><li data-type='method'><a href="Snap.Element.html#show">show</a></li><li data-type='method'><a href="Snap.Element.html#showSlowly">showSlowly</a></li><li data-type='method'><a href="Snap.Element.html#toJSON">toJSON</a></li><li data-type='method'><a href="Snap.Element.html#toPolyBezier">toPolyBezier</a></li><li data-type='method'><a href="Snap.Element.html#translate">translate</a></li><li data-type='method'><a href="Snap.Element.html#translate_glob">translate_glob</a></li><li data-type='method'><a href="Snap.Element.html#translateAnimate">translateAnimate</a></li><li data-type='method'><a href="Snap.Element.html#transparentToMouse">transparentToMouse</a></li><li data-type='method'><a href="Snap.Element.html#a">a</a></li><li data-type='method'><a href="Snap.Element.html#addStop">addStop</a></li><li data-type='method'><a href="Snap.Element.html#arcFan">arcFan</a></li><li data-type='method'><a href="Snap.Element.html#borderImage">borderImage</a></li><li data-type='method'><a href="Snap.Element.html#button">button</a></li><li data-type='method'><a href="Snap.Element.html#canvas">canvas</a></li><li data-type='method'><a href="Snap.Element.html#circle">circle</a></li><li data-type='method'><a href="Snap.Element.html#circleCentPoint">circleCentPoint</a></li><li data-type='method'><a href="Snap.Element.html#circleThreePoints">circleThreePoints</a></li><li data-type='method'><a href="Snap.Element.html#circleTwoPoints">circleTwoPoints</a></li><li data-type='method'><a href="Snap.Element.html#clipPath">clipPath</a></li><li data-type='method'><a href="Snap.Element.html#disk">disk</a></li><li data-type='method'><a href="Snap.Element.html#diskSegments">diskSegments</a></li><li data-type='method'><a href="Snap.Element.html#ellipseFromEquation">ellipseFromEquation</a></li><li data-type='method'><a href="Snap.Element.html#embeddedSVG">embeddedSVG</a></li><li data-type='method'><a href="Snap.Element.html#foreignObject">foreignObject</a></li><li data-type='method'><a href="Snap.Element.html#grid">grid</a></li><li data-type='method'><a href="Snap.Element.html#htmlInsert">htmlInsert</a></li><li data-type='method'><a href="Snap.Element.html#multilineText">multilineText</a></li><li data-type='method'><a href="Snap.Element.html#setStops">setStops</a></li><li data-type='method'><a href="Snap.Element.html#stops">stops</a></li><li data-type='method'><a href="Snap.Element.html#zigzag">zigzag</a></li></ul></li><li><a href="Snap.Fragment.html">Fragment</a></li><li><a href="Snap.html#.Matrix">Matrix</a><ul class='methods'><li data-type='method'><a href="Snap.html#.Matrix#add">add</a></li><li data-type='method'><a href="Snap.html#.Matrix#clone">clone</a></li><li data-type='method'><a href="Snap.html#.Matrix#determinant">determinant</a></li><li data-type='method'><a href="Snap.html#.Matrix#equals">equals</a></li><li data-type='method'><a href="Snap.html#.Matrix#get">get</a></li><li data-type='method'><a href="Snap.html#.Matrix#invert">invert</a></li><li data-type='method'><a href="Snap.html#.Matrix#isIdentity">isIdentity</a></li><li data-type='method'><a href="Snap.html#.Matrix#isMatrix">isMatrix</a></li><li data-type='method'><a href="Snap.html#.Matrix#multLeft">multLeft</a></li><li data-type='method'><a href="Snap.html#.Matrix#multRight">multRight</a></li><li data-type='method'><a href="Snap.html#.Matrix#offset">offset</a></li><li data-type='method'><a href="Snap.html#.Matrix#plus">plus</a></li><li data-type='method'><a href="Snap.html#.Matrix#randomTrans">randomTrans</a></li><li data-type='method'><a href="Snap.html#.Matrix#rotate">rotate</a></li><li data-type='method'><a href="Snap.html#.Matrix#rotScaleSplit">rotScaleSplit</a></li><li data-type='method'><a href="Snap.html#.Matrix#scale">scale</a></li><li data-type='method'><a href="Snap.html#.Matrix#scMult">scMult</a></li><li data-type='method'><a href="Snap.html#.Matrix#skew">skew</a></li><li data-type='method'><a href="Snap.html#.Matrix#skewX">skewX</a></li><li data-type='method'><a href="Snap.html#.Matrix#skewY">skewY</a></li><li data-type='method'><a href="Snap.html#.Matrix#split">split</a></li><li data-type='method'><a href="Snap.html#.Matrix#split2">split2</a></li><li data-type='method'><a href="Snap.html#.Matrix#timesSc">timesSc</a></li><li data-type='method'><a href="Snap.html#.Matrix#toArray">toArray</a></li><li data-type='method'><a href="Snap.html#.Matrix#toString">toString</a></li><li data-type='method'><a href="Snap.html#.Matrix#toTransformString">toTransformString</a></li><li data-type='method'><a href="Snap.html#.Matrix#translate">translate</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransformMatrix">twoPointTransformMatrix</a></li><li data-type='method'><a href="Snap.html#.Matrix#x">x</a></li><li data-type='method'><a href="Snap.html#.Matrix#y">y</a></li><li data-type='method'><a href="Snap.html#.Matrix#apply">apply</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransform">twoPointTransform</a></li></ul></li><li></li><li></li><li></li><li></li><li></li><li><a href="Snap.Paper.html">Paper</a><ul class='methods'><li data-type='method'><a href="Snap.Paper.html#addExtension">addExtension</a></li><li data-type='method'><a href="Snap.Paper.html#animate">animate</a></li><li data-type='method'><a href="Snap.Paper.html#animateMotion">animateMotion</a></li><li data-type='method'><a href="Snap.Paper.html#circle">circle</a></li><li data-type='method'><a href="Snap.Paper.html#clear">clear</a></li><li data-type='method'><a href="Snap.Paper.html#ellipse">ellipse</a></li><li data-type='method'><a href="Snap.Paper.html#g">g</a></li><li data-type='method'><a href="Snap.Paper.html#gradient">gradient</a></li><li data-type='method'><a href="Snap.Paper.html#gradientLinear">gradientLinear</a></li><li data-type='method'><a href="Snap.Paper.html#gradientRadial">gradientRadial</a></li><li data-type='method'><a href="Snap.Paper.html#image">image</a></li><li data-type='method'><a href="Snap.Paper.html#line">line</a></li><li data-type='method'><a href="Snap.Paper.html#mask">mask</a></li><li data-type='method'><a href="Snap.Paper.html#measureText">measureText</a></li><li data-type='method'><a href="Snap.Paper.html#mpath">mpath</a></li><li data-type='method'><a href="Snap.Paper.html#path">path</a></li><li data-type='method'><a href="Snap.Paper.html#point">point</a></li><li data-type='method'><a href="Snap.Paper.html#polygon">polygon</a></li><li data-type='method'><a href="Snap.Paper.html#polyline">polyline</a></li><li data-type='method'><a href="Snap.Paper.html#processExtensions">processExtensions</a></li><li data-type='method'><a href="Snap.Paper.html#ptrn">ptrn</a></li><li data-type='method'><a href="Snap.Paper.html#rect">rect</a></li><li data-type='method'><a href="Snap.Paper.html#svg">svg</a></li><li data-type='method'><a href="Snap.Paper.html#symbol">symbol</a></li><li data-type='method'><a href="Snap.Paper.html#text">text</a></li><li data-type='method'><a href="Snap.Paper.html#textInputBox">textInputBox</a></li><li data-type='method'><a href="Snap.Paper.html#textPath">textPath</a></li><li data-type='method'><a href="Snap.Paper.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Paper.html#toString">toString</a></li><li data-type='method'><a href="Snap.Paper.html#use">use</a></li></ul></li><li></li><li></li><li></li><li></li><li></li><li><a href="Snap.Set.html">Set</a></li><li></li></ul><h3>Namespaces</h3><ul><li><a href="Matrix.gen.html">gen</a></li><li></li><li><a href="Snap.bbox.html">bbox</a></li><li><a href="Snap.polygons.html">polygons</a><ul class='methods'><li data-type='method'><a href="Snap.polygons.html#.findPointInsidePolygon">findPointInsidePolygon</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonArea">polygonArea</a></li><li data-type='method'><a href="Snap.polygons.html#.intersect">intersect</a></li></ul></li><li></li><li></li></ul><h3>Global</h3><ul><li><a href="global.html#Checksifthegiveneventisregisteredwiththegivenfunction.">Checks if the given event is registered with the given function.</a></li><li><a href="global.html#compareInt">compareInt</a></li><li><a href="global.html#getLengthFactory">getLengthFactory</a></li><li><a href="global.html#O">O</a></li><li><a href="global.html#reverse_seg">reverse_seg</a></li><li><a href="global.html#voronoi">voronoi</a></li><li><a href="global.html#voronoi1D">voronoi1D</a></li></ul>
-    
-</nav>
-
-<div id="main">
-    
-    <h1 class="page-title">gui_interactions.js</h1>
-    
-
-    
-
-
-
-    
-    <section>
-        <article>
-            <pre class="prettyprint source linenums"><code>(function (root) {
+(function (root) {
     "use strict";
     let Snap_ia = (typeof window !== "undefined") ? window.Snap || window.Snap_ia : root.Snap;
     Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
@@ -86,7 +39,7 @@
             if (apply_to_children) {
                 const children = this.getChildren();
 
-                for (let i = 0; i &lt; children.length; ++i) {
+                for (let i = 0; i < children.length; ++i) {
                     children[i].setCursor(cursorStyle);
                 }
             }
@@ -101,7 +54,7 @@
          * @function Snap.Element#getDirectionLineWithGui
          * @param {number} [sample=100] Number of sampling points used along the path or polygon.
          * @param {Object} gui Helper object used for visualization (expects `svgRoot`).
-         * @returns {Array&lt;number>|null} `[angle, intercept]` pair in degrees and intercept, or `null` if undetermined.
+         * @returns {Array<number>|null} `[angle, intercept]` pair in degrees and intercept, or `null` if undetermined.
          */
         Element.prototype.getDirectionLineWithGui = function (sample, gui) {
             if (!root.ss) return null;
@@ -115,7 +68,7 @@
                     const l = el.getTotalLength();
                     const inc = l / sample;
                     const points = [];
-                    for (let i = 0, d = 0, p; i &lt; sample; ++i, d += inc) {
+                    for (let i = 0, d = 0, p; i < sample; ++i, d += inc) {
                         p = el.getPointAtLength(d);
                         let c = gui.svgRoot.circle(p.x, p.y, .3).attr({id: 'c' + i, fill: 'red'});
                         points.push([p.x, p.y]);
@@ -160,8 +113,8 @@
             let scale = 1;
             if (center_x === undefined) center_x = 0;
             if (center_y === undefined) center_y = 0;
-            if (gui &amp;&amp; gui.layers.getCurrentNavLayer() &amp;&amp;
-                (scale = 1 / Number(gui.layers.getZoom())) &amp;&amp; !isNaN(scale) &amp;&amp;
+            if (gui && gui.layers.getCurrentNavLayer() &&
+                (scale = 1 / Number(gui.layers.getZoom())) && !isNaN(scale) &&
                 !(scale === 1)) {
                 this.scale(scale, scale, center_x, center_y, 'id');
             }
@@ -186,7 +139,7 @@
             let container = target_group;
             let that = this;
             if (!container) {
-                if (gui &amp;&amp; gui.handlerGroup) {
+                if (gui && gui.handlerGroup) {
                     container = gui.handlerGroup;
                 } else {
                     container = this.paper;
@@ -196,10 +149,10 @@
             let select, start_point, start_t, append;
 
             function make_rect(el, cursorPoint, rectStyle) {
-                const dash_size = (gui &amp;&amp; gui.layers.getZoom()) ?
+                const dash_size = (gui && gui.layers.getZoom()) ?
                     5 / gui.layers.getZoom() :
                     5;
-                const stroke_width = (gui &amp;&amp; gui.layers.getZoom()) ?
+                const stroke_width = (gui && gui.layers.getZoom()) ?
                     .5 / gui.layers.getZoom() :
                     .5;
                 rectStyle = Object.assign({
@@ -238,7 +191,7 @@
                 dx = Math.abs(cursorPoint.x - start_point.x);
                 dy = Math.abs(cursorPoint.y - start_point.y);
 
-                if (Date.now() - start_t > 200 &amp;&amp; dx > 5 &amp;&amp; dy > 5) {
+                if (Date.now() - start_t > 200 && dx > 5 && dy > 5) {
                     if (!select) {
                         select = make_rect(el, start_point, rect_style);
                     }
@@ -318,17 +271,17 @@
         Element.prototype.addInteractionEvent = function (
             type, action_description, other_params, replace, gui) {
 
-            if (other_params &amp;&amp; other_params.eve) {
+            if (other_params && other_params.eve) {
                 gui = other_params;
                 other_params = undefined;
             }
-            if (typeof replace === "object" &amp;&amp; replace.eve) {
+            if (typeof replace === "object" && replace.eve) {
                 gui = replace;
                 replace = undefined;
             }
 
             if (Array.isArray(action_description)) {
-                for (let i = 0; i &lt; action_description.length; ++i) {
+                for (let i = 0; i < action_description.length; ++i) {
                     this.addInteractionEvent(type, action_description[i]);
                 }
                 return;
@@ -348,7 +301,7 @@
                 action_description = {'operation': action_description}
             }
 
-            if (action_description &amp;&amp; action_description['message'] &amp;&amp; gui) {
+            if (action_description && action_description['message'] && gui) {
 
                 this.addMessage(action_description['message'], gui.eve);
 
@@ -574,7 +527,7 @@
             scale, width_pix, height_pix) {
             let scalex, scaley;
             scale = scale || 1;
-            if (Array.isArray(scale) &amp;&amp; scale.length === 2) {
+            if (Array.isArray(scale) && scale.length === 2) {
                 scalex = scale[0];
                 scaley = scale[1];
             } else {
@@ -588,9 +541,9 @@
             width_pix = width_pix || bbox.width;
             height_pix = height_pix || bbox.height;
 
-            const html = '&lt;canvas id="' + this.getId() + '_canvas" ' +
+            const html = '<canvas id="' + this.getId() + '_canvas" ' +
                 'width="' + width_pix + '" ' +
-                'height="' + height_pix + '">&lt;/canvas>';
+                'height="' + height_pix + '"></canvas>';
             const fo = this.htmlInsert(Snap.FORCE_AFTER, 0, 0, width_pix,
                 height_pix, html);
 
@@ -615,7 +568,7 @@
          * @param {number} [scale=1] Scale factor for the rasterization.
          * @param {number|string} [border=0] Border size to add around the element. Can be a number or percentage string.
          * @param {boolean} [remove=false] Whether to remove the original element after rasterization.
-         * @returns {Promise&lt;Snap.Element>} Promise that resolves with the new image element.
+         * @returns {Promise<Snap.Element>} Promise that resolves with the new image element.
          */
         Element.prototype.rasterize = function (gui, scale, border, remove) {
             scale = scale || 1;
@@ -623,7 +576,7 @@
             let that = this;
             border = border || 0;
             let bbox = this.getBBox();
-            if (typeof border === 'string' &amp;&amp;
+            if (typeof border === 'string' &&
                 border.endsWith('%')) border = Math.ceil(
                 bbox.r2() * (+border.replace('%', '')) / 100);
             const promise = new Promise((resolve, reject) => {
@@ -644,28 +597,4 @@
         };
 
     });
-}(window || this))</code></pre>
-        </article>
-    </section>
-
-
-
-
-    
-    
-</div>
-
-<br class="clear">
-
-<footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.11</a> on Fri Oct 24 2025 10:02:53 GMT-0700 (Pacific Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
-</footer>
-
-<script>prettyPrint();</script>
-<script src="scripts/polyfill.js"></script>
-<script src="scripts/linenumber.js"></script>
-
-
-
-</body>
-</html>
+}(window || this))

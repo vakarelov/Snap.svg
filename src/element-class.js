@@ -1395,7 +1395,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @returns {Element} Current element for chaining.
          */
         elproto.setPaper = function (paper, force) {
-            if (!paper instanceof Paper ||
+            if (!is(paper,"Paper") ||
                 (!force && this.paper === paper)) return this;
 
             this.paper = paper;

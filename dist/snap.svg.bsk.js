@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-10-10
+// build: 2025-10-24
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -955,6 +955,7 @@
 //amd-Banner
     "use strict";
 
+// @ts-nocheck
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -5335,7 +5336,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @returns {Element} Current element for chaining.
          */
         elproto.setPaper = function (paper, force) {
-            if (!paper instanceof Paper ||
+            if (!is(paper,"Paper") ||
                 (!force && this.paper === paper)) return this;
 
             this.paper = paper;
@@ -6283,6 +6284,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
     const hub = Snap._.hub;
     const $ = Snap._.$;
     const make = Snap._.make;
+    const getSomeDefs = Snap._.getSomeDefs;
     const has = "hasOwnProperty";
     const xmlns = "http://www.w3.org/2000/svg";
 
@@ -6334,11 +6336,47 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
 
     var proto = Paper.prototype,
         is = Snap.is;
+
+    function isPlainObject(value) {
+        return is(value, "object") && value && !Array.isArray(value) && !Snap.is(value, "Element") && !value.node && !value.type && !value.paper;
+    }
+
+    function listToString(value, innerSeparator) {
+        if (!Array.isArray(value)) {
+            return value;
+        }
+        var outer = ";";
+        return value.map(function (item) {
+            if (Array.isArray(item)) {
+                return item.map(function (inner) {
+                    return inner == null ? "" : String(inner);
+                }).join(innerSeparator || " ");
+            }
+            return item == null ? "" : String(item);
+        }).join(outer);
+    }
+
+    function normaliseAnimationAttributes(attr) {
+        if (!attr) {
+            return;
+        }
+        if (attr.values != null) {
+            attr.values = listToString(attr.values, " ");
+        }
+        if (attr.keyTimes != null) {
+            attr.keyTimes = listToString(attr.keyTimes);
+        }
+        if (attr.keyPoints != null) {
+            attr.keyPoints = listToString(attr.keyPoints);
+        }
+        if (attr.keySplines != null) {
+            attr.keySplines = listToString(attr.keySplines, " ");
+        }
+    }
     /**
      * Draws a rectangle on the paper.
      *
      * @function Snap.Paper#rect
-     * @function Snap.Element#rect
      * @param {number} x X coordinate of the top-left corner.
      * @param {number} y Y coordinate of the top-left corner.
      * @param {number} width Rectangle width.
@@ -6392,7 +6430,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a circle.
      *
      * @function Snap.Paper#circle
-     * @function Snap.Element#circle
      * @param {number} x X coordinate of the centre.
      * @param {number} y Y coordinate of the centre.
      * @param {number} r Circle radius.
@@ -6438,7 +6475,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Places an image on the surface.
      *
      * @function Snap.Paper#image
-     * @function Snap.Element#image
      * @param {string|Object} src Image URL or attribute map containing at least a `src` property.
      * @param {number} [x] Horizontal offset on the paper.
      * @param {number} [y] Vertical offset on the paper.
@@ -6483,7 +6519,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws an ellipse.
      *
      * @function Snap.Paper#ellipse
-     * @function Snap.Element#ellipse
      * @param {number} x X coordinate of the centre.
      * @param {number} y Y coordinate of the centre.
      * @param {number} rx Horizontal radius.
@@ -6514,7 +6549,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * comma- or space-separated numeric arguments (for example, `"M10,20L30,40"`).
      *
      * @function Snap.Paper#path
-     * @function Snap.Element#path
      * @param {(string|Array|Object)} [pathString] SVG path string, an array of segments, or an
      *        attribute map applied to the created element.
      * @returns {Snap.Element} The resulting path element.
@@ -6538,7 +6572,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * The last argument may be an attribute map applied to the created group.
      *
      * @function Snap.Paper#g
-     * @function Snap.Element#g
      * @alias Snap.Paper#def_group
      * @param {...any} elements Elements to append to the group. When the final argument
      *        is a plain object without `type` or `paper` properties, it is treated as the attribute map.
@@ -6570,7 +6603,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates a nested `<svg>` element.
      *
      * @function Snap.Paper#svg
-     * @function Snap.Element#svg
      * @param {number} [x] X coordinate of the embedded SVG.
      * @param {number} [y] Y coordinate of the embedded SVG.
      * @param {number|string} [width] Viewport width.
@@ -6611,7 +6643,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * parameters are added to the mask as children.
      *
      * @function Snap.Paper#mask
-     * @function Snap.Element#mask
      * @param {...any} nodes Elements to include in the mask or a terminating attribute map.
      * @returns {Snap.Element} The mask element.
      */
@@ -6629,7 +6660,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates an SVG `<pattern>` element, optionally configuring its position, size, and viewBox.
      *
      * @function Snap.Paper#ptrn
-     * @function Snap.Element#ptrn
      * @param {number} [x] X coordinate of the pattern.
      * @param {number} [y] Y coordinate of the pattern.
      * @param {number} [width] Width of the pattern tile.
@@ -6672,7 +6702,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates an SVG `<use>` element referencing an existing symbol or node.
      *
      * @function Snap.Paper#use
-     * @function Snap.Element#use
      * @param {(string|Snap.Element|Object)} [id] ID of the element to reference, the element itself,
      *        or an attribute map containing an `id` property. When omitted the method defers to the
      *        {@link Snap.Element#use} behaviour.
@@ -6708,7 +6737,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates an SVG `<symbol>` element.
      *
      * @function Snap.Paper#symbol
-     * @function Snap.Element#symbol
      * @param {number} [vbx] ViewBox x origin.
      * @param {number} [vby] ViewBox y origin.
      * @param {number} [vbw] ViewBox width.
@@ -6728,7 +6756,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a text string.
      *
      * @function Snap.Paper#text
-     * @function Snap.Element#text
      * @param {number} x X coordinate of the baseline origin.
      * @param {number} y Y coordinate of the baseline origin.
      * @param {(string|Array.<string>)} text Text content or an array of strings that become nested `<tspan>` elements.
@@ -6751,11 +6778,316 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         }
         return this.el("text", attr);
     };
+
+    /**
+     * Creates a `<textPath>` element bound to a path reference and optional text content.
+     *
+     * @function Snap.Paper#textPath
+     * @param {(string|Array|Snap.Element|Object)} path Path data string or array, existing path element,
+     *        `#id` reference, or attribute map.
+     * @param {(string|Array.<string>)} [text] Text content applied to the `<textPath>` element.
+     * @param {Object} [attr] Attribute map for the `<textPath>` element.
+     * @returns {Snap.Element} The `<textPath>` element.
+     */
+    proto.textPath = function (path, text, attr) {
+        attr = attr || {};
+        let textContent = text;
+        let hrefValue;
+        let targetPath;
+        let createdPath = false;
+
+        if (isPlainObject(path)) {
+            attr = path;
+            if (attr.text != null && textContent == null) {
+                textContent = attr.text;
+            }
+            hrefValue = attr["xlink:href"] || attr.href;
+            path = hrefValue;
+        }
+
+        if (Snap.is(path, "Element")) {
+            targetPath = path;
+        } else if (Snap.is(path, "array")) {
+            targetPath = this.path(path);
+            createdPath = true;
+        } else if (is(path, "string")) {
+            if (path.charAt(0) === "#") {
+                hrefValue = path;
+            } else {
+                targetPath = this.path(path);
+                createdPath = true;
+            }
+        }
+
+        if (targetPath) {
+            let id = targetPath.attr("id");
+            if (!id) {
+                id = Snap._.id(targetPath);
+                targetPath.attr({id: id});
+            }
+            hrefValue = "#" + id;
+            if (createdPath) {
+                const defs = getSomeDefs(this);
+                if (defs) {
+                    const group = defs.querySelector("#text-paths");
+                    (group || defs).appendChild(targetPath.node);
+                }
+            }
+        }
+
+        if (hrefValue) {
+            attr["xlink:href"] = hrefValue;
+            attr.href = hrefValue;
+        }
+
+        if (textContent != null && attr.text == null) {
+            attr.text = textContent;
+        }
+
+        return this.el("textPath", attr);
+    };
+
+    /**
+     * Creates an SVG `<animate>` element and optionally appends it to a target element.
+     *
+     * Positional arguments map to the most common animation attributes. An attribute map can be
+     * supplied instead (or in addition) to cover extra properties. When the last argument is a
+     * {@link Snap.Element}, the animation node is automatically added to it via {@link Snap.Element#add}.
+     *
+     * @function Snap.Paper#animate
+     * @param {string} [attributeName] Animated attribute name.
+     * @param {(string|number)} [from] Start value.
+     * @param {(string|number)} [to] End value.
+     * @param {(string|number)} [dur] Animation duration (for example `"2s"`).
+     * @param {(string|number)} [begin] Delay before the animation starts.
+     * @param {(string|number)} [repeatCount] Repeat configuration (for example `"indefinite"`).
+     * @param {string} [fill] Fill behaviour (`"freeze"`, `"remove"`).
+     * @param {string} [calcMode] Interpolation mode.
+     * @param {(string|Array)} [values] Value list for keyframe animation.
+     * @param {(string|Array)} [keyTimes] Key time list matching `values`.
+     * @param {(string|Array)} [keySplines] Bezier control points for spline timing.
+     * @param {(string|number)} [by] Relative delta value.
+     * @param {Object} [attr] Additional attributes for the `<animate>` element.
+     * @param {Snap.Element} [target] Element that receives the animation via `.add`.
+     * @returns {Snap.Element} The `<animate>` element.
+     */
+    proto.animate = function () {
+        const args = Array.prototype.slice.call(arguments);
+        let insertionTarget = null;
+        let attr = {};
+
+        if (args.length && Snap.is(args[args.length - 1], "Element")) {
+            insertionTarget = args.pop();
+        }
+
+        if (args.length && isPlainObject(args[args.length - 1])) {
+            attr = args.pop();
+        }
+
+        if (args.length === 1 && isPlainObject(args[0])) {
+            Object.assign(attr, args.pop());
+        } else if (args.length) {
+            const keys = [
+                "attributeName",
+                "from",
+                "to",
+                "dur",
+                "begin",
+                "repeatCount",
+                "fill",
+                "calcMode",
+                "values",
+                "keyTimes",
+                "keySplines",
+                "by"
+            ];
+            for (let i = 0; i < keys.length && i < args.length; ++i) {
+                const value = args[i];
+                if (value != null && attr[keys[i]] == null) {
+                    attr[keys[i]] = value;
+                }
+            }
+        }
+
+        normaliseAnimationAttributes(attr);
+
+        const el = this.el("animate", attr);
+        if (insertionTarget) {
+            insertionTarget.add(el);
+        }
+        return el;
+    };
+
+    /**
+     * Creates an `<animateMotion>` element, optionally wiring it to an existing motion path via `<mpath>`.
+     *
+     * The first positional argument may be a path data string, an array of path segments, a Snap element,
+     * or a `#id` reference. When an element or reference is supplied, an `<mpath>` child is generated
+     * automatically. As with {@link Snap.Paper#animate}, the final argument may be a target element that
+     * receives the animation node.
+     *
+     * @function Snap.Paper#animateMotion
+     * @param {(string|Array|Snap.Element)} [path] Motion path specification or reference.
+     * @param {(string|number)} [dur] Animation duration.
+     * @param {(string|number)} [begin] Delay before start.
+     * @param {(string|number)} [repeatCount] Repeat configuration.
+     * @param {(string|number)} [rotate] Rotation behaviour (`"auto"`, angle, etc.).
+     * @param {string} [calcMode] Interpolation mode.
+     * @param {(string|Array)} [keyPoints] Fractional positions along the path.
+     * @param {(string|Array)} [keyTimes] Key timing list.
+     * @param {(string|Array)} [keySplines] Spline control points for timing.
+     * @param {Object} [attr] Additional attributes for `<animateMotion>`.
+     * @param {Snap.Element} [target] Element that should receive the animation via `.add`.
+     * @returns {Snap.Element} The `<animateMotion>` element.
+     */
+    proto.animateMotion = function () {
+        const args = Array.prototype.slice.call(arguments);
+        let insertionTarget = null;
+        let attr = {};
+        let pathInput;
+
+        if (args.length && Snap.is(args[args.length - 1], "Element")) {
+            insertionTarget = args.pop();
+        }
+
+        if (args.length && isPlainObject(args[args.length - 1])) {
+            attr = args.pop();
+        }
+
+        if (args.length === 1 && isPlainObject(args[0])) {
+            Object.assign(attr, args.pop());
+        } else if (args.length) {
+            pathInput = args.shift();
+            const keys = [
+                "dur",
+                "begin",
+                "repeatCount",
+                "rotate",
+                "calcMode",
+                "keyPoints",
+                "keyTimes",
+                "keySplines"
+            ];
+            for (let i = 0; i < keys.length && i < args.length; ++i) {
+                const value = args[i];
+                if (value != null && attr[keys[i]] == null) {
+                    attr[keys[i]] = value;
+                }
+            }
+        }
+
+        if (pathInput == null && attr.path != null) {
+            pathInput = attr.path;
+            delete attr.path;
+        }
+
+        let mpathSource = null;
+        if (Snap.is(pathInput, "Element")) {
+            mpathSource = pathInput;
+        } else if (Array.isArray(pathInput)) {
+            attr.path = Snap.path && Snap.path.toString ? Snap.path.toString.call(pathInput) : pathInput.join(" ");
+        } else if (typeof pathInput === "string") {
+            if (pathInput.charAt(0) === "#") {
+                mpathSource = pathInput;
+            } else {
+                attr.path = pathInput;
+            }
+        } else if (pathInput && pathInput.node && pathInput.node.tagName === "path") {
+            mpathSource = Snap(pathInput);
+        }
+
+        if (attr.path != null && Array.isArray(attr.path)) {
+            attr.path = Snap.path && Snap.path.toString ? Snap.path.toString.call(attr.path) : attr.path.join(" ");
+        }
+
+        normaliseAnimationAttributes(attr);
+
+        const el = this.el("animateMotion", attr);
+
+        if (mpathSource) {
+            const mpathEl = this.mpath(mpathSource);
+            el.add(mpathEl);
+        }
+
+        if (insertionTarget) {
+            insertionTarget.add(el);
+        }
+
+        return el;
+    };
+
+    /**
+     * Creates an `<mpath>` element referencing a motion path definition.
+     *
+     * @function Snap.Paper#mpath
+     * @param {(string|Array|Snap.Element|Object)} path Path data, existing path element, `#id` reference,
+     *        or attribute map containing `href`/`xlink:href`.
+     * @param {Object} [attr] Additional attributes for `<mpath>`.
+     * @returns {Snap.Element} The `<mpath>` element.
+     */
+    proto.mpath = function (path, attr) {
+        let attributes = attr;
+        let pathInput = path;
+
+        if (attr == null && isPlainObject(path)) {
+            attributes = path;
+            pathInput = attributes.path || attributes["xlink:href"] || attributes.href;
+        }
+
+        attributes = attributes || {};
+
+        let hrefValue = attributes["xlink:href"] || attributes.href;
+        let targetPath = null;
+        let createdPath = false;
+
+        if (Snap.is(pathInput, "Element")) {
+            targetPath = pathInput;
+        } else if (Array.isArray(pathInput)) {
+            targetPath = this.path(pathInput);
+            createdPath = true;
+        } else if (typeof pathInput === "string") {
+            if (pathInput.charAt(0) === "#") {
+                hrefValue = pathInput;
+            } else if (pathInput) {
+                targetPath = this.path(pathInput);
+                createdPath = true;
+            }
+        } else if (pathInput && pathInput.node && pathInput.node.tagName === "path") {
+            targetPath = Snap(pathInput);
+        }
+
+        if (targetPath) {
+            let id = targetPath.attr("id");
+            if (!id) {
+                id = Snap._.id(targetPath);
+                targetPath.attr({id: id});
+            }
+            hrefValue = "#" + id;
+
+            if (createdPath) {
+                const defs = getSomeDefs(this);
+                if (defs) {
+                    const group = defs.querySelector("#motion-paths");
+                    (group || defs).appendChild(targetPath.node);
+                }
+            }
+        }
+
+        if (hrefValue) {
+            attributes["xlink:href"] = hrefValue;
+            attributes.href = hrefValue;
+        }
+
+        delete attributes.path;
+
+        return this.el("mpath", attributes);
+    };
+
+    
     /**
      * Draws a line segment between two points.
      *
      * @function Snap.Paper#line
-     * @function Snap.Element#line
      * @param {number} x1 Start point X coordinate.
      * @param {number} y1 Start point Y coordinate.
      * @param {number} x2 End point X coordinate.
@@ -6804,7 +7136,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a polyline through a list of coordinates.
      *
      * @function Snap.Paper#polyline
-     * @function Snap.Element#polyline
      * @param {(Array.<number>|...number)} points Coordinate list. Provide either a flat array or individual arguments.
      * @param {Object} [attr] Attribute map applied to the element.
      * @returns {Snap.Element} The polyline element.
@@ -6819,7 +7150,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a closed polygon by joining supplied coordinates.
      *
      * @function Snap.Paper#polygon
-     * @function Snap.Element#polygon
      * @see Snap.Paper#polyline
      * @param {(Array.<number>|...number)} points Coordinate list as an array or individual numbers.
      * @param {Object} [attr] Attribute map for the polygon element.
@@ -7006,7 +7336,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
          * `:offset` suffixes.
          *
          * @function Snap.Paper#gradient
-         * @function Snap.Element#gradient
          * @param {string} str Gradient descriptor.
          * @returns {Snap.Element} The gradient element.
          * @example
@@ -7019,7 +7348,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         /**
          * Creates a linear gradient with the given bounding coordinates.
          * @function Snap.Paper#gradientLinear
-         * @function Snap.Element#gradientLinear
          * @param {number} x1 Start x coordinate.
          * @param {number} y1 Start y coordinate.
          * @param {number} x2 End x coordinate.
@@ -7032,7 +7360,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         /**
          * Creates a radial gradient centred at the supplied coordinates.
          * @function Snap.Paper#gradientRadial
-         * @function Snap.Element#gradientRadial
          * @param {number} cx Centre x coordinate.
          * @param {number} cy Centre y coordinate.
          * @param {number} r Radius of the gradient.
@@ -7101,8 +7428,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      *
      * Creates an element on paper with a given name and no attributes
      *
-     * @function Snap.Paper#el
-     * @function Snap.Element#el
      * @param {string} name - tag name
      * @param {object} attr - attributes
      * @returns {Element} the current element
@@ -7603,15 +7928,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
     Snap._.Animation = Animation;
     /**
-     * Snap.animation @method *
-     * Creates an animation object * * @param {object} attr - attributes of final destination * @param {number} duration - duration of the animation, in milliseconds * @param {function} easing - #optional one of easing functions of @mina or custom one * @param {function} callback - #optional callback function that fires when animation ends * @returns {object} animation object
+     * Snap.animation @method
+ *
+     * Creates an animation object
+ *
+ * @param {object} attr - attributes of final destination
+ * @param {number} duration - duration of the animation, in milliseconds
+ * @param {function} easing - #optional one of easing functions of @mina or custom one
+ * @param {function} callback - #optional callback function that fires when animation ends
+ * @returns {object} animation object
     */
     Snap.animation = function (attr, ms, easing, callback) {
         return new Animation(attr, ms, easing, callback);
     };
     /**
-     * Element.inAnim @method *
-     * Returns a set of animations that may be able to manipulate the current element * * @returns {object} in format:
+     * Element.inAnim @method
+ *
+     * Returns a set of animations that may be able to manipulate the current element
+ *
+ * @returns {object} in format:
      o {
      o     anim (object) animation object,
      o     mina (object) @mina object,
@@ -7641,8 +7976,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return res;
     };
     /**
-     * Snap.animate @method *
-     * Runs generic animation of one number into another with a caring function * * @param {number|array} from - number or array of numbers * @param {number|array} to - number or array of numbers * @param {function} setter - caring function that accepts one number argument * @param {number} duration - duration, in milliseconds * @param {function} easing - #optional easing function from @mina or custom * @param {function} callback - #optional callback function to execute when animation ends * @returns {object} animation object in @mina format
+     * Snap.animate @method
+ *
+     * Runs generic animation of one number into another with a caring function
+ *
+ * @param {number|array} from - number or array of numbers
+ * @param {number|array} to - number or array of numbers
+ * @param {function} setter - caring function that accepts one number argument
+ * @param {number} duration - duration, in milliseconds
+ * @param {function} easing - #optional easing function from @mina or custom
+ * @param {function} callback - #optional callback function to execute when animation ends
+ * @returns {object} animation object in @mina format
      o {
      o     id (string) animation id, consider it read-only,
      o     duration (function) gets or sets the duration of the animation,
@@ -7671,8 +8015,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return anim;
     };
     /**
-     * Element.stop @method *
-     * Stops all the animations for the current element * * @returns {Element} the current element
+     * Element.stop @method
+ *
+     * Stops all the animations for the current element
+ *
+ * @returns {Element} the current element
     */
     elproto.stop = function () {
         const anims = this.inAnim();
@@ -7684,8 +8031,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this;
     };
     /**
-     * Element.animate @method *
-     * Animates the given attributes of the element * * @param {object} attrs - key-value pairs of destination attributes * @param {number} duration - duration of the animation in milliseconds * @param {function} easing - #optional easing function from @mina or custom * @param {function} callback - #optional callback function that executes when the animation ends * @returns {Element} the current element
+     * Element.animate @method
+ *
+     * Animates the given attributes of the element
+ *
+ * @param {object} attrs - key-value pairs of destination attributes
+ * @param {number} ms - duration of the animation in milliseconds
+ * @param {function} easing - #optional easing function from @mina or custom
+ * @param {function} callback - #optional callback function that executes when the animation ends
+ * @returns {Element} the current element
     */
     elproto.animate = function (attrs, ms, easing, callback) {
         if (typeof easing == "function" && !easing.length) {

@@ -158,6 +158,22 @@
                 return {x: -y, y: x};
             }
         };
+
+        /**
+         * Multiplies a vector by a scalar.
+         * @param {number} c Scalar value to multiply.
+         * @param {number|{x:number,y:number}|number[]} x X component or vector object/array.
+         * @param {number} [y] Optional Y component if x is a number.
+         * @returns {{x:number,y:number}} Scaled vector.
+         */
+        Snap.v_c_mult = function (c, x, y) {
+            if (typeof x == 'object') {
+                y = x.y || x[1] || 0;
+                x = x.x || x[0] || 0;
+            }
+            return {x: c * x, y: c * y};
+        }
+
         /**
          * Adds two vectors together.
          * @param {number|{x:number,y:number}} x1 X component or first vector.
@@ -237,6 +253,80 @@
             }
             return x1 * x2 + y1 * y2;
         }
+
+        /**
+         * Round a number to a given number of decimal places.
+         * @param {number} num
+         * @param {number} [pos] Number of decimal places (defaults to 0).
+         * @returns {number}
+         */
+        Snap.round = function (num, pos) {
+            if (!pos) return Math.round(num);
+            const pow = Math.pow(10, pos);
+            return Math.round(num * pow) / (pow);
+        };
+
+        /**
+         * Remove non-printable characters (keeps ASCII 32–126 and 128–255).
+         * @param {string} str
+         * @returns {string}
+         */
+        Snap.removeNonPrintable = function (str) {
+            let ret = '';
+            for (let x = 0; x < str.length; x++) {
+                if (str.charCodeAt(x) >= 32 && str.charCodeAt(x) <= 126 ||
+                    str.charCodeAt(x) >= 128 && str.charCodeAt(x) <= 255) {
+                    ret += str.charAt(x);
+                }
+            }
+            return ret;
+        };
+
+        /**
+         * Compare arrays for equality; optionally deep-compare nested arrays.
+         * @param {Array} a
+         * @param {Array} b
+         * @param {boolean} [deep=false] When true, recursively compares nested arrays.
+         * @returns {boolean}
+         */
+        Snap.array_equal = function (a, b, deep) {
+            if (a === b) return true;
+            if (a == null || b == null) return false;
+            if (a.length !== b.length) return false;
+
+            // If you don't care about the order of the elements inside
+            // the array, you should sort both arrays here.
+            // Please note that calling sort on an array will modify that array.
+            // you might want to clone your array first.
+
+            for (let i = 0; i < a.length; ++i) {
+                if (a[i] !== b[i]) {
+                    if (deep && Array.isArray(a[i]) && Array.isArray(b[i])) {
+                        if (!Snap.array_equal(a[i], b[i], deep)) return false;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
+
+        /**
+         * Convert a string to Title Case by capitalizing each word.
+         * @param {string} str
+         * @returns {string}
+         */
+        Snap.titleCase = function (str) {
+            const splitStr = str.toLowerCase().split(' ');
+            for (let i = 0; i < splitStr.length; ++i) {
+                // You do not need to check if i is larger than splitStr length, as your for does that for you
+                // Assign it back to the array
+                splitStr[i] = splitStr[i].charAt(0).toUpperCase() +
+                    splitStr[i].substring(1);
+            }
+            // Directly return the joined string
+            return splitStr.join(' ');
+        };
 
         /**
          * Computes the 2D scalar cross product between two vectors.
@@ -529,19 +619,19 @@
             }
 
             return expandedPoints;
-    }
-    /**
-     * Loads an external SVG fragment via Ajax and parses it into Snap fragments.
-    * @param {ResourceSpecifier} url Resource URL or tuple of URL and POST payload.
-     * @param {Function} callback Invoked with the parsed fragment (and raw text) on success.
-     * @param {Object} [scope] Scope for {@link callback}.
-     * @param {string} [data] Raw SVG markup to parse instead of performing a request.
-     * @param {Function} [filter] Optional filter passed to {@link Snap.parse}.
-     * @param {Function} [fail] Called when the request fails.
-     * @param {Object} [fail_scope] Scope for {@link fail}.
-     * @param {Function} [_eve] Eve event dispatcher instance.
-     */
-    Snap.load = function (url, callback, scope, data, filter, fail, fail_scope, _eve) {
+        }
+        /**
+         * Loads an external SVG fragment via Ajax and parses it into Snap fragments.
+         * @param {ResourceSpecifier} url Resource URL or tuple of URL and POST payload.
+         * @param {Function} callback Invoked with the parsed fragment (and raw text) on success.
+         * @param {Object} [scope] Scope for {@link callback}.
+         * @param {string} [data] Raw SVG markup to parse instead of performing a request.
+         * @param {Function} [filter] Optional filter passed to {@link Snap.parse}.
+         * @param {Function} [fail] Called when the request fails.
+         * @param {Object} [fail_scope] Scope for {@link fail}.
+         * @param {Function} [_eve] Eve event dispatcher instance.
+         */
+        Snap.load = function (url, callback, scope, data, filter, fail, fail_scope, _eve) {
             if (typeof scope === 'function') {
                 if (scope.isEve) {
                     _eve = scope;
@@ -605,17 +695,18 @@
                 }, undefined, fail, fail_scope);
             }
         };
-    /**
-     * Decodes a compact JSON representation of an SVG tree into raw markup.
-     * @param {Object|string} json JSON describing the SVG structure.
-     * @param {Function} [decript] Optional mapper that decrypts the attribute map.
-     * @param {Object} [map] Lookup object translating compact tokens to attribute names.
-    * @param {AttributeKeyConfiguration} [system]
-    *  Custom key configuration describing where attributes, type, and children are stored.
-     * @returns {string} SVG/XML markup generated from the JSON input.
-     * @throws {Error} When a mapping table is not provided.
-     */
-    function decode_json(json, decript = undefined, map = undefined, system = undefined) {
+
+        /**
+         * Decodes a compact JSON representation of an SVG tree into raw markup.
+         * @param {Object|string} json JSON describing the SVG structure.
+         * @param {Function} [decript] Optional mapper that decrypts the attribute map.
+         * @param {Object} [map] Lookup object translating compact tokens to attribute names.
+         * @param {AttributeKeyConfiguration} [system]
+         *  Custom key configuration describing where attributes, type, and children are stored.
+         * @returns {string} SVG/XML markup generated from the JSON input.
+         * @throws {Error} When a mapping table is not provided.
+         */
+        function decode_json(json, decript = undefined, map = undefined, system = undefined) {
             let attr = (system && (system.attr || system.attributes)) || "A";
             let type = (system && system.type) || "T";
             let children = (system && system.children) || "C";
@@ -697,14 +788,14 @@
 
         Snap.jsonToSvg = decode_json;
 
-    /**
-     * Converts RGB components in the range [0, 1] to CMYK percentages.
-     * @param {number} r Red component normalized to [0, 1].
-     * @param {number} g Green component normalized to [0, 1].
-     * @param {number} b Blue component normalized to [0, 1].
-     * @returns {{c:number,m:number,y:number,k:number}} Corresponding CMYK values.
-     */
-    Snap.rgb2cmyk = function (r, g, b) {
+        /**
+         * Converts RGB components in the range [0, 1] to CMYK percentages.
+         * @param {number} r Red component normalized to [0, 1].
+         * @param {number} g Green component normalized to [0, 1].
+         * @param {number} b Blue component normalized to [0, 1].
+         * @returns {{c:number,m:number,y:number,k:number}} Corresponding CMYK values.
+         */
+        Snap.rgb2cmyk = function (r, g, b) {
             let computedC = 0;
             let computedM = 0;
             let computedY = 0;
@@ -740,15 +831,15 @@
             return {c: computedC, m: computedM, y: computedY, k: computedK};
         };
 
-    /**
-     * Converts CMYK values to 8-bit RGB components.
-     * @param {number} c Cyan component normalized to [0, 1].
-     * @param {number} m Magenta component normalized to [0, 1].
-     * @param {number} y Yellow component normalized to [0, 1].
-     * @param {number} k Key (black) component normalized to [0, 1].
-     * @returns {{r:number,g:number,b:number}} RGB components in the range [0, 255].
-     */
-    Snap.cmykToRgb = function (c, m, y, k) {
+        /**
+         * Converts CMYK values to 8-bit RGB components.
+         * @param {number} c Cyan component normalized to [0, 1].
+         * @param {number} m Magenta component normalized to [0, 1].
+         * @param {number} y Yellow component normalized to [0, 1].
+         * @param {number} k Key (black) component normalized to [0, 1].
+         * @returns {{r:number,g:number,b:number}} RGB components in the range [0, 255].
+         */
+        Snap.cmykToRgb = function (c, m, y, k) {
 
             let result = {r: 0, g: 0, b: 0};
 
@@ -873,6 +964,50 @@
             return true;
         }
 
+       /**
+         * Flattens a nested object into a single-level map.
+         *
+         * The function can be called in two modes:
+         * - Flatten with dotted keys: pass `prefix` as `true` (or as a non-empty string),
+         *   in which case nested keys are concatenated with `.` (e.g. `parent.child`).
+         * - Use nested keys as-is: pass `prefix` as `false` (or an empty string),
+         *   in which case nested objects are recursively flattened but resulting keys
+         *   are not prefixed with parent names.
+         *
+         * Note: if `prefix` is passed as a boolean it is treated as the `useDots` flag
+         * and the internal prefix string is reset to `''`. The third parameter `res`
+         * is an accumulator object used for recursion and is returned.
+         *
+         * @param {Object} obj The object to flatten.
+         * @param {string|boolean} [prefix=''] When a boolean, acts as `useDots`.
+         *        When a string, if truthy will cause dotted keys to be used.
+         * @param {Object} [res={}] Accumulator for flattened properties (used internally).
+         * @returns {Object} The flattened object (same reference as `res`).
+         */
+        Snap.flattenObject = function (obj, prefix = '', res = {}) {
+            // If prefix is passed as a boolean, treat it as useDots flag.
+            let useDots = false;
+            if (typeof prefix === 'boolean') {
+                useDots = prefix;
+                prefix = '';
+            } else {
+                useDots = !!prefix;
+            }
+
+            for (let key in obj) {
+                if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+                const val = obj[key];
+                const newKey = useDots ? (prefix ? prefix + '.' + key : key) : key;
+
+                if (val && typeof val === 'object') {
+                    Snap.flattenObject(val, useDots ? newKey : '', res);
+                } else {
+                    res[newKey] = val;
+                }
+            }
+            return res;
+        }
+
         const htmlEntities = {
             '&amp;': '&',
             '&lt;': '<',
@@ -970,12 +1105,12 @@
     Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
         //Matrix Extentions
 
-    /**
+        /**
          * Applies the matrix to a point and returns the transformed coordinates.
          * @param {{x:number,y:number}|number[]} point Source point.
          * @param {Snap.Element} [node] Optional Snap element context.
-     * @returns {{x:number,y:number}} Transformed point.
-     */
+         * @returns {{x:number,y:number}} Transformed point.
+         */
         Snap.Matrix.prototype.apply = function (point, node) {
             let ret = {};
             ret.x = this.x(point.x || point[0] || 0, point.y || +point[1] || 0);

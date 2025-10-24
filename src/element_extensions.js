@@ -1901,13 +1901,13 @@
          * @param {number} [cx] X coordinate of the reflection centre.
          * @param {number} [cy] Y coordinate of the reflection centre.
          * @param {Snap.Matrix|string|boolean} [prev_trans] Optional base matrix or configuration flag.
-         * @param {boolean} [use_catch=false] When true, updates cached bounding boxes.
+         * @param {boolean} [use_cache=false] When true, updates cached bounding boxes.
          * @returns {Snap.Element} The element for chaining.
          */
         Element.prototype.reflect = function (
-            direction, cx, cy, prev_trans, use_catch) {
+            direction, cx, cy, prev_trans, use_cache) {
             if (typeof prev_trans === 'boolean') {
-                use_catch = prev_trans;
+                use_cache = prev_trans;
                 prev_trans = undefined;
             }
 
@@ -1922,13 +1922,13 @@
             }
 
             if (direction === 'x' || direction === 'vertical') {
-                return this.scale(1, -1, cx, cy, prev_trans, use_catch);
+                return this.scale(1, -1, cx, cy, prev_trans, use_cache);
             }
             if (direction === 'y' || direction === 'horizontal') {
-                return this.scale(-1, 1, cx, cy, prev_trans, use_catch);
+                return this.scale(-1, 1, cx, cy, prev_trans, use_cache);
             }
             if (typeof direction === 'number') { //angle
-                return this.rotate(-direction, cx, cy, prev_trans, use_catch).reflect('x', cx, cy, use_catch).rotate(direction, cx, cy, use_catch);
+                return this.rotate(-direction, cx, cy, prev_trans, use_cache).reflect('x', cx, cy, use_cache).rotate(direction, cx, cy, use_cache);
             }
             if (typeof direction === 'object' && direction.type === 'line') {
                 const line = direction;
@@ -1937,7 +1937,7 @@
                 const x2 = Number(line.attr('x2'));
                 const y2 = Number(line.attr('y2'));
                 return this.reflect(Snap.angle(x1, y1, x2, y2), x1, x2, prev_trans,
-                    use_catch);
+                    use_cache);
             }
         };
 

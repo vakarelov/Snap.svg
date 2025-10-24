@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-10-10
+// build: 2025-10-24
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -955,6 +955,7 @@
 //amd-Banner
     "use strict";
 
+// @ts-nocheck
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -5335,7 +5336,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @returns {Element} Current element for chaining.
          */
         elproto.setPaper = function (paper, force) {
-            if (!paper instanceof Paper ||
+            if (!is(paper,"Paper") ||
                 (!force && this.paper === paper)) return this;
 
             this.paper = paper;
@@ -6283,6 +6284,7 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
     const hub = Snap._.hub;
     const $ = Snap._.$;
     const make = Snap._.make;
+    const getSomeDefs = Snap._.getSomeDefs;
     const has = "hasOwnProperty";
     const xmlns = "http://www.w3.org/2000/svg";
 
@@ -6334,11 +6336,47 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
 
     var proto = Paper.prototype,
         is = Snap.is;
+
+    function isPlainObject(value) {
+        return is(value, "object") && value && !Array.isArray(value) && !Snap.is(value, "Element") && !value.node && !value.type && !value.paper;
+    }
+
+    function listToString(value, innerSeparator) {
+        if (!Array.isArray(value)) {
+            return value;
+        }
+        var outer = ";";
+        return value.map(function (item) {
+            if (Array.isArray(item)) {
+                return item.map(function (inner) {
+                    return inner == null ? "" : String(inner);
+                }).join(innerSeparator || " ");
+            }
+            return item == null ? "" : String(item);
+        }).join(outer);
+    }
+
+    function normaliseAnimationAttributes(attr) {
+        if (!attr) {
+            return;
+        }
+        if (attr.values != null) {
+            attr.values = listToString(attr.values, " ");
+        }
+        if (attr.keyTimes != null) {
+            attr.keyTimes = listToString(attr.keyTimes);
+        }
+        if (attr.keyPoints != null) {
+            attr.keyPoints = listToString(attr.keyPoints);
+        }
+        if (attr.keySplines != null) {
+            attr.keySplines = listToString(attr.keySplines, " ");
+        }
+    }
     /**
      * Draws a rectangle on the paper.
      *
      * @function Snap.Paper#rect
-     * @function Snap.Element#rect
      * @param {number} x X coordinate of the top-left corner.
      * @param {number} y Y coordinate of the top-left corner.
      * @param {number} width Rectangle width.
@@ -6392,7 +6430,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a circle.
      *
      * @function Snap.Paper#circle
-     * @function Snap.Element#circle
      * @param {number} x X coordinate of the centre.
      * @param {number} y Y coordinate of the centre.
      * @param {number} r Circle radius.
@@ -6438,7 +6475,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Places an image on the surface.
      *
      * @function Snap.Paper#image
-     * @function Snap.Element#image
      * @param {string|Object} src Image URL or attribute map containing at least a `src` property.
      * @param {number} [x] Horizontal offset on the paper.
      * @param {number} [y] Vertical offset on the paper.
@@ -6483,7 +6519,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws an ellipse.
      *
      * @function Snap.Paper#ellipse
-     * @function Snap.Element#ellipse
      * @param {number} x X coordinate of the centre.
      * @param {number} y Y coordinate of the centre.
      * @param {number} rx Horizontal radius.
@@ -6514,7 +6549,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * comma- or space-separated numeric arguments (for example, `"M10,20L30,40"`).
      *
      * @function Snap.Paper#path
-     * @function Snap.Element#path
      * @param {(string|Array|Object)} [pathString] SVG path string, an array of segments, or an
      *        attribute map applied to the created element.
      * @returns {Snap.Element} The resulting path element.
@@ -6538,7 +6572,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * The last argument may be an attribute map applied to the created group.
      *
      * @function Snap.Paper#g
-     * @function Snap.Element#g
      * @alias Snap.Paper#def_group
      * @param {...any} elements Elements to append to the group. When the final argument
      *        is a plain object without `type` or `paper` properties, it is treated as the attribute map.
@@ -6570,7 +6603,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates a nested `<svg>` element.
      *
      * @function Snap.Paper#svg
-     * @function Snap.Element#svg
      * @param {number} [x] X coordinate of the embedded SVG.
      * @param {number} [y] Y coordinate of the embedded SVG.
      * @param {number|string} [width] Viewport width.
@@ -6611,7 +6643,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * parameters are added to the mask as children.
      *
      * @function Snap.Paper#mask
-     * @function Snap.Element#mask
      * @param {...any} nodes Elements to include in the mask or a terminating attribute map.
      * @returns {Snap.Element} The mask element.
      */
@@ -6629,7 +6660,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates an SVG `<pattern>` element, optionally configuring its position, size, and viewBox.
      *
      * @function Snap.Paper#ptrn
-     * @function Snap.Element#ptrn
      * @param {number} [x] X coordinate of the pattern.
      * @param {number} [y] Y coordinate of the pattern.
      * @param {number} [width] Width of the pattern tile.
@@ -6672,7 +6702,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates an SVG `<use>` element referencing an existing symbol or node.
      *
      * @function Snap.Paper#use
-     * @function Snap.Element#use
      * @param {(string|Snap.Element|Object)} [id] ID of the element to reference, the element itself,
      *        or an attribute map containing an `id` property. When omitted the method defers to the
      *        {@link Snap.Element#use} behaviour.
@@ -6708,7 +6737,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Creates an SVG `<symbol>` element.
      *
      * @function Snap.Paper#symbol
-     * @function Snap.Element#symbol
      * @param {number} [vbx] ViewBox x origin.
      * @param {number} [vby] ViewBox y origin.
      * @param {number} [vbw] ViewBox width.
@@ -6728,7 +6756,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a text string.
      *
      * @function Snap.Paper#text
-     * @function Snap.Element#text
      * @param {number} x X coordinate of the baseline origin.
      * @param {number} y Y coordinate of the baseline origin.
      * @param {(string|Array.<string>)} text Text content or an array of strings that become nested `<tspan>` elements.
@@ -6751,11 +6778,316 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         }
         return this.el("text", attr);
     };
+
+    /**
+     * Creates a `<textPath>` element bound to a path reference and optional text content.
+     *
+     * @function Snap.Paper#textPath
+     * @param {(string|Array|Snap.Element|Object)} path Path data string or array, existing path element,
+     *        `#id` reference, or attribute map.
+     * @param {(string|Array.<string>)} [text] Text content applied to the `<textPath>` element.
+     * @param {Object} [attr] Attribute map for the `<textPath>` element.
+     * @returns {Snap.Element} The `<textPath>` element.
+     */
+    proto.textPath = function (path, text, attr) {
+        attr = attr || {};
+        let textContent = text;
+        let hrefValue;
+        let targetPath;
+        let createdPath = false;
+
+        if (isPlainObject(path)) {
+            attr = path;
+            if (attr.text != null && textContent == null) {
+                textContent = attr.text;
+            }
+            hrefValue = attr["xlink:href"] || attr.href;
+            path = hrefValue;
+        }
+
+        if (Snap.is(path, "Element")) {
+            targetPath = path;
+        } else if (Snap.is(path, "array")) {
+            targetPath = this.path(path);
+            createdPath = true;
+        } else if (is(path, "string")) {
+            if (path.charAt(0) === "#") {
+                hrefValue = path;
+            } else {
+                targetPath = this.path(path);
+                createdPath = true;
+            }
+        }
+
+        if (targetPath) {
+            let id = targetPath.attr("id");
+            if (!id) {
+                id = Snap._.id(targetPath);
+                targetPath.attr({id: id});
+            }
+            hrefValue = "#" + id;
+            if (createdPath) {
+                const defs = getSomeDefs(this);
+                if (defs) {
+                    const group = defs.querySelector("#text-paths");
+                    (group || defs).appendChild(targetPath.node);
+                }
+            }
+        }
+
+        if (hrefValue) {
+            attr["xlink:href"] = hrefValue;
+            attr.href = hrefValue;
+        }
+
+        if (textContent != null && attr.text == null) {
+            attr.text = textContent;
+        }
+
+        return this.el("textPath", attr);
+    };
+
+    /**
+     * Creates an SVG `<animate>` element and optionally appends it to a target element.
+     *
+     * Positional arguments map to the most common animation attributes. An attribute map can be
+     * supplied instead (or in addition) to cover extra properties. When the last argument is a
+     * {@link Snap.Element}, the animation node is automatically added to it via {@link Snap.Element#add}.
+     *
+     * @function Snap.Paper#animate
+     * @param {string} [attributeName] Animated attribute name.
+     * @param {(string|number)} [from] Start value.
+     * @param {(string|number)} [to] End value.
+     * @param {(string|number)} [dur] Animation duration (for example `"2s"`).
+     * @param {(string|number)} [begin] Delay before the animation starts.
+     * @param {(string|number)} [repeatCount] Repeat configuration (for example `"indefinite"`).
+     * @param {string} [fill] Fill behaviour (`"freeze"`, `"remove"`).
+     * @param {string} [calcMode] Interpolation mode.
+     * @param {(string|Array)} [values] Value list for keyframe animation.
+     * @param {(string|Array)} [keyTimes] Key time list matching `values`.
+     * @param {(string|Array)} [keySplines] Bezier control points for spline timing.
+     * @param {(string|number)} [by] Relative delta value.
+     * @param {Object} [attr] Additional attributes for the `<animate>` element.
+     * @param {Snap.Element} [target] Element that receives the animation via `.add`.
+     * @returns {Snap.Element} The `<animate>` element.
+     */
+    proto.animate = function () {
+        const args = Array.prototype.slice.call(arguments);
+        let insertionTarget = null;
+        let attr = {};
+
+        if (args.length && Snap.is(args[args.length - 1], "Element")) {
+            insertionTarget = args.pop();
+        }
+
+        if (args.length && isPlainObject(args[args.length - 1])) {
+            attr = args.pop();
+        }
+
+        if (args.length === 1 && isPlainObject(args[0])) {
+            Object.assign(attr, args.pop());
+        } else if (args.length) {
+            const keys = [
+                "attributeName",
+                "from",
+                "to",
+                "dur",
+                "begin",
+                "repeatCount",
+                "fill",
+                "calcMode",
+                "values",
+                "keyTimes",
+                "keySplines",
+                "by"
+            ];
+            for (let i = 0; i < keys.length && i < args.length; ++i) {
+                const value = args[i];
+                if (value != null && attr[keys[i]] == null) {
+                    attr[keys[i]] = value;
+                }
+            }
+        }
+
+        normaliseAnimationAttributes(attr);
+
+        const el = this.el("animate", attr);
+        if (insertionTarget) {
+            insertionTarget.add(el);
+        }
+        return el;
+    };
+
+    /**
+     * Creates an `<animateMotion>` element, optionally wiring it to an existing motion path via `<mpath>`.
+     *
+     * The first positional argument may be a path data string, an array of path segments, a Snap element,
+     * or a `#id` reference. When an element or reference is supplied, an `<mpath>` child is generated
+     * automatically. As with {@link Snap.Paper#animate}, the final argument may be a target element that
+     * receives the animation node.
+     *
+     * @function Snap.Paper#animateMotion
+     * @param {(string|Array|Snap.Element)} [path] Motion path specification or reference.
+     * @param {(string|number)} [dur] Animation duration.
+     * @param {(string|number)} [begin] Delay before start.
+     * @param {(string|number)} [repeatCount] Repeat configuration.
+     * @param {(string|number)} [rotate] Rotation behaviour (`"auto"`, angle, etc.).
+     * @param {string} [calcMode] Interpolation mode.
+     * @param {(string|Array)} [keyPoints] Fractional positions along the path.
+     * @param {(string|Array)} [keyTimes] Key timing list.
+     * @param {(string|Array)} [keySplines] Spline control points for timing.
+     * @param {Object} [attr] Additional attributes for `<animateMotion>`.
+     * @param {Snap.Element} [target] Element that should receive the animation via `.add`.
+     * @returns {Snap.Element} The `<animateMotion>` element.
+     */
+    proto.animateMotion = function () {
+        const args = Array.prototype.slice.call(arguments);
+        let insertionTarget = null;
+        let attr = {};
+        let pathInput;
+
+        if (args.length && Snap.is(args[args.length - 1], "Element")) {
+            insertionTarget = args.pop();
+        }
+
+        if (args.length && isPlainObject(args[args.length - 1])) {
+            attr = args.pop();
+        }
+
+        if (args.length === 1 && isPlainObject(args[0])) {
+            Object.assign(attr, args.pop());
+        } else if (args.length) {
+            pathInput = args.shift();
+            const keys = [
+                "dur",
+                "begin",
+                "repeatCount",
+                "rotate",
+                "calcMode",
+                "keyPoints",
+                "keyTimes",
+                "keySplines"
+            ];
+            for (let i = 0; i < keys.length && i < args.length; ++i) {
+                const value = args[i];
+                if (value != null && attr[keys[i]] == null) {
+                    attr[keys[i]] = value;
+                }
+            }
+        }
+
+        if (pathInput == null && attr.path != null) {
+            pathInput = attr.path;
+            delete attr.path;
+        }
+
+        let mpathSource = null;
+        if (Snap.is(pathInput, "Element")) {
+            mpathSource = pathInput;
+        } else if (Array.isArray(pathInput)) {
+            attr.path = Snap.path && Snap.path.toString ? Snap.path.toString.call(pathInput) : pathInput.join(" ");
+        } else if (typeof pathInput === "string") {
+            if (pathInput.charAt(0) === "#") {
+                mpathSource = pathInput;
+            } else {
+                attr.path = pathInput;
+            }
+        } else if (pathInput && pathInput.node && pathInput.node.tagName === "path") {
+            mpathSource = Snap(pathInput);
+        }
+
+        if (attr.path != null && Array.isArray(attr.path)) {
+            attr.path = Snap.path && Snap.path.toString ? Snap.path.toString.call(attr.path) : attr.path.join(" ");
+        }
+
+        normaliseAnimationAttributes(attr);
+
+        const el = this.el("animateMotion", attr);
+
+        if (mpathSource) {
+            const mpathEl = this.mpath(mpathSource);
+            el.add(mpathEl);
+        }
+
+        if (insertionTarget) {
+            insertionTarget.add(el);
+        }
+
+        return el;
+    };
+
+    /**
+     * Creates an `<mpath>` element referencing a motion path definition.
+     *
+     * @function Snap.Paper#mpath
+     * @param {(string|Array|Snap.Element|Object)} path Path data, existing path element, `#id` reference,
+     *        or attribute map containing `href`/`xlink:href`.
+     * @param {Object} [attr] Additional attributes for `<mpath>`.
+     * @returns {Snap.Element} The `<mpath>` element.
+     */
+    proto.mpath = function (path, attr) {
+        let attributes = attr;
+        let pathInput = path;
+
+        if (attr == null && isPlainObject(path)) {
+            attributes = path;
+            pathInput = attributes.path || attributes["xlink:href"] || attributes.href;
+        }
+
+        attributes = attributes || {};
+
+        let hrefValue = attributes["xlink:href"] || attributes.href;
+        let targetPath = null;
+        let createdPath = false;
+
+        if (Snap.is(pathInput, "Element")) {
+            targetPath = pathInput;
+        } else if (Array.isArray(pathInput)) {
+            targetPath = this.path(pathInput);
+            createdPath = true;
+        } else if (typeof pathInput === "string") {
+            if (pathInput.charAt(0) === "#") {
+                hrefValue = pathInput;
+            } else if (pathInput) {
+                targetPath = this.path(pathInput);
+                createdPath = true;
+            }
+        } else if (pathInput && pathInput.node && pathInput.node.tagName === "path") {
+            targetPath = Snap(pathInput);
+        }
+
+        if (targetPath) {
+            let id = targetPath.attr("id");
+            if (!id) {
+                id = Snap._.id(targetPath);
+                targetPath.attr({id: id});
+            }
+            hrefValue = "#" + id;
+
+            if (createdPath) {
+                const defs = getSomeDefs(this);
+                if (defs) {
+                    const group = defs.querySelector("#motion-paths");
+                    (group || defs).appendChild(targetPath.node);
+                }
+            }
+        }
+
+        if (hrefValue) {
+            attributes["xlink:href"] = hrefValue;
+            attributes.href = hrefValue;
+        }
+
+        delete attributes.path;
+
+        return this.el("mpath", attributes);
+    };
+
+    
     /**
      * Draws a line segment between two points.
      *
      * @function Snap.Paper#line
-     * @function Snap.Element#line
      * @param {number} x1 Start point X coordinate.
      * @param {number} y1 Start point Y coordinate.
      * @param {number} x2 End point X coordinate.
@@ -6804,7 +7136,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a polyline through a list of coordinates.
      *
      * @function Snap.Paper#polyline
-     * @function Snap.Element#polyline
      * @param {(Array.<number>|...number)} points Coordinate list. Provide either a flat array or individual arguments.
      * @param {Object} [attr] Attribute map applied to the element.
      * @returns {Snap.Element} The polyline element.
@@ -6819,7 +7150,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      * Draws a closed polygon by joining supplied coordinates.
      *
      * @function Snap.Paper#polygon
-     * @function Snap.Element#polygon
      * @see Snap.Paper#polyline
      * @param {(Array.<number>|...number)} points Coordinate list as an array or individual numbers.
      * @param {Object} [attr] Attribute map for the polygon element.
@@ -7006,7 +7336,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
          * `:offset` suffixes.
          *
          * @function Snap.Paper#gradient
-         * @function Snap.Element#gradient
          * @param {string} str Gradient descriptor.
          * @returns {Snap.Element} The gradient element.
          * @example
@@ -7019,7 +7348,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         /**
          * Creates a linear gradient with the given bounding coordinates.
          * @function Snap.Paper#gradientLinear
-         * @function Snap.Element#gradientLinear
          * @param {number} x1 Start x coordinate.
          * @param {number} y1 Start y coordinate.
          * @param {number} x2 End x coordinate.
@@ -7032,7 +7360,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         /**
          * Creates a radial gradient centred at the supplied coordinates.
          * @function Snap.Paper#gradientRadial
-         * @function Snap.Element#gradientRadial
          * @param {number} cx Centre x coordinate.
          * @param {number} cy Centre y coordinate.
          * @param {number} r Radius of the gradient.
@@ -7101,8 +7428,6 @@ Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      *
      * Creates an element on paper with a given name and no attributes
      *
-     * @function Snap.Paper#el
-     * @function Snap.Element#el
      * @param {string} name - tag name
      * @param {object} attr - attributes
      * @returns {Element} the current element
@@ -7603,15 +7928,25 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     };
     Snap._.Animation = Animation;
     /**
-     * Snap.animation @method *
-     * Creates an animation object * * @param {object} attr - attributes of final destination * @param {number} duration - duration of the animation, in milliseconds * @param {function} easing - #optional one of easing functions of @mina or custom one * @param {function} callback - #optional callback function that fires when animation ends * @returns {object} animation object
+     * Snap.animation @method
+ *
+     * Creates an animation object
+ *
+ * @param {object} attr - attributes of final destination
+ * @param {number} duration - duration of the animation, in milliseconds
+ * @param {function} easing - #optional one of easing functions of @mina or custom one
+ * @param {function} callback - #optional callback function that fires when animation ends
+ * @returns {object} animation object
     */
     Snap.animation = function (attr, ms, easing, callback) {
         return new Animation(attr, ms, easing, callback);
     };
     /**
-     * Element.inAnim @method *
-     * Returns a set of animations that may be able to manipulate the current element * * @returns {object} in format:
+     * Element.inAnim @method
+ *
+     * Returns a set of animations that may be able to manipulate the current element
+ *
+ * @returns {object} in format:
      o {
      o     anim (object) animation object,
      o     mina (object) @mina object,
@@ -7641,8 +7976,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return res;
     };
     /**
-     * Snap.animate @method *
-     * Runs generic animation of one number into another with a caring function * * @param {number|array} from - number or array of numbers * @param {number|array} to - number or array of numbers * @param {function} setter - caring function that accepts one number argument * @param {number} duration - duration, in milliseconds * @param {function} easing - #optional easing function from @mina or custom * @param {function} callback - #optional callback function to execute when animation ends * @returns {object} animation object in @mina format
+     * Snap.animate @method
+ *
+     * Runs generic animation of one number into another with a caring function
+ *
+ * @param {number|array} from - number or array of numbers
+ * @param {number|array} to - number or array of numbers
+ * @param {function} setter - caring function that accepts one number argument
+ * @param {number} duration - duration, in milliseconds
+ * @param {function} easing - #optional easing function from @mina or custom
+ * @param {function} callback - #optional callback function to execute when animation ends
+ * @returns {object} animation object in @mina format
      o {
      o     id (string) animation id, consider it read-only,
      o     duration (function) gets or sets the duration of the animation,
@@ -7671,8 +8015,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return anim;
     };
     /**
-     * Element.stop @method *
-     * Stops all the animations for the current element * * @returns {Element} the current element
+     * Element.stop @method
+ *
+     * Stops all the animations for the current element
+ *
+ * @returns {Element} the current element
     */
     elproto.stop = function () {
         const anims = this.inAnim();
@@ -7684,8 +8031,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return this;
     };
     /**
-     * Element.animate @method *
-     * Animates the given attributes of the element * * @param {object} attrs - key-value pairs of destination attributes * @param {number} duration - duration of the animation in milliseconds * @param {function} easing - #optional easing function from @mina or custom * @param {function} callback - #optional callback function that executes when the animation ends * @returns {Element} the current element
+     * Element.animate @method
+ *
+     * Animates the given attributes of the element
+ *
+ * @param {object} attrs - key-value pairs of destination attributes
+ * @param {number} ms - duration of the animation in milliseconds
+ * @param {function} easing - #optional easing function from @mina or custom
+ * @param {function} callback - #optional callback function that executes when the animation ends
+ * @returns {Element} the current element
     */
     elproto.animate = function (attrs, ms, easing, callback) {
         if (typeof easing == "function" && !easing.length) {
@@ -23016,6 +23370,22 @@ function voronoi(points) {
                 return {x: -y, y: x};
             }
         };
+
+        /**
+         * Multiplies a vector by a scalar.
+         * @param {number} c Scalar value to multiply.
+         * @param {number|{x:number,y:number}|number[]} x X component or vector object/array.
+         * @param {number} [y] Optional Y component if x is a number.
+         * @returns {{x:number,y:number}} Scaled vector.
+         */
+        Snap.v_c_mult = function (c, x, y) {
+            if (typeof x == 'object') {
+                y = x.y || x[1] || 0;
+                x = x.x || x[0] || 0;
+            }
+            return {x: c * x, y: c * y};
+        }
+
         /**
          * Adds two vectors together.
          * @param {number|{x:number,y:number}} x1 X component or first vector.
@@ -23095,6 +23465,80 @@ function voronoi(points) {
             }
             return x1 * x2 + y1 * y2;
         }
+
+        /**
+         * Round a number to a given number of decimal places.
+         * @param {number} num
+         * @param {number} [pos] Number of decimal places (defaults to 0).
+         * @returns {number}
+         */
+        Snap.round = function (num, pos) {
+            if (!pos) return Math.round(num);
+            const pow = Math.pow(10, pos);
+            return Math.round(num * pow) / (pow);
+        };
+
+        /**
+         * Remove non-printable characters (keeps ASCII 32–126 and 128–255).
+         * @param {string} str
+         * @returns {string}
+         */
+        Snap.removeNonPrintable = function (str) {
+            let ret = '';
+            for (let x = 0; x < str.length; x++) {
+                if (str.charCodeAt(x) >= 32 && str.charCodeAt(x) <= 126 ||
+                    str.charCodeAt(x) >= 128 && str.charCodeAt(x) <= 255) {
+                    ret += str.charAt(x);
+                }
+            }
+            return ret;
+        };
+
+        /**
+         * Compare arrays for equality; optionally deep-compare nested arrays.
+         * @param {Array} a
+         * @param {Array} b
+         * @param {boolean} [deep=false] When true, recursively compares nested arrays.
+         * @returns {boolean}
+         */
+        Snap.array_equal = function (a, b, deep) {
+            if (a === b) return true;
+            if (a == null || b == null) return false;
+            if (a.length !== b.length) return false;
+
+            // If you don't care about the order of the elements inside
+            // the array, you should sort both arrays here.
+            // Please note that calling sort on an array will modify that array.
+            // you might want to clone your array first.
+
+            for (let i = 0; i < a.length; ++i) {
+                if (a[i] !== b[i]) {
+                    if (deep && Array.isArray(a[i]) && Array.isArray(b[i])) {
+                        if (!Snap.array_equal(a[i], b[i], deep)) return false;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
+
+        /**
+         * Convert a string to Title Case by capitalizing each word.
+         * @param {string} str
+         * @returns {string}
+         */
+        Snap.titleCase = function (str) {
+            const splitStr = str.toLowerCase().split(' ');
+            for (let i = 0; i < splitStr.length; ++i) {
+                // You do not need to check if i is larger than splitStr length, as your for does that for you
+                // Assign it back to the array
+                splitStr[i] = splitStr[i].charAt(0).toUpperCase() +
+                    splitStr[i].substring(1);
+            }
+            // Directly return the joined string
+            return splitStr.join(' ');
+        };
 
         /**
          * Computes the 2D scalar cross product between two vectors.
@@ -23387,19 +23831,19 @@ function voronoi(points) {
             }
 
             return expandedPoints;
-    }
-    /**
-     * Loads an external SVG fragment via Ajax and parses it into Snap fragments.
-    * @param {ResourceSpecifier} url Resource URL or tuple of URL and POST payload.
-     * @param {Function} callback Invoked with the parsed fragment (and raw text) on success.
-     * @param {Object} [scope] Scope for {@link callback}.
-     * @param {string} [data] Raw SVG markup to parse instead of performing a request.
-     * @param {Function} [filter] Optional filter passed to {@link Snap.parse}.
-     * @param {Function} [fail] Called when the request fails.
-     * @param {Object} [fail_scope] Scope for {@link fail}.
-     * @param {Function} [_eve] Eve event dispatcher instance.
-     */
-    Snap.load = function (url, callback, scope, data, filter, fail, fail_scope, _eve) {
+        }
+        /**
+         * Loads an external SVG fragment via Ajax and parses it into Snap fragments.
+         * @param {ResourceSpecifier} url Resource URL or tuple of URL and POST payload.
+         * @param {Function} callback Invoked with the parsed fragment (and raw text) on success.
+         * @param {Object} [scope] Scope for {@link callback}.
+         * @param {string} [data] Raw SVG markup to parse instead of performing a request.
+         * @param {Function} [filter] Optional filter passed to {@link Snap.parse}.
+         * @param {Function} [fail] Called when the request fails.
+         * @param {Object} [fail_scope] Scope for {@link fail}.
+         * @param {Function} [_eve] Eve event dispatcher instance.
+         */
+        Snap.load = function (url, callback, scope, data, filter, fail, fail_scope, _eve) {
             if (typeof scope === 'function') {
                 if (scope.isEve) {
                     _eve = scope;
@@ -23463,17 +23907,18 @@ function voronoi(points) {
                 }, undefined, fail, fail_scope);
             }
         };
-    /**
-     * Decodes a compact JSON representation of an SVG tree into raw markup.
-     * @param {Object|string} json JSON describing the SVG structure.
-     * @param {Function} [decript] Optional mapper that decrypts the attribute map.
-     * @param {Object} [map] Lookup object translating compact tokens to attribute names.
-    * @param {AttributeKeyConfiguration} [system]
-    *  Custom key configuration describing where attributes, type, and children are stored.
-     * @returns {string} SVG/XML markup generated from the JSON input.
-     * @throws {Error} When a mapping table is not provided.
-     */
-    function decode_json(json, decript = undefined, map = undefined, system = undefined) {
+
+        /**
+         * Decodes a compact JSON representation of an SVG tree into raw markup.
+         * @param {Object|string} json JSON describing the SVG structure.
+         * @param {Function} [decript] Optional mapper that decrypts the attribute map.
+         * @param {Object} [map] Lookup object translating compact tokens to attribute names.
+         * @param {AttributeKeyConfiguration} [system]
+         *  Custom key configuration describing where attributes, type, and children are stored.
+         * @returns {string} SVG/XML markup generated from the JSON input.
+         * @throws {Error} When a mapping table is not provided.
+         */
+        function decode_json(json, decript = undefined, map = undefined, system = undefined) {
             let attr = (system && (system.attr || system.attributes)) || "A";
             let type = (system && system.type) || "T";
             let children = (system && system.children) || "C";
@@ -23555,14 +24000,14 @@ function voronoi(points) {
 
         Snap.jsonToSvg = decode_json;
 
-    /**
-     * Converts RGB components in the range [0, 1] to CMYK percentages.
-     * @param {number} r Red component normalized to [0, 1].
-     * @param {number} g Green component normalized to [0, 1].
-     * @param {number} b Blue component normalized to [0, 1].
-     * @returns {{c:number,m:number,y:number,k:number}} Corresponding CMYK values.
-     */
-    Snap.rgb2cmyk = function (r, g, b) {
+        /**
+         * Converts RGB components in the range [0, 1] to CMYK percentages.
+         * @param {number} r Red component normalized to [0, 1].
+         * @param {number} g Green component normalized to [0, 1].
+         * @param {number} b Blue component normalized to [0, 1].
+         * @returns {{c:number,m:number,y:number,k:number}} Corresponding CMYK values.
+         */
+        Snap.rgb2cmyk = function (r, g, b) {
             let computedC = 0;
             let computedM = 0;
             let computedY = 0;
@@ -23598,15 +24043,15 @@ function voronoi(points) {
             return {c: computedC, m: computedM, y: computedY, k: computedK};
         };
 
-    /**
-     * Converts CMYK values to 8-bit RGB components.
-     * @param {number} c Cyan component normalized to [0, 1].
-     * @param {number} m Magenta component normalized to [0, 1].
-     * @param {number} y Yellow component normalized to [0, 1].
-     * @param {number} k Key (black) component normalized to [0, 1].
-     * @returns {{r:number,g:number,b:number}} RGB components in the range [0, 255].
-     */
-    Snap.cmykToRgb = function (c, m, y, k) {
+        /**
+         * Converts CMYK values to 8-bit RGB components.
+         * @param {number} c Cyan component normalized to [0, 1].
+         * @param {number} m Magenta component normalized to [0, 1].
+         * @param {number} y Yellow component normalized to [0, 1].
+         * @param {number} k Key (black) component normalized to [0, 1].
+         * @returns {{r:number,g:number,b:number}} RGB components in the range [0, 255].
+         */
+        Snap.cmykToRgb = function (c, m, y, k) {
 
             let result = {r: 0, g: 0, b: 0};
 
@@ -23731,6 +24176,50 @@ function voronoi(points) {
             return true;
         }
 
+       /**
+         * Flattens a nested object into a single-level map.
+         *
+         * The function can be called in two modes:
+         * - Flatten with dotted keys: pass `prefix` as `true` (or as a non-empty string),
+         *   in which case nested keys are concatenated with `.` (e.g. `parent.child`).
+         * - Use nested keys as-is: pass `prefix` as `false` (or an empty string),
+         *   in which case nested objects are recursively flattened but resulting keys
+         *   are not prefixed with parent names.
+         *
+         * Note: if `prefix` is passed as a boolean it is treated as the `useDots` flag
+         * and the internal prefix string is reset to `''`. The third parameter `res`
+         * is an accumulator object used for recursion and is returned.
+         *
+         * @param {Object} obj The object to flatten.
+         * @param {string|boolean} [prefix=''] When a boolean, acts as `useDots`.
+         *        When a string, if truthy will cause dotted keys to be used.
+         * @param {Object} [res={}] Accumulator for flattened properties (used internally).
+         * @returns {Object} The flattened object (same reference as `res`).
+         */
+        Snap.flattenObject = function (obj, prefix = '', res = {}) {
+            // If prefix is passed as a boolean, treat it as useDots flag.
+            let useDots = false;
+            if (typeof prefix === 'boolean') {
+                useDots = prefix;
+                prefix = '';
+            } else {
+                useDots = !!prefix;
+            }
+
+            for (let key in obj) {
+                if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+                const val = obj[key];
+                const newKey = useDots ? (prefix ? prefix + '.' + key : key) : key;
+
+                if (val && typeof val === 'object') {
+                    Snap.flattenObject(val, useDots ? newKey : '', res);
+                } else {
+                    res[newKey] = val;
+                }
+            }
+            return res;
+        }
+
         const htmlEntities = {
             '&amp;': '&',
             '&lt;': '<',
@@ -23828,12 +24317,12 @@ function voronoi(points) {
     Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
         //Matrix Extentions
 
-    /**
+        /**
          * Applies the matrix to a point and returns the transformed coordinates.
          * @param {{x:number,y:number}|number[]} point Source point.
          * @param {Snap.Element} [node] Optional Snap element context.
-     * @returns {{x:number,y:number}} Transformed point.
-     */
+         * @returns {{x:number,y:number}} Transformed point.
+         */
         Snap.Matrix.prototype.apply = function (point, node) {
             let ret = {};
             ret.x = this.x(point.x || point[0] || 0, point.y || +point[1] || 0);
@@ -24201,12 +24690,12 @@ function voronoi(points) {
             return domPoint;
         };
 
-    /**
-     * Converts a screen-space distance to the distance in the element's local coordinate space.
-     *
-     * @param {number} d Distance expressed in CSS pixels.
-     * @returns {number} Equivalent SVG units for the current element.
-     */
+        /**
+         * Converts a screen-space distance to the distance in the element's local coordinate space.
+         *
+         * @param {number} d Distance expressed in CSS pixels.
+         * @returns {number} Equivalent SVG units for the current element.
+         */
         function fromScreenDistance(d) {
             if (this.type !== 'svg' && this.type !== 'g') return this.parent().getFromScreenDistance(d);
             let pt = this.paper.node.createSVGPoint();
@@ -24221,23 +24710,24 @@ function voronoi(points) {
             pt = pt.matrixTransform(matrix);
             return (pt.y) ? Math.sqrt(pt.x * pt.x + pt.y * pt.y) : Math.abs(pt.x);
         }
-    /**
-     * Returns the distance in local SVG units that corresponds to a screen-space measurement.
-     *
-     * @function Snap.Element#getFromScreenDistance
-     * @param {number} distance Distance in CSS pixels (for example, from a pointer delta).
-     * @returns {number} Equivalent distance in the element's coordinate system.
-     */
-    Element.prototype.getFromScreenDistance = fromScreenDistance;
 
-    /**
-     * Computes the rendered width of the element, following CSS if intrinsic width is unavailable.
-     *
-     * @function Snap.Element#getClientWidth
-     * @param {boolean} [skip_style=false] When true the computed CSS width is ignored.
-     * @returns {number} Width in pixels.
-     */
-    Element.prototype.getClientWidth = function (skip_style) {
+        /**
+         * Returns the distance in local SVG units that corresponds to a screen-space measurement.
+         *
+         * @function Snap.Element#getFromScreenDistance
+         * @param {number} distance Distance in CSS pixels (for example, from a pointer delta).
+         * @returns {number} Equivalent distance in the element's coordinate system.
+         */
+        Element.prototype.getFromScreenDistance = fromScreenDistance;
+
+        /**
+         * Computes the rendered width of the element, following CSS if intrinsic width is unavailable.
+         *
+         * @function Snap.Element#getClientWidth
+         * @param {boolean} [skip_style=false] When true the computed CSS width is ignored.
+         * @returns {number} Width in pixels.
+         */
+        Element.prototype.getClientWidth = function (skip_style) {
             if (this.node.clientWidth) return this.node.clientWidth;
             if (!skip_style) {
                 let width = Snap.window().getComputedStyle(this.node).width;
@@ -24257,14 +24747,14 @@ function voronoi(points) {
                 return 0;
             }
         }
-    /**
-     * Computes the rendered height of the element, falling back to CSS or parent dimensions when needed.
-     *
-     * @function Snap.Element#getClientHeight
-     * @param {boolean} [skip_style=false] When true the computed CSS height is ignored.
-     * @returns {number} Height in pixels.
-     */
-    Element.prototype.getClientHeight = function (skip_style) {
+        /**
+         * Computes the rendered height of the element, falling back to CSS or parent dimensions when needed.
+         *
+         * @function Snap.Element#getClientHeight
+         * @param {boolean} [skip_style=false] When true the computed CSS height is ignored.
+         * @returns {number} Height in pixels.
+         */
+        Element.prototype.getClientHeight = function (skip_style) {
             if (this.node.clientHeight) return this.node.clientHeight;
             if (!skip_style) {
                 let height = Snap.window().getComputedStyle(this.node).height;
@@ -24284,16 +24774,16 @@ function voronoi(points) {
                 return 0;
             }
         }
-    /**
-     * Determines whether the element overlaps the provided rectangle. Groups recurse into children.
-     *
-     * @function Snap.Element#isInRect
-     * @param {Snap.Element|DOMRect} rect Rectangle definition to test against.
-     * @returns {boolean} True when the element intersects the rectangle.
-     */
-    Element.prototype.isInRect = function (rect) {
+        /**
+         * Determines whether the element overlaps the provided rectangle. Groups recurse into children.
+         *
+         * @function Snap.Element#isInRect
+         * @param {Snap.Element|DOMRect} rect Rectangle definition to test against.
+         * @returns {boolean} True when the element intersects the rectangle.
+         */
+        Element.prototype.isInRect = function (rect) {
             // var box = rect.node.getBBox(); //get a proper SVGRect element
-            if (this.type == 'g') {
+            if (this.type === 'g') {
                 const children = this.getChildren();
                 let i = 0;
                 const max = children.length;
@@ -24339,7 +24829,7 @@ function voronoi(points) {
 
         /**
          * Gets the center point for rotation operations.
-         * 
+         *
          * @function Snap.Element#centerRotation
          * @returns {{x:number,y:number}} Point around which the element should rotate.
          */
@@ -24353,7 +24843,7 @@ function voronoi(points) {
 
         /**
          * Removes the element from the DOM along with any associated linked resources and partners.
-         * 
+         *
          * @function Snap.Element#remove
          * @param {boolean} [skip_linked=false] When true, linked resources are not automatically removed.
          * @param {boolean} [skip_reg_fun_childern] Reserved parameter for internal use.
@@ -24403,7 +24893,7 @@ function voronoi(points) {
 
         /**
          * Hides the element by setting its display style to 'none'.
-         * 
+         *
          * @function Snap.Element#hide
          * @returns {void}
          */
@@ -24413,7 +24903,7 @@ function voronoi(points) {
 
         /**
          * Shows the element by resetting its display style.
-         * 
+         *
          * @function Snap.Element#show
          * @returns {void}
          */
@@ -24423,7 +24913,7 @@ function voronoi(points) {
 
         /**
          * Removes the element after fading it out over a specified duration.
-         * 
+         *
          * @function Snap.Element#removeSlowly
          * @param {number} [time=500] Duration of the fade-out animation in milliseconds.
          * @returns {void}
@@ -24435,7 +24925,7 @@ function voronoi(points) {
 
         /**
          * Hides the element with a fade-out animation.
-         * 
+         *
          * @function Snap.Element#hideSlowly
          * @param {number} [time=500] Duration of the fade-out animation in milliseconds.
          * @param {Function} [after] Optional callback executed after the animation completes.
@@ -24451,7 +24941,7 @@ function voronoi(points) {
 
         /**
          * Shows the element with a fade-in animation.
-         * 
+         *
          * @function Snap.Element#showSlowly
          * @param {number} [time=500] Duration of the fade-in animation in milliseconds.
          * @param {Function} [after] Optional callback executed after the animation completes.
@@ -24470,7 +24960,7 @@ function voronoi(points) {
         /**
          * Flattens a group by moving all its children to the parent level and applies the group's transformation and styling to each child.
          * The group element is removed after flattening.
-         * 
+         *
          * @function Snap.Element#flatten
          * @param {boolean} [process_css=false] When true, propagates the group's classes and styles to all children.
          * @returns {Snap.Element} The element (for non-groups) or undefined after removal (for groups).
@@ -24507,7 +24997,7 @@ function voronoi(points) {
 
         /**
          * Wraps the element in an anchor element for linking functionality.
-         * 
+         *
          * @function Snap.Element#anchorEmbed
          * @param {string} href The URL or link destination.
          * @param {string} [target] Optional target attribute for the anchor (e.g., '_blank', '_self').
@@ -24586,7 +25076,7 @@ function voronoi(points) {
 
         /**
          * Returns changes to the element
-         * 
+         *
          * @function Snap.Element#readChanges
          * @returns {Array} of the following, in this order:
          * "delete", "new", "points", "transform", "reorder", "style", "attribute", "effect", "clip"
@@ -24610,7 +25100,7 @@ function voronoi(points) {
 
         /**
          * Marks the element as local-only, preventing it from being synced to a server.
-         * 
+         *
          * @function Snap.Element#localOnly
          * @param {boolean} [reverse=false] When true, removes the local-only flag.
          * @returns {Snap.Element} The element for method chaining.
@@ -24622,7 +25112,7 @@ function voronoi(points) {
 
         /**
          * Checks whether the element or any of its ancestors are marked as local-only.
-         * 
+         *
          * @function Snap.Element#isLocal
          * @param {Node} [node] Optional DOM node to check; defaults to the element's node.
          * @returns {boolean} True if the element is local-only.
@@ -24640,7 +25130,7 @@ function voronoi(points) {
 
         /**
          * Gets or sets the first point of a path, polyline, or polycurve element.
-         * 
+         *
          * @function Snap.Element#pathFirstPoint
          * @param {number|Object} [x] X coordinate or point object. If omitted, returns the current first point.
          * @param {number} [y] Y coordinate (only used if x is a number).
@@ -24681,7 +25171,7 @@ function voronoi(points) {
 
         /**
          * Converts the element to a path element while preserving all non-geometric attributes.
-         * 
+         *
          * @function Snap.Element#makePath
          * @returns {Snap.Element} The converted path element or the original element if already a path or group.
          */
@@ -24711,7 +25201,7 @@ function voronoi(points) {
 
         /**
          * Creates a clip path and applies it to the element.
-         * 
+         *
          * @function Snap.Element#createClipPath
          * @param {Snap.Element} path The path element to use for clipping.
          * @param {string} [id] Optional ID for the clip path; auto-generated if omitted.
@@ -24732,7 +25222,7 @@ function voronoi(points) {
 
         /**
          * Creates a mask and applies it to the element.
-         * 
+         *
          * @function Snap.Element#createMask
          * @param {Snap.Element} path The path element to use for masking.
          * @param {string} [id] Optional ID for the mask; auto-generated if omitted.
@@ -24753,7 +25243,7 @@ function voronoi(points) {
 
         /**
          * Localizes a linked element (clipPath or mask) by updating its ID and all references.
-         * 
+         *
          * @function Snap.Element#linkedElementLocalise
          * @returns {void}
          */
@@ -24776,7 +25266,7 @@ function voronoi(points) {
 
         /**
          * Converts the element to a polyBezier representation.
-         * 
+         *
          * @function Snap.Element#toPolyBezier
          * @returns {Snap.Element} A polyBezier element created from the element's bezier curves.
          */
@@ -24786,7 +25276,7 @@ function voronoi(points) {
 
         /**
          * Gets the first point of the element's geometry.
-         * 
+         *
          * @function Snap.Element#getFirstPoint
          * @param {boolean} [use_local_transform=false] Whether to apply the element's local transformation matrix.
          * @returns {{x:number,y:number}} The first point of the element.
@@ -24825,7 +25315,7 @@ function voronoi(points) {
 
         /**
          * Sets the first point of the element's geometry.
-         * 
+         *
          * @function Snap.Element#setFirstPoint
          * @param {number|{x:number,y:number}|number[]} x X coordinate or point object/array.
          * @param {number} [y] Y coordinate (required if x is a number).
@@ -24856,7 +25346,7 @@ function voronoi(points) {
 
         /**
          * Gets the last point of the element's geometry.
-         * 
+         *
          * @function Snap.Element#getLastPoint
          * @param {boolean} [use_local_transform=false] Whether to apply the element's local transformation matrix.
          * @returns {{x:number,y:number}} The last point of the element.
@@ -24909,7 +25399,7 @@ function voronoi(points) {
 
         /**
          * Gets the geometry-related attributes for the element based on its type.
-         * 
+         *
          * @function Snap.Element#getGeometryAttr
          * @param {boolean} [names_only=false] If true, returns only attribute names, otherwise returns values.
          * @returns {string[]|Object} Array of attribute names or object with attribute values.
@@ -25022,12 +25512,13 @@ function voronoi(points) {
         }
 
         //Actions
-    
+
         // Helper function for rounding numbers
         function round(num, decimals = 0) {
             const factor = Math.pow(10, decimals);
             return Math.round(num * factor) / factor;
         }
+
         /**
          * Enables drag-based translation for the element.
          *
@@ -25146,7 +25637,7 @@ function voronoi(points) {
          * @param {Snap.Element} [alt_element] Alternative element used for cloning and opacity adjustments.
          * @returns {Snap.Element} The element for chaining.
          */
-        Element.prototype.makeDraggable = function (drop_target, animate, end_event, move_event, data, local_eve, alt_element) {
+        Element.prototype.makeDraggable = function (drop_target, animate, end_event, move_event, data, local_eve, alt_element, alt_click) {
 
             local_eve = local_eve || eve;
 
@@ -25229,7 +25720,7 @@ function voronoi(points) {
                     ev.stopPropagation();
                     // console.log(ev);
                     emv();
-                },
+                }, undefined, undefined, undefined, alt_click
             );
         }
 
@@ -25648,7 +26139,7 @@ function voronoi(points) {
 
         /**
          * Animates a translation (movement) of the element over time.
-         * 
+         *
          * @function Snap.Element#translateAnimate
          * @param {number|number[]} duration Animation duration in milliseconds, or [duration, easing] array.
          * @param {number} x Horizontal offset to animate to.
@@ -25701,7 +26192,7 @@ function voronoi(points) {
 
         /**
          * Translates the element in global coordinates.
-         * 
+         *
          * @function Snap.Element#translate_glob
          * @param {number} x Horizontal offset in global coordinates.
          * @param {number} y Vertical offset in global coordinates.
@@ -25748,7 +26239,7 @@ function voronoi(points) {
 
         /**
          * Rotates the element by the specified angle around an optional center point.
-         * 
+         *
          * @function Snap.Element#rotate
          * @param {number} ang Rotation angle in degrees.
          * @param {number} [cx] X coordinate of the center point for rotation.
@@ -25789,13 +26280,13 @@ function voronoi(points) {
          * @param {number} [cx] X coordinate of the reflection centre.
          * @param {number} [cy] Y coordinate of the reflection centre.
          * @param {Snap.Matrix|string|boolean} [prev_trans] Optional base matrix or configuration flag.
-         * @param {boolean} [use_catch=false] When true, updates cached bounding boxes.
+         * @param {boolean} [use_cache=false] When true, updates cached bounding boxes.
          * @returns {Snap.Element} The element for chaining.
          */
         Element.prototype.reflect = function (
-            direction, cx, cy, prev_trans, use_catch) {
+            direction, cx, cy, prev_trans, use_cache) {
             if (typeof prev_trans === 'boolean') {
-                use_catch = prev_trans;
+                use_cache = prev_trans;
                 prev_trans = undefined;
             }
 
@@ -25810,13 +26301,13 @@ function voronoi(points) {
             }
 
             if (direction === 'x' || direction === 'vertical') {
-                return this.scale(1, -1, cx, cy, prev_trans, use_catch);
+                return this.scale(1, -1, cx, cy, prev_trans, use_cache);
             }
             if (direction === 'y' || direction === 'horizontal') {
-                return this.scale(-1, 1, cx, cy, prev_trans, use_catch);
+                return this.scale(-1, 1, cx, cy, prev_trans, use_cache);
             }
             if (typeof direction === 'number') { //angle
-                return this.rotate(-direction, cx, cy, prev_trans, use_catch).reflect('x', cx, cy, use_catch).rotate(direction, cx, cy, use_catch);
+                return this.rotate(-direction, cx, cy, prev_trans, use_cache).reflect('x', cx, cy, use_cache).rotate(direction, cx, cy, use_cache);
             }
             if (typeof direction === 'object' && direction.type === 'line') {
                 const line = direction;
@@ -25825,13 +26316,13 @@ function voronoi(points) {
                 const x2 = Number(line.attr('x2'));
                 const y2 = Number(line.attr('y2'));
                 return this.reflect(Snap.angle(x1, y1, x2, y2), x1, x2, prev_trans,
-                    use_catch);
+                    use_cache);
             }
         };
 
         /**
          * Adds a transformation matrix to the element's existing transformation.
-         * 
+         *
          * @function Snap.Element#addTransform
          * @param {Snap.Matrix} matrix Transformation matrix to add.
          * @param {Snap.Matrix} [prev_trans] Previous transformation matrix to build upon. If not provided, uses the element's current local matrix.
@@ -25963,14 +26454,14 @@ function voronoi(points) {
             };
         }
 
-    /**
-     * Collects every non-group child within the element's subtree.
-     *
-     * @param {boolean} [invisible=false] Whether hidden elements should be included.
-     * @param {Snap.Element[]} [_arr] Accumulator used by the recursive implementation.
-     * @returns {Snap.Element[]} List of leaf elements.
-     */
-    Element.prototype.getLeafs = function (invisible, _arr) {
+        /**
+         * Collects every non-group child within the element's subtree.
+         *
+         * @param {boolean} [invisible=false] Whether hidden elements should be included.
+         * @param {Snap.Element[]} [_arr] Accumulator used by the recursive implementation.
+         * @returns {Snap.Element[]} List of leaf elements.
+         */
+        Element.prototype.getLeafs = function (invisible, _arr) {
             _arr = _arr || [];
             if (this.type !== 'g') {
                 _arr.push(this);
@@ -25982,16 +26473,16 @@ function voronoi(points) {
             return _arr;
         };
 
-    /**
-     * Builds an array with the element and its ancestors (excluding the root SVG by default).
-     *
-     * @param {Function|boolean} [callback] Mapper invoked as `(element, index)`; providing a boolean is treated as `skip_current`.
-     * @param {boolean} [skip_current=false] When `true`, start from the parent instead of the current element.
-     * @param {boolean} [toCoord] Stops when a coordinate root is reached.
-     * @param {boolean} [include_top_svg=false] Include the top-level SVG element in the result.
-     * @returns {Array<*>} Either the element chain or the mapped output.
-     */
-    Element.prototype.getParentChain = function (
+        /**
+         * Builds an array with the element and its ancestors (excluding the root SVG by default).
+         *
+         * @param {Function|boolean} [callback] Mapper invoked as `(element, index)`; providing a boolean is treated as `skip_current`.
+         * @param {boolean} [skip_current=false] When `true`, start from the parent instead of the current element.
+         * @param {boolean} [toCoord] Stops when a coordinate root is reached.
+         * @param {boolean} [include_top_svg=false] Include the top-level SVG element in the result.
+         * @returns {Array<*>} Either the element chain or the mapped output.
+         */
+        Element.prototype.getParentChain = function (
             callback, skip_current, toCoord, include_top_svg) {
             if (typeof callback !== 'function') {
                 include_top_svg = toCoord;
@@ -26026,7 +26517,7 @@ function voronoi(points) {
 
         /**
          * Gets the coordinate transformation matrix for the element.
-         * 
+         *
          * @function Snap.Element#getCoordMatrix
          * @param {boolean} [strict] Whether to use strict mode for matrix computation.
          * @param {boolean} [full] Whether to include the element itself in the computation.
@@ -26042,7 +26533,7 @@ function voronoi(points) {
 
         /**
          * Gets the real bounding box using relative coordinates.
-         * 
+         *
          * @function Snap.Element#getRealBBox
          * @returns {Object} Bounding box object with x, y, width, height properties.
          */
@@ -26052,7 +26543,7 @@ function voronoi(points) {
 
         /**
          * Gets the exact real bounding box using relative coordinates.
-         * 
+         *
          * @function Snap.Element#getRealBBoxExact
          * @returns {Object} Exact bounding box object with x, y, width, height properties.
          */
@@ -26302,14 +26793,14 @@ function voronoi(points) {
             return this;
         };
 
-    /**
-     * Scales the element so it completely covers the supplied bounding box.
-     *
-     * @param {Snap.Element|{width:number,height:number,cx:number,cy:number}} external_bBox Bounding box or element supplying `getBBox()` data.
-     * @param {boolean} [scale_up=false] When `true`, avoids shrinking elements that are already larger than the box.
-     * @returns {Snap.Element} The transformed element.
-     */
-    Element.prototype.fillInBox = function (external_bBox, scale_up) {
+        /**
+         * Scales the element so it completely covers the supplied bounding box.
+         *
+         * @param {Snap.Element|{width:number,height:number,cx:number,cy:number}} external_bBox Bounding box or element supplying `getBBox()` data.
+         * @param {boolean} [scale_up=false] When `true`, avoids shrinking elements that are already larger than the box.
+         * @returns {Snap.Element} The transformed element.
+         */
+        Element.prototype.fillInBox = function (external_bBox, scale_up) {
             if (external_bBox.paper) {
                 // var matrix = external_bBox.getLocalMatrix();
                 external_bBox = external_bBox.getBBox();
@@ -26462,14 +26953,14 @@ function voronoi(points) {
             return val;
         };
 
-    /**
-     * Applies CSS styles to the element, accepting either a declaration string or an object map.
-     *
-     * @param {string|Object} style CSS text or a property map. When a property name is provided, `value` supplies the value.
-     * @param {string} [value] Value used when `style` is a single property name.
-     * @returns {Snap.Element} The element with updated style.
-     */
-    Element.prototype.setStyle = function (style, value) {
+        /**
+         * Applies CSS styles to the element, accepting either a declaration string or an object map.
+         *
+         * @param {string|Object} style CSS text or a property map. When a property name is provided, `value` supplies the value.
+         * @param {string} [value] Value used when `style` is a single property name.
+         * @returns {Snap.Element} The element with updated style.
+         */
+        Element.prototype.setStyle = function (style, value) {
             if (!style) return this;
             let that = this; //we may need change the object to a surrogate;
             if (typeof style === 'string') {
@@ -26525,13 +27016,13 @@ function voronoi(points) {
             return that;
         };
 
-    /**
-     * Retrieves the element's style declarations as an object map or a subset of properties.
-     *
-     * @param {string[]|Object} [properties] Optional list (or object keys) specifying which properties to read from computed styles.
-     * @returns {Object<string,string>} Map of style property names to values.
-     */
-    Element.prototype.getStyle = function (properties) {
+        /**
+         * Retrieves the element's style declarations as an object map or a subset of properties.
+         *
+         * @param {string[]|Object} [properties] Optional list (or object keys) specifying which properties to read from computed styles.
+         * @returns {Object<string,string>} Map of style property names to values.
+         */
+        Element.prototype.getStyle = function (properties) {
             /*Explicit list of properties we get from computed style*/
             if (properties) {
                 if (typeof properties === 'object' && !Array.isArray(properties)) {
@@ -26566,7 +27057,8 @@ function voronoi(points) {
             return ret;
         };
 
-        const styles = {
+
+        const STYLES = {
             'alignment-baseline': true,
             'baseline-shift': true,
             'clip-path': true,
@@ -26625,14 +27117,14 @@ function voronoi(points) {
             'word-spacing': true,
             'writing-mode': true,
         };
-    /**
-     * Converts style-related attributes into inline CSS declarations stored in the `style` attribute.
-     *
-     * @param {boolean|Function} [recursive=false] When `true`, processes descendants; if a function is passed it is treated as `f`.
-     * @param {Function} [f] Optional callback triggered when a style change is recorded.
-     * @returns {Snap.Element} The current element.
-     */
-    Element.prototype.moveAttrToStyle = function (recursive, f) {
+        /**
+         * Converts style-related attributes into inline CSS declarations stored in the `style` attribute.
+         *
+         * @param {boolean|Function} [recursive=false] When `true`, processes descendants; if a function is passed it is treated as `f`.
+         * @param {Function} [f] Optional callback triggered when a style change is recorded.
+         * @returns {Snap.Element} The current element.
+         */
+        Element.prototype.moveAttrToStyle = function (recursive, f) {
             if (typeof recursive === 'function') {
                 f = recursive;
                 recursive = false;
@@ -26640,7 +27132,7 @@ function voronoi(points) {
             const attrs = this.getAttributes();
             let found = false;
             for (let attr in attrs) if (attrs.hasOwnProperty(attr)) {
-                if (styles[attr]) {
+                if (STYLES[attr]) {
                     found = true;
                     if (!attrs.style) {
                         attrs.style = {};
@@ -26666,13 +27158,13 @@ function voronoi(points) {
             return this;
         };
 
-    /**
-     * Copies computed styles from another element onto this element for display purposes.
-     *
-     * @param {Snap.Element} source Element whose computed style should be cloned.
-     * @returns {Snap.Element} The current element.
-     */
-    Element.prototype.copyComStyle = function (source) {
+        /**
+         * Copies computed styles from another element onto this element for display purposes.
+         *
+         * @param {Snap.Element} source Element whose computed style should be cloned.
+         * @returns {Snap.Element} The current element.
+         */
+        Element.prototype.copyComStyle = function (source) {
             const styles = root.getComputedStyle(source.node);
             if (styles.cssText !== '') {
                 this.node.style.cssText = styles.cssText;
@@ -26691,7 +27183,7 @@ function voronoi(points) {
 
         /**
          * Checks if this element is positioned above another element in the DOM.
-         * 
+         *
          * @function Snap.Element#isAbove
          * @param {Snap.Element} el Element to compare against.
          * @returns {boolean} True if this element is above the other element.
@@ -26702,7 +27194,7 @@ function voronoi(points) {
 
         /**
          * Checks if this element is positioned below another element in the DOM.
-         * 
+         *
          * @function Snap.Element#isBelow
          * @param {Snap.Element} el Element to compare against.
          * @returns {boolean} True if this element is below the other element.
@@ -26713,7 +27205,7 @@ function voronoi(points) {
 
         /**
          * Checks if this element is a parent of another element.
-         * 
+         *
          * @function Snap.Element#isParentOf
          * @param {Snap.Element} el Element to check.
          * @returns {boolean} True if this element is a parent of the given element.
@@ -26724,7 +27216,7 @@ function voronoi(points) {
 
         /**
          * Checks if this element is a child of another element.
-         * 
+         *
          * @function Snap.Element#isChildOf
          * @param {Snap.Element} el Element to check.
          * @returns {boolean} True if this element is a child of the given element.
@@ -26735,7 +27227,7 @@ function voronoi(points) {
 
         /**
          * Finds a parent element that matches the given CSS selector or function.
-         * 
+         *
          * @function Snap.Element#selectParent
          * @param {string|Function} css_select CSS selector string or predicate function.
          * @param {boolean} [outside_svg=false] Whether to search outside the SVG element.
@@ -26755,7 +27247,7 @@ function voronoi(points) {
 
         /**
          * Finds the closest ancestor (including self) that matches the given CSS selector.
-         * 
+         *
          * @function Snap.Element#closest
          * @param {string} css_select CSS selector string.
          * @param {boolean} [outside_svg=false] Whether to search outside the SVG element.
@@ -26769,7 +27261,7 @@ function voronoi(points) {
 
         /**
          * Gets the bounding box of the element after rotating it by a specified angle.
-         * 
+         *
          * @function Snap.Element#getBBoxRot
          * @param {number} angle Rotation angle in degrees.
          * @param {number|{x:number,y:number}|boolean} [cx] X coordinate of rotation center, or point object, or boolean for aprox parameter.
@@ -26973,7 +27465,7 @@ function voronoi(points) {
 
         /**
          * Animates a transformation matrix change over time.
-         * 
+         *
          * @function Snap.Element#animateTransform
          * @param {Snap.Matrix} matrix Target transformation matrix to animate to.
          * @param {number} duration Animation duration in milliseconds.
@@ -27421,6 +27913,218 @@ function voronoi(points) {
         };
 
         Element.prototype.ungroup = Element.prototype.flatten;
+
+        /**
+         * Checks if a path is elliptical
+         * @param {Snap.Element} path - The path to check (or path string)
+         * @param {boolean} save - Whether to save the result
+         * @param {number} num_tests - Number of tests to perform
+         * @param {number} error - Error tolerance
+         * @returns {boolean|Object} False if not elliptical, ellipse parameters if elliptical and save=true
+         */
+        Element.prototype.isElliptical = function(path, save, num_tests, error) {
+
+            if (typeof path === "boolean"){
+                error = num_tests;
+                num_tests = save;
+                save = path;
+                path = undefined;
+            }
+
+            if (!isNaN(path)){
+                error = save;
+                num_tests = path;
+                save = false;
+                path = undefined;
+            }
+
+            if (num_tests && Math.floor(num_tests) !== num_tests) {
+                error = num_tests;
+                num_tests = undefined;
+            }
+
+            num_tests = num_tests || 3;
+            error = error || .02;
+
+            path = path || this;
+            if (save && path.data('is_ellipse') !== undefined) return path.data('is_ellipse');
+
+            let remove_temp_path = false;
+            // if (typeof path === 'string') {
+            //     if ((path = path.trim()) && path.charAt(0).toLowerCase() === 'm') {
+            //         const paper = gui.paper;
+            //         path = paper.path(path).toDefs(); //.attr({fill: "none", stroke: "gray"});
+            //         remove_temp_path = true;
+            //     } else {
+            //         return false;
+            //     }
+            //
+            // }
+
+            const l = path.getTotalLength();
+
+            const inc = l / 5;
+            const points = [path.getPointAtLength(0), path.getPointAtLength(inc), path.getPointAtLength(2 * inc), path.getPointAtLength(3 * inc), path.getPointAtLength(4 * inc)];
+
+            const test = [];
+            for (let i = 0; i < num_tests; i++) {
+                let t = l * (1 + 2 * i) / (2 * num_tests);
+                test[i] = path.getPointAtLength(t);
+            }
+
+            let m;
+            if (save && path.getLocalMatrix && (m = path.getLocalMatrix()) && !m.isIdentity()) {
+                [...points, ...test].forEach((p) => {
+                    let temp_p = m.apply(p);
+                    p.x = temp_p.x;
+                    p.y = temp_p.y;
+                });
+            }
+
+            function getCoefs(points, normalize, tests) {
+                tests = tests || [];
+                if (normalize) {
+                    points = points.map((p) => {
+                        return {x: p.x, y: p.y};
+                    });
+                    let ar = points, ar_x = ar.map((p) => p.x), ar_y = ar.map((p) => p.y), min_x = Math.min(...ar_x),
+                        max_x = Math.max(...ar_x), min_y = Math.min(...ar_y), max_y = Math.max(...ar_y);
+                    ar = [...ar, ...tests];
+                    ar.forEach((p, i) => {
+                        p.x = .5 + (p.x - min_x) / (max_x - min_x);
+                        p.y = .5 + (p.y - min_y) / (max_y - min_y);
+                    });
+                }
+
+                const p1 = points[0], p2 = points[1], p3 = points[2], p4 = points[3], p5 = points[4];
+
+                //determine ellipse equation from five points: ax^2+by^2+cxy+dx+ey+1=0
+                const matrix = [[p1.x ** 2, p1.y ** 2, p1.x * p1.y, p1.x, p1.y], [p2.x ** 2, p2.y ** 2, p2.x * p2.y, p2.x, p2.y], [p3.x ** 2, p3.y ** 2, p3.x * p3.y, p3.x, p3.y], [p4.x ** 2, p4.y ** 2, p4.x * p4.y, p4.x, p4.y], [p5.x ** 2, p5.y ** 2, p5.x * p5.y, p5.x, p5.y],];
+
+                let usolve;
+                try {
+                    usolve = math.lusolve(matrix, [1, 1, 1, 1, 1]);
+                } catch (e) {
+                    return false;
+                }
+
+
+                //a,b,c,d,f
+                return usolve.map((c) => c[0]);
+
+            }
+
+            function solve(test, par) {
+                return par[0] * test.x ** 2 + par[1] * test.y ** 2 + par[2] * test.x * test.y + par[3] * test.x + par[4] * test.y - 1;
+            }
+
+            let par = getCoefs(points, true, test);
+            if (!par) return false;
+
+            //test the sixth point if it nearly satisfies the equation
+            let solution = -Infinity;
+            test.forEach((t) => {
+                solution = Math.max(solution, Math.abs(solve(t, par)));
+            });
+
+            // if (ia.debug())  console.log(solution, error);
+
+            let is_ellips = Math.abs(solution) < error;
+            if (is_ellips && save) {
+                par = getCoefs(points);
+                //Get the ellipse parameters from the equation, since we have it.
+                //The function takes parameters as AX**2, BX*Y, CY**2 so we must interchange 1 and 2
+                const paper = path.paper || (typeof gui !== 'undefined' && gui.paper);
+                if (paper && typeof paper.ellipseFromEquation === 'function') {
+                    const ellipse_params = paper.ellipseFromEquation(par[0], par[2], par[1], par[3], par[4], true);
+                    if (ellipse_params) {
+                        is_ellips = ellipse_params;
+                    }
+                }
+            }
+            save && path.data('is_ellipse', is_ellips);
+            remove_temp_path && path.remove();
+            return is_ellips;
+
+        }
+
+        Element.prototype.isRectangular = function (path, save) {
+            if (typeof path === "boolean"){
+                save = path;
+                path = undefined;
+            }
+
+            path = path || this;
+
+            if (save && path.data && path.data('is_rect') !== undefined) return path.data('is_rect');
+
+            let matrix;
+            if (path.getLocalMatrix) matrix = path.getLocalMatrix();
+
+            if (Snap.path.isCompound(path)) {
+                let segments = path.getCompoundSegments();
+                if (segments.length === 2) {
+                    let rect1, rect2;
+                    if ((rect1 = isRectangular(segments[0])) && (rect2 = isRectangular(segments[1]))) {
+                        //we assume that this is a outlined path
+
+                        //rearrange the points to match the same corners
+                        let tmp = ['a', 'a', 'a', 'a'];
+                        for (let i = 0; i < 3; ++i) {
+                            let min = Infinity;
+                            let found_j;
+                            for (let j = 0; j < 4; ++j) {
+                                let d = Snap.len2(rect1[i][0], rect1[i][1], rect2[j][0], rect2[j][1]);
+                                if (d < min) {
+                                    min = d;
+                                    found_j = j;
+                                }
+                            }
+                            tmp[found_j] = rect1[i];
+                        }
+                        const ind = tmp.indexOf('a');
+                        tmp[ind] = rect1[3];
+
+                        rect1 = tmp;
+
+                        //Get the mid points, which correspond the centre of the lines
+                        let result = [[(rect1[0][0] + rect2[0][0]) / 2, (rect1[0][1] + rect2[0][1]) / 2], [(rect1[1][0] + rect2[1][0]) / 2, (rect1[1][1] + rect2[1][1]) / 2], [(rect1[2][0] + rect2[2][0]) / 2, (rect1[2][1] + rect2[2][1]) / 2], [(rect1[3][0] + rect2[3][0]) / 2, (rect1[3][1] + rect2[3][1]) / 2],];
+                        if (matrix && !matrix.isIdentity()) {
+                            result = result.map((p) => {
+                                let p_2 = matrix.apply(p);
+                                return [p_2.x, p_2.y];
+                            });
+                        }
+                        save && path.data('is_rect', result);
+                        return result;
+                    }
+                }
+                save && path.data('is_rect', false);
+                return false;
+            }
+
+            let contr_points = Snap.path.getControlPoints(path, false, true); //getControlPoints(path, true, true);
+            if (contr_points.length === 4) {
+                const p1 = contr_points[0], p2 = contr_points[1], p3 = contr_points[2], p4 = contr_points[3];
+
+                const dot = function (p1, c, p2) {
+                    return Snap.round((p1[0] - c[0]) * (p2[0] - c[0]) + (p1[1] - c[1]) * (p2[1] - c[1]), 5);
+                };
+
+                const a = dot(p1, p2, p3);
+                const isRect = a === 0 && dot(p2, p3, p4) === 0 && dot(p3, p4, p1) === 0 && dot(p4, p1, p2) === 0;
+
+                if (isRect) {
+                    const result = [p1, p2, p3, p4];
+                    path.data && path.data('is_rect', result);
+                    return result;
+                }
+
+            }
+            path.data && path.data('is_rect', false);
+            return false;
+        }
+
 
 
     });
