@@ -18,7 +18,7 @@
 
 //code based on https://github.com/vrd/js-intersect
 
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap_ia.plugin(function (Snap) {
     /**
      * Namespace for polygon-related operations
      * @namespace Snap.polygons
@@ -44,8 +44,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         const edges = edgify(fig1, fig2a);
         const polygons = polygonate(edges);
-        const filteredPolygons = filterPolygons(polygons, fig1, fig2a, "intersect");
-        return filteredPolygons;
+        return filterPolygons(polygons, fig1, fig2a, "intersect");
     }
 
     Snap.polygons.intersect = intersect;
@@ -120,15 +119,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             let points = [];
             //for intersection with every edge except itself
             for(let j = 0; j < primEdges.length; j++) {
-                if (i != j) {
+                if (i !== j) {
                     const interPoints = findEdgeIntersection(primEdges[i], primEdges[j]);
                     addNewPoints(interPoints, points);
                 }
             }
             //add start and end points to intersection points
-            startPoint = primEdges[i][0];
+            let startPoint = primEdges[i][0];
             startPoint.t = 0;
-            endPoint = primEdges[i][1];
+            let endPoint = primEdges[i][1];
             endPoint.t = 1;
             addNewPoints([startPoint, endPoint], points);
             //sort all points by position on edge
@@ -179,6 +178,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         p.sort((a,b) => {
             if (a.t > b.t) return 1;
             if (a.t < b.t) return -1;
+            return 0;
         });
         return p;
     }
@@ -232,15 +232,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         //2. lines are collinear
         else if ((nom1 === 0) && (denom === 0)) {
             //check if endpoints of edge2 lies on edge1
-            for (var i = 0; i < 2; i++) {
-                var classify = classifyPoint(edge2[i], edge1);
+            for (let i = 0; i < 2; i++) {
+                const classify = classifyPoint(edge2[i], edge1);
                 //find position of this endpoints relatively to edge1
-                if (classify.loc == "ORIGIN" || classify.loc == "DESTINATION") {
+                if (classify.loc === "ORIGIN" || classify.loc === "DESTINATION") {
                     interPoints.push({x: edge2[i].x, y: edge2[i].y, t: classify.t});
                 }
-                else if (classify.loc == "BETWEEN") {
-                    x = +((x1 + classify.t*(x2 - x1)).toPrecision(10));
-                    y = +((y1 + classify.t*(y2 - y1)).toPrecision(10));
+                else if (classify.loc === "BETWEEN") {
+                    const x = +((x1 + classify.t*(x2 - x1)).toPrecision(10));
+                    const y = +((y1 + classify.t*(y2 - y1)).toPrecision(10));
                     interPoints.push({x: x, y: y, t: classify.t});
                 }
             }
@@ -248,21 +248,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         //3. edges intersect
         else {
-            for (var i = 0; i < 2; i++) {
-                var classify = classifyPoint(edge2[i], edge1);
-                if (classify.loc == "ORIGIN" || classify.loc == "DESTINATION") {
+            for (let i = 0; i < 2; i++) {
+                const classify = classifyPoint(edge2[i], edge1);
+                if (classify.loc === "ORIGIN" || classify.loc === "DESTINATION") {
                     interPoints.push({x: edge2[i].x, y: edge2[i].y, t: classify.t});
                 }
             }
             if (interPoints.length > 0) {
                 return interPoints;
             }
-            var x = +((x1 + t1*(x2 - x1)).toPrecision(10));
-            var y = +((y1 + t1*(y2 - y1)).toPrecision(10));
+            const x = +((x1 + t1*(x2 - x1)).toPrecision(10));
+            const y = +((y1 + t1*(y2 - y1)).toPrecision(10));
             interPoints.push({x: x, y: y, t: t1});
             return interPoints;
         }
-        return interPoints;
     }
 
     /**
@@ -387,18 +386,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Boolean} True if edges are equal, false otherwise
      */
     function equalEdges(edge1, edge2) {
-        if (((edge1[0].x === edge2[0].x) &&
+        return ((edge1[0].x === edge2[0].x) &&
             (edge1[0].y === edge2[0].y) &&
             (edge1[1].x === edge2[1].x) &&
             (edge1[1].y === edge2[1].y)) || (
             (edge1[0].x === edge2[1].x) &&
             (edge1[0].y === edge2[1].y) &&
             (edge1[1].x === edge2[0].x) &&
-            (edge1[1].y === edge2[0].y))) {
-            return true;
-        } else {
-            return false;
-        }
+            (edge1[1].y === edge2[0].y));
     }
 
     /**
@@ -461,10 +456,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     dest.y = point.y;
                     currentEdge = point.edge;
                     //if we reach start edge
-                    if ((org.x == edges[i][0].x) &&
-                        (org.y == edges[i][0].y) &&
-                        (dest.x == edges[i][1].x) &&
-                        (dest.y == edges[i][1].y)) {
+                    if ((org.x === edges[i][0].x) &&
+                        (org.y === edges[i][0].y) &&
+                        (dest.x === edges[i][1].x) &&
+                        (dest.y === edges[i][1].y)) {
                         stop = true;
                         //check polygon for correctness
                         /*for (var k = 0; k < allPoints.length; k++) {
@@ -473,7 +468,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             polygon = false;
                           }
                         }*/
-                        for (k = 0; k < midpoints.length; k++) {
+                        for (let k = 0; k < midpoints.length; k++) {
                             //if some midpoint is inside polygon (edge inside polygon) it is incorrect
                             if (findPointInsidePolygon(midpoints[k], polygon)) {
                                 polygon = false;
@@ -614,7 +609,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         while (!pointsOK) {
             line = [{x: (size.x.min - 1), y: y},{x: (size.x.max + 1), y: y}];
             //find intersections with all polygon edges
-            for (var i = 0; i < edges.length; i++) {
+            for (let i = 0; i < edges.length; i++) {
                 points = findEdgeIntersection(line, edges[i]);
                 //if edge doesn't lie inside line
                 if (points && (points.length === 1)) {
@@ -623,7 +618,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             interPoints = sortPoints(interPoints);
             //find two correct interpoints
-            for (var i = 0; i < interPoints.length - 1; i++) {
+            for (let i = 0; i < interPoints.length - 1; i++) {
                 if (interPoints[i].t !== interPoints[i+1].t) {
                     //enable exit from loop and calculate point coordinates
                     pointsOK = true;
@@ -704,11 +699,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             if (classify.loc === "BETWEEN") return !!count_side;
         }
-        if (cross % 2) {
-            return true;
-        } else {
-            return false;
-        }
+        return cross % 2 === 1;
     }
 
     Snap.polygons.pointInPolygon = findPointInsidePolygon;
@@ -734,7 +725,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     /**
      * Computes the center of mass (centroid) of a polygon.
      * Assumes uniform distribution of mass.
-     * Note: the centroid is invariant under affine transformations.
      * @function polygonCentroid
      * @memberof Snap.polygons
      * @param {Array<Point>} points - Polygon vertices.
