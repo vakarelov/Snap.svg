@@ -136,7 +136,9 @@ module.exports = function (grunt) {
     grunt.registerTask('default',
         [
             // 'exec:eslint',
-            'concat', 'terser', 'jsdoc', 'prettify']);
+            'concat', 'terser', 'jsdoc',
+            // 'prettify'
+        ]);
     grunt.registerTask('lint', ['exec:eslint']);
     grunt.registerTask('test', ['exec:test']);
 };

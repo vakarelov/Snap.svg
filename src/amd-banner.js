@@ -2,13 +2,13 @@
     // AMD support
     if (typeof define == "function" && define.amd) {
         // Define as an anonymous module
-        define(["eve_ia"], function (eve) {
+        define(["eve"], function (eve) {
             return factory(glob, eve);
         });
     } else if (typeof exports != "undefined") {
         // Next for Node.js or CommonJS
-        var eve = require("eve_ia");
-        var mina = require("mina_ia");
+        var eve = require("eve");
+        var mina = require("mina");
         module.exports = factory(glob, eve, mina);
     } else {
         // Browser globals (glob is window)

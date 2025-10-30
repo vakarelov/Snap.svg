@@ -22,7 +22,7 @@
         });
     } else if (typeof exports != "undefined") {
         // Next for Node.js or CommonJS
-        const eve = require("eve_ia");
+        const eve = require("eve");
         module.exports = factory(glob, eve);
     } else {
         // Browser globals (glob is window)

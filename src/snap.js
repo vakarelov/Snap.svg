@@ -18,7 +18,7 @@
 (function (root) {
         Snap.version = "1.1";
 
-        const eve = eve_ia;
+        // const eve = eve || eve_ia;
 
         /**
          * Main Snap.svg factory function and namespace entry point.

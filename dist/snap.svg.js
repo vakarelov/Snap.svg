@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-10-24
+// build: 2025-10-30
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -938,13 +938,13 @@
     // AMD support
     if (typeof define == "function" && define.amd) {
         // Define as an anonymous module
-        define(["eve_ia"], function (eve) {
+        define(["eve"], function (eve) {
             return factory(glob, eve);
         });
     } else if (typeof exports != "undefined") {
         // Next for Node.js or CommonJS
-        var eve = require("eve_ia");
-        var mina = require("mina_ia");
+        var eve = require("eve");
+        var mina = require("mina");
         module.exports = factory(glob, eve, mina);
     } else {
         // Browser globals (glob is window)
@@ -979,7 +979,7 @@
         });
     } else if (typeof exports != "undefined") {
         // Next for Node.js or CommonJS
-        const eve = require("eve_ia");
+        const eve = require("eve");
         module.exports = factory(glob, eve);
     } else {
         // Browser globals (glob is window)
@@ -1724,7 +1724,7 @@
 (function (root) {
         Snap.version = "1.1";
 
-        const eve = eve_ia;
+        // const eve = eve || eve_ia;
 
         /**
          * Main Snap.svg factory function and namespace entry point.
@@ -13154,43 +13154,57 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var mmax = Math.max,
+    const mmax = Math.max,
         mmin = Math.min;
+
+    // Check if native Set is available
+    const hasNativeSet = typeof Set !== 'undefined' && Set.prototype && Set.prototype.has;
+    const NativeSet = hasNativeSet ? Set : null;
 
     /**
      * Set object constructor - creates a collection of Snap elements
      * @class Set
      * @param {Array} [items] - array of initial items to add to the set
      */
-    var Set = function (items) {
-            this.items = [];
+    const SnapSet = function (items) {
+            // Use native Set if available, otherwise use array
+            this.items = hasNativeSet ? new NativeSet() : [];
+            this._isNativeSet = hasNativeSet;
             this.bindings = {};
             this.length = 0;
             this.type = "set";
             if (items) {
-                for (var i = 0, ii = items.length; i < ii; ++i) {
+                let i = 0;
+                const ii = items.length;
+                for (; i < ii; ++i) {
                     if (items[i]) {
-                        // this[this.items.length] = this.items[this.items.length] = items[i];
-                        // this.length++;
                         this.push(items[i])
                     }
                 }
             }
         },
-        setproto = Set.prototype;
+        setproto = SnapSet.prototype;
     /**
      * Adds each argument to the current set
      * @method Set.push
      * @returns {Set} original set for chaining
      */
     setproto.push = function () {
-        var item,
-            len;
-        for (var i = 0, ii = arguments.length; i < ii; ++i) {
+        let item;
+        let i = 0;
+        const ii = arguments.length;
+        for (; i < ii; ++i) {
             item = arguments[i];
             if (item) {
-                len = this.items.length;
-                this[len] = this.items[len] = item;
+                if (this._isNativeSet) {
+                    // Native Set automatically handles uniqueness
+                    this.items.add(item);
+                } else {
+                    // Array fallback - no uniqueness check
+                    this.items.push(item);
+                }
+                // Update indexed access and length
+                this[this.length] = item;
                 this.length++;
             }
         }
@@ -13202,8 +13216,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Element} element that was removed
      */
     setproto.pop = function () {
-        this.length && delete this[this.length--];
-        return this.items.pop();
+        if (this.length === 0) return undefined;
+
+        const item = this[this.length - 1];
+        delete this[--this.length];
+
+        if (this._isNativeSet) {
+            // For Set, we need to delete the specific item
+            this.items.delete(item);
+        } else {
+            // For Array, just pop it
+            this.items.pop();
+        }
+
+        return item;
     };
     /**
      * Executes given function for each element in the set
@@ -13215,9 +13241,22 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} Set object for chaining
      */
     setproto.forEach = function (callback, thisArg) {
-        for (var i = 0, ii = this.items.length; i < ii; ++i) {
-            if (callback.call(thisArg, this.items[i], i) === false) {
-                return this;
+        if (this._isNativeSet) {
+            // Native Set forEach
+            let i = 0;
+            for (const item of this.items) {
+                if (callback.call(thisArg, item, i++) === false) {
+                    return this;
+                }
+            }
+        } else {
+            // Array forEach
+            let i = 0;
+            const ii = this.items.length;
+            for (; i < ii; ++i) {
+                if (callback.call(thisArg, this.items[i], i) === false) {
+                    return this;
+                }
             }
         }
         return this;
@@ -13251,20 +13290,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             ms = easing.dur;
             attrs = attrs.attr;
         }
-        var args = arguments;
+        const args = arguments;
         if (Snap.is(attrs, "array") && Snap.is(args[args.length - 1], "array")) {
             var each = true;
         }
-        var begin,
-            handler = function () {
-                if (begin) {
-                    this.b = begin;
-                } else {
-                    begin = this.b;
-                }
-            },
-            cb = 0,
-            set = this,
+        let begin;
+        const handler = function () {
+            if (begin) {
+                this.b = begin;
+            } else {
+                begin = this.b;
+            }
+        };
+        let cb = 0;
+        const set = this,
             callbacker = callback && function () {
                 if (++cb == set.length) {
                     callback.call(this);
@@ -13299,11 +13338,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} Set object for chaining
      */
     setproto.bind = function (attr, a, b) {
-        var data = {};
+        const data = {};
         if (typeof a == "function") {
             this.bindings[attr] = a;
         } else {
-            var aname = b || attr;
+            const aname = b || attr;
             this.bindings[attr] = function (v) {
                 data[aname] = v;
                 a.attr(data);
@@ -13318,16 +13357,26 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} Set object for chaining
      */
     setproto.attr = function (value) {
-        var unbound = {};
-        for (var k in value) {
+        const unbound = {};
+        for (let k in value) {
             if (this.bindings[k]) {
                 this.bindings[k](value[k]);
             } else {
                 unbound[k] = value[k];
             }
         }
-        for (var i = 0, ii = this.items.length; i < ii; ++i) {
-            this.items[i].attr(unbound);
+        if (this._isNativeSet) {
+            // Native Set iteration
+            for (const item of this.items) {
+                item.attr(unbound);
+            }
+        } else {
+            // Array iteration
+            let i = 0;
+            const ii = this.items.length;
+            for (; i < ii; ++i) {
+                this.items[i].attr(unbound);
+            }
         }
         return this;
     };
@@ -13351,28 +13400,70 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     setproto.splice = function (index, count, insertion) {
         index = index < 0 ? mmax(this.length + index, 0) : index;
         count = mmax(0, mmin(this.length - index, count));
-        var tail = [],
-            todel = [],
-            args = [],
-            i;
+        const todel = [],
+            args = [];
+        let i;
+
+        // Collect insertion arguments
         for (i = 2; i < arguments.length; ++i) {
             args.push(arguments[i]);
         }
-        for (i = 0; i < count; ++i) {
-            todel.push(this[index + i]);
+
+        if (this._isNativeSet) {
+            // For Set, convert to array for splice operation, then rebuild
+            const itemsArray = Array.from(this.items);
+
+            // Collect items to delete
+            for (i = 0; i < count; ++i) {
+                todel.push(this[index + i]);
+            }
+
+            // Perform splice on array
+            itemsArray.splice(index, count, ...args);
+
+            // Rebuild Set from modified array
+            this.items.clear();
+            for (i = 0; i < itemsArray.length; ++i) {
+                this.items.add(itemsArray[i]);
+                this[i] = itemsArray[i];
+            }
+
+            // Update length and clean up extra indices
+            this.length = itemsArray.length;
+            i = this.length;
+            while (this[i]) {
+                delete this[i++];
+            }
+        } else {
+            // For Array, use native splice
+            const tail = [];
+
+            // Collect items to delete
+            for (i = 0; i < count; ++i) {
+                todel.push(this[index + i]);
+            }
+
+            // Collect tail items
+            for (i = count; i < this.length - index; ++i) {
+                tail.push(this[index + i]);
+            }
+
+            const arglen = args.length;
+
+            // Rebuild items array and indexed access
+            for (i = 0; i < arglen + tail.length; ++i) {
+                this.items[index + i] = this[index + i] = i < arglen ? args[i] : tail[i - arglen];
+            }
+
+            // Update length and clean up
+            this.items.length = this.length -= count - arglen;
+            i = this.length;
+            while (this[i]) {
+                delete this[i++];
+            }
         }
-        for (; i < this.length - index; ++i) {
-            tail.push(this[index + i]);
-        }
-        var arglen = args.length;
-        for (i = 0; i < arglen + tail.length; ++i) {
-            this.items[index + i] = this[index + i] = i < arglen ? args[i] : tail[i - arglen];
-        }
-        i = this.items.length = this.length -= count - arglen;
-        while (this[i]) {
-            delete this[i++];
-        }
-        return new Set(todel);
+
+        return new SnapSet(todel);
     };
     /**
      * Removes given element from the set
@@ -13381,7 +13472,9 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Boolean} true if element was found and removed, false otherwise
      */
     setproto.exclude = function (el) {
-        for (var i = 0, ii = this.length; i < ii; ++i) if (this[i] == el) {
+        let i = 0;
+        const ii = this.length;
+        for (; i < ii; ++i) if (this[i] == el) {
             this.splice(i, 1);
             return true;
         }
@@ -13394,9 +13487,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} Set object for chaining
      */
     setproto.insertAfter = function (el) {
-        var i = this.items.length;
-        while (i--) {
-            this.items[i].insertAfter(el);
+        if (this._isNativeSet) {
+            // Convert Set to array for reverse iteration
+            const itemsArray = Array.from(this.items);
+            let i = itemsArray.length;
+            while (i--) {
+                itemsArray[i].insertAfter(el);
+            }
+        } else {
+            // Array reverse iteration
+            let i = this.items.length;
+            while (i--) {
+                this.items[i].insertAfter(el);
+            }
         }
         return this;
     };
@@ -13406,16 +13509,28 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {BBox} bounding box descriptor. See Element.getBBox.
      */
     setproto.getBBox = function () {
-        var x = [],
-            y = [],
-            x2 = [],
-            y2 = [];
         let box;
-        for (var i = this.items.length; i--;) if (!this.items[i].removed) {
-            if (box){
-                box = box.union(this.items[i].getBBox());
-            } else {
-                box = this.items[i].getBBox().clone();
+        if (this._isNativeSet) {
+            // Native Set iteration
+            for (const item of this.items) {
+                if (!item.removed) {
+                    if (box) {
+                        box = box.union(item.getBBox());
+                    } else {
+                        box = item.getBBox().clone();
+                    }
+                }
+            }
+        } else {
+            // Array iteration (backwards for consistency)
+            for (let i = this.items.length; i--;) {
+                if (!this.items[i].removed) {
+                    if (box) {
+                        box = box.union(this.items[i].getBBox());
+                    } else {
+                        box = this.items[i].getBBox().clone();
+                    }
+                }
             }
         }
         return box;
@@ -13429,7 +13544,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Array} filtered array of items
      */
     setproto.filter = function (callback, thisArg) {
-        return this.items.filter(callback, thisArg)
+        if (this._isNativeSet) {
+            // Convert Set to array, then filter
+            return Array.from(this.items).filter(callback, thisArg);
+        } else {
+            return this.items.filter(callback, thisArg);
+        }
     };
 
     /**
@@ -13440,7 +13560,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Array} new array with each element being the result of the callback function
      */
     setproto.map = function (callback, thisArg) {
-        return this.items.map(callback, thisArg)
+        if (this._isNativeSet) {
+            // Convert Set to array, then map
+            return Array.from(this.items).map(callback, thisArg);
+        } else {
+            return this.items.map(callback, thisArg);
+        }
     };
 
     /**
@@ -13449,7 +13574,11 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Array} array of values
      */
     setproto.values = function () {
-        return this.items.filter(values)
+        if (this._isNativeSet) {
+            return Array.from(this.items.values());
+        } else {
+            return this.items.slice();
+        }
     };
 
     /**
@@ -13460,7 +13589,13 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Boolean} true if the value was found, false otherwise
      */
     setproto.includes = function (valueToFind, fromIndex) {
-        return this.items.includes(valueToFind, fromIndex);
+        if (this._isNativeSet) {
+            // Native Set has() method
+            return this.items.has(valueToFind);
+        } else {
+            // Array includes() method
+            return this.items.includes(valueToFind, fromIndex);
+        }
     };
 
     /**
@@ -13469,9 +13604,19 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Set} New Set object
      */
     setproto.clone = function (s) {
-        s = new Set;
-        for (var i = 0, ii = this.items.length; i < ii; ++i) {
-            s.push(this.items[i].clone());
+        s = new SnapSet;
+        if (this._isNativeSet) {
+            // Iterate over Set
+            for (const item of this.items) {
+                s.push(item.clone());
+            }
+        } else {
+            // Iterate over Array
+            let i = 0;
+            const ii = this.items.length;
+            for (; i < ii; ++i) {
+                s.push(this.items[i].clone());
+            }
         }
         return s;
     };
@@ -13491,7 +13636,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @class Snap.Set
      * @param {Array} [items] - array of initial items
      */
-    Snap.Set = Set;
+    Snap.Set = SnapSet;
     /**
      * Creates a set and fills it with list of arguments.
      * @method Snap.set
@@ -13503,7 +13648,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      *     s2 = Snap.set(r, paper.circle(100, 100, 20)); // prefilled set
      */
     Snap.set = function () {
-        var set = new Set;
+        const set = new SnapSet;
         if (arguments.length) {
             set.push.apply(set, Array.prototype.slice.call(arguments, 0));
         }
@@ -24263,10 +24408,12 @@ function voronoi(points) {
          * Evaluates dimension expressions with optional bounds and percentage handling.
          * @param {string|number|Array} str Expression describing the dimension; array form is [expr, min?, max?].
          * @param {number} space Base value used for percentage calculations.
+         * @param {Function} [evaluate] Optional evaluator function used to compute expressions (e.g. percentage or formula strings).
+         *          It is called with the expression and should return a numeric result. Recommended math.js: math.evaluate
          * @param {boolean} [negative=false] Whether the result may be negative.
          * @returns {number} Clamped dimension value.
          */
-        Snap.varDimension = function (str, space, negative) {
+        Snap.varDimension = function (str, space, evaluate, negative) {
 
             if (typeof str === "number") return str;
 
@@ -24284,26 +24431,27 @@ function voronoi(points) {
             const reg_percent = /(\d*\.?\d*%)/g;
             str = str.replace(reg_percent, repls_percent);
 
-            try {
-                if (typeof max === 'string') max = math.evaluate(
-                    max.replace(reg_percent, repls_percent));
-            } catch (e) {
-                max = Infinity;
-            }
+            if (evaluate) {
+                try {
+                    if (typeof max === 'string') max = evaluate(
+                        max.replace(reg_percent, repls_percent));
+                } catch (e) {
+                    max = Infinity;
+                }
 
-            try {
-                if (typeof min === 'string') min = math.evaluate(
-                    min.replace(reg_percent, repls_percent));
-            } catch (e) {
-                min = 0;
-            }
+                try {
+                    if (typeof min === 'string') min = evaluate(
+                        min.replace(reg_percent, repls_percent));
+                } catch (e) {
+                    min = 0;
+                }
 
-            try {
-                str = math.evaluate(str);
-            } catch (e) {
-                str = space;
+                try {
+                    str = evaluate(str);
+                } catch (e) {
+                    str = space;
+                }
             }
-
             if (negative) {
                 return Math.min(Math.max(str, -max), max);
             }
@@ -24331,6 +24479,98 @@ function voronoi(points) {
         };
 
         /**
+         * Solve a system of linear equations Ax = b using Gaussian elimination with partial pivoting
+         * @param {Array<Array<number>>} A - Coefficient matrix
+         * @param {Array<number>} b - Result vector
+         * @returns {Array<number>} - Solution vector x
+         */
+        Snap.Matrix.prototype.lusolve = function (A, b) {
+            if (Snap.is(A, "Matrix")) A = A.to2dArray();
+            if (b === undefined && Array.isArray(A) && !isNaN(A(0))) {
+                b = A;
+                A = this.to2dArray();
+            }
+            const n = A.length;
+
+            // Create augmented matrix [A|b] with copies to avoid modifying originals
+            const augmented = A.map((row, i) => [...row, b[i]]);
+
+            // Forward elimination with partial pivoting
+            for (let col = 0; col < n; col++) {
+                // Find pivot (largest absolute value in current column)
+                let maxRow = col;
+                for (let row = col + 1; row < n; row++) {
+                    if (Math.abs(augmented[row][col]) > Math.abs(augmented[maxRow][col])) {
+                        maxRow = row;
+                    }
+                }
+
+                // Swap rows if needed
+                if (maxRow !== col) {
+                    [augmented[col], augmented[maxRow]] = [augmented[maxRow], augmented[col]];
+                }
+
+                // Check for singular matrix
+                if (Math.abs(augmented[col][col]) < 1e-12) {
+                    throw new Error('Matrix is singular or nearly singular');
+                }
+
+                // Eliminate column entries below pivot
+                for (let row = col + 1; row < n; row++) {
+                    const factor = augmented[row][col] / augmented[col][col];
+                    for (let j = col; j <= n; j++) {
+                        augmented[row][j] -= factor * augmented[col][j];
+                    }
+                }
+            }
+
+            // Back substitution
+            const solution = new Array(n);
+            for (let i = n - 1; i >= 0; i--) {
+                let sum = augmented[i][n];
+                for (let j = i + 1; j < n; j++) {
+                    sum -= augmented[i][j] * solution[j];
+                }
+                solution[i] = sum / augmented[i][i];
+            }
+
+            return solution;
+        };
+
+        Snap.Matrix.prototype.twoPointTransform = function (
+            p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y) {
+            const l1 = [p2_x - p1_x, p2_y - p1_y],
+                l2 = [toP2_x - toP1_x, toP2_y - toP1_y];
+
+            // const scale = (Snap.len(l2[0], l2[1]) /
+            //     (Snap.len(l1[0], l1[1]) || 1e-12));
+            // let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
+
+            const eq_matrix = [
+                [p1_x, -p1_y, 1, 0],
+                [p1_y, p1_x, 0, 1],
+                [p2_x, -p2_y, 1, 0],
+                [p2_y, p2_x, 0, 1],
+            ];
+            let solution;
+            try {
+                solution = this.lusolve(eq_matrix,
+                    [toP1_x, toP1_y, toP2_x, toP2_y]);
+            } catch (e) {
+                return null;
+            }
+
+            this.a = solution[0];
+            this.b = solution[1];
+            this.c = -solution[1];
+            this.d = solution[0];
+            this.e = solution[2];
+            this.f = solution[3];
+
+            return this;
+        };
+
+        /**
          * Builds an affine transformation that maps two source points to two target points.
          * @param {number} p1_x Source point 1 X coordinate.
          * @param {number} p1_y Source point 1 Y coordinate.
@@ -24347,9 +24587,9 @@ function voronoi(points) {
             const l1 = [p2_x - p1_x, p2_y - p1_y],
                 l2 = [toP2_x - toP1_x, toP2_y - toP1_y];
 
-            const scale = (Snap.len(l2[0], l2[1]) /
-                (Snap.len(l1[0], l1[1]) || 1e-12));
-            let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
+            // const scale = (Snap.len(l2[0], l2[1]) /
+            //     (Snap.len(l1[0], l1[1]) || 1e-12));
+            // let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
 
             const eq_matrix = [
                 [p1_x, -p1_y, 1, 0],
@@ -24359,8 +24599,8 @@ function voronoi(points) {
             ];
             let solution;
             try {
-                solution = math.lusolve(eq_matrix,
-                    [toP1_x, toP1_y, toP2_x, toP2_y]).map((c) => c[0]);
+                solution = this.lusolve(eq_matrix,
+                    [toP1_x, toP1_y, toP2_x, toP2_y]);
             } catch (e) {
                 return null;
             }
@@ -25530,8 +25770,11 @@ function voronoi(points) {
          * @param {Object} [econtext] Context object passed to end callbacks.
          * @returns {Snap.Element} The element for chaining.
          */
-        Element.prototype.move = function (
-            select, el, mcontext, scontext, econtext) {
+        Element.prototype.move = function (el, mcontext, scontext, econtext) {
+            if (typeof el === "object" && !Snap.is(el, "Element")){
+                [mcontext, scontext, econtext, el] = [el, mcontext, scontext, this]
+            }
+
             if (el == undefined) {
                 el = this;
             }
@@ -25548,8 +25791,6 @@ function voronoi(points) {
                     econtext = econtext || {};
                     econtext.use_cache = true;
                 }
-            } else if (select && select.gui && select.gui.layers) {
-                coordTarget = select.gui.layers.getCurrentNavLayer();
             } else {
                 coordTarget = el.paper;
             }
@@ -27950,16 +28191,6 @@ function voronoi(points) {
             if (save && path.data('is_ellipse') !== undefined) return path.data('is_ellipse');
 
             let remove_temp_path = false;
-            // if (typeof path === 'string') {
-            //     if ((path = path.trim()) && path.charAt(0).toLowerCase() === 'm') {
-            //         const paper = gui.paper;
-            //         path = paper.path(path).toDefs(); //.attr({fill: "none", stroke: "gray"});
-            //         remove_temp_path = true;
-            //     } else {
-            //         return false;
-            //     }
-            //
-            // }
 
             const l = path.getTotalLength();
 
@@ -28034,7 +28265,7 @@ function voronoi(points) {
                 par = getCoefs(points);
                 //Get the ellipse parameters from the equation, since we have it.
                 //The function takes parameters as AX**2, BX*Y, CY**2 so we must interchange 1 and 2
-                const paper = path.paper || (typeof gui !== 'undefined' && gui.paper);
+                const paper = path.paper;
                 if (paper && typeof paper.ellipseFromEquation === 'function') {
                     const ellipse_params = paper.ellipseFromEquation(par[0], par[2], par[1], par[3], par[4], true);
                     if (ellipse_params) {
@@ -28125,7 +28356,481 @@ function voronoi(points) {
             return false;
         }
 
+        /**
+         * Applies a cursor style to the element (and optionally its descendants).
+         * URL-based cursors are applied inline, while standard cursors reuse CSS classes for better reuse.
+         *
+         * @function Snap.Element#setCursor
+         * @param {string} cursorStyle A standard CSS cursor value or `url(...)`.
+         * @param {boolean} [apply_to_children=false] When true, propagate the cursor to all descendants.
+         * @param {string} [class_pref="IA_Designer_Cursor"] Prefix used for generated cursor classes.
+         * @returns {Snap.Element} The element to facilitate call chaining.
+         * @example
+         * handle.setCursor('move', true);
+         * All child grips will now display the move cursor.
+         */
+        Element.prototype.setCursor = function (cursorStyle, apply_to_children, class_pref = "IA_Designer_Cursor_") {
+            //todo: allow url.
+            if (!cursorStyle) {
+                cursorStyle = "default";
+            }
 
+            if (cursorStyle.startsWith("url(")) {
+                // Direct style assignment for URL-based cursors
+                this.node.style.cursor = cursorStyle;
+                this.removeClass(class_pref, true);
+            } else if (!this.hasClass(class_pref + cursorStyle)) {
+                // Class-based cursor styling for standard cursors
+                this.node.style.cursor = "inherit";
+                this.removeClass(class_pref, true);
+                this.addClass(class_pref + cursorStyle);
+            }
+
+            if (apply_to_children) {
+                const children = this.getChildren();
+
+                for (let i = 0; i < children.length; ++i) {
+                    children[i].setCursor(cursorStyle);
+                }
+            }
+
+            return this;
+        };
+
+        /**
+         * Approximates the dominant direction of the element by sampling points along its outline.
+         * GUI-dependent version that creates visualization circles.
+         *
+         * @function Snap.Element#getDirectionLine
+         * @param {number} [sample=100] Number of sampling points used along the path or polygon.
+         * @param regressor
+         * @param reg_coefs
+         * @returns {Array<number>|null} `[angle, intercept]` pair in degrees and intercept, or `null` if undetermined.
+         */
+        Element.prototype.getDirectionLine = function (sample, regressor, reg_coefs = ["m", "b"]) {
+
+            sample = sample || 100;
+            let el = this;
+            let line_slope_intersect = null;
+            switch (this.type) {
+                case "polygon":
+                case "polyline":
+                case "path":
+                    if (!regressor && !root.ss) return null;
+                    regressor = regressor ? regressor : root.ss.linearRegression;
+                    const l = el.getTotalLength();
+                    const inc = l / sample;
+                    const points = [];
+                    for (let i = 0, d = 0, p; i < sample; ++i, d += inc) {
+                        p = el.getPointAtLength(d);
+                        points.push([p.x, p.y]);
+                    }
+
+                    line_slope_intersect = regressor(points);
+
+                    const mKey = (reg_coefs && reg_coefs.length) ? reg_coefs[0] : "m";
+                    const bKey = (reg_coefs && reg_coefs.length > 1) ? reg_coefs[1] : "b";
+
+                    if (isNaN(line_slope_intersect[mKey])
+                        || Math.abs(line_slope_intersect[mKey]) === Infinity) {
+                        line_slope_intersect[mKey] = 90;
+                        break;
+                    }
+
+                    line_slope_intersect[mKey] = Snap.deg(
+                        Math.atan(line_slope_intersect[mKey]));
+                    line_slope_intersect = [
+                        line_slope_intersect[mKey],
+                        line_slope_intersect[bKey]];
+                    break;
+                case "ellipse":
+                    //todo
+                    break;
+                case "rect":
+                //todo
+                case "g":
+            }
+
+            return line_slope_intersect;
+        };
+
+        /**
+         * Corrects the scale of the element based on a provided zoom factor.
+         *
+         * @function Snap.Element#correctScale
+         * @param {number} [center_x=0] X coordinate of the scaling center.
+         * @param {number} [center_y=0] Y coordinate of the scaling center.
+         * @param {number} [zoom] Numeric zoom factor (e.g. 2 for 200\%). If omitted, no scaling is applied.
+         * @returns {Snap.Element} The element for chaining.
+         */
+        Element.prototype.correctScale = function (center_x, center_y, zoom) {
+            if (center_x === undefined) center_x = 0;
+            if (center_y === undefined) center_y = 0;
+            if (zoom === undefined || zoom === null) return this;
+
+            const z = Number(zoom);
+            if (!isFinite(z) || z === 0) return this;
+
+            const scale = 1 / z;
+            if (scale !== 1) {
+                this.scale(scale, scale, center_x, center_y, "id");
+            }
+            return this;
+        };
+
+        /**
+         * Enables drag-to-select behaviour, drawing a temporary rectangle and emitting events during the interaction.
+         *
+         * @function Snap.Element.regionSelect
+         * @param {Object} options Object with `{zoom, eve}` used for dash/width computations and event publishing.
+         * @param {Snap.Element} [target_group] Element that will host the temporary rectangle.
+         * @param {Object} [rect_style] Optional style overrides for the selection rectangle.
+         * @param {Array|string} [end_event] Event key to emit when selection ends.
+         * @param {Array|string} [move_event] Event key to emit while the selection rectangle is being resized.
+         * @param {boolean} [send_click=false] Reserved for future click passthrough behaviour.
+         * @returns {Snap.Element} The element for chaining.
+         */
+        Element.prototype.regionSelect = function (options, target_group, rect_style, end_event, move_event, send_click) {
+            // if (this.paper !== this) return;
+
+            let container = target_group;
+            if (!container) {
+                container = this.paper;
+            }
+
+            if (options) {
+                options.eve = options.eve || eve;
+            }
+
+            let select, start_point, start_t, append;
+
+            function make_rect(el, cursorPoint, rectStyle) {
+                const zoomVal = (options && typeof options.zoom === "number" && isFinite(options.zoom)) ? options.zoom : 1;
+
+                // Allow user-provided dash size and stroke width (accept camelCase or snake_case).
+                const providedDash = (options && (typeof options.dash_size === "number" || typeof options.dashSize === "number"))
+                    ? (typeof options.dash_size === "number" ? options.dash_size : options.dashSize)
+                    : 5; // default dash size
+                const providedStroke = (options && (typeof options.stroke_width === "number" || typeof options.strokeWidth === "number"))
+                    ? (typeof options.stroke_width === "number" ? options.stroke_width : options.strokeWidth)
+                    : 0.5; // default stroke width
+
+                const dash_size = zoomVal ? providedDash / zoomVal : providedDash;
+                const stroke_width = zoomVal ? providedStroke / zoomVal : providedStroke;
+
+                rectStyle = Object.assign({
+                    fill: "none",
+                    stroke: "red",
+                    strokeWidth: stroke_width,
+                    strokeDasharray: dash_size + ", " + dash_size,
+                }, rectStyle || {});
+                return el.rect(cursorPoint.x, cursorPoint.y, 0, 0, {id: "select_rect"}).setStyle(rectStyle);
+            }
+
+            const startRegionSelect = function (x, y, ev, el) {
+                if (el.data("active")) return;
+                eve(["drag", "regionSelect", "start"]);
+                el.data("active", true);
+                start_t = Date.now();
+
+                start_point = el.getCursorPoint(x, y);
+
+                append = ev.shiftKey || ev.ctrlKey;
+            };
+
+            const regionSelMove = function (dx, dy, x, y, el) {
+                const cursorPoint = el.getCursorPoint(x, y);
+
+                dx = Math.abs(cursorPoint.x - start_point.x);
+                dy = Math.abs(cursorPoint.y - start_point.y);
+
+                if (Date.now() - start_t > 200 && dx > 5 && dy > 5) {
+                    if (!select) {
+                        select = make_rect(el, start_point, rect_style);
+                    }
+                }
+
+                if (select) {
+                    const select_def = {
+                        x: Math.min(start_point.x, cursorPoint.x),
+                        y: Math.min(start_point.y, cursorPoint.y),
+                        width: dx,
+                        height: dy,
+                    };
+                    select.attr(select_def);
+
+                    if (move_event && options && typeof options.eve === "function") {
+                        options.eve(move_event, this, select_def);
+                    }
+                }
+            };
+
+            let endRegionSelect = function (ev, el) {
+                console.log(select);
+                if (select) {
+                    const appendElements = append || ev.shiftKey || ev.ctrlKey;
+
+                    if (options && typeof options.eve === "function") {
+                        options.eve(end_event || ["drag", "regionSelect", "end"], el, select, appendElements);
+                    }
+                    select.remove();
+                    select = undefined;
+                } else {
+                    // if (send_click) {
+                    //     const event = new Event('click');
+                    //     that.node.dispatchEvent(event)
+                    // }
+                }
+                el.data("active", false);
+                if (options && typeof options.eve === "function") {
+                    options.eve(["drag", "regionSelect", "done"], el);
+                }
+            };
+
+            return this.drag(
+                function (dx, dy, x, y) {
+                    regionSelMove(dx, dy, x, y, container);
+                },
+                function (x, y, ev) {
+                    startRegionSelect(x, y, ev, container);
+                },
+                function (ev) {
+                    endRegionSelect(ev, container);
+                },
+            );
+        };
+
+        /**
+         * Adds a tooltip message that appears on mouseover.
+         * This function needs a listener to display the message. Intended for use with IA Designer.
+         *
+         * @function Snap.Element#addMessage
+         * @param {string} message Message text to display.
+         * @param {Function} eve Event dispatcher function.
+         * @param in_event
+         * @param out_event
+         * @returns {void}
+         */
+        Element.prototype.addMessage = function (message, eve, in_event = "message", out_event = "clear_message") {
+            let in_fun = () => {
+                // let st = ["gui", "message"];
+                eve(in_event, undefined, message);
+            };
+            this.mouseover(in_fun);
+
+            let out_fun = () => {
+                // let st = ["gui", "tooltip", "clear"];
+                eve(out_event)
+            };
+            this.mouseout(out_fun);
+
+            this.data("_message_helper_funs", [in_fun, out_fun])
+        }
+
+        /**
+         * Removes the tooltip message handlers added by addMessage.
+         *
+         * @function Snap.Element#removeMessage
+         * @returns {void}
+         */
+        Element.prototype.removeMessage = function () {
+            const funs = this.data("_message_helper_funs");
+            if (funs) {
+                this.unmouseover(funs[0]);
+                this.unmouseout(funs[1]);
+                this.removeData("_message_helper_funs");
+            }
+        }
+
+        Element.prototype.svgEncapsulate = function (element, width, height, inner, x, y, view_width, view_height, defs) {
+            view_width = view_width || width;
+            view_height = view_height || height;
+            x = x || 0;
+            y = y || 0;
+
+            let svg_data = "<svg xmlns=\"http://www.w3.org/2000/svg\" x=\"0\" y=\"0\" width=\"" + width + "\" height=\"" + height + "\" " + "viewBox=\"" + x + " " + y + " " + view_width + " " + view_height + "\"" + ">";
+
+            defs = defs || Snap._.getSomeDefs(this.paper);  //this.gui.def_resources;
+            let defsSVG = defs.outerSVG();
+            if (!defsSVG.startsWith("<defs")) {
+                svg_data += "<defs>" + defsSVG + "</defs>";
+            } else {
+                svg_data += defsSVG;
+            }
+
+            svg_data += (inner) ? element.innerSVG() : element.outerSVG();
+            svg_data += "</svg>";
+
+            return svg_data;
+        };
+
+        Element.prototype.svgEncapsulateBox = function (element, border, width, height, bbox, defs) {
+            border = border || 0;
+            bbox = bbox || element.getBBoxApprox();
+            width = width || bbox.with + 2 * border;
+            height = height || bbox.height + 2 * border;
+
+            return this.svgEncapsulate(element, width, height, false, bbox.x - border, bbox.y - border, bbox.width + 2 * border, bbox.height + 2 * border, defs);
+
+        };
+
+        /**
+         * Converts the element to a bitmap image using canvas rendering.
+         *
+         * @function Snap.Element#getBitmap
+         * @param {number|number[]} [width] Target width in pixels, or [width, height, x, y] array for custom dimensions.
+         * @param {number} [border=0] Border size to add around the element.
+         * @param {Object} defs defs resources to include.
+         * @param {Function} callback Function called with the resulting bitmap data.
+         * @param {boolean} [base64=false] Whether to return base64 string instead of ImageData.
+         * @returns {void}
+         */
+        Element.prototype.getBitmap = function (
+            width, border, defs, callback, base64) {
+            let height;
+            let bbox;
+            border = border || 0;
+            if (width) {
+                if (!isNaN(width)) {
+                    bbox = this.getBBoxApprox();
+                    height = (bbox.height + 2 * border) *
+                        (width / (bbox.width + 2 * border));
+                }
+                if (Array.isArray(width)) {
+                    let x = width[2] || 0;
+                    let y = width[3] || 0;
+                    height = width[1];
+                    width = width[0];
+                    bbox = {x, y, width, height};
+                }
+                // console.log("ratios", width / height, bbox.width / bbox.height);
+            }
+            let disp = this.attr("display");
+            this.attr({display: ""});
+            let svg_data = this.svgEncapsulateBox(this, border, width, height,
+                bbox, defs);
+            this.attr({display: disp});
+
+            let canvas = document.createElement("canvas");
+
+            // canvas_div.append(canvas);
+            // canvas = canvas[0];
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext("2d");
+
+            const img = new Image();
+
+            let svg = new Blob([svg_data], {type: "image/svg+xml"});
+            const DOMURL = root.URL || root.webkitURL || root;
+            const url = DOMURL.createObjectURL(svg);
+
+            let time = performance.now();
+
+            const that = this;
+            img.addEventListener("load", function () {
+                context.drawImage(img, 0, 0, width, height, 0, 0, width, height);
+                // that.temp_image_canvas = canvas;
+                DOMURL.revokeObjectURL(url);
+                // console.log(performance.now() - time);
+                let ret = (base64) ? canvas.toDataURL() :
+                    context.getImageData(0, 0, width, height);
+                callback(ret);
+                canvas.remove();
+            });
+
+            img.onerror = function () {
+                console.log("problem with svg");
+                console.log(svg_data);
+                callback(null);
+                canvas.remove();
+            };
+
+            img.src = url;
+
+        };
+
+        /**
+         * Creates a canvas overlay positioned over the element.
+         *
+         * @function Snap.Element#getCanvasOverly
+         * @param {number|number[]} [scale=1] Scale factor, or [scaleX, scaleY] array for non-uniform scaling.
+         * @param {number} [width_pix] Canvas width in pixels. Defaults to element width.
+         * @param {number} [height_pix] Canvas height in pixels. Defaults to element height.
+         * @returns {{container: Snap.Element, canvas: HTMLCanvasElement}} Object with the container element and canvas node.
+         */
+        Element.prototype.getCanvasOverly = function (
+            scale, width_pix, height_pix) {
+            let scalex, scaley;
+            scale = scale || 1;
+            if (Array.isArray(scale) && scale.length === 2) {
+                scalex = scale[0];
+                scaley = scale[1];
+            } else {
+                scalex = scaley = scale;
+            }
+
+            // let bbox = this.getBBoxRot(this.transform().totalMatrix.split().rotate);
+            let bbox = this.getBBox();
+            // console.log("co", bbox, width_pix, height_pix, bbox.width / bbox.height, width_pix / height_pix);
+            // this.after(bbox.rect(this.paper).attr({fill: "none", stroke: "black"}));
+            width_pix = width_pix || bbox.width;
+            height_pix = height_pix || bbox.height;
+
+            const html = "<canvas id=\"" + this.getId() + "_canvas\" " +
+                "width=\"" + width_pix + "\" " +
+                "height=\"" + height_pix + "\"></canvas>";
+            const fo = this.htmlInsert(Snap.FORCE_AFTER, 0, 0, width_pix,
+                height_pix, html);
+
+            fo.fitInBox({
+                width: bbox.width * scalex,
+                height: bbox.height * scaley,
+                cx: bbox.cx,
+                cy: bbox.cy,
+            }, true);
+
+            let canvas = fo.select("canvas");
+            canvas = canvas.node;
+
+            return {container: fo, canvas: canvas};
+        };
+
+        /**
+         * Creates a rasterized image of the element and places it in front of the element.
+         *
+         * @function Snap.Element#rasterize
+         * @param {Snap.Element} defs defs recourses.
+         * @param {number} [scale=1] Scale factor for the rasterization.
+         * @param {number|string} [border=0] Border size to add around the element. Can be a number or percentage string.
+         * @param {boolean} [remove=false] Whether to remove the original element after rasterization.
+         * @returns {Promise<Snap.Element>} Promise that resolves with the new image element.
+         */
+        Element.prototype.rasterize = function (defs, scale, border, remove) {
+            scale = scale || 1;
+
+            let that = this;
+            border = border || 0;
+            let bbox = this.getBBox();
+            if (typeof border === "string" &&
+                border.endsWith("%")) border = Math.ceil(
+                bbox.r2() * (+border.replace("%", "")) / 100);
+            const promise = new Promise((resolve, reject) => {
+                let make = function (base64) {
+                    let img = that.image(Snap.FORCE_AFTER, base64, bbox.x - border,
+                        bbox.y - border,
+                        bbox.width + 2 * border, bbox.height + 2 * border);
+                    img.attr({id: that.getId() + "_raster"});
+                    console.log(bbox, img.getBBox());
+                    if (remove) that.remove();
+                    resolve(img);
+                };
+
+                this.getBitmap(bbox.width * scale, border, defs, make, true);
+            });
+
+            return promise;
+        };
 
     });
 }(window || this))
