@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview Polygon intersection and geometric operations library
  * Based on https://github.com/vrd/js-intersect
@@ -6,7 +5,7 @@
  * 
  * @typedef {Object} Point
  * @property {Number} x - X coordinate
- * @property {Number} y - Y coordinate
+ * @property {Number} y - Y Coordinate
  * @property {Number} [t] - Parametric position along edge (0-1)
  * @property {Number} [theta] - Polar angle for point classification
  * 
@@ -577,18 +576,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * Calculates the area of a polygon using the shoelace formula
      * @function polygonArea
      * @memberof Snap.polygons
-     * @param {Array<Point>} p - Polygon vertices
+     * @param {Array<Point>} points - Polygon vertices
      * @returns {Number} Area of the polygon
      * @example
      * const square = [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}, {x: 0, y: 10}];
      * const area = Snap.polygons.polygonArea(square); // Returns 100
      */
-    function polygonArea(p) {
-        const len = p.length;
+    function polygonArea(points) {
+        const len = points.length;
         let s = 0;
         for (let i = 0; i < len; i++) {
-            s += Math.abs((p[i % len].x * p[(i + 1) % len].y) - (p[i % len].y *
-                p[(i + 1) % len].x));
+            s += Math.abs((points[i % len].x * points[(i + 1) % len].y) - (points[i % len].y *
+                points[(i + 1) % len].x));
         }
         return s/2;
     }
@@ -733,13 +732,44 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     /**
-     * Debug utility function to log objects as JSON
-     * @function log
-     * @private
-     * @param {*} obj - Object to log
+     * Computes the center of mass (centroid) of a polygon.
+     * Assumes uniform distribution of mass.
+     * Note: the centroid is invariant under affine transformations.
+     * @function polygonCentroid
+     * @memberof Snap.polygons
+     * @param {Array<Point>} points - Polygon vertices.
+     * @returns {Point|null} The center of mass, or null if the polygon has zero area.
+     * @example
+     * const triangle = [{x: 0, y: 0}, {x: 6, y: 0}, {x: 3, y: 6}];
+     * const centroid = Snap.polygons.polygonCentroid(triangle); // Returns {x: 3, y: 2}
      */
-    function log(obj) {
-        console.log(JSON.stringify(obj));
+    function polygonCentroid(points) {
+        let signedArea = 0;
+        let cx = 0;
+        let cy = 0;
+        const len = points.length;
+
+        for (let i = 0; i < len; i++) {
+            const p1 = points[i];
+            const p2 = points[(i + 1) % len];
+            const crossProduct = (p1.x * p2.y) - (p2.x * p1.y);
+            signedArea += crossProduct;
+            cx += (p1.x + p2.x) * crossProduct;
+            cy += (p1.y + p2.y) * crossProduct;
+        }
+
+        signedArea /= 2;
+
+        if (Math.abs(signedArea) < 1e-9) {
+            return null; // Or handle degenerate polygon as needed
+        }
+
+        cx = cx / (6 * signedArea);
+        cy = cy / (6 * signedArea);
+
+        return { x: cx, y: cy };
     }
+
+    Snap.polygons.polygonCentroid = polygonCentroid;
 
 });
