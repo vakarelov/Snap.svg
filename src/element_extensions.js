@@ -1151,8 +1151,11 @@
          * @param {Object} [econtext] Context object passed to end callbacks.
          * @returns {Snap.Element} The element for chaining.
          */
-        Element.prototype.move = function (
-            select, el, mcontext, scontext, econtext) {
+        Element.prototype.move = function (el, mcontext, scontext, econtext) {
+            if (typeof el === "object" && !Snap.is(el, "Element")){
+                [mcontext, scontext, econtext, el] = [el, mcontext, scontext, this]
+            }
+
             if (el == undefined) {
                 el = this;
             }
@@ -1169,8 +1172,6 @@
                     econtext = econtext || {};
                     econtext.use_cache = true;
                 }
-            } else if (select && select.gui && select.gui.layers) {
-                coordTarget = select.gui.layers.getCurrentNavLayer();
             } else {
                 coordTarget = el.paper;
             }
@@ -3571,16 +3572,6 @@
             if (save && path.data('is_ellipse') !== undefined) return path.data('is_ellipse');
 
             let remove_temp_path = false;
-            // if (typeof path === 'string') {
-            //     if ((path = path.trim()) && path.charAt(0).toLowerCase() === 'm') {
-            //         const paper = gui.paper;
-            //         path = paper.path(path).toDefs(); //.attr({fill: "none", stroke: "gray"});
-            //         remove_temp_path = true;
-            //     } else {
-            //         return false;
-            //     }
-            //
-            // }
 
             const l = path.getTotalLength();
 
@@ -3655,7 +3646,7 @@
                 par = getCoefs(points);
                 //Get the ellipse parameters from the equation, since we have it.
                 //The function takes parameters as AX**2, BX*Y, CY**2 so we must interchange 1 and 2
-                const paper = path.paper || (typeof gui !== 'undefined' && gui.paper);
+                const paper = path.paper;
                 if (paper && typeof paper.ellipseFromEquation === 'function') {
                     const ellipse_params = paper.ellipseFromEquation(par[0], par[2], par[1], par[3], par[4], true);
                     if (ellipse_params) {
@@ -3746,7 +3737,481 @@
             return false;
         }
 
+        /**
+         * Applies a cursor style to the element (and optionally its descendants).
+         * URL-based cursors are applied inline, while standard cursors reuse CSS classes for better reuse.
+         *
+         * @function Snap.Element#setCursor
+         * @param {string} cursorStyle A standard CSS cursor value or `url(...)`.
+         * @param {boolean} [apply_to_children=false] When true, propagate the cursor to all descendants.
+         * @param {string} [class_pref="IA_Designer_Cursor"] Prefix used for generated cursor classes.
+         * @returns {Snap.Element} The element to facilitate call chaining.
+         * @example
+         * handle.setCursor('move', true);
+         * All child grips will now display the move cursor.
+         */
+        Element.prototype.setCursor = function (cursorStyle, apply_to_children, class_pref = "IA_Designer_Cursor_") {
+            //todo: allow url.
+            if (!cursorStyle) {
+                cursorStyle = "default";
+            }
 
+            if (cursorStyle.startsWith("url(")) {
+                // Direct style assignment for URL-based cursors
+                this.node.style.cursor = cursorStyle;
+                this.removeClass(class_pref, true);
+            } else if (!this.hasClass(class_pref + cursorStyle)) {
+                // Class-based cursor styling for standard cursors
+                this.node.style.cursor = "inherit";
+                this.removeClass(class_pref, true);
+                this.addClass(class_pref + cursorStyle);
+            }
+
+            if (apply_to_children) {
+                const children = this.getChildren();
+
+                for (let i = 0; i < children.length; ++i) {
+                    children[i].setCursor(cursorStyle);
+                }
+            }
+
+            return this;
+        };
+
+        /**
+         * Approximates the dominant direction of the element by sampling points along its outline.
+         * GUI-dependent version that creates visualization circles.
+         *
+         * @function Snap.Element#getDirectionLine
+         * @param {number} [sample=100] Number of sampling points used along the path or polygon.
+         * @param regressor
+         * @param reg_coefs
+         * @returns {Array<number>|null} `[angle, intercept]` pair in degrees and intercept, or `null` if undetermined.
+         */
+        Element.prototype.getDirectionLine = function (sample, regressor, reg_coefs = ["m", "b"]) {
+
+            sample = sample || 100;
+            let el = this;
+            let line_slope_intersect = null;
+            switch (this.type) {
+                case "polygon":
+                case "polyline":
+                case "path":
+                    if (!regressor && !root.ss) return null;
+                    regressor = regressor ? regressor : root.ss.linearRegression;
+                    const l = el.getTotalLength();
+                    const inc = l / sample;
+                    const points = [];
+                    for (let i = 0, d = 0, p; i < sample; ++i, d += inc) {
+                        p = el.getPointAtLength(d);
+                        points.push([p.x, p.y]);
+                    }
+
+                    line_slope_intersect = regressor(points);
+
+                    const mKey = (reg_coefs && reg_coefs.length) ? reg_coefs[0] : "m";
+                    const bKey = (reg_coefs && reg_coefs.length > 1) ? reg_coefs[1] : "b";
+
+                    if (isNaN(line_slope_intersect[mKey])
+                        || Math.abs(line_slope_intersect[mKey]) === Infinity) {
+                        line_slope_intersect[mKey] = 90;
+                        break;
+                    }
+
+                    line_slope_intersect[mKey] = Snap.deg(
+                        Math.atan(line_slope_intersect[mKey]));
+                    line_slope_intersect = [
+                        line_slope_intersect[mKey],
+                        line_slope_intersect[bKey]];
+                    break;
+                case "ellipse":
+                    //todo
+                    break;
+                case "rect":
+                //todo
+                case "g":
+            }
+
+            return line_slope_intersect;
+        };
+
+        /**
+         * Corrects the scale of the element based on a provided zoom factor.
+         *
+         * @function Snap.Element#correctScale
+         * @param {number} [center_x=0] X coordinate of the scaling center.
+         * @param {number} [center_y=0] Y coordinate of the scaling center.
+         * @param {number} [zoom] Numeric zoom factor (e.g. 2 for 200\%). If omitted, no scaling is applied.
+         * @returns {Snap.Element} The element for chaining.
+         */
+        Element.prototype.correctScale = function (center_x, center_y, zoom) {
+            if (center_x === undefined) center_x = 0;
+            if (center_y === undefined) center_y = 0;
+            if (zoom === undefined || zoom === null) return this;
+
+            const z = Number(zoom);
+            if (!isFinite(z) || z === 0) return this;
+
+            const scale = 1 / z;
+            if (scale !== 1) {
+                this.scale(scale, scale, center_x, center_y, "id");
+            }
+            return this;
+        };
+
+        /**
+         * Enables drag-to-select behaviour, drawing a temporary rectangle and emitting events during the interaction.
+         *
+         * @function Snap.Element.regionSelect
+         * @param {Object} options Object with `{zoom, eve}` used for dash/width computations and event publishing.
+         * @param {Snap.Element} [target_group] Element that will host the temporary rectangle.
+         * @param {Object} [rect_style] Optional style overrides for the selection rectangle.
+         * @param {Array|string} [end_event] Event key to emit when selection ends.
+         * @param {Array|string} [move_event] Event key to emit while the selection rectangle is being resized.
+         * @param {boolean} [send_click=false] Reserved for future click passthrough behaviour.
+         * @returns {Snap.Element} The element for chaining.
+         */
+        Element.prototype.regionSelect = function (options, target_group, rect_style, end_event, move_event, send_click) {
+            // if (this.paper !== this) return;
+
+            let container = target_group;
+            if (!container) {
+                container = this.paper;
+            }
+
+            if (options) {
+                options.eve = options.eve || eve;
+            }
+
+            let select, start_point, start_t, append;
+
+            function make_rect(el, cursorPoint, rectStyle) {
+                const zoomVal = (options && typeof options.zoom === "number" && isFinite(options.zoom)) ? options.zoom : 1;
+
+                // Allow user-provided dash size and stroke width (accept camelCase or snake_case).
+                const providedDash = (options && (typeof options.dash_size === "number" || typeof options.dashSize === "number"))
+                    ? (typeof options.dash_size === "number" ? options.dash_size : options.dashSize)
+                    : 5; // default dash size
+                const providedStroke = (options && (typeof options.stroke_width === "number" || typeof options.strokeWidth === "number"))
+                    ? (typeof options.stroke_width === "number" ? options.stroke_width : options.strokeWidth)
+                    : 0.5; // default stroke width
+
+                const dash_size = zoomVal ? providedDash / zoomVal : providedDash;
+                const stroke_width = zoomVal ? providedStroke / zoomVal : providedStroke;
+
+                rectStyle = Object.assign({
+                    fill: "none",
+                    stroke: "red",
+                    strokeWidth: stroke_width,
+                    strokeDasharray: dash_size + ", " + dash_size,
+                }, rectStyle || {});
+                return el.rect(cursorPoint.x, cursorPoint.y, 0, 0, {id: "select_rect"}).setStyle(rectStyle);
+            }
+
+            const startRegionSelect = function (x, y, ev, el) {
+                if (el.data("active")) return;
+                eve(["drag", "regionSelect", "start"]);
+                el.data("active", true);
+                start_t = Date.now();
+
+                start_point = el.getCursorPoint(x, y);
+
+                append = ev.shiftKey || ev.ctrlKey;
+            };
+
+            const regionSelMove = function (dx, dy, x, y, el) {
+                const cursorPoint = el.getCursorPoint(x, y);
+
+                dx = Math.abs(cursorPoint.x - start_point.x);
+                dy = Math.abs(cursorPoint.y - start_point.y);
+
+                if (Date.now() - start_t > 200 && dx > 5 && dy > 5) {
+                    if (!select) {
+                        select = make_rect(el, start_point, rect_style);
+                    }
+                }
+
+                if (select) {
+                    const select_def = {
+                        x: Math.min(start_point.x, cursorPoint.x),
+                        y: Math.min(start_point.y, cursorPoint.y),
+                        width: dx,
+                        height: dy,
+                    };
+                    select.attr(select_def);
+
+                    if (move_event && options && typeof options.eve === "function") {
+                        options.eve(move_event, this, select_def);
+                    }
+                }
+            };
+
+            let endRegionSelect = function (ev, el) {
+                console.log(select);
+                if (select) {
+                    const appendElements = append || ev.shiftKey || ev.ctrlKey;
+
+                    if (options && typeof options.eve === "function") {
+                        options.eve(end_event || ["drag", "regionSelect", "end"], el, select, appendElements);
+                    }
+                    select.remove();
+                    select = undefined;
+                } else {
+                    // if (send_click) {
+                    //     const event = new Event('click');
+                    //     that.node.dispatchEvent(event)
+                    // }
+                }
+                el.data("active", false);
+                if (options && typeof options.eve === "function") {
+                    options.eve(["drag", "regionSelect", "done"], el);
+                }
+            };
+
+            return this.drag(
+                function (dx, dy, x, y) {
+                    regionSelMove(dx, dy, x, y, container);
+                },
+                function (x, y, ev) {
+                    startRegionSelect(x, y, ev, container);
+                },
+                function (ev) {
+                    endRegionSelect(ev, container);
+                },
+            );
+        };
+
+        /**
+         * Adds a tooltip message that appears on mouseover.
+         * This function needs a listener to display the message. Intended for use with IA Designer.
+         *
+         * @function Snap.Element#addMessage
+         * @param {string} message Message text to display.
+         * @param {Function} eve Event dispatcher function.
+         * @param in_event
+         * @param out_event
+         * @returns {void}
+         */
+        Element.prototype.addMessage = function (message, eve, in_event = "message", out_event = "clear_message") {
+            let in_fun = () => {
+                // let st = ["gui", "message"];
+                eve(in_event, undefined, message);
+            };
+            this.mouseover(in_fun);
+
+            let out_fun = () => {
+                // let st = ["gui", "tooltip", "clear"];
+                eve(out_event)
+            };
+            this.mouseout(out_fun);
+
+            this.data("_message_helper_funs", [in_fun, out_fun])
+        }
+
+        /**
+         * Removes the tooltip message handlers added by addMessage.
+         *
+         * @function Snap.Element#removeMessage
+         * @returns {void}
+         */
+        Element.prototype.removeMessage = function () {
+            const funs = this.data("_message_helper_funs");
+            if (funs) {
+                this.unmouseover(funs[0]);
+                this.unmouseout(funs[1]);
+                this.removeData("_message_helper_funs");
+            }
+        }
+
+        Element.prototype.svgEncapsulate = function (element, width, height, inner, x, y, view_width, view_height, defs) {
+            view_width = view_width || width;
+            view_height = view_height || height;
+            x = x || 0;
+            y = y || 0;
+
+            let svg_data = "<svg xmlns=\"http://www.w3.org/2000/svg\" x=\"0\" y=\"0\" width=\"" + width + "\" height=\"" + height + "\" " + "viewBox=\"" + x + " " + y + " " + view_width + " " + view_height + "\"" + ">";
+
+            defs = defs || Snap._.getSomeDefs(this.paper);  //this.gui.def_resources;
+            let defsSVG = defs.outerSVG();
+            if (!defsSVG.startsWith("<defs")) {
+                svg_data += "<defs>" + defsSVG + "</defs>";
+            } else {
+                svg_data += defsSVG;
+            }
+
+            svg_data += (inner) ? element.innerSVG() : element.outerSVG();
+            svg_data += "</svg>";
+
+            return svg_data;
+        };
+
+        Element.prototype.svgEncapsulateBox = function (element, border, width, height, bbox, defs) {
+            border = border || 0;
+            bbox = bbox || element.getBBoxApprox();
+            width = width || bbox.with + 2 * border;
+            height = height || bbox.height + 2 * border;
+
+            return this.svgEncapsulate(element, width, height, false, bbox.x - border, bbox.y - border, bbox.width + 2 * border, bbox.height + 2 * border, defs);
+
+        };
+
+        /**
+         * Converts the element to a bitmap image using canvas rendering.
+         *
+         * @function Snap.Element#getBitmap
+         * @param {number|number[]} [width] Target width in pixels, or [width, height, x, y] array for custom dimensions.
+         * @param {number} [border=0] Border size to add around the element.
+         * @param {Object} defs defs resources to include.
+         * @param {Function} callback Function called with the resulting bitmap data.
+         * @param {boolean} [base64=false] Whether to return base64 string instead of ImageData.
+         * @returns {void}
+         */
+        Element.prototype.getBitmap = function (
+            width, border, defs, callback, base64) {
+            let height;
+            let bbox;
+            border = border || 0;
+            if (width) {
+                if (!isNaN(width)) {
+                    bbox = this.getBBoxApprox();
+                    height = (bbox.height + 2 * border) *
+                        (width / (bbox.width + 2 * border));
+                }
+                if (Array.isArray(width)) {
+                    let x = width[2] || 0;
+                    let y = width[3] || 0;
+                    height = width[1];
+                    width = width[0];
+                    bbox = {x, y, width, height};
+                }
+                // console.log("ratios", width / height, bbox.width / bbox.height);
+            }
+            let disp = this.attr("display");
+            this.attr({display: ""});
+            let svg_data = this.svgEncapsulateBox(this, border, width, height,
+                bbox, defs);
+            this.attr({display: disp});
+
+            let canvas = document.createElement("canvas");
+
+            // canvas_div.append(canvas);
+            // canvas = canvas[0];
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext("2d");
+
+            const img = new Image();
+
+            let svg = new Blob([svg_data], {type: "image/svg+xml"});
+            const DOMURL = root.URL || root.webkitURL || root;
+            const url = DOMURL.createObjectURL(svg);
+
+            let time = performance.now();
+
+            const that = this;
+            img.addEventListener("load", function () {
+                context.drawImage(img, 0, 0, width, height, 0, 0, width, height);
+                // that.temp_image_canvas = canvas;
+                DOMURL.revokeObjectURL(url);
+                // console.log(performance.now() - time);
+                let ret = (base64) ? canvas.toDataURL() :
+                    context.getImageData(0, 0, width, height);
+                callback(ret);
+                canvas.remove();
+            });
+
+            img.onerror = function () {
+                console.log("problem with svg");
+                console.log(svg_data);
+                callback(null);
+                canvas.remove();
+            };
+
+            img.src = url;
+
+        };
+
+        /**
+         * Creates a canvas overlay positioned over the element.
+         *
+         * @function Snap.Element#getCanvasOverly
+         * @param {number|number[]} [scale=1] Scale factor, or [scaleX, scaleY] array for non-uniform scaling.
+         * @param {number} [width_pix] Canvas width in pixels. Defaults to element width.
+         * @param {number} [height_pix] Canvas height in pixels. Defaults to element height.
+         * @returns {{container: Snap.Element, canvas: HTMLCanvasElement}} Object with the container element and canvas node.
+         */
+        Element.prototype.getCanvasOverly = function (
+            scale, width_pix, height_pix) {
+            let scalex, scaley;
+            scale = scale || 1;
+            if (Array.isArray(scale) && scale.length === 2) {
+                scalex = scale[0];
+                scaley = scale[1];
+            } else {
+                scalex = scaley = scale;
+            }
+
+            // let bbox = this.getBBoxRot(this.transform().totalMatrix.split().rotate);
+            let bbox = this.getBBox();
+            // console.log("co", bbox, width_pix, height_pix, bbox.width / bbox.height, width_pix / height_pix);
+            // this.after(bbox.rect(this.paper).attr({fill: "none", stroke: "black"}));
+            width_pix = width_pix || bbox.width;
+            height_pix = height_pix || bbox.height;
+
+            const html = "<canvas id=\"" + this.getId() + "_canvas\" " +
+                "width=\"" + width_pix + "\" " +
+                "height=\"" + height_pix + "\"></canvas>";
+            const fo = this.htmlInsert(Snap.FORCE_AFTER, 0, 0, width_pix,
+                height_pix, html);
+
+            fo.fitInBox({
+                width: bbox.width * scalex,
+                height: bbox.height * scaley,
+                cx: bbox.cx,
+                cy: bbox.cy,
+            }, true);
+
+            let canvas = fo.select("canvas");
+            canvas = canvas.node;
+
+            return {container: fo, canvas: canvas};
+        };
+
+        /**
+         * Creates a rasterized image of the element and places it in front of the element.
+         *
+         * @function Snap.Element#rasterize
+         * @param {Snap.Element} defs defs recourses.
+         * @param {number} [scale=1] Scale factor for the rasterization.
+         * @param {number|string} [border=0] Border size to add around the element. Can be a number or percentage string.
+         * @param {boolean} [remove=false] Whether to remove the original element after rasterization.
+         * @returns {Promise<Snap.Element>} Promise that resolves with the new image element.
+         */
+        Element.prototype.rasterize = function (defs, scale, border, remove) {
+            scale = scale || 1;
+
+            let that = this;
+            border = border || 0;
+            let bbox = this.getBBox();
+            if (typeof border === "string" &&
+                border.endsWith("%")) border = Math.ceil(
+                bbox.r2() * (+border.replace("%", "")) / 100);
+            const promise = new Promise((resolve, reject) => {
+                let make = function (base64) {
+                    let img = that.image(Snap.FORCE_AFTER, base64, bbox.x - border,
+                        bbox.y - border,
+                        bbox.width + 2 * border, bbox.height + 2 * border);
+                    img.attr({id: that.getId() + "_raster"});
+                    console.log(bbox, img.getBBox());
+                    if (remove) that.remove();
+                    resolve(img);
+                };
+
+                this.getBitmap(bbox.width * scale, border, defs, make, true);
+            });
+
+            return promise;
+        };
 
     });
 }(window || this))

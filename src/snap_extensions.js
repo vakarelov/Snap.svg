@@ -1051,10 +1051,12 @@
          * Evaluates dimension expressions with optional bounds and percentage handling.
          * @param {string|number|Array} str Expression describing the dimension; array form is [expr, min?, max?].
          * @param {number} space Base value used for percentage calculations.
+         * @param {Function} [evaluate] Optional evaluator function used to compute expressions (e.g. percentage or formula strings).
+         *          It is called with the expression and should return a numeric result. Recommended math.js: math.evaluate
          * @param {boolean} [negative=false] Whether the result may be negative.
          * @returns {number} Clamped dimension value.
          */
-        Snap.varDimension = function (str, space, negative) {
+        Snap.varDimension = function (str, space, evaluate, negative) {
 
             if (typeof str === "number") return str;
 
@@ -1072,26 +1074,27 @@
             const reg_percent = /(\d*\.?\d*%)/g;
             str = str.replace(reg_percent, repls_percent);
 
-            try {
-                if (typeof max === 'string') max = math.evaluate(
-                    max.replace(reg_percent, repls_percent));
-            } catch (e) {
-                max = Infinity;
-            }
+            if (evaluate) {
+                try {
+                    if (typeof max === 'string') max = evaluate(
+                        max.replace(reg_percent, repls_percent));
+                } catch (e) {
+                    max = Infinity;
+                }
 
-            try {
-                if (typeof min === 'string') min = math.evaluate(
-                    min.replace(reg_percent, repls_percent));
-            } catch (e) {
-                min = 0;
-            }
+                try {
+                    if (typeof min === 'string') min = evaluate(
+                        min.replace(reg_percent, repls_percent));
+                } catch (e) {
+                    min = 0;
+                }
 
-            try {
-                str = math.evaluate(str);
-            } catch (e) {
-                str = space;
+                try {
+                    str = evaluate(str);
+                } catch (e) {
+                    str = space;
+                }
             }
-
             if (negative) {
                 return Math.min(Math.max(str, -max), max);
             }
@@ -1119,6 +1122,98 @@
         };
 
         /**
+         * Solve a system of linear equations Ax = b using Gaussian elimination with partial pivoting
+         * @param {Array<Array<number>>} A - Coefficient matrix
+         * @param {Array<number>} b - Result vector
+         * @returns {Array<number>} - Solution vector x
+         */
+        Snap.Matrix.prototype.lusolve = function (A, b) {
+            if (Snap.is(A, "Matrix")) A = A.to2dArray();
+            if (b === undefined && Array.isArray(A) && !isNaN(A(0))) {
+                b = A;
+                A = this.to2dArray();
+            }
+            const n = A.length;
+
+            // Create augmented matrix [A|b] with copies to avoid modifying originals
+            const augmented = A.map((row, i) => [...row, b[i]]);
+
+            // Forward elimination with partial pivoting
+            for (let col = 0; col < n; col++) {
+                // Find pivot (largest absolute value in current column)
+                let maxRow = col;
+                for (let row = col + 1; row < n; row++) {
+                    if (Math.abs(augmented[row][col]) > Math.abs(augmented[maxRow][col])) {
+                        maxRow = row;
+                    }
+                }
+
+                // Swap rows if needed
+                if (maxRow !== col) {
+                    [augmented[col], augmented[maxRow]] = [augmented[maxRow], augmented[col]];
+                }
+
+                // Check for singular matrix
+                if (Math.abs(augmented[col][col]) < 1e-12) {
+                    throw new Error('Matrix is singular or nearly singular');
+                }
+
+                // Eliminate column entries below pivot
+                for (let row = col + 1; row < n; row++) {
+                    const factor = augmented[row][col] / augmented[col][col];
+                    for (let j = col; j <= n; j++) {
+                        augmented[row][j] -= factor * augmented[col][j];
+                    }
+                }
+            }
+
+            // Back substitution
+            const solution = new Array(n);
+            for (let i = n - 1; i >= 0; i--) {
+                let sum = augmented[i][n];
+                for (let j = i + 1; j < n; j++) {
+                    sum -= augmented[i][j] * solution[j];
+                }
+                solution[i] = sum / augmented[i][i];
+            }
+
+            return solution;
+        };
+
+        Snap.Matrix.prototype.twoPointTransform = function (
+            p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y) {
+            const l1 = [p2_x - p1_x, p2_y - p1_y],
+                l2 = [toP2_x - toP1_x, toP2_y - toP1_y];
+
+            // const scale = (Snap.len(l2[0], l2[1]) /
+            //     (Snap.len(l1[0], l1[1]) || 1e-12));
+            // let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
+
+            const eq_matrix = [
+                [p1_x, -p1_y, 1, 0],
+                [p1_y, p1_x, 0, 1],
+                [p2_x, -p2_y, 1, 0],
+                [p2_y, p2_x, 0, 1],
+            ];
+            let solution;
+            try {
+                solution = this.lusolve(eq_matrix,
+                    [toP1_x, toP1_y, toP2_x, toP2_y]);
+            } catch (e) {
+                return null;
+            }
+
+            this.a = solution[0];
+            this.b = solution[1];
+            this.c = -solution[1];
+            this.d = solution[0];
+            this.e = solution[2];
+            this.f = solution[3];
+
+            return this;
+        };
+
+        /**
          * Builds an affine transformation that maps two source points to two target points.
          * @param {number} p1_x Source point 1 X coordinate.
          * @param {number} p1_y Source point 1 Y coordinate.
@@ -1135,9 +1230,9 @@
             const l1 = [p2_x - p1_x, p2_y - p1_y],
                 l2 = [toP2_x - toP1_x, toP2_y - toP1_y];
 
-            const scale = (Snap.len(l2[0], l2[1]) /
-                (Snap.len(l1[0], l1[1]) || 1e-12));
-            let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
+            // const scale = (Snap.len(l2[0], l2[1]) /
+            //     (Snap.len(l1[0], l1[1]) || 1e-12));
+            // let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
 
             const eq_matrix = [
                 [p1_x, -p1_y, 1, 0],
@@ -1147,8 +1242,8 @@
             ];
             let solution;
             try {
-                solution = math.lusolve(eq_matrix,
-                    [toP1_x, toP1_y, toP2_x, toP2_y]).map((c) => c[0]);
+                solution = this.lusolve(eq_matrix,
+                    [toP1_x, toP1_y, toP2_x, toP2_y]);
             } catch (e) {
                 return null;
             }
