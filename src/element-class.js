@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         const hub = Snap._.hub;
         const ID = Snap._.id;
         const $ = Snap._.$;

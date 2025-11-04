@@ -18,7 +18,7 @@
 
 //code based on https://github.com/vrd/js-intersect
 
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     /**
      * Namespace for polygon-related operations
      * @namespace Snap.polygons

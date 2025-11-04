@@ -1,4 +1,4 @@
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const box = Snap.box,
         is = Snap.is,
         firstLetter = /^[^a-z]*([tbmlrc])/i,

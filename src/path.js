@@ -23,7 +23,7 @@
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     const ERROR = 1e-12;
 

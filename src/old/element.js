@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         const elproto = Element.prototype,
             proto = Paper.prototype,
             is = Snap.is,
@@ -705,9 +705,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         /**
-         * Element.transform @method *
-         * Gets or sets transformation of the element * * @param {string} tstr - transform string in Snap or SVG format * @returns {Element} the current element
-         * or * @returns {object} transformation descriptor:
+         * Element.transform @method
+ *
+         * Gets or sets transformation of the element
+ *
+ * @param {string} tstr - transform string in Snap or SVG format
+ * @returns {Element} the current element
+         * or
+ * @returns {object} transformation descriptor:
          o {
          o     string (string) transform string,
          o     globalMatrix (Matrix) matrix of all transformations applied to element or its parents,
@@ -1985,12 +1990,17 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
         const eldata = {};
         /**
-         * Element.data @method *
+         * Element.data @method
+ *
          * Adds or retrieves given value associated with given key. (Don’t confuse
          * with `data-` attributes)
          *
-         * See also @Element.removeData * @param {string} key - key to store data * @param {any} value - #optional value to store * @returns {object} @Element
-         * or, if value is not specified: * @returns {any} value
+         * See also @Element.removeData
+ * @param {string} key - key to store data
+ * @param {any} value - #optional value to store
+ * @returns {object} @Element
+         * or, if value is not specified:
+ * @returns {any} value
          > Usage
          | for (var i = 0, i < 5, i++) {
          |     paper.circle(10 + 15 * i, 10, 10)
@@ -2022,9 +2032,12 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this;
         };
         /**
-         * Element.removeData @method *
+         * Element.removeData @method
+ *
          * Removes value associated with an element by given key.
-         * If key is not provided, removes all the data of the element. * @param {string} key - #optional key * @returns {object} @Element
+         * If key is not provided, removes all the data of the element.
+ * @param {string} key - #optional key
+ * @returns {object} @Element
          */
         elproto.removeData = function (key) {
             if (key == null) {
@@ -2035,19 +2048,24 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return this;
         };
         /**
-         * Element.outerSVG @method *
+         * Element.outerSVG @method
+ *
          * Returns SVG code for the element, equivalent to HTML's `outerHTML`.
          *
-         * See also @Element.innerSVG * @returns {string} SVG code for the element
+         * See also @Element.innerSVG
+ * @returns {string} SVG code for the element
          */
         /**
-         * Element.toString @method *
+         * Element.toString @method
+ *
          * See @Element.outerSVG
          */
         elproto.outerSVG = elproto.toString = toString(1);
         /**
-         * Element.innerSVG @method *
-         * Returns SVG code for the element's contents, equivalent to HTML's `innerHTML` * @returns {string} SVG code for the element
+         * Element.innerSVG @method
+ *
+         * Returns SVG code for the element's contents, equivalent to HTML's `innerHTML`
+ * @returns {string} SVG code for the element
          */
         elproto.innerSVG = toString();
 
@@ -2105,12 +2123,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
         };
         /**
-         * Fragment.select @method *
+         * Fragment.select @method
+ *
          * See @Element.select
          */
         Fragment.prototype.select = elproto.select;
         /**
-         * Fragment.selectAll @method *
+         * Fragment.selectAll @method
+ *
          * See @Element.selectAll
          */
         Fragment.prototype.selectAll = elproto.selectAll;

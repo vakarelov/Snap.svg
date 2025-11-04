@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-10-30
+// build: 2025-11-04
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -3889,7 +3889,7 @@
  * Copyright (c) 2013 - 2017 Adobe Systems Incorporated. All rights reserved.
  * Modifications copyright (C) 2019 <Orlin Vakarelov>
  */
-Snap_ia.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
+Snap.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
     /**
      * Lightweight container representing detached SVG content that can be inserted elsewhere.
      *
@@ -3942,7 +3942,7 @@ Snap_ia.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         const hub = Snap._.hub;
         const ID = Snap._.id;
         const $ = Snap._.$;
@@ -6280,7 +6280,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
+Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
     const hub = Snap._.hub;
     const $ = Snap._.$;
     const make = Snap._.make;
@@ -7833,7 +7833,7 @@ function intersect(seg1, seg2) {
 
 module.exports = intersect;
 },{}],6:[function(require,module,exports){
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const _hull = require("hull.js");
     /**
      * Computes a concave hull for a given set of points and proxies the call to the underlying hull.js implementation.
@@ -7900,7 +7900,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const elproto = Element.prototype,
         is = Snap.is,
         Str = String,
@@ -8109,7 +8109,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var objectToString = Object.prototype.toString,
         Str = String,
         E = "";
@@ -8898,7 +8898,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var has = "hasOwnProperty",
         make = Snap._.make,
         wrap = Snap._.wrap,
@@ -9466,7 +9466,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         var rgNotSpace = /\S+/g,
             rgBadSpace = /[\t\r\n\f]/g,
             rgTrim = /(^\s+|\s+$)/g,
@@ -9664,7 +9664,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var operators = {
             "+": function (x, y) {
                     return x + y;
@@ -9744,7 +9744,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Snap.svg plugin augmenting the library with a {@link BBox} helper type and
@@ -10352,7 +10352,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     const ERROR = 1e-12;
 
@@ -13153,7 +13153,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const mmax = Math.max,
         mmin = Math.min;
 
@@ -13671,7 +13671,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // limitations under the License.
 
 
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var names = {},
         reUnit = /[%a-z]+$/i,
         Str = String;
@@ -13869,7 +13869,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const elproto = Element.prototype,
         has = "hasOwnProperty";
     // const supportsTouch = matchMedia('(hover: none)').matches;
@@ -14252,8 +14252,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return el;
     };
     /*
-     * Element.onDragOver @method *
-     * Shortcut to assign event handler for `drag.over.<id>` event, where `id` is the element's `id` (see @Element.id) * @param {function} f - handler for event, first argument would be the element you are dragging over
+     * Element.onDragOver @method
+ *
+     * Shortcut to assign event handler for `drag.over.<id>` event, where `id` is the element's `id` (see @Element.id)
+ * @param {function} f - handler for event, first argument would be the element you are dragging over
     */
     // elproto.onDragOver = function (f) {
     //     f ? eve.on("snap.drag.over." + this.id, f) : eve.unbind("snap.drag.over." + this.id);
@@ -14329,7 +14331,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   var elproto = Element.prototype,
       pproto = Paper.prototype,
       rgurl = /^\s*url\((.+)\)/,
@@ -14670,7 +14672,7 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   };
 });
 
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const box = Snap.box,
         is = Snap.is,
         firstLetter = /^[^a-z]*([tbmlrc])/i,
@@ -14878,7 +14880,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     // Colours are from https://www.materialui.co
     var red = "#ffebee#ffcdd2#ef9a9a#e57373#ef5350#f44336#e53935#d32f2f#c62828#b71c1c#ff8a80#ff5252#ff1744#d50000",
         pink = "#FCE4EC#F8BBD0#F48FB1#F06292#EC407A#E91E63#D81B60#C2185B#AD1457#880E4F#FF80AB#FF4081#F50057#C51162",
@@ -14900,14 +14902,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         grey = "#FAFAFA#F5F5F5#EEEEEE#E0E0E0#BDBDBD#9E9E9E#757575#616161#424242#212121",
         bluegrey = "#ECEFF1#CFD8DC#B0BEC5#90A4AE#78909C#607D8B#546E7A#455A64#37474F#263238";
     /**
-     * Snap.mui @property *
+     * Snap.mui @property
+ *
      * Contain Material UI colours.
      | Snap().rect(0, 0, 10, 10).attr({fill: Snap.mui.deeppurple, stroke: Snap.mui.amber[600]});
      # For colour reference: <a href="https://www.materialui.co">https://www.materialui.co</a>.
     */
     Snap.mui = {};
     /**
-     * Snap.flat @property *
+     * Snap.flat @property
+ *
      * Contain Flat UI colours.
      | Snap().rect(0, 0, 10, 10).attr({fill: Snap.flat.carrot, stroke: Snap.flat.wetasphalt});
      # For colour reference: <a href="https://www.materialui.co">https://www.materialui.co</a>.
@@ -14977,7 +14981,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.flat.concrete = "#95a5a6";
     Snap.flat.asbestos = "#7f8c8d";
     /**
-     * Snap.importMUIColors @method *
+     * Snap.importMUIColors @method
+ *
      * Imports Material UI colours into global object.
      | Snap.importMUIColors();
      | Snap().rect(0, 0, 10, 10).attr({fill: deeppurple, stroke: amber[600]});

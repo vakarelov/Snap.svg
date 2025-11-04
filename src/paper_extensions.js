@@ -2,7 +2,7 @@
         let Snap_ia = root.Snap_ia || root.Snap;
 
         //Paper functions, require snap_extensions and element_extensions
-        Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
             const paper_element_extension = {};
             /**
              * Registers a lazily executed Paper extension that can augment any SVG root.
@@ -736,7 +736,7 @@
         });
 
         //Shape builders
-        Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
                 /**
                  * Builds a circle from a centre point and a point lying on its circumference.
@@ -1195,7 +1195,7 @@
             }
         );
 
-        Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
             //Add paper functions to elements
 
 

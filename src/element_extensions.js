@@ -2,7 +2,7 @@
 
     let Snap_ia = root.Snap_ia || root.Snap;
 //Element Extansions
-    Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
         //ELEMENT Functions
 
@@ -1144,14 +1144,14 @@
          * Enables drag-based translation for the element.
          *
          * @function Snap.Element#move
-         * @param {Object} [select] Selection context providing GUI helpers.
          * @param {Snap.Element} [el=this] Optional proxy element to move.
          * @param {Object} [mcontext] Context object passed to move callbacks.
          * @param {Object} [scontext] Context object passed to start callbacks.
          * @param {Object} [econtext] Context object passed to end callbacks.
+         * @param {Object} [select] Selection context providing GUI helpers.
          * @returns {Snap.Element} The element for chaining.
          */
-        Element.prototype.move = function (el, mcontext, scontext, econtext) {
+        Element.prototype.move = function (el, mcontext, scontext, econtext, select) {
             if (typeof el === "object" && !Snap.is(el, "Element")){
                 [mcontext, scontext, econtext, el] = [el, mcontext, scontext, this]
             }

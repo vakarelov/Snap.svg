@@ -13,7 +13,7 @@
 // limitations under the License.
 
 
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var names = {},
         reUnit = /[%a-z]+$/i,
         Str = String;

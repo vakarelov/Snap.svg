@@ -3982,7 +3982,7 @@ function unique(list, compare, sorted) {
 module.exports = unique
 
 },{}],27:[function(require,module,exports){
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const _voronoi = require("./voronoi.js");
     const KDTree = require('mnemonist/kd-tree');
 

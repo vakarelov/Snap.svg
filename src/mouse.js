@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const elproto = Element.prototype,
         has = "hasOwnProperty";
     // const supportsTouch = matchMedia('(hover: none)').matches;
@@ -394,8 +394,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return el;
     };
     /*
-     * Element.onDragOver @method *
-     * Shortcut to assign event handler for `drag.over.<id>` event, where `id` is the element's `id` (see @Element.id) * @param {function} f - handler for event, first argument would be the element you are dragging over
+     * Element.onDragOver @method
+ *
+     * Shortcut to assign event handler for `drag.over.<id>` event, where `id` is the element's `id` (see @Element.id)
+ * @param {function} f - handler for event, first argument would be the element you are dragging over
     */
     // elproto.onDragOver = function (f) {
     //     f ? eve.on("snap.drag.over." + this.id, f) : eve.unbind("snap.drag.over." + this.id);

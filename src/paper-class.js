@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
+Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
     const hub = Snap._.hub;
     const $ = Snap._.$;
     const make = Snap._.make;

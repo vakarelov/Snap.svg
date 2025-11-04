@@ -2,7 +2,7 @@
  * Copyright (c) 2013 - 2017 Adobe Systems Incorporated. All rights reserved.
  * Modifications copyright (C) 2019 <Orlin Vakarelov>
  */
-Snap_ia.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
+Snap.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
     /**
      * Lightweight container representing detached SVG content that can be inserted elsewhere.
      *

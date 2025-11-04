@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Snap.svg plugin augmenting the library with a {@link BBox} helper type and

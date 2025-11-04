@@ -361,7 +361,7 @@ function intersect(seg1, seg2) {
 
 module.exports = intersect;
 },{}],6:[function(require,module,exports){
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const _hull = require("hull.js");
     /**
      * Computes a concave hull for a given set of points and proxies the call to the underlying hull.js implementation.

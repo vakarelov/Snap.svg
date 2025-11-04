@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-10-30
+// build: 2025-11-04
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -3889,7 +3889,7 @@
  * Copyright (c) 2013 - 2017 Adobe Systems Incorporated. All rights reserved.
  * Modifications copyright (C) 2019 <Orlin Vakarelov>
  */
-Snap_ia.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
+Snap.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
     /**
      * Lightweight container representing detached SVG content that can be inserted elsewhere.
      *
@@ -3942,7 +3942,7 @@ Snap_ia.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         const hub = Snap._.hub;
         const ID = Snap._.id;
         const $ = Snap._.$;
@@ -6280,7 +6280,7 @@ Snap_ia.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
+Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
     const hub = Snap._.hub;
     const $ = Snap._.$;
     const make = Snap._.make;
@@ -7833,7 +7833,7 @@ function intersect(seg1, seg2) {
 
 module.exports = intersect;
 },{}],6:[function(require,module,exports){
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const _hull = require("hull.js");
     /**
      * Computes a concave hull for a given set of points and proxies the call to the underlying hull.js implementation.
@@ -7900,7 +7900,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const elproto = Element.prototype,
         is = Snap.is,
         Str = String,
@@ -8109,7 +8109,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var objectToString = Object.prototype.toString,
         Str = String,
         E = "";
@@ -8898,7 +8898,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var has = "hasOwnProperty",
         make = Snap._.make,
         wrap = Snap._.wrap,
@@ -9466,7 +9466,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         var rgNotSpace = /\S+/g,
             rgBadSpace = /[\t\r\n\f]/g,
             rgTrim = /(^\s+|\s+$)/g,
@@ -9664,7 +9664,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var operators = {
             "+": function (x, y) {
                     return x + y;
@@ -9744,7 +9744,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Snap.svg plugin augmenting the library with a {@link BBox} helper type and
@@ -10352,7 +10352,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 /*
  * Copyright (c) 2018.  Orlin Vakarelov
  */
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     const ERROR = 1e-12;
 
@@ -13153,7 +13153,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const mmax = Math.max,
         mmin = Math.min;
 
@@ -13671,7 +13671,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // limitations under the License.
 
 
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var names = {},
         reUnit = /[%a-z]+$/i,
         Str = String;
@@ -13869,7 +13869,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const elproto = Element.prototype,
         has = "hasOwnProperty";
     // const supportsTouch = matchMedia('(hover: none)').matches;
@@ -14252,8 +14252,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         return el;
     };
     /*
-     * Element.onDragOver @method *
-     * Shortcut to assign event handler for `drag.over.<id>` event, where `id` is the element's `id` (see @Element.id) * @param {function} f - handler for event, first argument would be the element you are dragging over
+     * Element.onDragOver @method
+ *
+     * Shortcut to assign event handler for `drag.over.<id>` event, where `id` is the element's `id` (see @Element.id)
+ * @param {function} f - handler for event, first argument would be the element you are dragging over
     */
     // elproto.onDragOver = function (f) {
     //     f ? eve.on("snap.drag.over." + this.id, f) : eve.unbind("snap.drag.over." + this.id);
@@ -14329,7 +14331,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   var elproto = Element.prototype,
       pproto = Paper.prototype,
       rgurl = /^\s*url\((.+)\)/,
@@ -14670,7 +14672,7 @@ Snap_ia.plugin(function(Snap, Element, Paper, glob, Fragment, eve) {
   };
 });
 
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const box = Snap.box,
         is = Snap.is,
         firstLetter = /^[^a-z]*([tbmlrc])/i,
@@ -14878,7 +14880,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     // Colours are from https://www.materialui.co
     var red = "#ffebee#ffcdd2#ef9a9a#e57373#ef5350#f44336#e53935#d32f2f#c62828#b71c1c#ff8a80#ff5252#ff1744#d50000",
         pink = "#FCE4EC#F8BBD0#F48FB1#F06292#EC407A#E91E63#D81B60#C2185B#AD1457#880E4F#FF80AB#FF4081#F50057#C51162",
@@ -14900,14 +14902,16 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         grey = "#FAFAFA#F5F5F5#EEEEEE#E0E0E0#BDBDBD#9E9E9E#757575#616161#424242#212121",
         bluegrey = "#ECEFF1#CFD8DC#B0BEC5#90A4AE#78909C#607D8B#546E7A#455A64#37474F#263238";
     /**
-     * Snap.mui @property *
+     * Snap.mui @property
+ *
      * Contain Material UI colours.
      | Snap().rect(0, 0, 10, 10).attr({fill: Snap.mui.deeppurple, stroke: Snap.mui.amber[600]});
      # For colour reference: <a href="https://www.materialui.co">https://www.materialui.co</a>.
     */
     Snap.mui = {};
     /**
-     * Snap.flat @property *
+     * Snap.flat @property
+ *
      * Contain Flat UI colours.
      | Snap().rect(0, 0, 10, 10).attr({fill: Snap.flat.carrot, stroke: Snap.flat.wetasphalt});
      # For colour reference: <a href="https://www.materialui.co">https://www.materialui.co</a>.
@@ -14977,7 +14981,8 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     Snap.flat.concrete = "#95a5a6";
     Snap.flat.asbestos = "#7f8c8d";
     /**
-     * Snap.importMUIColors @method *
+     * Snap.importMUIColors @method
+ *
      * Imports Material UI colours into global object.
      | Snap.importMUIColors();
      | Snap().rect(0, 0, 10, 10).attr({fill: deeppurple, stroke: amber[600]});
@@ -15012,7 +15017,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 });
 
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     ///////////////// Bezier Library
 
@@ -17309,7 +17314,6 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
 });
 
-
 /**
  * @fileoverview Polygon intersection and geometric operations library
  * Based on https://github.com/vrd/js-intersect
@@ -17317,7 +17321,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
  * 
  * @typedef {Object} Point
  * @property {Number} x - X coordinate
- * @property {Number} y - Y coordinate
+ * @property {Number} y - Y Coordinate
  * @property {Number} [t] - Parametric position along edge (0-1)
  * @property {Number} [theta] - Polar angle for point classification
  * 
@@ -17330,7 +17334,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
 //code based on https://github.com/vrd/js-intersect
 
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     /**
      * Namespace for polygon-related operations
      * @namespace Snap.polygons
@@ -17356,8 +17360,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         const edges = edgify(fig1, fig2a);
         const polygons = polygonate(edges);
-        const filteredPolygons = filterPolygons(polygons, fig1, fig2a, "intersect");
-        return filteredPolygons;
+        return filterPolygons(polygons, fig1, fig2a, "intersect");
     }
 
     Snap.polygons.intersect = intersect;
@@ -17432,15 +17435,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             let points = [];
             //for intersection with every edge except itself
             for(let j = 0; j < primEdges.length; j++) {
-                if (i != j) {
+                if (i !== j) {
                     const interPoints = findEdgeIntersection(primEdges[i], primEdges[j]);
                     addNewPoints(interPoints, points);
                 }
             }
             //add start and end points to intersection points
-            startPoint = primEdges[i][0];
+            let startPoint = primEdges[i][0];
             startPoint.t = 0;
-            endPoint = primEdges[i][1];
+            let endPoint = primEdges[i][1];
             endPoint.t = 1;
             addNewPoints([startPoint, endPoint], points);
             //sort all points by position on edge
@@ -17491,6 +17494,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         p.sort((a,b) => {
             if (a.t > b.t) return 1;
             if (a.t < b.t) return -1;
+            return 0;
         });
         return p;
     }
@@ -17544,15 +17548,15 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         //2. lines are collinear
         else if ((nom1 === 0) && (denom === 0)) {
             //check if endpoints of edge2 lies on edge1
-            for (var i = 0; i < 2; i++) {
-                var classify = classifyPoint(edge2[i], edge1);
+            for (let i = 0; i < 2; i++) {
+                const classify = classifyPoint(edge2[i], edge1);
                 //find position of this endpoints relatively to edge1
-                if (classify.loc == "ORIGIN" || classify.loc == "DESTINATION") {
+                if (classify.loc === "ORIGIN" || classify.loc === "DESTINATION") {
                     interPoints.push({x: edge2[i].x, y: edge2[i].y, t: classify.t});
                 }
-                else if (classify.loc == "BETWEEN") {
-                    x = +((x1 + classify.t*(x2 - x1)).toPrecision(10));
-                    y = +((y1 + classify.t*(y2 - y1)).toPrecision(10));
+                else if (classify.loc === "BETWEEN") {
+                    const x = +((x1 + classify.t*(x2 - x1)).toPrecision(10));
+                    const y = +((y1 + classify.t*(y2 - y1)).toPrecision(10));
                     interPoints.push({x: x, y: y, t: classify.t});
                 }
             }
@@ -17560,21 +17564,20 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         //3. edges intersect
         else {
-            for (var i = 0; i < 2; i++) {
-                var classify = classifyPoint(edge2[i], edge1);
-                if (classify.loc == "ORIGIN" || classify.loc == "DESTINATION") {
+            for (let i = 0; i < 2; i++) {
+                const classify = classifyPoint(edge2[i], edge1);
+                if (classify.loc === "ORIGIN" || classify.loc === "DESTINATION") {
                     interPoints.push({x: edge2[i].x, y: edge2[i].y, t: classify.t});
                 }
             }
             if (interPoints.length > 0) {
                 return interPoints;
             }
-            var x = +((x1 + t1*(x2 - x1)).toPrecision(10));
-            var y = +((y1 + t1*(y2 - y1)).toPrecision(10));
+            const x = +((x1 + t1*(x2 - x1)).toPrecision(10));
+            const y = +((y1 + t1*(y2 - y1)).toPrecision(10));
             interPoints.push({x: x, y: y, t: t1});
             return interPoints;
         }
-        return interPoints;
     }
 
     /**
@@ -17699,18 +17702,14 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Boolean} True if edges are equal, false otherwise
      */
     function equalEdges(edge1, edge2) {
-        if (((edge1[0].x === edge2[0].x) &&
+        return ((edge1[0].x === edge2[0].x) &&
             (edge1[0].y === edge2[0].y) &&
             (edge1[1].x === edge2[1].x) &&
             (edge1[1].y === edge2[1].y)) || (
             (edge1[0].x === edge2[1].x) &&
             (edge1[0].y === edge2[1].y) &&
             (edge1[1].x === edge2[0].x) &&
-            (edge1[1].y === edge2[0].y))) {
-            return true;
-        } else {
-            return false;
-        }
+            (edge1[1].y === edge2[0].y));
     }
 
     /**
@@ -17773,10 +17772,10 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     dest.y = point.y;
                     currentEdge = point.edge;
                     //if we reach start edge
-                    if ((org.x == edges[i][0].x) &&
-                        (org.y == edges[i][0].y) &&
-                        (dest.x == edges[i][1].x) &&
-                        (dest.y == edges[i][1].y)) {
+                    if ((org.x === edges[i][0].x) &&
+                        (org.y === edges[i][0].y) &&
+                        (dest.x === edges[i][1].x) &&
+                        (dest.y === edges[i][1].y)) {
                         stop = true;
                         //check polygon for correctness
                         /*for (var k = 0; k < allPoints.length; k++) {
@@ -17785,7 +17784,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             polygon = false;
                           }
                         }*/
-                        for (k = 0; k < midpoints.length; k++) {
+                        for (let k = 0; k < midpoints.length; k++) {
                             //if some midpoint is inside polygon (edge inside polygon) it is incorrect
                             if (findPointInsidePolygon(midpoints[k], polygon)) {
                                 polygon = false;
@@ -17888,18 +17887,18 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * Calculates the area of a polygon using the shoelace formula
      * @function polygonArea
      * @memberof Snap.polygons
-     * @param {Array<Point>} p - Polygon vertices
+     * @param {Array<Point>} points - Polygon vertices
      * @returns {Number} Area of the polygon
      * @example
      * const square = [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}, {x: 0, y: 10}];
      * const area = Snap.polygons.polygonArea(square); // Returns 100
      */
-    function polygonArea(p) {
-        const len = p.length;
+    function polygonArea(points) {
+        const len = points.length;
         let s = 0;
         for (let i = 0; i < len; i++) {
-            s += Math.abs((p[i % len].x * p[(i + 1) % len].y) - (p[i % len].y *
-                p[(i + 1) % len].x));
+            s += Math.abs((points[i % len].x * points[(i + 1) % len].y) - (points[i % len].y *
+                points[(i + 1) % len].x));
         }
         return s/2;
     }
@@ -17926,7 +17925,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         while (!pointsOK) {
             line = [{x: (size.x.min - 1), y: y},{x: (size.x.max + 1), y: y}];
             //find intersections with all polygon edges
-            for (var i = 0; i < edges.length; i++) {
+            for (let i = 0; i < edges.length; i++) {
                 points = findEdgeIntersection(line, edges[i]);
                 //if edge doesn't lie inside line
                 if (points && (points.length === 1)) {
@@ -17935,7 +17934,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             interPoints = sortPoints(interPoints);
             //find two correct interpoints
-            for (var i = 0; i < interPoints.length - 1; i++) {
+            for (let i = 0; i < interPoints.length - 1; i++) {
                 if (interPoints[i].t !== interPoints[i+1].t) {
                     //enable exit from loop and calculate point coordinates
                     pointsOK = true;
@@ -18016,11 +18015,7 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             if (classify.loc === "BETWEEN") return !!count_side;
         }
-        if (cross % 2) {
-            return true;
-        } else {
-            return false;
-        }
+        return cross % 2 === 1;
     }
 
     Snap.polygons.pointInPolygon = findPointInsidePolygon;
@@ -18044,17 +18039,47 @@ Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     /**
-     * Debug utility function to log objects as JSON
-     * @function log
-     * @private
-     * @param {*} obj - Object to log
+     * Computes the center of mass (centroid) of a polygon.
+     * Assumes uniform distribution of mass.
+     * @function polygonCentroid
+     * @memberof Snap.polygons
+     * @param {Array<Point>} points - Polygon vertices.
+     * @returns {Point|null} The center of mass, or null if the polygon has zero area.
+     * @example
+     * const triangle = [{x: 0, y: 0}, {x: 6, y: 0}, {x: 3, y: 6}];
+     * const centroid = Snap.polygons.polygonCentroid(triangle); // Returns {x: 3, y: 2}
      */
-    function log(obj) {
-        console.log(JSON.stringify(obj));
+    function polygonCentroid(points) {
+        let signedArea = 0;
+        let cx = 0;
+        let cy = 0;
+        const len = points.length;
+
+        for (let i = 0; i < len; i++) {
+            const p1 = points[i];
+            const p2 = points[(i + 1) % len];
+            const crossProduct = (p1.x * p2.y) - (p2.x * p1.y);
+            signedArea += crossProduct;
+            cx += (p1.x + p2.x) * crossProduct;
+            cy += (p1.y + p2.y) * crossProduct;
+        }
+
+        signedArea /= 2;
+
+        if (Math.abs(signedArea) < 1e-9) {
+            return null; // Or handle degenerate polygon as needed
+        }
+
+        cx = cx / (6 * signedArea);
+        cy = cy / (6 * signedArea);
+
+        return { x: cx, y: cy };
     }
 
+    Snap.polygons.polygonCentroid = polygonCentroid;
+
 });
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function Polygon(vertices, edges) {
         if (!edges) {
@@ -22129,7 +22154,7 @@ function unique(list, compare, sorted) {
 module.exports = unique
 
 },{}],27:[function(require,module,exports){
-Snap_ia.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     const _voronoi = require("./voronoi.js");
     const KDTree = require('mnemonist/kd-tree');
 
@@ -23359,7 +23384,7 @@ function voronoi(points) {
     let Snap_ia = root.Snap_ia || root.Snap;
 
     //Global Snap Plugin
-    Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
         const STRICT_MODE = true;
         //Snap Constants
@@ -24462,7 +24487,7 @@ function voronoi(points) {
 
 
     //Matrix functions
-    Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
         //Matrix Extentions
 
         /**
@@ -24621,7 +24646,7 @@ function voronoi(points) {
 
     let Snap_ia = root.Snap_ia || root.Snap;
 //Element Extansions
-    Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
         //ELEMENT Functions
 
@@ -25763,14 +25788,14 @@ function voronoi(points) {
          * Enables drag-based translation for the element.
          *
          * @function Snap.Element#move
-         * @param {Object} [select] Selection context providing GUI helpers.
          * @param {Snap.Element} [el=this] Optional proxy element to move.
          * @param {Object} [mcontext] Context object passed to move callbacks.
          * @param {Object} [scontext] Context object passed to start callbacks.
          * @param {Object} [econtext] Context object passed to end callbacks.
+         * @param {Object} [select] Selection context providing GUI helpers.
          * @returns {Snap.Element} The element for chaining.
          */
-        Element.prototype.move = function (el, mcontext, scontext, econtext) {
+        Element.prototype.move = function (el, mcontext, scontext, econtext, select) {
             if (typeof el === "object" && !Snap.is(el, "Element")){
                 [mcontext, scontext, econtext, el] = [el, mcontext, scontext, this]
             }
@@ -28838,7 +28863,7 @@ function voronoi(points) {
         let Snap_ia = root.Snap_ia || root.Snap;
 
         //Paper functions, require snap_extensions and element_extensions
-        Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
             const paper_element_extension = {};
             /**
              * Registers a lazily executed Paper extension that can augment any SVG root.
@@ -29572,7 +29597,7 @@ function voronoi(points) {
         });
 
         //Shape builders
-        Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
                 /**
                  * Builds a circle from a centre point and a point lying on its circumference.
@@ -30031,7 +30056,7 @@ function voronoi(points) {
             }
         );
 
-        Snap_ia.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
             //Add paper functions to elements
 
 
