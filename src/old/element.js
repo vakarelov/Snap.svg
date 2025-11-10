@@ -840,7 +840,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             if (this._partner_childern) {
                 this._partner_childern.forEach((id) =>
-                    this._propagateTransToPartnersChild(Snap.elementFormId(id), Snap.Matrix()));
+                    this._propagateTransToPartnersChild(Snap.elementFormId(id), Snap.matrix()));
             }
 
             return this;
