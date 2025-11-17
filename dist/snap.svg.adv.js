@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-11-04
+// build: 2025-11-17
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -1104,7 +1104,7 @@
      * @param {number} b Start timestamp.
      * @param {AnimationValue} A End value(s).
      * @param {number} B End timestamp.
-    * @returns {function(number): AnimationValue}
+     * @returns {function(number): AnimationValue}
      */
     function diff(a, b, A, B) {
         if (isArray(a)) {
@@ -1121,6 +1121,7 @@
             return a + dif * (bb - b);
         };
     }
+
 
     const timer = Date.now || function () {
         return +new Date;
@@ -1298,7 +1299,7 @@
      * Registers a callback that resolves once the animation reaches completion.
      *
      * @this {Animation}
-    * @param {function(Animation): void} [callback] Invoked with the animation when it finishes.
+     * @param {function(Animation): void} [callback] Invoked with the animation when it finishes.
      * @returns {Promise<void>} Promise that resolves when the animation finishes.
      */
     function then(callback) {
@@ -1394,7 +1395,7 @@
 
     /**
      * Exposes the `Animation` constructor for advanced use cases.
-    * @type {Function}
+     * @type {Function}
      */
     mina.Animation = Animation;
 
@@ -1532,6 +1533,9 @@
         return mina.elastic.bind(undefined, amp, per);
     };
 
+    const defaultElastic = mina.elastic.withParams(1, 0.3);
+    const HALF_PI = Math.PI / 2;
+
     /**
      * Bounce easing that simulates a ball dropping and settling.
      *
@@ -1540,34 +1544,805 @@
      */
     mina.bounce = function (n) {
         const s = 7.5625, p = 2.75;
-        let l;
-        const or = n;
+
         if (n < 1 / p) {
-            l = s * n * n;
-            // console.log(1, n, l, or)
-        } else {
-            if (n < 2 / p) {
-                n -= 1.5 / p;
-                l = s * n * n + .75;
-                // console.log(2, n, l, or)
-            } else {
-                if (n < 2.5 / p) {
-                    n -= 2.25 / p;
-                    l = s * n * n + .9375;
-                    // console.log(3, n, l, or)
-                } else {
-                    n -= 2.625 / p;
-                    l = s * n * n + .984375;
-                    // console.log(4, n, l, or)
-                }
-            }
+            return s * n * n;
+        } else if (n < 2 / p) {
+            n -= 1.5 / p;
+            return s * n * n + .75;
+        } else if (n < 2.5 / p) {
+            n -= 2.25 / p;
+            return s * n * n + .9375;
         }
-        return l;
+        n -= 2.625 / p;
+        return s * n * n + .984375;
     };
 
-    // mina.bounce2 = function(b, h, t){
-    //
-    // }
+    /**
+     * Bounce easing with configurable rebound count and first rebound height.
+     *
+     * @param {number} b Number of bounces after the initial impact.
+     * @param {number} h Height of the first bounce expressed as fraction `[0, 1]`. Default is b/(b+1)
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
+    mina.bounceGen = function (b, h, n) {
+
+        if (h === undefined && n === undefined) return mina.bounce(b);
+
+        b = Math.max(1, Math.floor(+b || 0));
+        h = Math.max(0, Math.min(1, +h || b / (b + 1)));
+        n = Math.max(0, Math.min(1, +n || 0));
+
+        if (n === 0) {
+            return 0;
+        }
+        if (n === 1) {
+            return 1;
+        }
+
+        const amplitudeBase = 1 - h;
+        const timeDecay = amplitudeBase > 0 ? Math.sqrt(amplitudeBase) : 0;
+
+        const weights = [1];
+        let weight = 1;
+        for (let i = 0; i < b; i++) {
+            if (i > 0) {
+                weight *= timeDecay;
+            }
+            weights.push(weight);
+        }
+
+        const weightSum = weights.reduce((sum, w) => sum + w, 0);
+        const baseDuration = 1 / weightSum;
+        const freeDuration = baseDuration * weights[0];
+
+        if (n <= freeDuration) {
+            const local = n / freeDuration;
+            const result = local * local;
+            return Math.max(0, Math.min(1, result));
+        }
+
+        let cursor = freeDuration;
+        let drop = amplitudeBase;
+
+        for (let i = 0; i < b && cursor < 1; i++) {
+            const segmentWeight = weights[i + 1];
+            if (!segmentWeight) {
+                drop *= amplitudeBase;
+                continue;
+            }
+            const duration = baseDuration * segmentWeight;
+            if (n <= cursor + duration) {
+                const local = (n - cursor) / duration;
+                const value = 1 - drop * 4 * local * (1 - local);
+                return Math.max(0, Math.min(1, value));
+            }
+            cursor += duration;
+            drop *= amplitudeBase;
+        }
+
+        return 1;
+    };
+
+    mina.bounceGen.withParams = function (b, h) {
+        return mina.bounceGen.bind(undefined, b, h);
+    }
+
+    /**
+     * Creates a timing function equivalent to CSS `cubic-bezier(p1x, p1y, p2x, p2y)`.
+     * Start and end points are fixed at `(0, 0)` and `(1, 1)`; `p1`/`p2` describe the tangent handles.
+     *
+     * @param {number} p1x X coordinate of the first control point.
+     * @param {number} p1y Y coordinate of the first control point.
+     * @param {number} p2x X coordinate of the second control point.
+     * @param {number} p2y Y coordinate of the second control point.
+     * @returns {MinaEasing} Callable easing function that maps `[0, 1]` → `[0, 1]`.
+     */
+    function cubic_bezier(p1x, p1y, p2x, p2y) {
+        if (p1x === p1y && p2x === p2y) {
+            return function (n) {
+                return n;
+            };
+        }
+
+        const sampleCount = 11;
+        const sampleStep = 1 / (sampleCount - 1);
+        const samples = new Array(sampleCount);
+
+        function calcBezier(t, a1, a2) {
+            return ((1 - 3 * a2 + 3 * a1) * t + (3 * a2 - 6 * a1)) * t * t + 3 * a1 * t;
+        }
+
+        function slope(t, a1, a2) {
+            return 3 * ((1 - 3 * a2 + 3 * a1) * t * t + 2 * (3 * a2 - 6 * a1) * t + (3 * a1));
+        }
+
+        for (let i = 0; i < sampleCount; i++) {
+            samples[i] = calcBezier(i * sampleStep, p1x, p2x);
+        }
+
+        function getTForX(x) {
+            let intervalStart = 0;
+            let currentSample = 1;
+            const lastSample = sampleCount - 1;
+
+            for (; currentSample !== lastSample && samples[currentSample] <= x; currentSample++) {
+                intervalStart += sampleStep;
+            }
+            currentSample -= 1;
+
+            const segment = samples[currentSample + 1] - samples[currentSample];
+            let guess = intervalStart;
+            if (segment) {
+                guess += ((x - samples[currentSample]) / segment) * sampleStep;
+            }
+
+            for (let i = 0; i < 4; i++) {
+                const currentSlope = slope(guess, p1x, p2x);
+                if (currentSlope === 0) {
+                    return guess;
+                }
+                const currentX = calcBezier(guess, p1x, p2x) - x;
+                guess -= currentX / currentSlope;
+            }
+            return guess;
+        }
+
+        return function (n) {
+            if (n <= 0) {
+                return 0;
+            }
+            if (n >= 1) {
+                return 1;
+            }
+            const t = getTForX(n);
+            return calcBezier(t, p1y, p2y);
+        };
+    }
+
+
+    /**
+     * Creates a cubic bezier easing function or applies it directly to a value.
+     * If no parameters are provided, defaults to the ease timing function.
+     *
+     * @function
+     * @param {number} [p1x] - The x-coordinate of the first control point (0-1)
+     * @param {number} [p1y] - The y-coordinate of the first control point
+     * @param {number} [p2x] - The x-coordinate of the second control point (0-1)
+     * @param {number} [p2y] - The y-coordinate of the second control point
+     * @param {number} n - The progress value (0-1) to evaluate the easing function at
+     * @returns {number} The eased value
+     * @example
+     * // Using default ease timing
+     * mina.cubicBezier(undefined, undefined, undefined, undefined, 0.5);
+     *
+     * @example
+     * // Custom cubic bezier
+     * mina.cubicBezier(0.42, 0, 0.58, 1, 0.5);
+     */
+    mina.cubicBezier = function (p1x, p1y, p2x, p2y, n) {
+        if (p1x === undefined && p1y === undefined && p2x === undefined && p2y === undefined) {
+            return mina.ease(n);
+        }
+
+        return cubic_bezier(p1x, p1y, p2x, p2y)(n);
+    };
+
+    /**
+     * Creates and returns a reusable cubic bezier easing function with the specified control points.
+     * This is useful when you need to apply the same easing function multiple times, for example whey passing to an
+     * animation function.
+     *
+     * @function
+     * @param {number} p1x - The x-coordinate of the first control point (0-1)
+     * @param {number} p1y - The y-coordinate of the first control point
+     * @param {number} p2x - The x-coordinate of the second control point (0-1)
+     * @param {number} p2y - The y-coordinate of the second control point
+     * @returns {function(number): number} A function that takes a progress value (0-1) and returns the eased value
+     * @example
+     * // Create a custom easing function
+     * const myEasing = mina.cubicBezier.withParams(0.42, 0, 0.58, 1);
+     * const easedValue = myEasing(0.5);
+     */
+    mina.cubicBezier.withParams = function (p1x, p1y, p2x, p2y) {
+        return cubic_bezier(p1x, p1y, p2x, p2y)
+    };
+
+    /**
+     * Equivalent to CSS `ease` timing function (cubic-bezier(0.25, 0.1, 0.25, 1)).
+     * @type {MinaEasing}
+     */
+    mina.ease = cubic_bezier(0.25, 0.1, 0.25, 1);
+    /**
+     * Equivalent to CSS `ease-in` timing function (cubic-bezier(0.42, 0, 1, 1)).
+     * @type {MinaEasing}
+     */
+    mina.easeIn = cubic_bezier(0.42, 0, 1, 1);
+    /**
+     * Equivalent to CSS `ease-out` timing function (cubic-bezier(0, 0, 0.58, 1)).
+     * @type {MinaEasing}
+     */
+    mina.easeOut = cubic_bezier(0, 0, 0.58, 1);
+    /**
+     * Equivalent to CSS `ease-in-out` timing function (cubic-bezier(0.42, 0, 0.58, 1)).
+     * @type {MinaEasing}
+     */
+    mina.easeInOut = cubic_bezier(0.42, 0, 0.58, 1);
+
+    /**
+     * CSS `ease-in-sine` implementation.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInSine = function (n) {
+        return 1 - Math.cos(n * HALF_PI);
+    };
+    /**
+     * CSS `ease-out-sine` implementation.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutSine = function (n) {
+        return Math.sin(n * HALF_PI);
+    };
+    /**
+     * CSS `ease-in-out-sine` implementation.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutSine = function (n) {
+        return -(Math.cos(Math.PI * n) - 1) / 2;
+    };
+
+    /**
+     * Quadratic ease-in curve (`t^2`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInQuad = function (n) {
+        return n * n;
+    };
+    /**
+     * Quadratic ease-out curve (`1 - (1 - t)^2`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutQuad = function (n) {
+        return n * (2 - n);
+    };
+    /**
+     * Quadratic ease-in-out curve composed of two mirrored `t^2` segments.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutQuad = function (n) {
+        return n < 0.5 ? 2 * n * n : 1 - Math.pow(-2 * n + 2, 2) / 2;
+    };
+
+    /**
+     * Cubic ease-in curve (`t^3`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInCubic = function (n) {
+        return n * n * n;
+    };
+    /**
+     * Cubic ease-out curve (`(t-1)^3 + 1`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutCubic = function (n) {
+        const t = n - 1;
+        return t * t * t + 1;
+    };
+    /**
+     * Cubic ease-in-out curve (`t^3` for first half, mirrored second half).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutCubic = function (n) {
+        return n < 0.5 ? 4 * Math.pow(n, 3) : 1 - Math.pow(-2 * n + 2, 3) / 2;
+    };
+
+    /**
+     * Quartic ease-in curve (`t^4`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInQuart = function (n) {
+        return n * n * n * n;
+    };
+    /**
+     * Quartic ease-out curve (`1 - (1 - t)^4`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutQuart = function (n) {
+        const t = n - 1;
+        return 1 - t * t * t * t;
+    };
+    /**
+     * Quartic ease-in-out curve.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutQuart = function (n) {
+        return n < 0.5 ? 8 * Math.pow(n, 4) : 1 - Math.pow(-2 * n + 2, 4) / 2;
+    };
+
+    /**
+     * Quintic ease-in curve (`t^5`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInQuint = function (n) {
+        return Math.pow(n, 5);
+    };
+    /**
+     * Quintic ease-out curve (`1 - (1 - t)^5`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutQuint = function (n) {
+        return 1 - Math.pow(1 - n, 5);
+    };
+    /**
+     * Quintic ease-in-out curve.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutQuint = function (n) {
+        return n < 0.5 ? 16 * Math.pow(n, 5) : 1 - Math.pow(-2 * n + 2, 5) / 2;
+    };
+
+    /**
+     * Exponential ease-in that ramps quickly after a slow start.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInExpo = function (n) {
+        return n === 0 ? 0 : Math.pow(2, 10 * (n - 1));
+    };
+    /**
+     * Exponential ease-out that decelerates rapidly toward the end.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutExpo = function (n) {
+        return n === 1 ? 1 : 1 - Math.pow(2, -10 * n);
+    };
+    /**
+     * Exponential ease-in-out: steep acceleration and deceleration.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutExpo = function (n) {
+        if (n === 0 || n === 1) {
+            return n;
+        }
+        return n < 0.5 ? Math.pow(2, 20 * n - 10) / 2 : (2 - Math.pow(2, -20 * n + 10)) / 2;
+    };
+
+    /**
+     * Circular ease-in curve that emulates the start of a circle arc.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInCirc = function (n) {
+        return 1 - Math.sqrt(1 - n * n);
+    };
+    /**
+     * Circular ease-out curve that mirrors the end of a circle arc.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutCirc = function (n) {
+        return Math.sqrt(1 - Math.pow(n - 1, 2));
+    };
+    /**
+     * Circular ease-in-out curve combining the two halves of an arc.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutCirc = function (n) {
+        return n < 0.5
+            ? (1 - Math.sqrt(1 - 4 * n * n)) / 2
+            : (Math.sqrt(1 - Math.pow(-2 * n + 2, 2)) + 1) / 2;
+    };
+
+    /**
+     * Elastic ease-out wrapper using the default amplitude/period.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.elasticOut = function (n) {
+        return defaultElastic(n);
+    };
+    /**
+     * Elastic ease-in wrapper using the default amplitude/period.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.elasticIn = function (n) {
+        return 1 - defaultElastic(1 - n);
+    };
+    /**
+     * Elastic ease-in-out wrapper using the default amplitude/period.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.elasticInOut = function (n) {
+        if (n < 0.5) {
+            return (1 - defaultElastic(1 - 2 * n)) * 0.5;
+        }
+        return 0.5 + defaultElastic(2 * n - 1) * 0.5;
+    };
+    /**
+     * Alias for {@link mina.elasticIn}.
+     * @type {MinaEasing}
+     */
+    mina.easeInElastic = mina.elasticIn;
+    /**
+     * Alias for {@link mina.elasticOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeOutElastic = mina.elasticOut;
+    /**
+     * Alias for {@link mina.elasticInOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeInOutElastic = mina.elasticInOut;
+
+    /**
+     * Back ease-in-out with overshoot on both ends.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.backInOut = function (n) {
+        const s = 1.70158 * 1.525;
+        n *= 2;
+        if (n < 1) {
+            return 0.5 * (n * n * ((s + 1) * n - s));
+        }
+        n -= 2;
+        return 0.5 * (n * n * ((s + 1) * n + s) + 2);
+    };
+    /**
+     * Alias for {@link mina.backin}.
+     * @type {MinaEasing}
+     */
+    mina.easeInBack = mina.backin;
+    /**
+     * Alias for {@link mina.backout}.
+     * @type {MinaEasing}
+     */
+    mina.easeOutBack = mina.backout;
+    /**
+     * Alias for {@link mina.backInOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeInOutBack = mina.backInOut;
+
+    /**
+     * Bounce ease-in derived from {@link mina.bounce}.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.bounceIn = function (n) {
+        return 1 - mina.bounce(1 - n);
+    };
+    /**
+     * Bounce ease-out (alias of {@link mina.bounce}).
+     * @type {MinaEasing}
+     */
+    mina.bounceOut = mina.bounce;
+    /**
+     * Bounce ease-in-out composed from `bounceIn` and `bounceOut`.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.bounceInOut = function (n) {
+        if (n < 0.5) {
+            return (1 - mina.bounce(1 - 2 * n)) * 0.5;
+        }
+        return mina.bounce(2 * n - 1) * 0.5 + 0.5;
+    };
+    /**
+     * Alias for {@link mina.bounceIn}.
+     * @type {MinaEasing}
+     */
+    mina.easeInBounce = mina.bounceIn;
+    /**
+     * Alias for {@link mina.bounceOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeOutBounce = mina.bounceOut;
+    /**
+     * Alias for {@link mina.bounceInOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeInOutBounce = mina.bounceInOut;
+
+    /**
+     * Critically damped spring ease-out that clamps overshoot into `[0, 1]`.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.spring = function (n) {
+        const damping = Math.exp(-6 * n);
+        const value = 1 - damping * Math.cos((6 - 1.5) * n);
+        return Math.max(0, Math.min(1, value));
+    };
+    /**
+     * Spring ease-in derived from {@link mina.spring}.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.springIn = function (n) {
+        return 1 - mina.spring(1 - n);
+    };
+    /**
+     * Spring ease-out alias.
+     * @type {MinaEasing}
+     */
+    mina.springOut = mina.spring;
+    /**
+     * Spring ease-in-out composed from `springIn`/`springOut`.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.springInOut = function (n) {
+        if (n < 0.5) {
+            return (1 - mina.spring(1 - 2 * n)) * 0.5;
+        }
+        return mina.spring(2 * n - 1) * 0.5 + 0.5;
+    };
+
+    // ========================================================================
+    // Lowercase aliases for CSS-equivalent camelCase easing functions
+    // ========================================================================
+    // Note: The old lowercase functions (easein, easeout, easeinout) are custom
+    // implementations, so CSS equivalents use 'css' suffix to avoid conflicts.
+
+    /**
+     * Lowercase alias for CSS ease timing function.
+     * @type {MinaEasing}
+     * @see {@link mina.ease}
+     */
+    mina.easecss = mina.ease;
+
+    /**
+     * Lowercase alias for CSS ease-in timing function.
+     * @type {MinaEasing}
+     * @see {@link mina.easeIn}
+     */
+    mina.easeincss = mina.easeIn;
+
+    /**
+     * Lowercase alias for CSS ease-out timing function.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOut}
+     */
+    mina.easeoutcss = mina.easeOut;
+
+    /**
+     * Lowercase alias for CSS ease-in-out timing function.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOut}
+     */
+    mina.easeinoutcss = mina.easeInOut;
+
+    /**
+     * Lowercase alias for easeInSine.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInSine}
+     */
+    mina.easeinsine = mina.easeInSine;
+
+    /**
+     * Lowercase alias for easeOutSine.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutSine}
+     */
+    mina.easeoutsine = mina.easeOutSine;
+
+    /**
+     * Lowercase alias for easeInOutSine.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutSine}
+     */
+    mina.easeinoutsine = mina.easeInOutSine;
+
+    /**
+     * Lowercase alias for easeInQuad.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInQuad}
+     */
+    mina.easeinquad = mina.easeInQuad;
+
+    /**
+     * Lowercase alias for easeOutQuad.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutQuad}
+     */
+    mina.easeoutquad = mina.easeOutQuad;
+
+    /**
+     * Lowercase alias for easeInOutQuad.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutQuad}
+     */
+    mina.easeinoutquad = mina.easeInOutQuad;
+
+    /**
+     * Lowercase alias for easeInCubic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInCubic}
+     */
+    mina.easeincubic = mina.easeInCubic;
+
+    /**
+     * Lowercase alias for easeOutCubic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutCubic}
+     */
+    mina.easeoutcubic = mina.easeOutCubic;
+
+    /**
+     * Lowercase alias for easeInOutCubic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutCubic}
+     */
+    mina.easeinoutcubic = mina.easeInOutCubic;
+
+    /**
+     * Lowercase alias for easeInQuart.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInQuart}
+     */
+    mina.easeinquart = mina.easeInQuart;
+
+    /**
+     * Lowercase alias for easeOutQuart.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutQuart}
+     */
+    mina.easeoutquart = mina.easeOutQuart;
+
+    /**
+     * Lowercase alias for easeInOutQuart.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutQuart}
+     */
+    mina.easeinoutquart = mina.easeInOutQuart;
+
+    /**
+     * Lowercase alias for easeInQuint.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInQuint}
+     */
+    mina.easeinquint = mina.easeInQuint;
+
+    /**
+     * Lowercase alias for easeOutQuint.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutQuint}
+     */
+    mina.easeoutquint = mina.easeOutQuint;
+
+    /**
+     * Lowercase alias for easeInOutQuint.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutQuint}
+     */
+    mina.easeinoutquint = mina.easeInOutQuint;
+
+    /**
+     * Lowercase alias for easeInExpo.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInExpo}
+     */
+    mina.easeinexpo = mina.easeInExpo;
+
+    /**
+     * Lowercase alias for easeOutExpo.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutExpo}
+     */
+    mina.easeoutexpo = mina.easeOutExpo;
+
+    /**
+     * Lowercase alias for easeInOutExpo.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutExpo}
+     */
+    mina.easeinoutexpo = mina.easeInOutExpo;
+
+    /**
+     * Lowercase alias for easeInCirc.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInCirc}
+     */
+    mina.easeincirc = mina.easeInCirc;
+
+    /**
+     * Lowercase alias for easeOutCirc.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutCirc}
+     */
+    mina.easeoutcirc = mina.easeOutCirc;
+
+    /**
+     * Lowercase alias for easeInOutCirc.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutCirc}
+     */
+    mina.easeinoutcirc = mina.easeInOutCirc;
+
+    /**
+     * Lowercase alias for easeInElastic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInElastic}
+     */
+    mina.easeinelastic = mina.easeInElastic;
+
+    /**
+     * Lowercase alias for easeOutElastic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutElastic}
+     */
+    mina.easeoutelastic = mina.easeOutElastic;
+
+    /**
+     * Lowercase alias for easeInOutElastic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutElastic}
+     */
+    mina.easeinoutelastic = mina.easeInOutElastic;
+
+    /**
+     * Lowercase alias for easeInBack.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInBack}
+     */
+    mina.easeinback = mina.easeInBack;
+
+    /**
+     * Lowercase alias for easeOutBack.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutBack}
+     */
+    mina.easeoutback = mina.easeOutBack;
+
+    /**
+     * Lowercase alias for easeInOutBack.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutBack}
+     */
+    mina.easeinoutback = mina.easeInOutBack;
+
+    /**
+     * Lowercase alias for easeInBounce.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInBounce}
+     */
+    mina.easeinbounce = mina.easeInBounce;
+
+    /**
+     * Lowercase alias for easeOutBounce.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutBounce}
+     */
+    mina.easeoutbounce = mina.easeOutBounce;
+
+    /**
+     * Lowercase alias for easeInOutBounce.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutBounce}
+     */
+    mina.easeinoutbounce = mina.easeInOutBounce;
 
     /**
      * Flags functions that are not easing helpers so they are excluded from {@link mina.isEasing} checks.
@@ -1585,6 +2360,7 @@
         setTimeoutNow: true,
         setInterval: true,
         trakSkippedFrames: true,
+        cubic_bezier: true,
     };
     /**
      * Determines whether the provided key refers to a registered easing function.
@@ -1689,7 +2465,7 @@
             last = [];
             return;
         }
-        if (Array.isArray(last)){
+        if (Array.isArray(last)) {
             let l = last;
             last = undefined;
             return l;
@@ -4844,7 +5620,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
             if (this._partner_childern) {
                 this._partner_childern.forEach((id) =>
-                    this._propagateTransToPartnersChild(Snap.elementFormId(id), Snap.Matrix()));
+                    this._propagateTransToPartnersChild(Snap.elementFormId(id), Snap.matrix()));
             }
 
             return this;
@@ -13671,35 +14447,68 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // limitations under the License.
 
 
+/**
+ * Snap.svg Equal Plugin
+ *
+ * Prepares SVG element attributes for animation by normalizing them into comparable from/to value pairs.
+ * Handles multiple attribute types: colors, viewBox, transforms, paths, points, and numeric values.
+ *
+ * Entry Points:
+ * 1. Element.prototype.equal(name, b) - Direct method on SVG elements
+ * 2. eve(["snap","util","equal"], element, name, b) - Event-based access via eve event system
+ */
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     var names = {},
         reUnit = /[%a-z]+$/i,
         Str = String;
     names.stroke = names.fill = "colour";
+
+    /**
+     * Returns default/empty transform values based on transform type
+     * Used to pad missing transforms when comparing two transform arrays
+     *
+     * @param {Array} item - Transform array where item[0] is the transform type
+     * @returns {Array} Default transform array with identity values:
+     *   - "t" (translate): [t, 0, 0]
+     *   - "m" (matrix): [m, 1, 0, 0, 1, 0, 0]
+     *   - "r" (rotate): [r, 0, cx, cy] or [r, 0]
+     *   - "s" (scale): [s, 1, 1, cx, cy] or [s, 1, 1] or [s, 1]
+     */
     function getEmpty(item) {
         var l = item[0];
         switch (l.toLowerCase()) {
             case "t": return [l, 0, 0];
             case "m": return [l, 1, 0, 0, 1, 0, 0];
-            case "r": if (item.length == 4) {
+            case "r": if (item.length === 4) {
                 return [l, 0, item[2], item[3]];
             } else {
                 return [l, 0];
             }
-            case "s": if (item.length == 5) {
+            case "s": if (item.length === 5) {
                 return [l, 1, 1, item[3], item[4]];
-            } else if (item.length == 3) {
+            } else if (item.length === 3) {
                 return [l, 1, 1];
             } else {
                 return [l, 1];
             }
         }
     }
-    function equaliseTransform(t1, t2, getBBox) {
-        t1 = t1 || new Snap.Matrix;
-        t2 = t2 || new Snap.Matrix;
-        t1 = Snap.parseTransformString(t1.toTransformString()) || [];
-        t2 = Snap.parseTransformString(t2.toTransformString()) || [];
+
+    /**
+     * Normalizes two transform strings into comparable from/to arrays
+     * Converts incompatible transform types to matrix form for smooth animation
+     *
+     * @param {string|Array} t1 - First transform (string or parsed array)
+     * @param {string|Array} t2 - Second transform (string or parsed array)
+     * @param {Function} getBBox - Function to get element bounding box for transform context
+     * @returns {Object} {from: Array, to: Array, f: Function}
+     *   - from: Flattened numeric array of starting transform values
+     *   - to: Flattened numeric array of ending transform values
+     *   - f: Function to reconstruct transform string from animated values
+     */
+    function equaliseTransformString(t1, t2, getBBox) {
+        t1 = typeof t1 == "string" && Snap.parseTransformString(t1) || [];
+        t2 = typeof t2 == "string" && Snap.parseTransformString(t2) || [];
         var maxlength = Math.max(t1.length, t2.length),
             from = [],
             to = [],
@@ -13708,9 +14517,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         for (; i < maxlength; ++i) {
             tt1 = t1[i] || getEmpty(t2[i]);
             tt2 = t2[i] || getEmpty(tt1);
-            if (tt1[0] != tt2[0] ||
-                tt1[0].toLowerCase() == "r" && (tt1[2] != tt2[2] || tt1[3] != tt2[3]) ||
-                tt1[0].toLowerCase() == "s" && (tt1[3] != tt2[3] || tt1[4] != tt2[4])
+            if (tt1[0] !== tt2[0] ||
+                tt1[0].toLowerCase() === "r" && (tt1[2] !== tt2[2] || tt1[3] !== tt2[3]) ||
+                tt1[0].toLowerCase() === "s" && (tt1[3] !== tt2[3] || tt1[4] !== tt2[4])
                 ) {
                     t1 = Snap._.transform2matrix(t1, getBBox());
                     t2 = Snap._.transform2matrix(t2, getBBox());
@@ -13731,20 +14540,77 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             f: getPath(from)
         };
     }
+
+    /**
+     * Equalizes two transform matrices, falling back to string-based equalization if needed
+     *
+     * @param {Snap.Matrix} t1 - First transform matrix
+     * @param {Snap.Matrix} t2 - Second transform matrix
+     * @param {Snap.Matrix} t1Matrix - First matrix representation
+     * @param {Snap.Matrix} t2Matrix - Second matrix representation
+     * @param {Function} getBBox - Function to get element bounding box
+     * @returns {Object} {from: Array, to: Array, f: Function} Normalized transforms and reconstruction function
+     */
+    function equaliseTransform(t1, t2, t1Matrix, t2Matrix, getBBox) {
+        t1 = t1 || new Snap.Matrix;
+        t2 = t2 || new Snap.Matrix;
+        var stringRes = equaliseTransformString(t1, t2, getBBox),
+            matrixRes;
+        if (stringRes.f([]).charAt() === "m") {
+            matrixRes = equaliseTransformString(t1Matrix.toTransformString(), t2Matrix.toTransformString(), getBBox);
+        }
+        return matrixRes || stringRes;
+    }
+
+    /**
+     * Returns numeric value as-is (identity formatter)
+     * @param {number} val - Numeric value
+     * @returns {number} The same value
+     */
     function getNumber(val) {
         return val;
     }
+
+    /**
+     * Creates a formatter function for values with units
+     * Formats numeric values with a unit suffix and fixed decimal places
+     *
+     * @param {string} unit - Unit suffix (e.g., "px", "%", "em")
+     * @returns {Function} Function that formats numeric value with unit suffix to 3 decimal places
+     */
     function getUnit(unit) {
         return function (val) {
             return +val.toFixed(3) + unit;
         };
     }
+
+    /**
+     * Formats viewBox array as space-separated string
+     *
+     * @param {Array} val - ViewBox array [x, y, width, height]
+     * @returns {string} Space-separated viewBox string
+     */
     function getViewBox(val) {
         return val.join(" ");
     }
+
+    /**
+     * Converts RGB/RGBA array to Snap color string
+     *
+     * @param {Array} clr - Color array [r, g, b, opacity]
+     * @returns {string} Snap color string representation
+     */
     function getColour(clr) {
         return Snap.rgb(clr[0], clr[1], clr[2], clr[3]);
     }
+
+    /**
+     * Generates a function that reconstructs transform/path strings from animated values
+     * Creates a dynamic function that rebuilds the original structure from flattened value arrays
+     *
+     * @param {Array} path - Transform or path array structure
+     * @returns {Function} Function that takes value array and returns reconstructed string
+     */
     function getPath(path) {
         var k = 0, i, ii, j, jj, out, a, b = [];
         for (i = 0, ii = path.length; i < ii; ++i) {
@@ -13756,8 +14622,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             out += a + "]";
             b[i] = out;
         }
-        return Function("val", "return IA_Designer.Snap.path.toString.call([" + b + "])");
+        return Function("val", "return Snap.path.toString.call([" + b + "])");
     }
+
+    /**
+     * Flattens nested transform/path arrays into single value array
+     * Extracts all numeric values from nested command arrays, skipping command letters
+     *
+     * @param {Array} path - Nested transform or path array
+     * @returns {Array} Flattened array of all numeric values (skips command letters at index 0)
+     */
     function path2array(path) {
         var out = [];
         for (var i = 0, ii = path.length; i < ii; ++i) {
@@ -13767,22 +14641,70 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         return out;
     }
+
+    /**
+     * Checks if value is a finite number
+     *
+     * @param {*} obj - Value to check
+     * @returns {boolean} True if value is a finite number
+     */
     function isNumeric(obj) {
         return isFinite(obj);
     }
+
+    /**
+     * Compares two arrays for equality
+     *
+     * @param {Array} arr1 - First array
+     * @param {Array} arr2 - Second array
+     * @returns {boolean} True if both are arrays and have identical string representations
+     */
     function arrayEqual(arr1, arr2) {
         if (!Snap.is(arr1, "array") || !Snap.is(arr2, "array")) {
             return false;
         }
-        return arr1.toString() == arr2.toString();
+        return arr1.toString() === arr2.toString();
     }
+
+    /**
+     * Element.prototype.equal - Direct method entry point
+     * Prepares an SVG element attribute for animation by delegating to the eve event system
+     *
+     * @param {string} name - Attribute name (e.g., "fill", "transform", "d")
+     * @param {*} b - Target value for animation
+     * @returns {Object} Animation data {from: Array, to: Array, f: Function}
+     */
     Element.prototype.equal = function (name, b) {
         return eve(["snap","util","equal"], this, name, b).firstDefined();
     };
+
+    /**
+     * Event handler: snap.util.equal
+     *
+     * Main entry point via eve event system. Normalizes various SVG attribute types for animation.
+     * Analyzes the attribute type and returns appropriate from/to values and formatter function.
+     *
+     * Supported attribute types:
+     * - "fill", "stroke": Color values (RGB/RGBA)
+     * - "viewBox": ViewBox coordinates
+     * - "transform", "gradientTransform", "patternTransform": Transform matrices/strings
+     * - "d", "path": SVG path data
+     * - "points": Polygon/polyline points
+     * - Numeric values: Direct numeric attributes
+     * - Unit values: Values with units (px, %, em, etc.)
+     *
+     * @event snap.util.equal
+     * @param {string} name - Attribute name to animate
+     * @param {*} b - Target value
+     * @returns {Object} {from: Array, to: Array, f: Function}
+     *   - from: Starting values as array
+     *   - to: Ending values as array
+     *   - f: Formatter function to reconstruct attribute string from animated values
+     */
     eve.on("snap.util.equal", function (name, b) {
         var A, B, a = Str(this.attr(name) || ""),
             el = this;
-        if (names[name] == "colour") {
+        if (names[name] === "colour") {
             A = Snap.color(a);
             B = Snap.color(b);
             return {
@@ -13791,7 +14713,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 f: getColour
             };
         }
-        if (name == "viewBox") {
+        if (name === "viewBox") {
             A = this.attr(name).vb().split(" ").map(Number);
             B = b.split(" ").map(Number);
             return {
@@ -13800,21 +14722,21 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 f: getViewBox
             };
         }
-        if (name == "transform" || name == "gradientTransform" || name == "patternTransform") {
+        if (name === "transform" || name === "gradientTransform" || name === "patternTransform") {
             if (typeof b == "string") {
                 b = Str(b).replace(/\.{3}|\u2026/g, a);
             }
-            a = this.matrix;
+            let bMatrix;
             if (!Snap._.rgTransform.test(b)) {
-                b = Snap._.transform2matrix(Snap._.svgTransform2string(b), this);
+                bMatrix = Snap._.transform2matrix(Snap._.svgTransform2string(b), this.getBBox());
             } else {
-                b = Snap._.transform2matrix(b, this);
+                bMatrix = Snap._.transform2matrix(b, this.getBBox());
             }
-            return equaliseTransform(a, b, function () {
+            return equaliseTransform(a, b, this.matrix || Snap.matrix(), bMatrix, function () {
                 return el.getBBox(true);
             });
         }
-        if (name == "d" || name == "path") {
+        if (name === "d" || name === "path") {
             A = Snap.path.toCubic(a, b);
             return {
                 from: path2array(A[0]),
@@ -13822,7 +14744,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 f: getPath(A[0])
             };
         }
-        if (name == "points") {
+        if (name === "points") {
             A = Str(a).split(Snap._.separator);
             B = Str(b).split(Snap._.separator);
             return {

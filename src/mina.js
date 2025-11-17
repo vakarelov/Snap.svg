@@ -147,7 +147,7 @@
      * @param {number} b Start timestamp.
      * @param {AnimationValue} A End value(s).
      * @param {number} B End timestamp.
-    * @returns {function(number): AnimationValue}
+     * @returns {function(number): AnimationValue}
      */
     function diff(a, b, A, B) {
         if (isArray(a)) {
@@ -164,6 +164,7 @@
             return a + dif * (bb - b);
         };
     }
+
 
     const timer = Date.now || function () {
         return +new Date;
@@ -341,7 +342,7 @@
      * Registers a callback that resolves once the animation reaches completion.
      *
      * @this {Animation}
-    * @param {function(Animation): void} [callback] Invoked with the animation when it finishes.
+     * @param {function(Animation): void} [callback] Invoked with the animation when it finishes.
      * @returns {Promise<void>} Promise that resolves when the animation finishes.
      */
     function then(callback) {
@@ -437,7 +438,7 @@
 
     /**
      * Exposes the `Animation` constructor for advanced use cases.
-    * @type {Function}
+     * @type {Function}
      */
     mina.Animation = Animation;
 
@@ -575,6 +576,9 @@
         return mina.elastic.bind(undefined, amp, per);
     };
 
+    const defaultElastic = mina.elastic.withParams(1, 0.3);
+    const HALF_PI = Math.PI / 2;
+
     /**
      * Bounce easing that simulates a ball dropping and settling.
      *
@@ -583,34 +587,805 @@
      */
     mina.bounce = function (n) {
         const s = 7.5625, p = 2.75;
-        let l;
-        const or = n;
+
         if (n < 1 / p) {
-            l = s * n * n;
-            // console.log(1, n, l, or)
-        } else {
-            if (n < 2 / p) {
-                n -= 1.5 / p;
-                l = s * n * n + .75;
-                // console.log(2, n, l, or)
-            } else {
-                if (n < 2.5 / p) {
-                    n -= 2.25 / p;
-                    l = s * n * n + .9375;
-                    // console.log(3, n, l, or)
-                } else {
-                    n -= 2.625 / p;
-                    l = s * n * n + .984375;
-                    // console.log(4, n, l, or)
-                }
-            }
+            return s * n * n;
+        } else if (n < 2 / p) {
+            n -= 1.5 / p;
+            return s * n * n + .75;
+        } else if (n < 2.5 / p) {
+            n -= 2.25 / p;
+            return s * n * n + .9375;
         }
-        return l;
+        n -= 2.625 / p;
+        return s * n * n + .984375;
     };
 
-    // mina.bounce2 = function(b, h, t){
-    //
-    // }
+    /**
+     * Bounce easing with configurable rebound count and first rebound height.
+     *
+     * @param {number} b Number of bounces after the initial impact.
+     * @param {number} h Height of the first bounce expressed as fraction `[0, 1]`. Default is b/(b+1)
+     * @param {number} n Normalized progress in the `[0, 1]` range.
+     * @returns {number}
+     */
+    mina.bounceGen = function (b, h, n) {
+
+        if (h === undefined && n === undefined) return mina.bounce(b);
+
+        b = Math.max(1, Math.floor(+b || 0));
+        h = Math.max(0, Math.min(1, +h || b / (b + 1)));
+        n = Math.max(0, Math.min(1, +n || 0));
+
+        if (n === 0) {
+            return 0;
+        }
+        if (n === 1) {
+            return 1;
+        }
+
+        const amplitudeBase = 1 - h;
+        const timeDecay = amplitudeBase > 0 ? Math.sqrt(amplitudeBase) : 0;
+
+        const weights = [1];
+        let weight = 1;
+        for (let i = 0; i < b; i++) {
+            if (i > 0) {
+                weight *= timeDecay;
+            }
+            weights.push(weight);
+        }
+
+        const weightSum = weights.reduce((sum, w) => sum + w, 0);
+        const baseDuration = 1 / weightSum;
+        const freeDuration = baseDuration * weights[0];
+
+        if (n <= freeDuration) {
+            const local = n / freeDuration;
+            const result = local * local;
+            return Math.max(0, Math.min(1, result));
+        }
+
+        let cursor = freeDuration;
+        let drop = amplitudeBase;
+
+        for (let i = 0; i < b && cursor < 1; i++) {
+            const segmentWeight = weights[i + 1];
+            if (!segmentWeight) {
+                drop *= amplitudeBase;
+                continue;
+            }
+            const duration = baseDuration * segmentWeight;
+            if (n <= cursor + duration) {
+                const local = (n - cursor) / duration;
+                const value = 1 - drop * 4 * local * (1 - local);
+                return Math.max(0, Math.min(1, value));
+            }
+            cursor += duration;
+            drop *= amplitudeBase;
+        }
+
+        return 1;
+    };
+
+    mina.bounceGen.withParams = function (b, h) {
+        return mina.bounceGen.bind(undefined, b, h);
+    }
+
+    /**
+     * Creates a timing function equivalent to CSS `cubic-bezier(p1x, p1y, p2x, p2y)`.
+     * Start and end points are fixed at `(0, 0)` and `(1, 1)`; `p1`/`p2` describe the tangent handles.
+     *
+     * @param {number} p1x X coordinate of the first control point.
+     * @param {number} p1y Y coordinate of the first control point.
+     * @param {number} p2x X coordinate of the second control point.
+     * @param {number} p2y Y coordinate of the second control point.
+     * @returns {MinaEasing} Callable easing function that maps `[0, 1]` → `[0, 1]`.
+     */
+    function cubic_bezier(p1x, p1y, p2x, p2y) {
+        if (p1x === p1y && p2x === p2y) {
+            return function (n) {
+                return n;
+            };
+        }
+
+        const sampleCount = 11;
+        const sampleStep = 1 / (sampleCount - 1);
+        const samples = new Array(sampleCount);
+
+        function calcBezier(t, a1, a2) {
+            return ((1 - 3 * a2 + 3 * a1) * t + (3 * a2 - 6 * a1)) * t * t + 3 * a1 * t;
+        }
+
+        function slope(t, a1, a2) {
+            return 3 * ((1 - 3 * a2 + 3 * a1) * t * t + 2 * (3 * a2 - 6 * a1) * t + (3 * a1));
+        }
+
+        for (let i = 0; i < sampleCount; i++) {
+            samples[i] = calcBezier(i * sampleStep, p1x, p2x);
+        }
+
+        function getTForX(x) {
+            let intervalStart = 0;
+            let currentSample = 1;
+            const lastSample = sampleCount - 1;
+
+            for (; currentSample !== lastSample && samples[currentSample] <= x; currentSample++) {
+                intervalStart += sampleStep;
+            }
+            currentSample -= 1;
+
+            const segment = samples[currentSample + 1] - samples[currentSample];
+            let guess = intervalStart;
+            if (segment) {
+                guess += ((x - samples[currentSample]) / segment) * sampleStep;
+            }
+
+            for (let i = 0; i < 4; i++) {
+                const currentSlope = slope(guess, p1x, p2x);
+                if (currentSlope === 0) {
+                    return guess;
+                }
+                const currentX = calcBezier(guess, p1x, p2x) - x;
+                guess -= currentX / currentSlope;
+            }
+            return guess;
+        }
+
+        return function (n) {
+            if (n <= 0) {
+                return 0;
+            }
+            if (n >= 1) {
+                return 1;
+            }
+            const t = getTForX(n);
+            return calcBezier(t, p1y, p2y);
+        };
+    }
+
+
+    /**
+     * Creates a cubic bezier easing function or applies it directly to a value.
+     * If no parameters are provided, defaults to the ease timing function.
+     *
+     * @function
+     * @param {number} [p1x] - The x-coordinate of the first control point (0-1)
+     * @param {number} [p1y] - The y-coordinate of the first control point
+     * @param {number} [p2x] - The x-coordinate of the second control point (0-1)
+     * @param {number} [p2y] - The y-coordinate of the second control point
+     * @param {number} n - The progress value (0-1) to evaluate the easing function at
+     * @returns {number} The eased value
+     * @example
+     * // Using default ease timing
+     * mina.cubicBezier(undefined, undefined, undefined, undefined, 0.5);
+     *
+     * @example
+     * // Custom cubic bezier
+     * mina.cubicBezier(0.42, 0, 0.58, 1, 0.5);
+     */
+    mina.cubicBezier = function (p1x, p1y, p2x, p2y, n) {
+        if (p1x === undefined && p1y === undefined && p2x === undefined && p2y === undefined) {
+            return mina.ease(n);
+        }
+
+        return cubic_bezier(p1x, p1y, p2x, p2y)(n);
+    };
+
+    /**
+     * Creates and returns a reusable cubic bezier easing function with the specified control points.
+     * This is useful when you need to apply the same easing function multiple times, for example whey passing to an
+     * animation function.
+     *
+     * @function
+     * @param {number} p1x - The x-coordinate of the first control point (0-1)
+     * @param {number} p1y - The y-coordinate of the first control point
+     * @param {number} p2x - The x-coordinate of the second control point (0-1)
+     * @param {number} p2y - The y-coordinate of the second control point
+     * @returns {function(number): number} A function that takes a progress value (0-1) and returns the eased value
+     * @example
+     * // Create a custom easing function
+     * const myEasing = mina.cubicBezier.withParams(0.42, 0, 0.58, 1);
+     * const easedValue = myEasing(0.5);
+     */
+    mina.cubicBezier.withParams = function (p1x, p1y, p2x, p2y) {
+        return cubic_bezier(p1x, p1y, p2x, p2y)
+    };
+
+    /**
+     * Equivalent to CSS `ease` timing function (cubic-bezier(0.25, 0.1, 0.25, 1)).
+     * @type {MinaEasing}
+     */
+    mina.ease = cubic_bezier(0.25, 0.1, 0.25, 1);
+    /**
+     * Equivalent to CSS `ease-in` timing function (cubic-bezier(0.42, 0, 1, 1)).
+     * @type {MinaEasing}
+     */
+    mina.easeIn = cubic_bezier(0.42, 0, 1, 1);
+    /**
+     * Equivalent to CSS `ease-out` timing function (cubic-bezier(0, 0, 0.58, 1)).
+     * @type {MinaEasing}
+     */
+    mina.easeOut = cubic_bezier(0, 0, 0.58, 1);
+    /**
+     * Equivalent to CSS `ease-in-out` timing function (cubic-bezier(0.42, 0, 0.58, 1)).
+     * @type {MinaEasing}
+     */
+    mina.easeInOut = cubic_bezier(0.42, 0, 0.58, 1);
+
+    /**
+     * CSS `ease-in-sine` implementation.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInSine = function (n) {
+        return 1 - Math.cos(n * HALF_PI);
+    };
+    /**
+     * CSS `ease-out-sine` implementation.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutSine = function (n) {
+        return Math.sin(n * HALF_PI);
+    };
+    /**
+     * CSS `ease-in-out-sine` implementation.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutSine = function (n) {
+        return -(Math.cos(Math.PI * n) - 1) / 2;
+    };
+
+    /**
+     * Quadratic ease-in curve (`t^2`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInQuad = function (n) {
+        return n * n;
+    };
+    /**
+     * Quadratic ease-out curve (`1 - (1 - t)^2`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutQuad = function (n) {
+        return n * (2 - n);
+    };
+    /**
+     * Quadratic ease-in-out curve composed of two mirrored `t^2` segments.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutQuad = function (n) {
+        return n < 0.5 ? 2 * n * n : 1 - Math.pow(-2 * n + 2, 2) / 2;
+    };
+
+    /**
+     * Cubic ease-in curve (`t^3`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInCubic = function (n) {
+        return n * n * n;
+    };
+    /**
+     * Cubic ease-out curve (`(t-1)^3 + 1`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutCubic = function (n) {
+        const t = n - 1;
+        return t * t * t + 1;
+    };
+    /**
+     * Cubic ease-in-out curve (`t^3` for first half, mirrored second half).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutCubic = function (n) {
+        return n < 0.5 ? 4 * Math.pow(n, 3) : 1 - Math.pow(-2 * n + 2, 3) / 2;
+    };
+
+    /**
+     * Quartic ease-in curve (`t^4`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInQuart = function (n) {
+        return n * n * n * n;
+    };
+    /**
+     * Quartic ease-out curve (`1 - (1 - t)^4`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutQuart = function (n) {
+        const t = n - 1;
+        return 1 - t * t * t * t;
+    };
+    /**
+     * Quartic ease-in-out curve.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutQuart = function (n) {
+        return n < 0.5 ? 8 * Math.pow(n, 4) : 1 - Math.pow(-2 * n + 2, 4) / 2;
+    };
+
+    /**
+     * Quintic ease-in curve (`t^5`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInQuint = function (n) {
+        return Math.pow(n, 5);
+    };
+    /**
+     * Quintic ease-out curve (`1 - (1 - t)^5`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutQuint = function (n) {
+        return 1 - Math.pow(1 - n, 5);
+    };
+    /**
+     * Quintic ease-in-out curve.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutQuint = function (n) {
+        return n < 0.5 ? 16 * Math.pow(n, 5) : 1 - Math.pow(-2 * n + 2, 5) / 2;
+    };
+
+    /**
+     * Exponential ease-in that ramps quickly after a slow start.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInExpo = function (n) {
+        return n === 0 ? 0 : Math.pow(2, 10 * (n - 1));
+    };
+    /**
+     * Exponential ease-out that decelerates rapidly toward the end.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutExpo = function (n) {
+        return n === 1 ? 1 : 1 - Math.pow(2, -10 * n);
+    };
+    /**
+     * Exponential ease-in-out: steep acceleration and deceleration.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutExpo = function (n) {
+        if (n === 0 || n === 1) {
+            return n;
+        }
+        return n < 0.5 ? Math.pow(2, 20 * n - 10) / 2 : (2 - Math.pow(2, -20 * n + 10)) / 2;
+    };
+
+    /**
+     * Circular ease-in curve that emulates the start of a circle arc.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInCirc = function (n) {
+        return 1 - Math.sqrt(1 - n * n);
+    };
+    /**
+     * Circular ease-out curve that mirrors the end of a circle arc.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeOutCirc = function (n) {
+        return Math.sqrt(1 - Math.pow(n - 1, 2));
+    };
+    /**
+     * Circular ease-in-out curve combining the two halves of an arc.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.easeInOutCirc = function (n) {
+        return n < 0.5
+            ? (1 - Math.sqrt(1 - 4 * n * n)) / 2
+            : (Math.sqrt(1 - Math.pow(-2 * n + 2, 2)) + 1) / 2;
+    };
+
+    /**
+     * Elastic ease-out wrapper using the default amplitude/period.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.elasticOut = function (n) {
+        return defaultElastic(n);
+    };
+    /**
+     * Elastic ease-in wrapper using the default amplitude/period.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.elasticIn = function (n) {
+        return 1 - defaultElastic(1 - n);
+    };
+    /**
+     * Elastic ease-in-out wrapper using the default amplitude/period.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.elasticInOut = function (n) {
+        if (n < 0.5) {
+            return (1 - defaultElastic(1 - 2 * n)) * 0.5;
+        }
+        return 0.5 + defaultElastic(2 * n - 1) * 0.5;
+    };
+    /**
+     * Alias for {@link mina.elasticIn}.
+     * @type {MinaEasing}
+     */
+    mina.easeInElastic = mina.elasticIn;
+    /**
+     * Alias for {@link mina.elasticOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeOutElastic = mina.elasticOut;
+    /**
+     * Alias for {@link mina.elasticInOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeInOutElastic = mina.elasticInOut;
+
+    /**
+     * Back ease-in-out with overshoot on both ends.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.backInOut = function (n) {
+        const s = 1.70158 * 1.525;
+        n *= 2;
+        if (n < 1) {
+            return 0.5 * (n * n * ((s + 1) * n - s));
+        }
+        n -= 2;
+        return 0.5 * (n * n * ((s + 1) * n + s) + 2);
+    };
+    /**
+     * Alias for {@link mina.backin}.
+     * @type {MinaEasing}
+     */
+    mina.easeInBack = mina.backin;
+    /**
+     * Alias for {@link mina.backout}.
+     * @type {MinaEasing}
+     */
+    mina.easeOutBack = mina.backout;
+    /**
+     * Alias for {@link mina.backInOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeInOutBack = mina.backInOut;
+
+    /**
+     * Bounce ease-in derived from {@link mina.bounce}.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.bounceIn = function (n) {
+        return 1 - mina.bounce(1 - n);
+    };
+    /**
+     * Bounce ease-out (alias of {@link mina.bounce}).
+     * @type {MinaEasing}
+     */
+    mina.bounceOut = mina.bounce;
+    /**
+     * Bounce ease-in-out composed from `bounceIn` and `bounceOut`.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.bounceInOut = function (n) {
+        if (n < 0.5) {
+            return (1 - mina.bounce(1 - 2 * n)) * 0.5;
+        }
+        return mina.bounce(2 * n - 1) * 0.5 + 0.5;
+    };
+    /**
+     * Alias for {@link mina.bounceIn}.
+     * @type {MinaEasing}
+     */
+    mina.easeInBounce = mina.bounceIn;
+    /**
+     * Alias for {@link mina.bounceOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeOutBounce = mina.bounceOut;
+    /**
+     * Alias for {@link mina.bounceInOut}.
+     * @type {MinaEasing}
+     */
+    mina.easeInOutBounce = mina.bounceInOut;
+
+    /**
+     * Critically damped spring ease-out that clamps overshoot into `[0, 1]`.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.spring = function (n) {
+        const damping = Math.exp(-6 * n);
+        const value = 1 - damping * Math.cos((6 - 1.5) * n);
+        return Math.max(0, Math.min(1, value));
+    };
+    /**
+     * Spring ease-in derived from {@link mina.spring}.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.springIn = function (n) {
+        return 1 - mina.spring(1 - n);
+    };
+    /**
+     * Spring ease-out alias.
+     * @type {MinaEasing}
+     */
+    mina.springOut = mina.spring;
+    /**
+     * Spring ease-in-out composed from `springIn`/`springOut`.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.springInOut = function (n) {
+        if (n < 0.5) {
+            return (1 - mina.spring(1 - 2 * n)) * 0.5;
+        }
+        return mina.spring(2 * n - 1) * 0.5 + 0.5;
+    };
+
+    // ========================================================================
+    // Lowercase aliases for CSS-equivalent camelCase easing functions
+    // ========================================================================
+    // Note: The old lowercase functions (easein, easeout, easeinout) are custom
+    // implementations, so CSS equivalents use 'css' suffix to avoid conflicts.
+
+    /**
+     * Lowercase alias for CSS ease timing function.
+     * @type {MinaEasing}
+     * @see {@link mina.ease}
+     */
+    mina.easecss = mina.ease;
+
+    /**
+     * Lowercase alias for CSS ease-in timing function.
+     * @type {MinaEasing}
+     * @see {@link mina.easeIn}
+     */
+    mina.easeincss = mina.easeIn;
+
+    /**
+     * Lowercase alias for CSS ease-out timing function.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOut}
+     */
+    mina.easeoutcss = mina.easeOut;
+
+    /**
+     * Lowercase alias for CSS ease-in-out timing function.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOut}
+     */
+    mina.easeinoutcss = mina.easeInOut;
+
+    /**
+     * Lowercase alias for easeInSine.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInSine}
+     */
+    mina.easeinsine = mina.easeInSine;
+
+    /**
+     * Lowercase alias for easeOutSine.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutSine}
+     */
+    mina.easeoutsine = mina.easeOutSine;
+
+    /**
+     * Lowercase alias for easeInOutSine.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutSine}
+     */
+    mina.easeinoutsine = mina.easeInOutSine;
+
+    /**
+     * Lowercase alias for easeInQuad.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInQuad}
+     */
+    mina.easeinquad = mina.easeInQuad;
+
+    /**
+     * Lowercase alias for easeOutQuad.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutQuad}
+     */
+    mina.easeoutquad = mina.easeOutQuad;
+
+    /**
+     * Lowercase alias for easeInOutQuad.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutQuad}
+     */
+    mina.easeinoutquad = mina.easeInOutQuad;
+
+    /**
+     * Lowercase alias for easeInCubic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInCubic}
+     */
+    mina.easeincubic = mina.easeInCubic;
+
+    /**
+     * Lowercase alias for easeOutCubic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutCubic}
+     */
+    mina.easeoutcubic = mina.easeOutCubic;
+
+    /**
+     * Lowercase alias for easeInOutCubic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutCubic}
+     */
+    mina.easeinoutcubic = mina.easeInOutCubic;
+
+    /**
+     * Lowercase alias for easeInQuart.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInQuart}
+     */
+    mina.easeinquart = mina.easeInQuart;
+
+    /**
+     * Lowercase alias for easeOutQuart.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutQuart}
+     */
+    mina.easeoutquart = mina.easeOutQuart;
+
+    /**
+     * Lowercase alias for easeInOutQuart.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutQuart}
+     */
+    mina.easeinoutquart = mina.easeInOutQuart;
+
+    /**
+     * Lowercase alias for easeInQuint.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInQuint}
+     */
+    mina.easeinquint = mina.easeInQuint;
+
+    /**
+     * Lowercase alias for easeOutQuint.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutQuint}
+     */
+    mina.easeoutquint = mina.easeOutQuint;
+
+    /**
+     * Lowercase alias for easeInOutQuint.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutQuint}
+     */
+    mina.easeinoutquint = mina.easeInOutQuint;
+
+    /**
+     * Lowercase alias for easeInExpo.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInExpo}
+     */
+    mina.easeinexpo = mina.easeInExpo;
+
+    /**
+     * Lowercase alias for easeOutExpo.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutExpo}
+     */
+    mina.easeoutexpo = mina.easeOutExpo;
+
+    /**
+     * Lowercase alias for easeInOutExpo.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutExpo}
+     */
+    mina.easeinoutexpo = mina.easeInOutExpo;
+
+    /**
+     * Lowercase alias for easeInCirc.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInCirc}
+     */
+    mina.easeincirc = mina.easeInCirc;
+
+    /**
+     * Lowercase alias for easeOutCirc.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutCirc}
+     */
+    mina.easeoutcirc = mina.easeOutCirc;
+
+    /**
+     * Lowercase alias for easeInOutCirc.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutCirc}
+     */
+    mina.easeinoutcirc = mina.easeInOutCirc;
+
+    /**
+     * Lowercase alias for easeInElastic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInElastic}
+     */
+    mina.easeinelastic = mina.easeInElastic;
+
+    /**
+     * Lowercase alias for easeOutElastic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutElastic}
+     */
+    mina.easeoutelastic = mina.easeOutElastic;
+
+    /**
+     * Lowercase alias for easeInOutElastic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutElastic}
+     */
+    mina.easeinoutelastic = mina.easeInOutElastic;
+
+    /**
+     * Lowercase alias for easeInBack.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInBack}
+     */
+    mina.easeinback = mina.easeInBack;
+
+    /**
+     * Lowercase alias for easeOutBack.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutBack}
+     */
+    mina.easeoutback = mina.easeOutBack;
+
+    /**
+     * Lowercase alias for easeInOutBack.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutBack}
+     */
+    mina.easeinoutback = mina.easeInOutBack;
+
+    /**
+     * Lowercase alias for easeInBounce.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInBounce}
+     */
+    mina.easeinbounce = mina.easeInBounce;
+
+    /**
+     * Lowercase alias for easeOutBounce.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutBounce}
+     */
+    mina.easeoutbounce = mina.easeOutBounce;
+
+    /**
+     * Lowercase alias for easeInOutBounce.
+     * @type {MinaEasing}
+     * @see {@link mina.easeInOutBounce}
+     */
+    mina.easeinoutbounce = mina.easeInOutBounce;
 
     /**
      * Flags functions that are not easing helpers so they are excluded from {@link mina.isEasing} checks.
@@ -628,6 +1403,7 @@
         setTimeoutNow: true,
         setInterval: true,
         trakSkippedFrames: true,
+        cubic_bezier: true,
     };
     /**
      * Determines whether the provided key refers to a registered easing function.
@@ -732,7 +1508,7 @@
             last = [];
             return;
         }
-        if (Array.isArray(last)){
+        if (Array.isArray(last)) {
             let l = last;
             last = undefined;
             return l;
