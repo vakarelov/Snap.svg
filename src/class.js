@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-        var rgNotSpace = /\S+/g,
-            rgBadSpace = /[\t\r\n\f]/g,
-            rgTrim = /(^\s+|\s+$)/g,
-            Str = String,
-            elproto = Element.prototype;
-        /**
+    const rgNotSpace = /\S+/g,
+        rgBadSpace = /[\t\r\n\f]/g,
+        rgTrim = /(^\s+|\s+$)/g,
+        Str = String,
+        elproto = Element.prototype;
+    /**
          * Element.addClass @method
  *
          * Adds given class name or list of class names to the element.
@@ -26,12 +26,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
  * @returns {Element} original element.
         */
         elproto.addClass = function (value) {
-            var classes = (Array.isArray(value)) ? value : Str(value || "").match(rgNotSpace) || [],
+            const classes = (Array.isArray(value)) ? value : Str(value || "").match(rgNotSpace) || [],
                 elem = this.node,
                 isSvg = typeof elem.className === "object", //.hasOwnProperty("baseVal"),
                 className = isSvg ? elem.className.baseVal : elem.className,
-                curClasses = className.match(rgNotSpace) || [],
-                j,
+                curClasses = className.match(rgNotSpace) || [];
+            let j,
                 pos,
                 clazz,
                 finalValue;
@@ -46,7 +46,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
 
                 finalValue = curClasses.join(" ");
-                if (className != finalValue) {
+                if (className !== finalValue) {
                     if (isSvg) {
                         elem.className.baseVal = finalValue;
                     } else {
@@ -78,11 +78,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (Array.isArray(value)) {
                 value.forEach((v) => this.removeClass(v))
             }
-            var classes = Str(value || "").match(rgNotSpace) || [],
+            const classes = Str(value || "").match(rgNotSpace) || [],
                 elem = this.node,
                 isSVG = typeof elem.className === "object", // elem.className.hasOwnProperty("baseVal"),
-                className = isSVG ? elem.className.baseVal : elem.className,
-                curClasses = className.match(rgNotSpace) || [],
+                className = isSVG ? elem.className.baseVal : elem.className;
+            let curClasses = className.match(rgNotSpace) || [],
                 j,
                 pos,
                 clazz,
@@ -102,7 +102,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
 
                 finalValue = curClasses.join(" ");
-                if (className != finalValue) {
+                if (className !== finalValue) {
                     if (isSVG) {
                         elem.className.baseVal = finalValue;
                     } else {
@@ -122,7 +122,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {boolean} `true` if the element has given class
          */
         elproto.hasClass = function (value, conjunctive = false) {
-            var elem = this.node,
+            const elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
                 curClasses = className.match(rgNotSpace) || [];
             if (Array.isArray(value)) {
@@ -136,7 +136,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
 
         elproto.matchClass = function (regex) {
-            var elem = this.node,
+            const elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
                 curClasses = className.match(rgNotSpace) || [];
             //loop over all classes and check if any of them match the regex and get an array of all matching classes
@@ -163,11 +163,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     return this.removeClass(value);
                 }
             }
-            var classes = (value || "").match(rgNotSpace) || [],
+            const classes = (value || "").match(rgNotSpace) || [],
                 elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
-                curClasses = className.match(rgNotSpace) || [],
-                j,
+                curClasses = className.match(rgNotSpace) || [];
+            let j,
                 pos,
                 clazz,
                 finalValue;
@@ -182,7 +182,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             finalValue = curClasses.join(" ");
-            if (className != finalValue) {
+            if (className !== finalValue) {
                 if (typeof elem.className === "object") {
                     elem.className.baseVal = finalValue;
                 } else {

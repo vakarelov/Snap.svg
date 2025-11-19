@@ -364,7 +364,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return this.corner(3);
             case 't':
             case 'tc':
-                return {x: this.cx, y: this.y2};
+                return {x: this.cx, y: this.y};
             case 'l':
             case 'lc':
                 return {x: this.x, y: this.cy};

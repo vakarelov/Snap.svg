@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var has = "hasOwnProperty",
+    const has = "hasOwnProperty",
         make = Snap._.make,
         wrap = Snap._.wrap,
         is = Snap.is,
@@ -25,13 +25,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         E = "";
     /**
      * Snap.deurl @method
- *
+     *
      * Unwraps path from `"url(<path>)"`.
- * @param {string} value - url path
- * @returns {string} unwrapped path
-    */
+     * @param {string} value - url path
+     * @returns {string} unwrapped path
+     */
     Snap.deurl = function (value) {
-        var res = String(value).match(reURLValue);
+        const res = String(value).match(reURLValue);
         return res ? res[2] : value;
     }
     // Attributes event handlers
@@ -67,7 +67,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (value instanceof Element || value instanceof Fragment) {
             eve.stop();
             const ElementClass = Snap.getClass("Element");
-            var clip,
+            let clip,
                 node = value.node;
             while (node) {
                 if (node.nodeName === "clipPath") {
@@ -121,7 +121,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             } else {
                 fill = Snap.color(value);
                 if (fill.error) {
-                    var grad = Snap(getSomeDefs(this).ownerSVGElement).gradient(value);
+                    const grad = Snap(getSomeDefs(this).ownerSVGElement).gradient(value);
                     if (grad) {
                         if (!grad.node.id) {
                             $(grad.node, {
@@ -136,7 +136,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     fill = Str(fill);
                 }
             }
-            var attrs = {};
+            const attrs = {};
             attrs[name] = fill;
             $(this.node, attrs);
             this.node.style[name] = E;
@@ -146,15 +146,15 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     eve.on("snap.util.attr.fill", fillStroke("fill"));
     eve.on("snap.util.attr.stroke", fillStroke("stroke"));
-    var gradrg = /^([lr])(?:\(([^)]*)\))?(.*)$/i;
+    const gradrg = /^([lr])(?:\(([^)]*)\))?(.*)$/i;
     eve.on("snap.util.grad.parse", function parseGrad(string) {
         string = Str(string);
-        var tokens = string.match(gradrg);
+        const tokens = string.match(gradrg);
         if (!tokens) {
             return null;
         }
-        var type = tokens[1],
-            params = tokens[2],
+        const type = tokens[1];
+        let params = tokens[2],
             stops = tokens[3];
         params = params.split(/\s*,\s*/).map(function (el) {
             return +el == el ? +el : el;
@@ -165,7 +165,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         stops = stops.split("-");
         stops = stops.map(function (el) {
             el = el.split(":");
-            var out = {
+            const out = {
                 color: el[0]
             };
             if (el[1]) {
@@ -173,13 +173,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return out;
         });
-        var len = stops.length,
+        let len = stops.length,
             start = 0,
             j = 0;
 
         function seed(i, end) {
-            var step = (end - start) / (i - j);
-            for (var k = j; k < i; k++) {
+            const step = (end - start) / (i - j);
+            for (let k = j; k < i; k++) {
                 stops[k].offset = +(+start + step * (k - j)).toFixed(2);
             }
             j = i;
@@ -236,7 +236,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     eve.on("snap.util.attr.#text", function (value) {
         eve.stop();
         value = Str(value);
-        var txt = glob.doc.createTextNode(value);
+        const txt = glob.doc.createTextNode(value);
         while (this.node.firstChild) {
             this.node.removeChild(this.node.firstChild);
         }
@@ -258,7 +258,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     })(-1);
     eve.on("snap.util.attr.viewBox", function (value) {
-        var vb;
+        let vb;
         if (is(value, "object") && "x" in value) {
             vb = [value.x, value.y, value.width, value.height].join(" ");
         } else if (is(value, "array")) {
@@ -291,7 +291,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     eve.on("snap.util.attr.textpath", function (value) {
         eve.stop();
         if (this.type == "text") {
-            var id, tp, node;
+            let id, tp, node;
             if (!value && this.textPath) {
                 tp = this.textPath;
                 while (tp.node.firstChild) {
@@ -302,8 +302,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return;
             }
             if (is(value, "string")) {
-                var defs = getSomeDefs(this),
-                    path = wrap(defs.parentNode).path(value),
+                let defs = getSomeDefs(this);
+                const path = wrap(defs.parentNode).path(value),
                     textpath_group = defs.querySelector("#text-paths");
                 defs = textpath_group || defs;
                 defs.appendChild(path.node);
@@ -340,12 +340,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     })(-1);
     eve.on("snap.util.attr.text", function (value) {
         if (this.type == "text") {
-            var i = 0,
-                node = this.node,
+            let i = 0;
+            const node = this.node,
                 tuner = function (chunk) {
-                    var out = $("tspan");
+                    const out = $("tspan");
                     if (is(chunk, "array")) {
-                        for (var i = 0; i < chunk.length; ++i) {
+                        for (let i = 0; i < chunk.length; ++i) {
                             const newChild = tuner(chunk[i]);
                             out.appendChild(newChild);
                         }
@@ -358,10 +358,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             while (node.firstChild) {
                 node.removeChild(node.firstChild);
             }
-            var tuned = tuner(value);
+            const tuned = tuner(value);
             while (tuned.firstChild) {
                 node.appendChild(tuned.firstChild);
             }
+            this.clearCHull();
+        } else if (this.type === "tspan") {
+            this.node.textContent = value;
             this.clearCHull();
         }
         eve.stop();
@@ -405,6 +408,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function fontClearBox(value) {
         this.clearCHull();
     }
+
     //Attributs
     eve.on("snap.util.attr.fontFamily", fontClearBox)(-1);
     eve.on("snap.util.attr.font-family", fontClearBox)(-1);
@@ -432,7 +436,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         function getter(end) {
             return function () {
                 eve.stop();
-                var style = glob.doc.defaultView.getComputedStyle(this.node, null).getPropertyValue("marker-" + end);
+                const style = glob.doc.defaultView.getComputedStyle(this.node, null).getPropertyValue("marker-" + end);
                 if (style == "none") {
                     return style;
                 } else {
@@ -444,14 +448,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         function setter(end) {
             return function (value) {
                 eve.stop();
-                var name = "marker" + end.charAt(0).toUpperCase() + end.substring(1);
+                const name = "marker" + end.charAt(0).toUpperCase() + end.substring(1);
                 if (value == "" || !value) {
                     this.node.style[name] = "none";
                     this.attrMonitor(name);
                     return;
                 }
                 if (value.type == "marker") {
-                    var id = value.node.id;
+                    const id = value.node.id;
                     if (!id) {
                         $(value.node, {id: value.id});
                         value.attrMonitor("id");
@@ -484,10 +488,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     })(-1);
 
     function textExtract(node) {
-        var out = [];
-        var children = node.childNodes;
-        for (var i = 0, ii = children.length; i < ii; ++i) {
-            var chi = children[i];
+        const out = [];
+        const children = node.childNodes;
+        let i = 0;
+        const ii = children.length;
+        for (; i < ii; ++i) {
+            const chi = children[i];
             if (chi.nodeType == 3) {
                 out.push(chi.nodeValue);
             }
@@ -505,7 +511,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     eve.on("snap.util.getattr.text", function () {
         if (this.type == "text" || this.type == "tspan") {
             eve.stop();
-            var out = textExtract(this.node);
+            const out = textExtract(this.node);
             return out.length == 1 ? out[0] : out;
         }
     })(-1);
@@ -517,7 +523,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return;
         }
         eve.stop();
-        var value = eve(["snap", "util", "getattr", "fill"], this, true).firstDefined();
+        const value = eve(["snap", "util", "getattr", "fill"], this, true).firstDefined();
         return Snap(Snap.deurl(value)) || value;
     })(-1);
     eve.on("snap.util.getattr.stroke", function (internal) {
@@ -525,12 +531,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return;
         }
         eve.stop();
-        var value = eve(["snap", "util", "getattr", "stroke"], this, true).firstDefined();
+        const value = eve(["snap", "util", "getattr", "stroke"], this, true).firstDefined();
         return Snap(Snap.deurl(value)) || value;
     })(-1);
     eve.on("snap.util.getattr.viewBox", function () {
         eve.stop();
-        var vb = $(this.node, "viewBox").trim();
+        let vb = $(this.node, "viewBox").trim();
         if (vb) {
             vb = vb.split(separator);
             return Snap.box(+vb[0], +vb[1], +vb[2], +vb[3]);
@@ -539,7 +545,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     })(-1);
     eve.on("snap.util.getattr.points", function () {
-        var p = $(this.node, "points").trim();
+        const p = $(this.node, "points").trim();
         eve.stop();
         if (p) {
 
@@ -549,7 +555,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     })(-1);
     eve.on("snap.util.getattr.path", function () {
-        var p = $(this.node, "d").trim();
+        const p = $(this.node, "d").trim();
         eve.stop();
         return p;
     })(-1);

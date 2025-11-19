@@ -23,7 +23,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (res.length == 1) {
                 res = res[0];
             }
-            return f ? f(res) : res;
+            let out = f ? f(res) : res;
+            if (f && out == "r") {
+                out = f([res]);
+            }
+            return out;
         };
     }
 

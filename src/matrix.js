@@ -411,9 +411,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          *
          * @returns {boolean} `true` when all non-identity coefficients are zero.
          */
-        isIdentity() {
-            return this.a === 1 && !this.b && !this.c && this.d === 1 &&
+        isIdentity(error ) {
+            if (!error) return this.a === 1 && !this.b && !this.c && this.d === 1 &&
                 !this.e && !this.f;
+
+            return Math.abs(this.a - 1) <= error &&
+                Math.abs(this.b) <= error &&
+                Math.abs(this.c) <= error &&
+                Math.abs(this.d - 1) <= error &&
+                Math.abs(this.e) <= error &&
+                Math.abs(this.f) <= error;
         }
 
         /**

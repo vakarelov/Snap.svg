@@ -12,23 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var operators = {
+    const operators = {
             "+": function (x, y) {
-                    return x + y;
-                },
+                return x + y;
+            },
             "-": function (x, y) {
-                    return x - y;
-                },
+                return x - y;
+            },
             "/": function (x, y) {
-                    return x / y;
-                },
+                return x / y;
+            },
             "*": function (x, y) {
-                    return x * y;
-                }
+                return x * y;
+            }
         },
         Str = String,
         reUnit = /[a-z]+$/i,
         reAddon = /^\s*([+\-\/*])\s*=\s*([\d.eE+\-]+)\s*([^\d\s]+)?\s*$/;
+
     function getNumber(val) {
         return val;
     }
@@ -38,17 +39,17 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
     }
     eve.on("snap.util.attr", function (val) {
-        var plus = Str(val).match(reAddon);
+        const plus = Str(val).match(reAddon);
         if (plus) {
-            var evnt = eve.nt(),
-                name = evnt.substring(evnt.lastIndexOf(".") + 1),
-                a = this.attr(name),
-                atr = {};
+            const evnt = eve.nt(),
+                name = evnt.substring(evnt.lastIndexOf(".") + 1);
+            let a = this.attr(name);
+            const atr = {};
             eve.stop();
-            var unit = plus[3] || "",
+            const unit = plus[3] || "",
                 aUnit = a.match(reUnit),
                 op = operators[plus[1]];
-            if (aUnit && aUnit == unit) {
+            if (aUnit && aUnit === unit) {
                 val = op(parseFloat(a), +plus[2]);
             } else {
                 a = this.asPX(name);
@@ -62,15 +63,15 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     })(-10);
     eve.on("snap.util.equal", function (name, b) {
-        var A, B, a = Str(this.attr(name) || ""),
-            el = this,
+        let A, B, a = Str(this.attr(name) || "");
+        const el = this,
             bplus = Str(b).match(reAddon);
         if (bplus) {
             eve.stop();
-            var unit = bplus[3] || "",
+            const unit = bplus[3] || "",
                 aUnit = a.match(reUnit),
                 op = operators[bplus[1]];
-            if (aUnit && aUnit == unit) {
+            if (aUnit && aUnit === unit) {
                 return {
                     from: parseFloat(a),
                     to: op(parseFloat(a), +bplus[2]),
