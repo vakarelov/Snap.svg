@@ -749,7 +749,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // no shortcut: use "de Casteljau" iteration.
 
             // if we have no t2, we're done
-            if (!t2) {
+            if (typeof t2 === 'undefined') {
                 return result;
             }
 
@@ -879,61 +879,116 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Splits the curve into simple segments suitable for offsetting and intersections.
+     * @param {boolean} [useExtremaPass=true] When true, performs the extrema-based pre-pass used by
+     * other algorithms that rely on extrema boundaries. Set to false to run only the simplicity pass.
      * @returns {Array<Bezier>} Array of simple sub-curves covering the original curve.
      */
-    reduce: function () {
-            let i, t1 = 0, t2 = 0;
-            const step = 0.01;
+    reduce: function (useExtremaPass) {
+            useExtremaPass = (typeof useExtremaPass === 'undefined') ? true : !!useExtremaPass;
+            let i, t1 = 0;
+            const order = this.order || (this.points.length - 1);
+            const minStep = 1e-4;
+            const maxIterations = 50;
             let segment;
             const pass1 = [], pass2 = [];
-            // first pass: split on extrema
-            let extrema = this.extrema().values;
-            if (extrema.indexOf(0) === -1) {
-                extrema = [0].coancat(extrema);
-            }
-            if (extrema.indexOf(1) === -1) {
-                extrema.push(1);
-            }
 
-            for (t1 = extrema[0], i = 1; i < extrema.length; ++i) {
-                t2 = extrema[i];
-                segment = this.split(t1, t2);
-                segment._t1 = t1;
-                segment._t2 = t2;
-                pass1.push(segment);
-                t1 = t2;
+            if (useExtremaPass) {
+                // first pass: split on extrema
+                let extrema = this.extrema().values;
+                if (extrema.indexOf(0) === -1) {
+                    extrema = [0].concat(extrema);
+                }
+                if (extrema.indexOf(1) === -1) {
+                    extrema.push(1);
+                }
+
+                extrema = extrema.filter(function (value, idx, arr) {
+                    return idx === 0 || !utils.approximately(value, arr[idx - 1]);
+                });
+
+                for (t1 = extrema[0], i = 1; i < extrema.length; ++i) {
+                    const t2 = extrema[i];
+                    if (utils.approximately(t2, t1)) {
+                        t1 = t2;
+                        continue;
+                    }
+                    segment = this.split(t1, t2);
+                    segment._t1 = t1;
+                    segment._t2 = t2;
+                    pass1.push(segment);
+                    t1 = t2;
+                }
+            } else {
+                const base = this.clone();
+                base._t1 = this._t1;
+                base._t2 = this._t2;
+                pass1.push(base);
             }
 
             // second pass: further reduce these segments to simple segments
-            pass1.forEach(function (p1) {
-                t1 = 0;
-                t2 = 0;
-                while (t2 <= 1) {
-                    for (t2 = t1 + step; t2 <= 1 + step; t2 += step) {
-                        segment = p1.split(t1, t2);
-                        if (!segment.simple()) {
-                            t2 -= step;
-                            if (abs(t1 - t2) < step) {
-                                // we can never form a reduction
+            for (let idx = 0; idx < pass1.length; ++idx) {
+                const p1 = pass1[idx];
+                if (p1.simple()) {
+                    pass2.push(p1);
+                    continue;
+                }
+
+                let localStart = 0;
+                while (localStart < 1) {
+                    let currentSegment = p1.split(localStart, 1);
+                    let segmentEnd = 1;
+
+                    if (!currentSegment.simple()) {
+                        let low = localStart;
+                        let high = 1;
+                        let attempts = 0;
+                        let bestSegment = null;
+                        let bestEnd = localStart;
+
+                        while (high - low > minStep && attempts++ < maxIterations) {
+                            const mid = low + (high - low) / 2;
+                            const testSegment = p1.split(localStart, mid);
+                            if (testSegment.simple()) {
+                                bestSegment = testSegment;
+                                bestEnd = mid;
+                                low = mid;
+                            } else {
+                                high = mid;
+                            }
+                        }
+
+                        if (!bestSegment) {
+                            const minEnd = Math.min(1, localStart + minStep);
+                            bestSegment = p1.split(localStart, minEnd);
+                            if (!bestSegment.simple()) {
                                 return [];
                             }
-                            segment = p1.split(t1, t2);
-                            segment._t1 = utils.map(t1, 0, 1, p1._t1, p1._t2);
-                            segment._t2 = utils.map(t2, 0, 1, p1._t1, p1._t2);
-                            pass2.push(segment);
-                            t1 = t2;
-                            break;
+                            segmentEnd = minEnd;
+                            currentSegment = bestSegment;
+                        } else {
+                            segmentEnd = bestEnd;
+                            currentSegment = bestSegment;
                         }
                     }
-                } //end while
 
-                if (t1 < 1) {
-                    segment = p1.split(t1, 1);
-                    segment._t1 = utils.map(t1, 0, 1, p1._t1, p1._t2);
-                    segment._t2 = p1._t2;
-                    pass2.push(segment);
+                    if (segmentEnd <= localStart || utils.approximately(segmentEnd, localStart)) {
+                        segmentEnd = Math.min(1, localStart + minStep);
+                        currentSegment = p1.split(localStart, segmentEnd);
+                        if (!currentSegment.simple()) {
+                            return [];
+                        }
+                    }
+
+                    currentSegment._t1 = utils.map(localStart, 0, 1, p1._t1, p1._t2);
+                    currentSegment._t2 = utils.map(segmentEnd, 0, 1, p1._t1, p1._t2);
+                    pass2.push(currentSegment);
+
+                    localStart = segmentEnd;
+                    if (localStart >= 1 || utils.approximately(localStart, 1)) {
+                        localStart = 1;
+                    }
                 }
-            });
+            }
             return pass2;
         },
 

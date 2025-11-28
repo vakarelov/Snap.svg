@@ -167,7 +167,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     ];
                     break;
                 case "path":
-                    result =  this.getPointSample();
+                    result = this.getPointSample();
                     break;
                 case "line":
                     result = [
@@ -229,12 +229,12 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 case "foreignObject":
                 default:
                     let bb = this.getBBox({approx: false, without_transform: true});
-                    result = [
+                    result = (bb) ? [
                         {x: bb.x, y: bb.y},
                         {x: bb.x2, y: bb.y},
                         {x: bb.x2, y: bb.y2},
                         {x: bb.x, y: bb.y2},
-                    ];
+                    ] : [];
 
             }
             if (result.length && use_local_transform) {
@@ -576,12 +576,28 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 pathfinder = Snap.path.get[el.type] || Snap.path.get.deflt;
             try {
                 if (isWithoutTransform) {
-                    _.bboxwt = pathfinder ?
-                        Snap.path.getBBox(el.realPath = pathfinder(el)) :
-                        Snap.box(el.node.getBBox());
-                    return Snap.box(_.bboxwt);
+                    if (pathfinder) {
+                        const realPath = pathfinder(el);
+                        if (realPath) {
+                            el.realPath = realPath;
+                            _.bboxwt = Snap.path.getBBox(realPath);
+                            return Snap.box(_.bboxwt);
+                        }
+                    }
+                    if (el.node && typeof el.node.getBBox === "function") {
+                        _.bboxwt = Snap.box(el.node.getBBox());
+                        return Snap.box(_.bboxwt);
+                    }
+                    return null;
                 } else {
-                    el.realPath = pathfinder(el);
+                    if (!pathfinder) {
+                        return null;
+                    }
+                    const realPath = pathfinder(el);
+                    if (!realPath) {
+                        return null;
+                    }
+                    el.realPath = realPath;
                     el.saveMatrix(el.transform().localMatrix);
                     // el.matrix = el.transform().globalMatrix;
                     matrix_for_x_y_attrs.add(el.matrix);
@@ -1395,7 +1411,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @returns {Element} Current element for chaining.
          */
         elproto.setPaper = function (paper, force) {
-            if (!is(paper,"Paper") ||
+            if (!is(paper, "Paper") ||
                 (!force && this.paper === paper)) return this;
 
             this.paper = paper;
@@ -1406,21 +1422,25 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         /**
          * Appends the provided element (or set) to the current element.
          * @param {Element|Set|Array<Element>} el Element, set, or array to append.
-         * @returns {Element} Parent element for chaining.
+         * @param {number} [index] Optional insertion index (0-based). If provided, inserts before current child at that index.
+         * @returns {Element} Parent element for chaining
          */
-        elproto.append = elproto.add = function (el) {
+        elproto.append = elproto.add = function (el, index) {
 
             if (el) {
                 clearParentCHull(this);
                 if (el.type === "set" || Array.isArray(el)) {
                     const it = this;
-                    el.forEach(function (el) {
-                        it.add(el);
+                    // Normalize iterable
+                    const list = el.items ? el.items : el;
+                    let baseIndex = (typeof index === "number" && index >= 0) ? index : undefined;
+                    list.forEach(function (child, i) {
+                        // Preserve order by shifting insertion point
+                        it.add(child, (baseIndex !== undefined) ? baseIndex + i : undefined);
                     });
                     return this;
                 }
 
-                // el = Snap(wrap(el));
                 el = wrap(el);
                 if ((el.hasPartner && el.hasPartner()) || el._partner_childern) {
                     let parent = el.parent();
@@ -1429,13 +1449,18 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     this._propagateTransToPartnersChild(el);
                 }
                 const node = (this.div) ? this.div.node : this.node;
-                node.appendChild(el.node);
 
-                // if (this.sub_children && this.sub_children.length > 0) {
-                //     this.sub_children.push(el);
-                // } else {
-                //     this.sub_children = [el];
-                // }
+                if (typeof index === "number" && index >= 0) {
+                    const ref = node.childNodes[index] || null;
+                    if (ref && el.node !== ref) {
+                        node.insertBefore(el.node, ref);
+                    } else {
+                        node.appendChild(el.node);
+                    }
+                } else {
+                    node.appendChild(el.node);
+                }
+
                 if (el.setPaper && this.paper && el.type !== "svg" && el.paper !== this.paper) {
                     el.setPaper(this.paper);
                 }
@@ -2181,8 +2206,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                             height: +bb.height.toFixed(3),
                             contents: this.outerSVG(),
                         });
-                return "data:image/svg+xml;base64," +
-                    btoa(unescape(encodeURIComponent(svg)));
+               return "data:image/svg+xml;base64," +
+               btoa(encodeURIComponent(svg).replace(/%([0-9A-F]{2})/g, function (match, p1) {
+                   return String.fromCharCode(parseInt(p1, 16));
+               }));
             }
         };
 

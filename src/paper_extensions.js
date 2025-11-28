@@ -2,7 +2,7 @@
         let Snap_ia = root.Snap_ia || root.Snap;
 
         //Paper functions, require snap_extensions and element_extensions
-        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+       Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
             const paper_element_extension = {};
             /**
              * Registers a lazily executed Paper extension that can augment any SVG root.
@@ -178,7 +178,7 @@
              */
             Paper.prototype.htmlInsert = function (
                 x, y, width, height, html, style) {
-                const div = '<div xmlns="http://www.w3.org/1999/xhtml" class="IA_Designer_html"></div>';
+                const div = '<div xmlns="' + Snap.xmlns.html + '" class="IA_Designer_html"></div>';
                 const el = this.foreignObject(x, y, width, height, div);
                 let div_el;
                 if (el.type !== "foreignObject" && el.hasPartner()) {
@@ -287,7 +287,7 @@
              */
             const textInputBox = function (id, x, y, width, height) {
                 const html = '<div id ="' + id +
-                    '" xmlns="http://www.w3.org/1999/xhtml">' +
+                    '" xmlns="' + Snap.xmlns.html + '">' +
                     '<form>' +
                     '<input type="text" value="test">' +
                     '</form>' +
@@ -736,7 +736,7 @@
         });
 
         //Shape builders
-        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+       Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
 
                 /**
                  * Builds a circle from a centre point and a point lying on its circumference.
@@ -1195,7 +1195,7 @@
             }
         );
 
-        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+       Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
             //Add paper functions to elements
 
 

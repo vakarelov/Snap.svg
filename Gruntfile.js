@@ -40,9 +40,12 @@ module.exports = function (grunt) {
     ]
 
     const ia_ext = [
+        './src/shapes.js',
+        './src/nonlin-transforms.js',
         './src/snap_extensions.js',
         './src/element_extensions.js',
         './src/paper_extensions.js',
+
     ]
 
     const wrap = [

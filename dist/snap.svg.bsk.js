@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-11-17
+// build: 2025-11-28
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -970,6 +970,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 (function (glob, factory) {
     // AMD support
     if (typeof define == "function" && define.amd) {
@@ -1005,6 +1006,29 @@
         return true;
     };
     let lastTimeStamp;
+    const nativeSetTimeout = window.setTimeout ? window.setTimeout.bind(window) : function (callback) {
+            if (typeof callback === "function") {
+                callback();
+            }
+            return null;
+        };
+    const nativeClearTimeout = window.clearTimeout ? window.clearTimeout.bind(window) : function () {
+        };
+    const nativeSetInterval = window.setInterval ? window.setInterval.bind(window) : function (callback) {
+            if (typeof callback === "function") {
+                callback();
+            }
+            return null;
+        };
+    const nativeClearInterval = window.clearInterval ? window.clearInterval.bind(window) : function () {
+        };
+    const managedTimeouts = new Map();
+    const managedIntervals = new Map();
+    let timeoutCounter = 0;
+    let intervalCounter = 0;
+    let isGlobalPaused = false;
+    const pausedAnimations = new Map();
+    let timerOverridesInstalled = false;
 
     /**
      * @typedef {(number|number[])} AnimationValue
@@ -1126,6 +1150,233 @@
     const timer = Date.now || function () {
         return +new Date;
     };
+
+    const TIMEOUT_PREFIX = "mina-t-";
+    const INTERVAL_PREFIX = "mina-i-";
+
+    function installTimerOverrides() {
+        if (timerOverridesInstalled || typeof window === "undefined") {
+            return;
+        }
+        timerOverridesInstalled = true;
+        window.clearTimeout = function (id) {
+            if (!handleManagedTimeoutClear(id)) {
+                return nativeClearTimeout(id);
+            }
+        };
+        window.clearInterval = function (id) {
+            if (!handleManagedIntervalClear(id)) {
+                return nativeClearInterval(id);
+            }
+        };
+    }
+
+    function createTimeoutEntry(callback, delay, args) {
+        const id = TIMEOUT_PREFIX + (++timeoutCounter);
+        const entry = {
+            id,
+            callback,
+            args,
+            start: null,
+            remaining: Math.max(0, delay || 0),
+            nativeHandle: null,
+            paused: isGlobalPaused,
+            cleared: false,
+        };
+        managedTimeouts.set(id, entry);
+        if (!isGlobalPaused) {
+            armTimeout(entry, entry.remaining);
+        }
+        return id;
+    }
+
+    function armTimeout(entry, wait) {
+        entry.remaining = Math.max(0, wait || 0);
+        entry.start = timer();
+        entry.nativeHandle = nativeSetTimeout(function () {
+            runManagedTimeout(entry.id);
+        }, entry.remaining);
+        entry.paused = false;
+    }
+
+    function runManagedTimeout(id) {
+        const entry = managedTimeouts.get(id);
+        if (!entry || entry.cleared) {
+            return;
+        }
+        entry.nativeHandle = null;
+        if (isGlobalPaused) {
+            entry.paused = true;
+            entry.remaining = 0;
+            return;
+        }
+        entry.cleared = true;
+        managedTimeouts.delete(id);
+        entry.callback && entry.callback.apply(undefined, entry.args);
+    }
+
+    function pauseManagedTimeout(entry) {
+        if (!entry || entry.cleared || entry.paused) {
+            return;
+        }
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+            const elapsed = entry.start != null ? (timer() - entry.start) : 0;
+            entry.remaining = Math.max(0, entry.remaining - elapsed);
+        }
+        entry.nativeHandle = null;
+        entry.paused = true;
+    }
+
+    function resumeManagedTimeout(entry) {
+        if (!entry || entry.cleared || !entry.paused) {
+            return;
+        }
+        armTimeout(entry, entry.remaining);
+    }
+
+    function cancelManagedTimeout(id) {
+        const entry = managedTimeouts.get(id);
+        if (!entry) {
+            return false;
+        }
+        entry.cleared = true;
+        entry.paused = false;
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+        }
+        managedTimeouts.delete(id);
+        return true;
+    }
+
+    function handleManagedTimeoutClear(id) {
+        if (!isManagedTimeoutId(id)) {
+            return false;
+        }
+        return cancelManagedTimeout(id);
+    }
+
+    function isManagedTimeoutId(id) {
+        return typeof id === "string" && id.indexOf(TIMEOUT_PREFIX) === 0;
+    }
+
+    function createIntervalEntry(callback, interval, args) {
+        const id = INTERVAL_PREFIX + (++intervalCounter);
+        const entry = {
+            id,
+            callback,
+            args,
+            interval: Math.max(0, interval || 0),
+            remaining: Math.max(0, interval || 0),
+            start: null,
+            nativeHandle: null,
+            paused: isGlobalPaused,
+            cleared: false,
+        };
+        managedIntervals.set(id, entry);
+        if (!isGlobalPaused) {
+            armInterval(entry, entry.interval);
+        }
+        return id;
+    }
+
+    function armInterval(entry, wait) {
+        entry.remaining = Math.max(0, wait || 0);
+        entry.start = timer();
+        entry.nativeHandle = nativeSetTimeout(function () {
+            runManagedInterval(entry.id);
+        }, entry.remaining);
+        entry.paused = false;
+    }
+
+    function runManagedInterval(id) {
+        const entry = managedIntervals.get(id);
+        if (!entry || entry.cleared) {
+            return;
+        }
+        entry.nativeHandle = null;
+        if (isGlobalPaused) {
+            entry.paused = true;
+            return;
+        }
+        entry.callback && entry.callback.apply(undefined, entry.args);
+        if (entry.cleared) {
+            managedIntervals.delete(id);
+            return;
+        }
+        if (!isGlobalPaused) {
+            armInterval(entry, entry.interval);
+        } else {
+            entry.paused = true;
+        }
+    }
+
+    function pauseManagedInterval(entry) {
+        if (!entry || entry.cleared || entry.paused) {
+            return;
+        }
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+            const elapsed = entry.start != null ? (timer() - entry.start) : 0;
+            entry.remaining = Math.max(0, entry.remaining - elapsed);
+        } else {
+            entry.remaining = entry.interval;
+        }
+        entry.nativeHandle = null;
+        entry.paused = true;
+    }
+
+    function resumeManagedInterval(entry) {
+        if (!entry || entry.cleared || !entry.paused) {
+            return;
+        }
+        const wait = entry.remaining > 0 ? entry.remaining : entry.interval;
+        armInterval(entry, wait);
+    }
+
+    function cancelManagedInterval(id) {
+        const entry = managedIntervals.get(id);
+        if (!entry) {
+            return false;
+        }
+        entry.cleared = true;
+        entry.paused = false;
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+        }
+        managedIntervals.delete(id);
+        return true;
+    }
+
+    function handleManagedIntervalClear(id) {
+        if (!isManagedIntervalId(id)) {
+            return false;
+        }
+        return cancelManagedInterval(id);
+    }
+
+    function isManagedIntervalId(id) {
+        return typeof id === "string" && id.indexOf(INTERVAL_PREFIX) === 0;
+    }
+
+    function pauseAllTimers() {
+        managedTimeouts.forEach(pauseManagedTimeout);
+        managedIntervals.forEach(pauseManagedInterval);
+    }
+
+    function resumeAllTimers() {
+        managedTimeouts.forEach(resumeManagedTimeout);
+        managedIntervals.forEach(resumeManagedInterval);
+    }
+
+    function stopAllTimers() {
+        const timeoutIds = Array.from(managedTimeouts.keys());
+        timeoutIds.forEach(cancelManagedTimeout);
+        const intervalIds = Array.from(managedIntervals.keys());
+        intervalIds.forEach(cancelManagedInterval);
+    }
+
+    installTimerOverrides();
 
     /**
      * Gets or sets the current status of an animation.
@@ -1380,6 +1631,13 @@
         const anim = new Animation(a, A, b, B, get, set, easing);
         animations[anim.id] = anim;
         (Array.isArray(last)) ? last.push(anim) : last = anim;
+        if (isGlobalPaused) {
+            if (!pausedAnimations.has(anim.id)) {
+                pausedAnimations.set(anim.id, anim);
+            }
+            anim.pause();
+            return anim;
+        }
         let len = 0;
         for (const key of Object.keys(animations)) {
             len++;
@@ -1630,6 +1888,573 @@
     }
 
     /**
+     * Normalizes the arguments used by the pulse easing helpers.
+     * Allows calling pattern where only progress is supplied.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n
+     * @returns {{maxVal: number, midPoint: number, repeatCount: number, local: number, progress: number}}
+     */
+    function resolvePulseArgs(max_val, mid_point, repeat, n) {
+        if (mid_point === undefined && repeat === undefined && n === undefined) {
+            n = max_val;
+            max_val = undefined;
+        }
+
+        const maxVal = (max_val === undefined ? 1 : +max_val) || 0;
+        let midPoint = mid_point === undefined ? 0.5 : +mid_point;
+        midPoint = Math.min(0.9999, Math.max(0.0001, isFinite(midPoint) ? midPoint : 0.5));
+        const repeatCount = Math.max(0.0001, Math.abs(repeat === undefined ? 1 : +repeat) || 1);
+        const progress = Math.max(0, Math.min(1, isFinite(+n) ? +n : 0));
+
+        const fullCycles = progress * repeatCount;
+        const cycleIndex = Math.floor(fullCycles);
+        let local = fullCycles - cycleIndex;
+        if (progress === 1) {
+            local = 1;
+        }
+
+        return {maxVal, midPoint, repeatCount, local, progress};
+    }
+
+    function normalizePulseBaseInputs(max_val, mid_point) {
+        const defaults = resolvePulseArgs(max_val, mid_point, 1, 0);
+        return {
+            maxVal: defaults.maxVal,
+            midPoint: defaults.midPoint,
+        };
+    }
+
+    /**
+     * Core pulse computation shared by the linear and eased variants.
+     *
+     * @param {number} max_val
+     * @param {number} mid_point
+     * @param {number} repeat
+     * @param {number} n
+    * @param {function(number): number} [shaper]
+     * @returns {number}
+     */
+    function pulseValue(max_val, mid_point, repeat, n, shaper) {
+        const {maxVal, midPoint, local, progress} = resolvePulseArgs(max_val, mid_point, repeat, n);
+        if (progress === 0 || progress === 1 && local === 1) {
+            return 0;
+        }
+
+        const ascending = local <= midPoint;
+        const segmentSpan = ascending ? midPoint : (1 - midPoint);
+        const raw = segmentSpan ? (ascending ? local / midPoint : (local - midPoint) / (1 - midPoint)) : 0;
+        const shaped = shaper ? shaper(Math.max(0, Math.min(1, raw))) : raw;
+        const value = ascending ? shaped : 1 - shaped;
+        return Math.max(0, Math.min(maxVal, value * maxVal));
+    }
+
+    /**
+     * Linear pulse that rises from 0 to `max_val` at `mid_point` and returns to 0.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n Progress value `[0, 1]`.
+     * @returns {number}
+     */
+    mina.pulseLinear = function (max_val, mid_point, repeat, n) {
+        return pulseValue(max_val, mid_point, repeat, n);
+    };
+
+    mina.pulseLinear.withParams = function (max_val, mid_point, repeat) {
+        return function (n) {
+            return mina.pulseLinear(max_val, mid_point, repeat, n);
+        };
+    };
+
+    // Backwards-compatible alias for legacy callers.
+    mina.pulse = mina.pulseLinear;
+
+    /**
+     * Ease-in-out pulse that eases into the peak and eases back to zero.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n Progress value `[0, 1]`.
+     * @returns {number}
+     */
+    mina.pulseEaseInOut = function (max_val, mid_point, repeat, n) {
+        return pulseValue(max_val, mid_point, repeat, n, mina.easeInOutSine);
+    };
+
+    mina.pulseEaseInOut.withParams = function (max_val, mid_point, repeat) {
+        return function (n) {
+            return mina.pulseEaseInOut(max_val, mid_point, repeat, n);
+        };
+    };
+
+    function normalizePulseDecayRepeat(repeat) {
+        const numeric = repeat === undefined ? 1 : +repeat;
+        if (!isFinite(numeric) || numeric <= 0) {
+            return 1;
+        }
+        return numeric;
+    }
+
+    function normalizePulseDecayTimeline(n) {
+        const numeric = isFinite(+n) ? +n : 0;
+        const timeline = Math.max(0, numeric);
+        const cycleIndex = Math.floor(timeline);
+        const local = timeline - cycleIndex;
+        return {cycleIndex, local};
+    }
+
+    function pulseDecayEnvelope(cycleIndex, decayFactor) {
+        if (cycleIndex <= 0) {
+            return 1;
+        }
+        const ratio = cycleIndex / (cycleIndex + decayFactor);
+        const envelopeInput = Math.max(0, Math.min(1, 1 - ratio));
+        return mina.easeOutQuad(envelopeInput);
+    }
+
+    /**
+     * Repeating pulse that accepts `n > 1` and applies time decay across cycles.
+     * The `repeat` parameter acts as the decay constant: larger values keep the
+     * envelope higher for more cycles, smaller values fade faster.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n Timeline progress where each whole number represents a full pulse.
+     * @returns {number}
+     */
+    mina.pulseDecay = function (max_val, mid_point, repeat, n) {
+        if (mid_point === undefined && repeat === undefined && n === undefined) {
+            n = max_val;
+            max_val = undefined;
+        }
+
+        const {cycleIndex, local} = normalizePulseDecayTimeline(n);
+        const decayFactor = normalizePulseDecayRepeat(repeat);
+        const envelope = pulseDecayEnvelope(cycleIndex, decayFactor);
+        if (envelope <= 0) {
+            return 0;
+        }
+
+        const numericMax = max_val === undefined ? 1 : +max_val;
+        const safeMax = isFinite(numericMax) ? numericMax : 0;
+        const amplitude = safeMax * envelope;
+        return pulseValue(amplitude, mid_point, 1, local);
+    };
+
+    mina.pulseDecay.withParams = function (max_val, mid_point, repeat) {
+        const {maxVal, midPoint} = normalizePulseBaseInputs(max_val, mid_point);
+        const decayFactor = normalizePulseDecayRepeat(repeat);
+        return function (n) {
+            const {cycleIndex, local} = normalizePulseDecayTimeline(n);
+            const envelope = pulseDecayEnvelope(cycleIndex, decayFactor);
+            if (envelope <= 0) {
+                return 0;
+            }
+            return pulseValue(maxVal * envelope, midPoint, 1, local);
+        };
+    };
+
+    const PROJECTILE_DEFAULT_MID = 0.5;
+    const PROJECTILE_MIN_MID = 0.0001;
+    const PROJECTILE_MAX_MID = 0.9999;
+    const PROJECTILE_MID_EPS = 1e-7;
+
+    function clampUnitInterval(value) {
+        if (value <= 0) {
+            return 0;
+        }
+        if (value >= 1) {
+            return 1;
+        }
+        return value;
+    }
+
+    function coerceProgress(value) {
+        const numeric = isFinite(+value) ? +value : 0;
+        return clampUnitInterval(numeric);
+    }
+
+    function normalizeStepCount(count) {
+        const numeric = Math.floor(isFinite(+count) ? +count : 0);
+        return Math.max(1, numeric || 1);
+    }
+
+    function normalizeStepPosition(position) {
+        if (typeof position === "string") {
+            const token = position.toLowerCase();
+            if (token === "start" || token === "leading") {
+                return "start";
+            }
+            if (token === "end" || token === "trailing") {
+                return "end";
+            }
+        }
+        if (position === 0 || position === "0") {
+            return "start";
+        }
+        return "end";
+    }
+
+    function evaluateSteps(count, position, progress) {
+        const t = clampUnitInterval(isFinite(+progress) ? +progress : 0);
+        const steps = normalizeStepCount(count);
+        const mode = normalizeStepPosition(position);
+        if (mode === "start") {
+            return Math.min(1, Math.max(0, Math.ceil(t * steps) / steps));
+        }
+        return Math.min(1, Math.max(0, Math.floor(t * steps) / steps));
+    }
+
+    function pseudoNoise(progress, octaves, frequency, seed, amplitude) {
+        const t = clampUnitInterval(isFinite(+progress) ? +progress : 0);
+        const octaveCount = Math.max(1, Math.floor(isFinite(+octaves) ? +octaves : 3));
+        const baseFrequency = Math.max(1, isFinite(+frequency) ? +frequency : 4);
+        const amp = Math.max(0, isFinite(+amplitude) ? +amplitude : 0.08);
+        const seedVal = isFinite(+seed) ? +seed : 0;
+        let total = 0;
+        let weight = 0;
+        let currentAmp = 1;
+        for (let i = 0; i < octaveCount; i++) {
+            const freq = baseFrequency * Math.pow(2, i);
+            const phase = seedVal * (i + 1) * 1.37;
+            total += Math.sin((t * Math.PI * freq) + phase) * currentAmp;
+            weight += currentAmp;
+            currentAmp *= 0.5;
+        }
+        const normalized = weight ? total / weight : 0;
+        const jitter = clampUnitInterval((normalized * amp) + 0.5);
+        const blended = clampUnitInterval((jitter - 0.5) + t);
+        return blended;
+    }
+
+    function springDampedValue(progress, frequency, damping) {
+        const t = coerceProgress(progress);
+        const freq = Math.max(0.1, isFinite(+frequency) ? +frequency : 8);
+        const damp = Math.max(0, isFinite(+damping) ? +damping : 1.1);
+        const envelope = Math.exp(-damp * t);
+        const value = 1 - envelope * Math.cos(freq * t);
+        return clampUnitInterval(value);
+    }
+
+    function rubberBandValue(progress, tightness) {
+        const t = coerceProgress(progress);
+        const stiffness = Math.max(0.01, isFinite(+tightness) ? +tightness : 0.75);
+        const centered = (t - 0.5) * 2;
+        const sign = centered >= 0 ? 1 : -1;
+        const distance = Math.abs(centered);
+        const eased = 1 - Math.exp(-distance / stiffness);
+        return clampUnitInterval(0.5 + sign * eased * 0.5);
+    }
+
+    function createOutInEasing(outFn, inFn) {
+        const easeOut = typeof outFn === "function" ? outFn : mina.linear;
+        const easeIn = typeof inFn === "function" ? inFn : mina.linear;
+        return function (n) {
+            const t = coerceProgress(n);
+            if (t < 0.5) {
+                return 0.5 * easeOut(t * 2);
+            }
+            return 0.5 * easeIn((t - 0.5) * 2) + 0.5;
+        };
+    }
+
+    const ANTICIPATE_DEFAULT_TENSION = 1.5;
+    const ANTICIPATE_OVERSHOOT_SCALE = 1.5;
+
+    function anticipateValue(t, tension) {
+        return t * t * ((tension + 1) * t - tension);
+    }
+
+    function overshootValue(t, tension) {
+        return t * t * ((tension + 1) * t + tension);
+    }
+
+    function flattenEasingInputs(input, target) {
+        if (!target) {
+            target = [];
+        }
+        if (input == null) {
+            return target;
+        }
+        if (Array.isArray(input)) {
+            for (let i = 0; i < input.length; i++) {
+                flattenEasingInputs(input[i], target);
+            }
+            return target;
+        }
+        target.push(input);
+        return target;
+    }
+
+    function resolveEasingReference(ref) {
+        if (typeof ref === "function") {
+            return ref;
+        }
+        if (typeof ref === "string" && typeof mina[ref] === "function") {
+            return mina[ref];
+        }
+        if (ref == null) {
+            return null;
+        }
+        if (typeof console !== "undefined" && console.warn) {
+            console.warn("[mina] Unknown easing reference", ref, "- falling back to linear");
+        }
+        return null;
+    }
+
+    function normalizeEasingList(inputs) {
+        const flattened = flattenEasingInputs(inputs, []);
+        if (!flattened.length) {
+            return [];
+        }
+        return flattened.map((item) => resolveEasingReference(item) || mina.linear);
+    }
+
+    function normalizeProjectileMidpoint(mid_point) {
+        let mid = mid_point === undefined ? PROJECTILE_DEFAULT_MID : +mid_point;
+        if (!isFinite(mid)) {
+            mid = PROJECTILE_DEFAULT_MID;
+        }
+        if (mid <= PROJECTILE_MIN_MID) {
+            return PROJECTILE_MIN_MID;
+        }
+        if (mid >= PROJECTILE_MAX_MID) {
+            return PROJECTILE_MAX_MID;
+        }
+        return mid;
+    }
+
+    function normalizeProjectileProgress(n) {
+        const numeric = isFinite(+n) ? +n : 0;
+        return clampUnitInterval(numeric);
+    }
+
+    function buildProjectileCoefficients(mid) {
+        const ascendA = -1 / (mid * mid);
+        const ascendB = 2 / mid;
+        const inv = 1 - mid;
+        const descendA = -1 / (inv * inv);
+        const descendB = 2 * mid / (inv * inv);
+        const descendC = 1 - (mid * mid) / (inv * inv);
+        return {mid, ascendA, ascendB, descendA, descendB, descendC};
+    }
+
+    const PROJECTILE_DEFAULT_COEFFS = buildProjectileCoefficients(PROJECTILE_DEFAULT_MID);
+
+    function getProjectileCoefficients(mid_point) {
+        const mid = normalizeProjectileMidpoint(mid_point);
+        if (Math.abs(mid - PROJECTILE_DEFAULT_MID) < PROJECTILE_MID_EPS) {
+            return PROJECTILE_DEFAULT_COEFFS;
+        }
+        return buildProjectileCoefficients(mid);
+    }
+
+    function evaluateProjectile(progress, coeffs) {
+        if (progress <= coeffs.mid) {
+            const value = coeffs.ascendA * progress * progress + coeffs.ascendB * progress;
+            return clampUnitInterval(value);
+        }
+        const value = coeffs.descendA * progress * progress + coeffs.descendB * progress + coeffs.descendC;
+        return clampUnitInterval(value);
+    }
+
+    /**
+     * Projectile-inspired easing that mimics upward deceleration and downward acceleration.
+     *
+     * @param {number} [mid_point=0.5] Normalized time at which the apex (value = 1) occurs.
+     * @param {number} n Progress value `[0, 1]`.
+     * @returns {number}
+     */
+    mina.projectile = function (mid_point, n) {
+        if (n === undefined) {
+            n = mid_point;
+            mid_point = undefined;
+        }
+        const progress = normalizeProjectileProgress(n);
+        const coeffs = (mid_point === undefined)
+            ? PROJECTILE_DEFAULT_COEFFS
+            : getProjectileCoefficients(mid_point);
+        return evaluateProjectile(progress, coeffs);
+    };
+
+    mina.projectile.withParams = function (mid_point) {
+        const coeffs = getProjectileCoefficients(mid_point);
+        return function (n) {
+            return evaluateProjectile(normalizeProjectileProgress(n), coeffs);
+        };
+    };
+
+    function applyComposeStages(stages, n) {
+        let value = coerceProgress(n);
+        if (!stages || !stages.length) {
+            return value;
+        }
+        for (let i = 0; i < stages.length; i++) {
+            value = stages[i](value);
+        }
+        return clampUnitInterval(value);
+    }
+
+    mina.compose = function () {
+        if (!arguments.length) {
+            return 0;
+        }
+        const inputArgs = Array.prototype.slice.call(arguments);
+        const progress = inputArgs.pop();
+        const stageInputs = (inputArgs.length === 1 && Array.isArray(inputArgs[0]))
+            ? inputArgs[0]
+            : inputArgs;
+        const stages = normalizeEasingList(stageInputs);
+        return applyComposeStages(stages, progress);
+    };
+
+    mina.compose.withParams = function () {
+        const inputArgs = Array.prototype.slice.call(arguments);
+        const stageInputs = (inputArgs.length === 1 && Array.isArray(inputArgs[0]))
+            ? inputArgs[0]
+            : inputArgs;
+        const stages = normalizeEasingList(stageInputs);
+        return function (n) {
+            return applyComposeStages(stages, n);
+        };
+    };
+
+
+    mina.delay = function () {
+        if (!arguments.length) {
+            return 0;
+        }
+        const inputArgs = Array.prototype.slice.call(arguments);
+        const progress = inputArgs.pop();
+        let easingCandidate;
+        if (inputArgs.length > 1) {
+            easingCandidate = inputArgs.pop();
+        }
+        const delayAmount = inputArgs.length ? inputArgs[0] : 0;
+        const easingFn = resolveEasingReference(easingCandidate) || mina.linear;
+        return applyDelayEasing(delayAmount, easingFn, progress);
+    };
+
+    mina.delay.withParams = function (delayAmount, easingCandidate) {
+        const safeDelay = clampUnitInterval(isFinite(+delayAmount) ? +delayAmount : 0);
+        const easingFn = resolveEasingReference(easingCandidate) || mina.linear;
+        return function (n) {
+            return applyDelayEasing(safeDelay, easingFn, n);
+        };
+    };
+
+    mina.delayHalf = mina.delay.withParams(0.5);
+    mina.delayQuarter = mina.delay.withParams(0.25);
+
+    /**
+     * Preset: anticipatory pull followed by a bounce settle.
+     * @type {MinaEasing}
+     */
+    mina.anticipateBounce = mina.compose.withParams(mina.easeInBack, mina.bounceOut);
+
+    /**
+     * Preset: hold the start for 25% of the timeline, then snap out exponentially.
+     * @type {MinaEasing}
+     */
+    mina.delayedSnap = mina.compose.withParams(mina.delayQuarter, mina.easeOutExpo);
+
+    /**
+     * Preset: punchy pulse that eases the return curve.
+     * @type {MinaEasing}
+     */
+    mina.pulseIntro = mina.compose.withParams(
+        mina.pulseLinear.withParams(1, 0.35, 1),
+        mina.easeOutQuart
+    );
+
+    /**
+     * Preset: dual spring response with a delayed secondary wobble.
+     * @type {MinaEasing}
+     */
+    mina.doubleSpring = mina.compose.withParams(
+        mina.springOut,
+        mina.delay.withParams(0.4, mina.springIn)
+    );
+
+    function applyDelayEasing(delayAmount, easingFn, progress) {
+        const delayRatio = clampUnitInterval(isFinite(+delayAmount) ? +delayAmount : 0);
+        const easedProgress = coerceProgress(progress);
+        const easing = easingFn || mina.linear;
+        if (delayRatio >= 1) {
+            return 0;
+        }
+        if (easedProgress <= delayRatio) {
+            return 0;
+        }
+        const span = 1 - delayRatio;
+        const local = clampUnitInterval((easedProgress - delayRatio) / span);
+        return clampUnitInterval(easing(local));
+    }
+
+
+    /**
+     * Discrete steps easing, equivalent to CSS `steps(count, position)`.
+     * Great for sprite-sheet animations, pagination dots, or counters that must snap between integers.
+     * @param {number} [count=4] Number of discrete segments.
+     * @param {"start"|"end"} [position="end"] Whether the first jump occurs immediately (`start`) or after the first interval (`end`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.steps = function (count, position, n) {
+        if (n === undefined) {
+            if (position === undefined) {
+                n = count;
+                count = undefined;
+            } else {
+                n = position;
+                position = undefined;
+            }
+        }
+        const stepCount = normalizeStepCount(count === undefined ? 4 : count);
+        const mode = normalizeStepPosition(position);
+        return evaluateSteps(stepCount, mode, n);
+    };
+
+    mina.steps.withParams = function (count, position) {
+        const stepCount = normalizeStepCount(count === undefined ? 4 : count);
+        const mode = normalizeStepPosition(position);
+        return function (n) {
+            return evaluateSteps(stepCount, mode, n);
+        };
+    };
+
+    /**
+     * Deterministic noise-based easing that introduces subtle organic jitter while remaining bounded.
+     * Perfect for shimmer, breathing indicators, or making robotic tweens feel alive.
+     * Arguments mirror `(octaves, frequency, seed, amplitude, progress)` but only progress is required.
+     * @returns {number}
+     */
+    mina.noise = function () {
+        if (!arguments.length) {
+            return 0;
+        }
+        const args = Array.prototype.slice.call(arguments);
+        const progress = args.pop();
+        const octaves = args.length ? args.shift() : undefined;
+        const frequency = args.length ? args.shift() : undefined;
+        const seed = args.length ? args.shift() : undefined;
+        const amplitude = args.length ? args.shift() : undefined;
+        return pseudoNoise(progress, octaves, frequency, seed, amplitude);
+    };
+
+    mina.noise.withParams = function (octaves, frequency, seed, amplitude) {
+        return function (n) {
+            return pseudoNoise(n, octaves, frequency, seed, amplitude);
+        };
+    };
+
+    /**
      * Creates a timing function equivalent to CSS `cubic-bezier(p1x, p1y, p2x, p2y)`.
      * Start and end points are fixed at `(0, 0)` and `(1, 1)`; `p1`/`p2` describe the tangent handles.
      *
@@ -1722,8 +2547,8 @@
      * mina.cubicBezier(0.42, 0, 0.58, 1, 0.5);
      */
     mina.cubicBezier = function (p1x, p1y, p2x, p2y, n) {
-        if (p1x === undefined && p1y === undefined && p2x === undefined && p2y === undefined) {
-            return mina.ease(n);
+        if (n === undefined && p1y === undefined && p2x === undefined && p2y === undefined) {
+            return mina.ease(p1x);
         }
 
         return cubic_bezier(p1x, p1y, p2x, p2y)(n);
@@ -1796,6 +2621,38 @@
     };
 
     /**
+     * Classic smoothstep easing (`3t^2 - 2t^3`).
+     * Handy for shader-style fades or camera moves that must start/stop gently.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.smoothStep = function (n) {
+        const t = coerceProgress(n);
+        return t * t * (3 - 2 * t);
+    };
+
+    /**
+     * Five-term smootherstep easing (`6t^5 - 15t^4 + 10t^3`).
+     * Use for camera or gradient transitions that need zero velocity and acceleration at the endpoints.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.smootherStep = function (n) {
+        const t = coerceProgress(n);
+        return t * t * t * (t * (t * 6 - 15) + 10);
+    };
+
+    // Lowercase aliases for familiarity with shader-style naming.
+    mina.smoothstep = mina.smoothStep;
+    mina.smootherstep = mina.smootherStep;
+
+    /**
+     * Sine ease that decelerates then accelerates; great for looping UI where the midpoint should feel like a breath.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInSine = createOutInEasing(mina.easeOutSine, mina.easeInSine);
+
+    /**
      * Quadratic ease-in curve (`t^2`).
      * @param {number} n Normalized progress `[0, 1]`.
      * @returns {number}
@@ -1819,6 +2676,11 @@
     mina.easeInOutQuad = function (n) {
         return n < 0.5 ? 2 * n * n : 1 - Math.pow(-2 * n + 2, 2) / 2;
     };
+    /**
+     * Quadratic ease that decelerates then accelerates; useful for slider handles moving between two resting states.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInQuad = createOutInEasing(mina.easeOutQuad, mina.easeInQuad);
 
     /**
      * Cubic ease-in curve (`t^3`).
@@ -1845,6 +2707,11 @@
     mina.easeInOutCubic = function (n) {
         return n < 0.5 ? 4 * Math.pow(n, 3) : 1 - Math.pow(-2 * n + 2, 3) / 2;
     };
+    /**
+     * Cubic ease that performs an out-then-in transition; adds drama to hero animations without overshoot.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInCubic = createOutInEasing(mina.easeOutCubic, mina.easeInCubic);
 
     /**
      * Quartic ease-in curve (`t^4`).
@@ -1871,6 +2738,11 @@
     mina.easeInOutQuart = function (n) {
         return n < 0.5 ? 8 * Math.pow(n, 4) : 1 - Math.pow(-2 * n + 2, 4) / 2;
     };
+    /**
+     * Quartic ease with out-then-in profile; nice for modals that settle halfway through a timeline sync.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInQuart = createOutInEasing(mina.easeOutQuart, mina.easeInQuart);
 
     /**
      * Quintic ease-in curve (`t^5`).
@@ -1896,6 +2768,11 @@
     mina.easeInOutQuint = function (n) {
         return n < 0.5 ? 16 * Math.pow(n, 5) : 1 - Math.pow(-2 * n + 2, 5) / 2;
     };
+    /**
+     * Quintic out-then-in curve for fast-moving elements that must pause mid-flight before accelerating again.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInQuint = createOutInEasing(mina.easeOutQuint, mina.easeInQuint);
 
     /**
      * Exponential ease-in that ramps quickly after a slow start.
@@ -1924,6 +2801,11 @@
         }
         return n < 0.5 ? Math.pow(2, 20 * n - 10) / 2 : (2 - Math.pow(2, -20 * n + 10)) / 2;
     };
+    /**
+     * Exponential out-then-in easing; ideal for chunky scrolling cards that want a sudden release then refocus.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInExpo = createOutInEasing(mina.easeOutExpo, mina.easeInExpo);
 
     /**
      * Circular ease-in curve that emulates the start of a circle arc.
@@ -1951,6 +2833,11 @@
             ? (1 - Math.sqrt(1 - 4 * n * n)) / 2
             : (Math.sqrt(1 - Math.pow(-2 * n + 2, 2)) + 1) / 2;
     };
+    /**
+     * Circular out-then-in easing, useful for focus rings or clip-path reveals that should feel orbital.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInCirc = createOutInEasing(mina.easeOutCirc, mina.easeInCirc);
 
     /**
      * Elastic ease-out wrapper using the default amplitude/period.
@@ -2024,6 +2911,63 @@
      * @type {MinaEasing}
      */
     mina.easeInOutBack = mina.backInOut;
+
+    /**
+     * Android-style anticipate easing that dips below 0 before accelerating forward.
+     * Perfect for swipe-to-dismiss or catapult effects where motion "winds up" before release.
+     * @param {number} [tension=1.5] Controls the amount of backwards pull.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.anticipate = function (tension, n) {
+        if (n === undefined) {
+            n = tension;
+            tension = undefined;
+        }
+        const t = coerceProgress(n);
+        const tightness = isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION;
+        return anticipateValue(t, tightness);
+    };
+
+    mina.anticipate.withParams = function (tension) {
+        const tightness = isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION;
+        return function (n) {
+            return anticipateValue(coerceProgress(n), tightness);
+        };
+    };
+
+    /**
+     * Anticipate + overshoot easing used by Android's AnticipateOvershootInterpolator.
+     * Works well for onboarding arrows, expanding FABs, or any element that should tease before settling.
+     * @param {number} [tension=1.5] Adjusts both anticipate and overshoot strength.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.anticipateOvershoot = function (tension, n) {
+        if (n === undefined) {
+            n = tension;
+            tension = undefined;
+        }
+        const tightness = (isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION) * ANTICIPATE_OVERSHOOT_SCALE;
+        let t = coerceProgress(n) * 2;
+        if (t < 1) {
+            return 0.5 * anticipateValue(t, tightness);
+        }
+        t -= 1;
+        return 0.5 * (overshootValue(t, tightness) + 1);
+    };
+
+    mina.anticipateOvershoot.withParams = function (tension) {
+        const tightness = (isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION) * ANTICIPATE_OVERSHOOT_SCALE;
+        return function (n) {
+            let t = coerceProgress(n) * 2;
+            if (t < 1) {
+                return 0.5 * anticipateValue(t, tightness);
+            }
+            t -= 1;
+            return 0.5 * (overshootValue(t, tightness) + 1);
+        };
+    };
 
     /**
      * Bounce ease-in derived from {@link mina.bounce}.
@@ -2100,6 +3044,93 @@
         return mina.spring(2 * n - 1) * 0.5 + 0.5;
     };
 
+    /**
+     * Configurable spring easing with adjustable oscillation frequency and damping.
+     * Use for pull-to-refresh, switches, or physics-inspired controls needing fine-tuned wobble.
+     * @param {number} [frequency=8] Angular frequency of the oscillation.
+     * @param {number} [damping=1.1] Damping factor; higher values settle faster.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.springDamped = function (frequency, damping, n) {
+        if (n === undefined) {
+            if (damping !== undefined) {
+                n = damping;
+                damping = undefined;
+            } else {
+                n = frequency;
+                frequency = undefined;
+            }
+        }
+        return springDampedValue(n, frequency, damping);
+    };
+
+    mina.springDamped.withParams = function (frequency, damping) {
+        return function (n) {
+            return springDampedValue(n, frequency, damping);
+        };
+    };
+
+    /**
+     * Rubber-band easing inspired by iOS overscroll curves.
+     * Ideal for edge-gesture resistance, overscroll glow, or elastic tooltips.
+     * The curve is centered at 0.5, so real implementations usually map it back to
+     * a signed displacement, e.g. `offset = base + range * (mina.rubber(p) - 0.5) * 2`,
+     * which keeps the motion symmetric while preventing the value from hitting hard bounds.
+     * @param {number} [tightness=0.75] Lower values feel stretchier, higher values stiffer.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.rubber = function (tightness, n) {
+        if (n === undefined) {
+            n = tightness;
+            tightness = undefined;
+        }
+        return rubberBandValue(n, tightness);
+    };
+
+    mina.rubber.withParams = function (tightness) {
+        return function (n) {
+            return rubberBandValue(n, tightness);
+        };
+    };
+
+    /**
+     * Alias for {@link mina.rubber}.
+     * @type {MinaEasing}
+     */
+    mina.rubberBand = mina.rubber;
+
+    /**
+     * Preset: anticipatory pull followed by a bounce settle—designed for swipe cards or draggable tiles that snap home.
+     * @type {MinaEasing}
+     */
+    mina.anticipateBounce = mina.compose.withParams(mina.easeInBack, mina.bounceOut);
+
+    /**
+     * Preset: hold the start for 25% of the timeline, then snap out exponentially; great for delayed emphasis reveals.
+     * @type {MinaEasing}
+     */
+    mina.delayedSnap = mina.compose.withParams(mina.delayQuarter, mina.easeOutExpo);
+
+    /**
+     * Preset: punchy pulse that eases the return curve—nice for recording LEDs or attention pings.
+     * @type {MinaEasing}
+     */
+    mina.pulseIntro = mina.compose.withParams(
+        mina.pulseLinear.withParams(1, 0.35, 1),
+        mina.easeOutQuart
+    );
+
+    /**
+     * Preset: dual spring response with a delayed secondary wobble, suited for toggles or UI knobs that should bounce twice.
+     * @type {MinaEasing}
+     */
+    mina.doubleSpring = mina.compose.withParams(
+        mina.springOut,
+        mina.delay.withParams(0.4, mina.springIn)
+    );
+
     // ========================================================================
     // Lowercase aliases for CSS-equivalent camelCase easing functions
     // ========================================================================
@@ -2154,6 +3185,12 @@
      * @see {@link mina.easeInOutSine}
      */
     mina.easeinoutsine = mina.easeInOutSine;
+    /**
+     * Lowercase alias for easeOutInSine.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInSine}
+     */
+    mina.easeoutinsine = mina.easeOutInSine;
 
     /**
      * Lowercase alias for easeInQuad.
@@ -2175,6 +3212,12 @@
      * @see {@link mina.easeInOutQuad}
      */
     mina.easeinoutquad = mina.easeInOutQuad;
+    /**
+     * Lowercase alias for easeOutInQuad.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInQuad}
+     */
+    mina.easeoutinquad = mina.easeOutInQuad;
 
     /**
      * Lowercase alias for easeInCubic.
@@ -2196,6 +3239,12 @@
      * @see {@link mina.easeInOutCubic}
      */
     mina.easeinoutcubic = mina.easeInOutCubic;
+    /**
+     * Lowercase alias for easeOutInCubic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInCubic}
+     */
+    mina.easeoutincubic = mina.easeOutInCubic;
 
     /**
      * Lowercase alias for easeInQuart.
@@ -2217,6 +3266,12 @@
      * @see {@link mina.easeInOutQuart}
      */
     mina.easeinoutquart = mina.easeInOutQuart;
+    /**
+     * Lowercase alias for easeOutInQuart.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInQuart}
+     */
+    mina.easeoutinquart = mina.easeOutInQuart;
 
     /**
      * Lowercase alias for easeInQuint.
@@ -2238,6 +3293,12 @@
      * @see {@link mina.easeInOutQuint}
      */
     mina.easeinoutquint = mina.easeInOutQuint;
+    /**
+     * Lowercase alias for easeOutInQuint.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInQuint}
+     */
+    mina.easeoutinquint = mina.easeOutInQuint;
 
     /**
      * Lowercase alias for easeInExpo.
@@ -2259,6 +3320,12 @@
      * @see {@link mina.easeInOutExpo}
      */
     mina.easeinoutexpo = mina.easeInOutExpo;
+    /**
+     * Lowercase alias for easeOutInExpo.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInExpo}
+     */
+    mina.easeoutinexpo = mina.easeOutInExpo;
 
     /**
      * Lowercase alias for easeInCirc.
@@ -2280,6 +3347,12 @@
      * @see {@link mina.easeInOutCirc}
      */
     mina.easeinoutcirc = mina.easeInOutCirc;
+    /**
+     * Lowercase alias for easeOutInCirc.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInCirc}
+     */
+    mina.easeoutincirc = mina.easeOutInCirc;
 
     /**
      * Lowercase alias for easeInElastic.
@@ -2359,8 +3432,14 @@
         setTimeout: true,
         setTimeoutNow: true,
         setInterval: true,
+        pauseAll: true,
+        resumeAll: true,
+        stopAll: true,
+        clearTimeout: true,
+        clearInterval: true,
         trakSkippedFrames: true,
         cubic_bezier: true,
+        getLast: true
     };
     /**
      * Determines whether the provided key refers to a registered easing function.
@@ -2405,6 +3484,74 @@
     }
 
     /**
+     * Pauses every running animation and managed timer, freezing global time.
+     * @returns {void}
+     */
+    mina.pauseAll = function () {
+        if (isGlobalPaused) {
+            return;
+        }
+        isGlobalPaused = true;
+        const ids = Object.keys(animations);
+        ids.forEach(function (key) {
+            const anim = animations[key];
+            if (!anim || anim.pdif) {
+                return;
+            }
+            pausedAnimations.set(anim.id, anim);
+            anim.pause();
+        });
+        pauseAllTimers();
+    };
+
+    /**
+     * Resumes animations and timers that were paused with {@link mina.pauseAll}.
+     * @returns {void}
+     */
+    mina.resumeAll = function () {
+        if (!isGlobalPaused) {
+            return;
+        }
+        isGlobalPaused = false;
+        const toResume = Array.from(pausedAnimations.values());
+        pausedAnimations.clear();
+        toResume.forEach(function (anim) {
+            if (anim && anim.pdif) {
+                anim.resume();
+            }
+        });
+        resumeAllTimers();
+    };
+
+    /**
+     * Stops all animations and timers, clearing any paused state.
+     * @returns {void}
+     */
+    mina.stopAll = function () {
+        const processed = new Set();
+        const ids = Object.keys(animations);
+        ids.forEach(function (key) {
+            const anim = animations[key];
+            if (anim && typeof anim.stop === "function") {
+                processed.add(anim.id);
+                anim.stop();
+            }
+        });
+        pausedAnimations.forEach(function (anim) {
+            if (!anim || processed.has(anim.id)) {
+                return;
+            }
+            if (typeof anim.stop === "function") {
+                anim.stop();
+            }
+        });
+        pausedAnimations.clear();
+        isGlobalPaused = false;
+        stopAllTimers();
+        last = undefined;
+    };
+
+    /**
      * Schedules a timeout that respects the global mina speed multiplier.
      *
      * @param {Function} callback Handler to invoke.
@@ -2413,8 +3560,8 @@
      * @returns {number}
      */
     mina.setTimeout = function (callback, deley, ...args) {
-        deley *= global_speed
-        return setTimeout(callback, deley, ...args);
+        const delay = Math.max(0, (+deley || 0) * global_speed);
+        return createTimeoutEntry(callback, delay, args);
     }
 
     /**
@@ -2426,8 +3573,8 @@
      * @returns {number|void}
      */
     mina.setTimeoutNow = function (callback, deley, ...args) {
-        deley *= global_speed
-        return (deley) ? setTimeout(callback, deley, ...args) : callback(...args);
+        const delay = Math.max(0, (+deley || 0) * global_speed);
+        return delay ? createTimeoutEntry(callback, delay, args) : callback(...args);
     }
 
     /**
@@ -2439,8 +3586,30 @@
      * @returns {number}
      */
     mina.setInterval = function (callback, interval, ...args) {
-        interval *= global_speed;
-        return setInterval(callback, interval, ...args);
+        const duration = Math.max(0, (+interval || 0) * global_speed);
+        return createIntervalEntry(callback, duration, args);
+    };
+
+    /**
+     * Clears a timeout created via {@link mina.setTimeout}.
+     * @param {string|number} id Timeout identifier returned by `mina.setTimeout`.
+     * @returns {void}
+     */
+    mina.clearTimeout = function (id) {
+        if (!handleManagedTimeoutClear(id)) {
+            return nativeClearTimeout(id);
+        }
+    };
+
+    /**
+     * Clears an interval created via {@link mina.setInterval}.
+     * @param {string|number} id Interval identifier returned by `mina.setInterval`.
+     * @returns {void}
+     */
+    mina.clearInterval = function (id) {
+        if (!handleManagedIntervalClear(id)) {
+            return nativeClearInterval(id);
+        }
     };
 
     /**
@@ -2717,6 +3886,12 @@
         };
         const xlink = "http://www.w3.org/1999/xlink";
         const xmlns = "http://www.w3.org/2000/svg";
+        Snap.xmlns = {
+            svg: xmlns,
+            html: "http://www.w3.org/1999/xhtml",
+            xlink
+
+        }
         const hub = {};
         Snap._.hub_rem = {};
         /**
@@ -4643,6 +5818,56 @@
             }
             return wrap(target);
         };
+
+        if (!String.rand) {
+            /**
+             * Generate a random string.
+             * @param {number} length Number of characters.
+             * @param {string|number|string[]|undefined} [symbols] Symbol set or mode: 'base64'|'url'|'alpha'|'upper'|'lower'|'num...' or number of base chars; or an array used as exclude.
+             * @param {string[]} [exclude] Optional list of values to avoid (regenerates if collision occurs).
+             * @returns {string}
+             */
+            String.rand = function (length, symbols, exclude) {
+                let result = [];
+                let characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+                if (Array.isArray(symbols)) {
+                    exclude = symbols;
+                    symbols = undefined
+                }
+                if (symbols) {
+                    if (typeof symbols === 'string') {
+                        const s = symbols.toLowerCase();
+                        if (s === 'base64') {
+                            characters += '+/';
+                        } else if (s === 'url') {
+                            characters += '-.~_';
+                        } else if (s === 'alpha') {
+                            characters = characters.slice(10);
+                        } else if (s.startsWith('num')) {
+                            characters = '0123456789';
+                        } else if (s === 'upper') {
+                            characters = characters.slice(10, 36);
+                        } else if (s === 'lower') {
+                            characters = characters.slice(36);
+                        }
+                    } else if (typeof symbols === 'number' &&
+                        (symbols = Math.min((Math.floor(symbols)), 36))) {
+                        characters = characters.slice(0, symbols);
+                    } else {
+                        characters += '!@#$%^&*()_+-={}[]|;:,.<>?/\\"\'';
+                    }
+
+                }
+                const charactersLength = characters.length;
+                for (let i = 0; i < length; i++) {
+                    result[i] = characters.charAt(
+                        Math.floor(Math.random() * charactersLength));
+                }
+                result = result.join('');
+                return (exclude && exclude.includes(result)) ? String.rand(length, symbols, exclude) : result;
+            };
+        }
+
         /**
          * Registers a plugin function that receives the Snap namespace and key prototypes.
          *
@@ -4651,7 +5876,7 @@
          * @param {function(Snap, Snap.Element, Snap.Paper, Window, Snap.Fragment, Function)} f Plugin callback.
          */
         Snap.plugin = function (f) {
-           f(Snap, Snap.getClass("Element"), Snap.getClass("Paper"), glob, Snap.getClass("Fragment"), eve);
+           f(Snap, Snap.getClass("Element"), Snap.getClass("Paper"), glob, Snap.getClass("Fragment"), eve, root.mina);
         };
         root.Snap_ia = Snap;
         root.Snap = root.Snap || Snap;
@@ -4884,7 +6109,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     ];
                     break;
                 case "path":
-                    result =  this.getPointSample();
+                    result = this.getPointSample();
                     break;
                 case "line":
                     result = [
@@ -4946,12 +6171,12 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 case "foreignObject":
                 default:
                     let bb = this.getBBox({approx: false, without_transform: true});
-                    result = [
+                    result = (bb) ? [
                         {x: bb.x, y: bb.y},
                         {x: bb.x2, y: bb.y},
                         {x: bb.x2, y: bb.y2},
                         {x: bb.x, y: bb.y2},
-                    ];
+                    ] : [];
 
             }
             if (result.length && use_local_transform) {
@@ -5293,12 +6518,28 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 pathfinder = Snap.path.get[el.type] || Snap.path.get.deflt;
             try {
                 if (isWithoutTransform) {
-                    _.bboxwt = pathfinder ?
-                        Snap.path.getBBox(el.realPath = pathfinder(el)) :
-                        Snap.box(el.node.getBBox());
-                    return Snap.box(_.bboxwt);
+                    if (pathfinder) {
+                        const realPath = pathfinder(el);
+                        if (realPath) {
+                            el.realPath = realPath;
+                            _.bboxwt = Snap.path.getBBox(realPath);
+                            return Snap.box(_.bboxwt);
+                        }
+                    }
+                    if (el.node && typeof el.node.getBBox === "function") {
+                        _.bboxwt = Snap.box(el.node.getBBox());
+                        return Snap.box(_.bboxwt);
+                    }
+                    return null;
                 } else {
-                    el.realPath = pathfinder(el);
+                    if (!pathfinder) {
+                        return null;
+                    }
+                    const realPath = pathfinder(el);
+                    if (!realPath) {
+                        return null;
+                    }
+                    el.realPath = realPath;
                     el.saveMatrix(el.transform().localMatrix);
                     // el.matrix = el.transform().globalMatrix;
                     matrix_for_x_y_attrs.add(el.matrix);
@@ -6112,7 +7353,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @returns {Element} Current element for chaining.
          */
         elproto.setPaper = function (paper, force) {
-            if (!is(paper,"Paper") ||
+            if (!is(paper, "Paper") ||
                 (!force && this.paper === paper)) return this;
 
             this.paper = paper;
@@ -6123,21 +7364,25 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         /**
          * Appends the provided element (or set) to the current element.
          * @param {Element|Set|Array<Element>} el Element, set, or array to append.
-         * @returns {Element} Parent element for chaining.
+         * @param {number} [index] Optional insertion index (0-based). If provided, inserts before current child at that index.
+         * @returns {Element} Parent element for chaining
          */
-        elproto.append = elproto.add = function (el) {
+        elproto.append = elproto.add = function (el, index) {
 
             if (el) {
                 clearParentCHull(this);
                 if (el.type === "set" || Array.isArray(el)) {
                     const it = this;
-                    el.forEach(function (el) {
-                        it.add(el);
+                    // Normalize iterable
+                    const list = el.items ? el.items : el;
+                    let baseIndex = (typeof index === "number" && index >= 0) ? index : undefined;
+                    list.forEach(function (child, i) {
+                        // Preserve order by shifting insertion point
+                        it.add(child, (baseIndex !== undefined) ? baseIndex + i : undefined);
                     });
                     return this;
                 }
 
-                // el = Snap(wrap(el));
                 el = wrap(el);
                 if ((el.hasPartner && el.hasPartner()) || el._partner_childern) {
                     let parent = el.parent();
@@ -6146,13 +7391,18 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     this._propagateTransToPartnersChild(el);
                 }
                 const node = (this.div) ? this.div.node : this.node;
-                node.appendChild(el.node);
 
-                // if (this.sub_children && this.sub_children.length > 0) {
-                //     this.sub_children.push(el);
-                // } else {
-                //     this.sub_children = [el];
-                // }
+                if (typeof index === "number" && index >= 0) {
+                    const ref = node.childNodes[index] || null;
+                    if (ref && el.node !== ref) {
+                        node.insertBefore(el.node, ref);
+                    } else {
+                        node.appendChild(el.node);
+                    }
+                } else {
+                    node.appendChild(el.node);
+                }
+
                 if (el.setPaper && this.paper && el.type !== "svg" && el.paper !== this.paper) {
                     el.setPaper(this.paper);
                 }
@@ -6898,8 +8148,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                             height: +bb.height.toFixed(3),
                             contents: this.outerSVG(),
                         });
-                return "data:image/svg+xml;base64," +
-                    btoa(unescape(encodeURIComponent(svg)));
+               return "data:image/svg+xml;base64," +
+               btoa(encodeURIComponent(svg).replace(/%([0-9A-F]{2})/g, function (match, p1) {
+                   return String.fromCharCode(parseInt(p1, 16));
+               }));
             }
         };
 
@@ -8174,7 +9426,13 @@ Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      */
         proto.toDataURL = function () {
             if (window && window.btoa) {
-                return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(this)));
+                if (window && window.btoa) {
+                    return "data:image/svg+xml;base64," + btoa(
+                        encodeURIComponent(String(this)).replace(/%([0-9A-F]{2})/g, function(_, p1) {
+                            return String.fromCharCode(parseInt(p1, 16));
+                        })
+                    );
+                }
             }
         };
         proto.toDataURL.skip = true;
@@ -8676,7 +9934,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     const elproto = Element.prototype,
         is = Snap.is,
         Str = String,
@@ -8688,7 +9946,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (res.length == 1) {
                 res = res[0];
             }
-            return f ? f(res) : res;
+            let out = f ? f(res) : res;
+            if (f && out == "r") {
+                out = f([res]);
+            }
+            return out;
         };
     }
 
@@ -9285,9 +10547,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          *
          * @returns {boolean} `true` when all non-identity coefficients are zero.
          */
-        isIdentity() {
-            return this.a === 1 && !this.b && !this.c && this.d === 1 &&
+        isIdentity(error ) {
+            if (!error) return this.a === 1 && !this.b && !this.c && this.d === 1 &&
                 !this.e && !this.f;
+
+            return Math.abs(this.a - 1) <= error &&
+                Math.abs(this.b) <= error &&
+                Math.abs(this.c) <= error &&
+                Math.abs(this.d - 1) <= error &&
+                Math.abs(this.e) <= error &&
+                Math.abs(this.f) <= error;
         }
 
         /**
@@ -9675,7 +10944,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var has = "hasOwnProperty",
+    const has = "hasOwnProperty",
         make = Snap._.make,
         wrap = Snap._.wrap,
         is = Snap.is,
@@ -9688,13 +10957,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         E = "";
     /**
      * Snap.deurl @method
- *
+     *
      * Unwraps path from `"url(<path>)"`.
- * @param {string} value - url path
- * @returns {string} unwrapped path
-    */
+     * @param {string} value - url path
+     * @returns {string} unwrapped path
+     */
     Snap.deurl = function (value) {
-        var res = String(value).match(reURLValue);
+        const res = String(value).match(reURLValue);
         return res ? res[2] : value;
     }
     // Attributes event handlers
@@ -9730,7 +10999,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (value instanceof Element || value instanceof Fragment) {
             eve.stop();
             const ElementClass = Snap.getClass("Element");
-            var clip,
+            let clip,
                 node = value.node;
             while (node) {
                 if (node.nodeName === "clipPath") {
@@ -9784,7 +11053,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             } else {
                 fill = Snap.color(value);
                 if (fill.error) {
-                    var grad = Snap(getSomeDefs(this).ownerSVGElement).gradient(value);
+                    const grad = Snap(getSomeDefs(this).ownerSVGElement).gradient(value);
                     if (grad) {
                         if (!grad.node.id) {
                             $(grad.node, {
@@ -9799,7 +11068,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     fill = Str(fill);
                 }
             }
-            var attrs = {};
+            const attrs = {};
             attrs[name] = fill;
             $(this.node, attrs);
             this.node.style[name] = E;
@@ -9809,15 +11078,15 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     eve.on("snap.util.attr.fill", fillStroke("fill"));
     eve.on("snap.util.attr.stroke", fillStroke("stroke"));
-    var gradrg = /^([lr])(?:\(([^)]*)\))?(.*)$/i;
+    const gradrg = /^([lr])(?:\(([^)]*)\))?(.*)$/i;
     eve.on("snap.util.grad.parse", function parseGrad(string) {
         string = Str(string);
-        var tokens = string.match(gradrg);
+        const tokens = string.match(gradrg);
         if (!tokens) {
             return null;
         }
-        var type = tokens[1],
-            params = tokens[2],
+        const type = tokens[1];
+        let params = tokens[2],
             stops = tokens[3];
         params = params.split(/\s*,\s*/).map(function (el) {
             return +el == el ? +el : el;
@@ -9828,7 +11097,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         stops = stops.split("-");
         stops = stops.map(function (el) {
             el = el.split(":");
-            var out = {
+            const out = {
                 color: el[0]
             };
             if (el[1]) {
@@ -9836,13 +11105,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return out;
         });
-        var len = stops.length,
+        let len = stops.length,
             start = 0,
             j = 0;
 
         function seed(i, end) {
-            var step = (end - start) / (i - j);
-            for (var k = j; k < i; k++) {
+            const step = (end - start) / (i - j);
+            for (let k = j; k < i; k++) {
                 stops[k].offset = +(+start + step * (k - j)).toFixed(2);
             }
             j = i;
@@ -9899,7 +11168,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     eve.on("snap.util.attr.#text", function (value) {
         eve.stop();
         value = Str(value);
-        var txt = glob.doc.createTextNode(value);
+        const txt = glob.doc.createTextNode(value);
         while (this.node.firstChild) {
             this.node.removeChild(this.node.firstChild);
         }
@@ -9921,7 +11190,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     })(-1);
     eve.on("snap.util.attr.viewBox", function (value) {
-        var vb;
+        let vb;
         if (is(value, "object") && "x" in value) {
             vb = [value.x, value.y, value.width, value.height].join(" ");
         } else if (is(value, "array")) {
@@ -9954,7 +11223,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     eve.on("snap.util.attr.textpath", function (value) {
         eve.stop();
         if (this.type == "text") {
-            var id, tp, node;
+            let id, tp, node;
             if (!value && this.textPath) {
                 tp = this.textPath;
                 while (tp.node.firstChild) {
@@ -9965,8 +11234,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return;
             }
             if (is(value, "string")) {
-                var defs = getSomeDefs(this),
-                    path = wrap(defs.parentNode).path(value),
+                let defs = getSomeDefs(this);
+                const path = wrap(defs.parentNode).path(value),
                     textpath_group = defs.querySelector("#text-paths");
                 defs = textpath_group || defs;
                 defs.appendChild(path.node);
@@ -10003,12 +11272,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     })(-1);
     eve.on("snap.util.attr.text", function (value) {
         if (this.type == "text") {
-            var i = 0,
-                node = this.node,
+            let i = 0;
+            const node = this.node,
                 tuner = function (chunk) {
-                    var out = $("tspan");
+                    const out = $("tspan");
                     if (is(chunk, "array")) {
-                        for (var i = 0; i < chunk.length; ++i) {
+                        for (let i = 0; i < chunk.length; ++i) {
                             const newChild = tuner(chunk[i]);
                             out.appendChild(newChild);
                         }
@@ -10021,10 +11290,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             while (node.firstChild) {
                 node.removeChild(node.firstChild);
             }
-            var tuned = tuner(value);
+            const tuned = tuner(value);
             while (tuned.firstChild) {
                 node.appendChild(tuned.firstChild);
             }
+            this.clearCHull();
+        } else if (this.type === "tspan") {
+            this.node.textContent = value;
             this.clearCHull();
         }
         eve.stop();
@@ -10068,6 +11340,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function fontClearBox(value) {
         this.clearCHull();
     }
+
     //Attributs
     eve.on("snap.util.attr.fontFamily", fontClearBox)(-1);
     eve.on("snap.util.attr.font-family", fontClearBox)(-1);
@@ -10095,7 +11368,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         function getter(end) {
             return function () {
                 eve.stop();
-                var style = glob.doc.defaultView.getComputedStyle(this.node, null).getPropertyValue("marker-" + end);
+                const style = glob.doc.defaultView.getComputedStyle(this.node, null).getPropertyValue("marker-" + end);
                 if (style == "none") {
                     return style;
                 } else {
@@ -10107,14 +11380,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         function setter(end) {
             return function (value) {
                 eve.stop();
-                var name = "marker" + end.charAt(0).toUpperCase() + end.substring(1);
+                const name = "marker" + end.charAt(0).toUpperCase() + end.substring(1);
                 if (value == "" || !value) {
                     this.node.style[name] = "none";
                     this.attrMonitor(name);
                     return;
                 }
                 if (value.type == "marker") {
-                    var id = value.node.id;
+                    const id = value.node.id;
                     if (!id) {
                         $(value.node, {id: value.id});
                         value.attrMonitor("id");
@@ -10147,10 +11420,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     })(-1);
 
     function textExtract(node) {
-        var out = [];
-        var children = node.childNodes;
-        for (var i = 0, ii = children.length; i < ii; ++i) {
-            var chi = children[i];
+        const out = [];
+        const children = node.childNodes;
+        let i = 0;
+        const ii = children.length;
+        for (; i < ii; ++i) {
+            const chi = children[i];
             if (chi.nodeType == 3) {
                 out.push(chi.nodeValue);
             }
@@ -10168,7 +11443,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     eve.on("snap.util.getattr.text", function () {
         if (this.type == "text" || this.type == "tspan") {
             eve.stop();
-            var out = textExtract(this.node);
+            const out = textExtract(this.node);
             return out.length == 1 ? out[0] : out;
         }
     })(-1);
@@ -10180,7 +11455,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return;
         }
         eve.stop();
-        var value = eve(["snap", "util", "getattr", "fill"], this, true).firstDefined();
+        const value = eve(["snap", "util", "getattr", "fill"], this, true).firstDefined();
         return Snap(Snap.deurl(value)) || value;
     })(-1);
     eve.on("snap.util.getattr.stroke", function (internal) {
@@ -10188,12 +11463,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return;
         }
         eve.stop();
-        var value = eve(["snap", "util", "getattr", "stroke"], this, true).firstDefined();
+        const value = eve(["snap", "util", "getattr", "stroke"], this, true).firstDefined();
         return Snap(Snap.deurl(value)) || value;
     })(-1);
     eve.on("snap.util.getattr.viewBox", function () {
         eve.stop();
-        var vb = $(this.node, "viewBox").trim();
+        let vb = $(this.node, "viewBox").trim();
         if (vb) {
             vb = vb.split(separator);
             return Snap.box(+vb[0], +vb[1], +vb[2], +vb[3]);
@@ -10202,7 +11477,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     })(-1);
     eve.on("snap.util.getattr.points", function () {
-        var p = $(this.node, "points").trim();
+        const p = $(this.node, "points").trim();
         eve.stop();
         if (p) {
 
@@ -10212,7 +11487,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     })(-1);
     eve.on("snap.util.getattr.path", function () {
-        var p = $(this.node, "d").trim();
+        const p = $(this.node, "d").trim();
         eve.stop();
         return p;
     })(-1);
@@ -10243,12 +11518,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-        var rgNotSpace = /\S+/g,
-            rgBadSpace = /[\t\r\n\f]/g,
-            rgTrim = /(^\s+|\s+$)/g,
-            Str = String,
-            elproto = Element.prototype;
-        /**
+    const rgNotSpace = /\S+/g,
+        rgBadSpace = /[\t\r\n\f]/g,
+        rgTrim = /(^\s+|\s+$)/g,
+        Str = String,
+        elproto = Element.prototype;
+    /**
          * Element.addClass @method
  *
          * Adds given class name or list of class names to the element.
@@ -10257,12 +11532,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
  * @returns {Element} original element.
         */
         elproto.addClass = function (value) {
-            var classes = (Array.isArray(value)) ? value : Str(value || "").match(rgNotSpace) || [],
+            const classes = (Array.isArray(value)) ? value : Str(value || "").match(rgNotSpace) || [],
                 elem = this.node,
                 isSvg = typeof elem.className === "object", //.hasOwnProperty("baseVal"),
                 className = isSvg ? elem.className.baseVal : elem.className,
-                curClasses = className.match(rgNotSpace) || [],
-                j,
+                curClasses = className.match(rgNotSpace) || [];
+            let j,
                 pos,
                 clazz,
                 finalValue;
@@ -10277,7 +11552,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
 
                 finalValue = curClasses.join(" ");
-                if (className != finalValue) {
+                if (className !== finalValue) {
                     if (isSvg) {
                         elem.className.baseVal = finalValue;
                     } else {
@@ -10309,11 +11584,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (Array.isArray(value)) {
                 value.forEach((v) => this.removeClass(v))
             }
-            var classes = Str(value || "").match(rgNotSpace) || [],
+            const classes = Str(value || "").match(rgNotSpace) || [],
                 elem = this.node,
                 isSVG = typeof elem.className === "object", // elem.className.hasOwnProperty("baseVal"),
-                className = isSVG ? elem.className.baseVal : elem.className,
-                curClasses = className.match(rgNotSpace) || [],
+                className = isSVG ? elem.className.baseVal : elem.className;
+            let curClasses = className.match(rgNotSpace) || [],
                 j,
                 pos,
                 clazz,
@@ -10333,7 +11608,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
 
                 finalValue = curClasses.join(" ");
-                if (className != finalValue) {
+                if (className !== finalValue) {
                     if (isSVG) {
                         elem.className.baseVal = finalValue;
                     } else {
@@ -10353,7 +11628,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {boolean} `true` if the element has given class
          */
         elproto.hasClass = function (value, conjunctive = false) {
-            var elem = this.node,
+            const elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
                 curClasses = className.match(rgNotSpace) || [];
             if (Array.isArray(value)) {
@@ -10367,7 +11642,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
 
         elproto.matchClass = function (regex) {
-            var elem = this.node,
+            const elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
                 curClasses = className.match(rgNotSpace) || [];
             //loop over all classes and check if any of them match the regex and get an array of all matching classes
@@ -10394,11 +11669,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     return this.removeClass(value);
                 }
             }
-            var classes = (value || "").match(rgNotSpace) || [],
+            const classes = (value || "").match(rgNotSpace) || [],
                 elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
-                curClasses = className.match(rgNotSpace) || [],
-                j,
+                curClasses = className.match(rgNotSpace) || [];
+            let j,
                 pos,
                 clazz,
                 finalValue;
@@ -10413,7 +11688,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             finalValue = curClasses.join(" ");
-            if (className != finalValue) {
+            if (className !== finalValue) {
                 if (typeof elem.className === "object") {
                     elem.className.baseVal = finalValue;
                 } else {
@@ -10441,23 +11716,24 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var operators = {
+    const operators = {
             "+": function (x, y) {
-                    return x + y;
-                },
+                return x + y;
+            },
             "-": function (x, y) {
-                    return x - y;
-                },
+                return x - y;
+            },
             "/": function (x, y) {
-                    return x / y;
-                },
+                return x / y;
+            },
             "*": function (x, y) {
-                    return x * y;
-                }
+                return x * y;
+            }
         },
         Str = String,
         reUnit = /[a-z]+$/i,
         reAddon = /^\s*([+\-\/*])\s*=\s*([\d.eE+\-]+)\s*([^\d\s]+)?\s*$/;
+
     function getNumber(val) {
         return val;
     }
@@ -10467,17 +11743,17 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
     }
     eve.on("snap.util.attr", function (val) {
-        var plus = Str(val).match(reAddon);
+        const plus = Str(val).match(reAddon);
         if (plus) {
-            var evnt = eve.nt(),
-                name = evnt.substring(evnt.lastIndexOf(".") + 1),
-                a = this.attr(name),
-                atr = {};
+            const evnt = eve.nt(),
+                name = evnt.substring(evnt.lastIndexOf(".") + 1);
+            let a = this.attr(name);
+            const atr = {};
             eve.stop();
-            var unit = plus[3] || "",
+            const unit = plus[3] || "",
                 aUnit = a.match(reUnit),
                 op = operators[plus[1]];
-            if (aUnit && aUnit == unit) {
+            if (aUnit && aUnit === unit) {
                 val = op(parseFloat(a), +plus[2]);
             } else {
                 a = this.asPX(name);
@@ -10491,15 +11767,15 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     })(-10);
     eve.on("snap.util.equal", function (name, b) {
-        var A, B, a = Str(this.attr(name) || ""),
-            el = this,
+        let A, B, a = Str(this.attr(name) || "");
+        const el = this,
             bplus = Str(b).match(reAddon);
         if (bplus) {
             eve.stop();
-            var unit = bplus[3] || "",
+            const unit = bplus[3] || "",
                 aUnit = a.match(reUnit),
                 op = operators[bplus[1]];
-            if (aUnit && aUnit == unit) {
+            if (aUnit && aUnit === unit) {
                 return {
                     from: parseFloat(a),
                     to: op(parseFloat(a), +bplus[2]),
@@ -10791,8 +12067,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {number}
      *          Width divided by height.
      */
-    BBox.prototype.ration = function () {
-        return this.width / this.height;
+    BBox.prototype.ratio = function () {
+        return this.width / (this.height ? this.height : 1e-16);
     };
 
     /**
@@ -10883,7 +12159,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return this.corner(3);
             case 't':
             case 'tc':
-                return {x: this.cx, y: this.y2};
+                return {x: this.cx, y: this.y};
             case 'l':
             case 'lc':
                 return {x: this.x, y: this.cy};
@@ -11125,10 +12401,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
  * @property {Number} [t] - Parametric position (0-1)
  */
 
-/*
- * Copyright (c) 2018.  Orlin Vakarelov
- */
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
 
     const ERROR = 1e-12;
 
@@ -11230,7 +12503,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         mmax = Math.max,
         pow = Math.pow,
         abs = Math.abs,
-        STRICT_MODE = true;
+        STRICT_MODE = true,
+        GEN_TRANSFORM_DATA_KEY = "_ia_gen_transform_cache",
+        THIRD_SAMPLE_T1 = 1 / 3,
+        THIRD_SAMPLE_T2 = 2 / 3;
 
     /**
      * Caches path parsing results for performance
@@ -11328,7 +12604,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return Snap._.cacher(function (path, length, onlystart) {
             if (path instanceof Element) {
-                path = getPath[path.type](path);
+                const converter = getPath[path.type] || getPath.deflt;
+                path = converter && converter(path);
+                if (!path) {
+                    return null;
+                }
             }
             path = path2curve(path);
             let x, y, p, l, sp = "";
@@ -11729,7 +13009,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return true;
         }
 
-        return pathIntersectionNumber(getPath[path.type](path),
+        const converter = getPath[path.type] || getPath.deflt;
+        const elementPath = converter && converter(path);
+        if (!elementPath) {
+            return false;
+        }
+        return pathIntersectionNumber(elementPath,
             rectPath(rect_bbox.x, rect_bbox.y, rect_bbox.w, rect_bbox.h)) > 0;
 
     }
@@ -11908,7 +13193,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             path,
             m = new Snap.Matrix;
 
-        for (var i = 0, max = children.length; i < max; ++i) {
+        children_loop: for (var i = 0, max = children.length; i < max; ++i) {
             child = children[i];
 
             while (child.type == "use") { //process any use tags
@@ -11917,13 +13202,27 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     child = child.original;
                 } else {
                     const href = el.attr("xlink:href");
-                    child = child.original = child.node.ownerDocument.getElementById(
-                        href.substring(href.indexOf("#") + 1));
+                    if (typeof href !== "string" || href.indexOf("#") === -1) {
+                        // cannot resolve reference -> skip this child and continue the loop
+                        continue children_loop;
+                    }
+                    const id = href.substring(href.indexOf("#") + 1);
+                    const referenced = child.node.ownerDocument.getElementById(id);
+                    if (!referenced) {
+                        continue children_loop;
+                    }
+                    child = child.original = referenced;
                 }
             }
 
             pathfinder = Snap.path.get[child.type] || Snap.path.get.deflt;
+            if (typeof pathfinder !== "function") {
+                continue;
+            }
             path = pathfinder(child); //convert the element ot path
+            if (!path) {
+                continue;
+            }
             path = Snap.path.map(path, m.add(child.getLocalMatrix(STRICT_MODE)));
             comp_path = comp_path.concat(path);
         }
@@ -11985,7 +13284,19 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             },
             deflt: function (el) {
-                const bbox = el.node.getBBox();
+                const canMeasure = el && el.node && typeof el.node.getBBox === "function";
+                if (!canMeasure) {
+                    return null;
+                }
+                let bbox;
+                try {
+                    bbox = el.node.getBBox();
+                } catch (e) {
+                    return null;
+                }
+                if (!bbox) {
+                    return null;
+                }
                 return rectPath(bbox.x, bbox.y, bbox.width, bbox.height);
             },
         };
@@ -12086,7 +13397,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         if (!is(pathArray, "array") || !is(pathArray && pathArray[0], "array")) { // rough assumption
             if (is(pathArray, "object") && pathArray.type) {
-                pathArray = getPath[pathArray.type](pathArray);
+                const converter = getPath[pathArray.type] || getPath.deflt;
+                pathArray = converter && converter(pathArray);
+                if (!pathArray) {
+                    return [];
+                }
+            }
+            if (!pathArray) {
+                return [];
             }
             pathArray = Snap.parsePathString(pathArray);
         }
@@ -12651,7 +13969,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Number} Number of path segments
      */
     elproto.getNumberPathSegments = function () {
-        let path_str = getPath[this.type](this);
+        const converter = getPath[this.type] || getPath.deflt;
+        const path_str = converter && converter(this);
+        if (!path_str) {
+            return 0;
+        }
 
         let c_segs = path2curve(path_str, false, true);
         c_segs = removeRedundantCSegs(c_segs);
@@ -12896,7 +14218,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (type === "path") return (string_only) ? el.attr("d") : el;
         if (!getPath.hasOwnProperty(type)) return null;
 
-        const d = getPath[type](el);
+        const converter = getPath[type] || getPath.deflt;
+        if (typeof converter !== "function") {
+            return null;
+        }
+        const d = converter(el);
+        if (!d) {
+            return null;
+        }
 
         if (string_only) return d;
 
@@ -13112,7 +14441,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     elproto.getPointAtLength = function (length) {
         {
-            let path_str = getPath[this.type](this);
+            const converter = getPath[this.type] || getPath.deflt;
+            const path_str = converter && converter(this);
+            if (!path_str) {
+                return null;
+            }
             return getPointAtLength(path_str, length);
         }
     };
@@ -13519,7 +14852,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      *          Ordered points enriched with control handles and segment metadata.
      */
     elproto.getSegmentAnalysis = function () {
-        let path_str = getPath[this.type](this);
+        const converter = getPath[this.type] || getPath.deflt;
+        const path_str = converter && converter(this);
+        if (!path_str) {
+            return [];
+        }
 
         let c_segs = path2curve(path_str, false, true);
         c_segs = removeRedundantCSegs(c_segs);
@@ -13700,6 +15037,238 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Array} Array of cubic Bézier control points
      */
     Snap.path.cubicFromThirdPoints = cubicFromThirdPoints;
+
+    function ensureCubicCurve(bezier) {
+        if (!bezier) {
+            return null;
+        }
+        let current = (bezier.clone) ? bezier.clone() : Snap.bezier(bezier.points);
+        while (current.order < 3) {
+            current = current.raise();
+        }
+        return current;
+    }
+
+    function pushSamplePoint(storage, point, reuseIndex) {
+        if (reuseIndex != null) {
+            const existing = storage[reuseIndex];
+            if (existing && near(existing, point)) {
+                return reuseIndex;
+            }
+        }
+        storage.push({x: point.x, y: point.y});
+        return storage.length - 1;
+    }
+
+    function buildGenTransformCache(path) {
+        const originalD = path.attr("d") || "";
+        const poly = path.toPolyBezier();
+        if (!poly || !poly.curves || !poly.curves.length) {
+            return {
+                originalD: originalD,
+                poly: poly,
+                points: [],
+                transformedPoints: [],
+                segments: [],
+                subpaths: [],
+                tmpPoint: {x: 0, y: 0},
+            };
+        }
+
+        const points = [];
+        const segments = [];
+        const subpaths = [];
+        let prevEndIndex = null;
+        let currentSubpath = null;
+
+        const finalizeSubpath = function () {
+            if (!currentSubpath) return;
+            currentSubpath.endSegment = segments.length - 1;
+            currentSubpath.endPointIndex = prevEndIndex;
+            const startPoint = points[currentSubpath.startPointIndex];
+            const endPoint = points[currentSubpath.endPointIndex];
+            currentSubpath.closed = !!(startPoint && endPoint && near(startPoint, endPoint));
+        };
+
+        for (let i = 0; i < poly.curves.length; ++i) {
+            const curve = poly.curves[i];
+            const startsNew = !!curve.start || !currentSubpath;
+            const cubic = ensureCubicCurve(curve);
+            if (!cubic) {
+                continue;
+            }
+            let reduced;
+            reduced = cubic.reduce(true);
+            const parts = (reduced && reduced.length) ? reduced : [cubic];
+            for (let j = 0; j < parts.length; ++j) {
+                const piece = parts[j];
+                const beginsSubpath = startsNew && j === 0;
+                if (beginsSubpath) {
+                    finalizeSubpath();
+                    currentSubpath = {
+                        startSegment: segments.length,
+                        startPointIndex: null,
+                        endSegment: segments.length,
+                        endPointIndex: null,
+                        closed: false,
+                    };
+                    subpaths.push(currentSubpath);
+                    prevEndIndex = null;
+                } else if (!currentSubpath) {
+                    currentSubpath = {
+                        startSegment: segments.length,
+                        startPointIndex: null,
+                        endSegment: segments.length,
+                        endPointIndex: null,
+                        closed: false,
+                    };
+                    subpaths.push(currentSubpath);
+                }
+
+                const reuseIndex = (!beginsSubpath && prevEndIndex != null) ? prevEndIndex : null;
+                const idx0 = pushSamplePoint(points, piece.compute(0), reuseIndex);
+                const idx1 = pushSamplePoint(points, piece.compute(THIRD_SAMPLE_T1));
+                const idx2 = pushSamplePoint(points, piece.compute(THIRD_SAMPLE_T2));
+                const idx3 = pushSamplePoint(points, piece.compute(1));
+
+                segments.push({idx: [idx0, idx1, idx2, idx3]});
+
+                if (currentSubpath.startPointIndex == null) {
+                    currentSubpath.startPointIndex = idx0;
+                }
+                currentSubpath.endSegment = segments.length - 1;
+                currentSubpath.endPointIndex = idx3;
+                prevEndIndex = idx3;
+            }
+        }
+
+        finalizeSubpath();
+
+        return {
+            originalD: originalD,
+            poly: poly,
+            points: points,
+            transformedPoints: points.map((pt) => ({x: pt.x, y: pt.y})),
+            segments: segments,
+            subpaths: subpaths,
+            tmpPoint: {x: 0, y: 0},
+        };
+    }
+
+    function formatCoord(value) {
+        if (!isFinite(value)) {
+            return "0";
+        }
+        if (Math.abs(value) < ERROR) {
+            return "0";
+        }
+        const rounded = +value.toFixed(4);
+        if (rounded === 0) {
+            return "0";
+        }
+        return String(rounded);
+    }
+
+    function pointToString(point) {
+        return formatCoord(point.x) + "," + formatCoord(point.y);
+    }
+
+    function buildPathFromCache(cache) {
+        if (!cache.segments.length) {
+            return cache.originalD;
+        }
+
+        const parts = [];
+        const transformed = cache.transformedPoints;
+        const segments = cache.segments;
+        const subpaths = cache.subpaths.length ? cache.subpaths : [{
+            startSegment: 0,
+            endSegment: segments.length - 1,
+            startPointIndex: segments[0] ? segments[0].idx[0] : null,
+            closed: false,
+        }];
+
+        for (let i = 0; i < subpaths.length; ++i) {
+            const sub = subpaths[i];
+            if (sub.startPointIndex == null || sub.startSegment == null || sub.endSegment == null) {
+                continue;
+            }
+            const movePoint = transformed[sub.startPointIndex];
+            parts.push("M" + pointToString(movePoint));
+            for (let segIdx = sub.startSegment; segIdx <= sub.endSegment; ++segIdx) {
+                const segment = segments[segIdx];
+                if (!segment) continue;
+                const p0 = transformed[segment.idx[0]];
+                const p1 = transformed[segment.idx[1]];
+                const p2 = transformed[segment.idx[2]];
+                const p3 = transformed[segment.idx[3]];
+                const cubic = cubicFromThirdPoints(p0, p1, p2, p3);
+                parts.push("C" + pointToString(cubic[1]) + " " + pointToString(cubic[2]) + " " + pointToString(cubic[3]));
+            }
+            // if (sub.closed) {
+            //     parts.push("Z");
+            // }
+        }
+
+        return parts.join(" ");
+    }
+
+    elproto.genTransform = function (transform, options) {
+        if (this.type !== "path") {
+            return this;
+        }
+        let returnPathOnly = false;
+        if (typeof options === 'boolean') {
+            returnPathOnly = options;
+        } else if (options && typeof options === 'object') {
+            returnPathOnly = !!options.returnPath;
+        }
+        let cache = this.data(GEN_TRANSFORM_DATA_KEY);
+        if (!cache) {
+            cache = buildGenTransformCache(this);
+            this.data(GEN_TRANSFORM_DATA_KEY, cache);
+        }
+
+        if (typeof transform !== "function") {
+            if (returnPathOnly) {
+                return cache.originalD;
+            }
+            this.attr({d: cache.originalD});
+            return this;
+        }
+
+        if (!cache.points.length) {
+            return returnPathOnly ? cache.originalD : this;
+        }
+
+        const basePoints = cache.points;
+        const transformedPoints = cache.transformedPoints;
+        const inputPoint = cache.tmpPoint;
+
+        for (let i = 0, l = basePoints.length; i < l; ++i) {
+            const base = basePoints[i];
+            inputPoint.x = base.x;
+            inputPoint.y = base.y;
+            const mapped = transform(inputPoint) || inputPoint;
+            const target = transformedPoints[i];
+            target.x = (mapped && isFinite(mapped.x)) ? mapped.x : base.x;
+            target.y = (mapped && isFinite(mapped.y)) ? mapped.y : base.y;
+        }
+
+        const newPath = buildPathFromCache(cache);
+        if (returnPathOnly) {
+            return newPath || cache.originalD;
+        }
+        if (newPath) {
+            this.attr({d: newPath});
+        }
+        return this;
+    };
+
+    elproto.getTransformFix = function () {
+        this.removeData(GEN_TRANSFORM_DATA_KEY);
+        return this;
+    }
 
     /**
      * Finds dot coordinates on the given cubic beziér curve at the given t
@@ -15939,6 +17508,6 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 });
 
-return Snap_ia;
+return Snap;
 }));
 ;

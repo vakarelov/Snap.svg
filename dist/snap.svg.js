@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-11-17
+// build: 2025-11-28
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -970,6 +970,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 (function (glob, factory) {
     // AMD support
     if (typeof define == "function" && define.amd) {
@@ -1005,6 +1006,29 @@
         return true;
     };
     let lastTimeStamp;
+    const nativeSetTimeout = window.setTimeout ? window.setTimeout.bind(window) : function (callback) {
+            if (typeof callback === "function") {
+                callback();
+            }
+            return null;
+        };
+    const nativeClearTimeout = window.clearTimeout ? window.clearTimeout.bind(window) : function () {
+        };
+    const nativeSetInterval = window.setInterval ? window.setInterval.bind(window) : function (callback) {
+            if (typeof callback === "function") {
+                callback();
+            }
+            return null;
+        };
+    const nativeClearInterval = window.clearInterval ? window.clearInterval.bind(window) : function () {
+        };
+    const managedTimeouts = new Map();
+    const managedIntervals = new Map();
+    let timeoutCounter = 0;
+    let intervalCounter = 0;
+    let isGlobalPaused = false;
+    const pausedAnimations = new Map();
+    let timerOverridesInstalled = false;
 
     /**
      * @typedef {(number|number[])} AnimationValue
@@ -1126,6 +1150,233 @@
     const timer = Date.now || function () {
         return +new Date;
     };
+
+    const TIMEOUT_PREFIX = "mina-t-";
+    const INTERVAL_PREFIX = "mina-i-";
+
+    function installTimerOverrides() {
+        if (timerOverridesInstalled || typeof window === "undefined") {
+            return;
+        }
+        timerOverridesInstalled = true;
+        window.clearTimeout = function (id) {
+            if (!handleManagedTimeoutClear(id)) {
+                return nativeClearTimeout(id);
+            }
+        };
+        window.clearInterval = function (id) {
+            if (!handleManagedIntervalClear(id)) {
+                return nativeClearInterval(id);
+            }
+        };
+    }
+
+    function createTimeoutEntry(callback, delay, args) {
+        const id = TIMEOUT_PREFIX + (++timeoutCounter);
+        const entry = {
+            id,
+            callback,
+            args,
+            start: null,
+            remaining: Math.max(0, delay || 0),
+            nativeHandle: null,
+            paused: isGlobalPaused,
+            cleared: false,
+        };
+        managedTimeouts.set(id, entry);
+        if (!isGlobalPaused) {
+            armTimeout(entry, entry.remaining);
+        }
+        return id;
+    }
+
+    function armTimeout(entry, wait) {
+        entry.remaining = Math.max(0, wait || 0);
+        entry.start = timer();
+        entry.nativeHandle = nativeSetTimeout(function () {
+            runManagedTimeout(entry.id);
+        }, entry.remaining);
+        entry.paused = false;
+    }
+
+    function runManagedTimeout(id) {
+        const entry = managedTimeouts.get(id);
+        if (!entry || entry.cleared) {
+            return;
+        }
+        entry.nativeHandle = null;
+        if (isGlobalPaused) {
+            entry.paused = true;
+            entry.remaining = 0;
+            return;
+        }
+        entry.cleared = true;
+        managedTimeouts.delete(id);
+        entry.callback && entry.callback.apply(undefined, entry.args);
+    }
+
+    function pauseManagedTimeout(entry) {
+        if (!entry || entry.cleared || entry.paused) {
+            return;
+        }
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+            const elapsed = entry.start != null ? (timer() - entry.start) : 0;
+            entry.remaining = Math.max(0, entry.remaining - elapsed);
+        }
+        entry.nativeHandle = null;
+        entry.paused = true;
+    }
+
+    function resumeManagedTimeout(entry) {
+        if (!entry || entry.cleared || !entry.paused) {
+            return;
+        }
+        armTimeout(entry, entry.remaining);
+    }
+
+    function cancelManagedTimeout(id) {
+        const entry = managedTimeouts.get(id);
+        if (!entry) {
+            return false;
+        }
+        entry.cleared = true;
+        entry.paused = false;
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+        }
+        managedTimeouts.delete(id);
+        return true;
+    }
+
+    function handleManagedTimeoutClear(id) {
+        if (!isManagedTimeoutId(id)) {
+            return false;
+        }
+        return cancelManagedTimeout(id);
+    }
+
+    function isManagedTimeoutId(id) {
+        return typeof id === "string" && id.indexOf(TIMEOUT_PREFIX) === 0;
+    }
+
+    function createIntervalEntry(callback, interval, args) {
+        const id = INTERVAL_PREFIX + (++intervalCounter);
+        const entry = {
+            id,
+            callback,
+            args,
+            interval: Math.max(0, interval || 0),
+            remaining: Math.max(0, interval || 0),
+            start: null,
+            nativeHandle: null,
+            paused: isGlobalPaused,
+            cleared: false,
+        };
+        managedIntervals.set(id, entry);
+        if (!isGlobalPaused) {
+            armInterval(entry, entry.interval);
+        }
+        return id;
+    }
+
+    function armInterval(entry, wait) {
+        entry.remaining = Math.max(0, wait || 0);
+        entry.start = timer();
+        entry.nativeHandle = nativeSetTimeout(function () {
+            runManagedInterval(entry.id);
+        }, entry.remaining);
+        entry.paused = false;
+    }
+
+    function runManagedInterval(id) {
+        const entry = managedIntervals.get(id);
+        if (!entry || entry.cleared) {
+            return;
+        }
+        entry.nativeHandle = null;
+        if (isGlobalPaused) {
+            entry.paused = true;
+            return;
+        }
+        entry.callback && entry.callback.apply(undefined, entry.args);
+        if (entry.cleared) {
+            managedIntervals.delete(id);
+            return;
+        }
+        if (!isGlobalPaused) {
+            armInterval(entry, entry.interval);
+        } else {
+            entry.paused = true;
+        }
+    }
+
+    function pauseManagedInterval(entry) {
+        if (!entry || entry.cleared || entry.paused) {
+            return;
+        }
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+            const elapsed = entry.start != null ? (timer() - entry.start) : 0;
+            entry.remaining = Math.max(0, entry.remaining - elapsed);
+        } else {
+            entry.remaining = entry.interval;
+        }
+        entry.nativeHandle = null;
+        entry.paused = true;
+    }
+
+    function resumeManagedInterval(entry) {
+        if (!entry || entry.cleared || !entry.paused) {
+            return;
+        }
+        const wait = entry.remaining > 0 ? entry.remaining : entry.interval;
+        armInterval(entry, wait);
+    }
+
+    function cancelManagedInterval(id) {
+        const entry = managedIntervals.get(id);
+        if (!entry) {
+            return false;
+        }
+        entry.cleared = true;
+        entry.paused = false;
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+        }
+        managedIntervals.delete(id);
+        return true;
+    }
+
+    function handleManagedIntervalClear(id) {
+        if (!isManagedIntervalId(id)) {
+            return false;
+        }
+        return cancelManagedInterval(id);
+    }
+
+    function isManagedIntervalId(id) {
+        return typeof id === "string" && id.indexOf(INTERVAL_PREFIX) === 0;
+    }
+
+    function pauseAllTimers() {
+        managedTimeouts.forEach(pauseManagedTimeout);
+        managedIntervals.forEach(pauseManagedInterval);
+    }
+
+    function resumeAllTimers() {
+        managedTimeouts.forEach(resumeManagedTimeout);
+        managedIntervals.forEach(resumeManagedInterval);
+    }
+
+    function stopAllTimers() {
+        const timeoutIds = Array.from(managedTimeouts.keys());
+        timeoutIds.forEach(cancelManagedTimeout);
+        const intervalIds = Array.from(managedIntervals.keys());
+        intervalIds.forEach(cancelManagedInterval);
+    }
+
+    installTimerOverrides();
 
     /**
      * Gets or sets the current status of an animation.
@@ -1380,6 +1631,13 @@
         const anim = new Animation(a, A, b, B, get, set, easing);
         animations[anim.id] = anim;
         (Array.isArray(last)) ? last.push(anim) : last = anim;
+        if (isGlobalPaused) {
+            if (!pausedAnimations.has(anim.id)) {
+                pausedAnimations.set(anim.id, anim);
+            }
+            anim.pause();
+            return anim;
+        }
         let len = 0;
         for (const key of Object.keys(animations)) {
             len++;
@@ -1630,6 +1888,573 @@
     }
 
     /**
+     * Normalizes the arguments used by the pulse easing helpers.
+     * Allows calling pattern where only progress is supplied.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n
+     * @returns {{maxVal: number, midPoint: number, repeatCount: number, local: number, progress: number}}
+     */
+    function resolvePulseArgs(max_val, mid_point, repeat, n) {
+        if (mid_point === undefined && repeat === undefined && n === undefined) {
+            n = max_val;
+            max_val = undefined;
+        }
+
+        const maxVal = (max_val === undefined ? 1 : +max_val) || 0;
+        let midPoint = mid_point === undefined ? 0.5 : +mid_point;
+        midPoint = Math.min(0.9999, Math.max(0.0001, isFinite(midPoint) ? midPoint : 0.5));
+        const repeatCount = Math.max(0.0001, Math.abs(repeat === undefined ? 1 : +repeat) || 1);
+        const progress = Math.max(0, Math.min(1, isFinite(+n) ? +n : 0));
+
+        const fullCycles = progress * repeatCount;
+        const cycleIndex = Math.floor(fullCycles);
+        let local = fullCycles - cycleIndex;
+        if (progress === 1) {
+            local = 1;
+        }
+
+        return {maxVal, midPoint, repeatCount, local, progress};
+    }
+
+    function normalizePulseBaseInputs(max_val, mid_point) {
+        const defaults = resolvePulseArgs(max_val, mid_point, 1, 0);
+        return {
+            maxVal: defaults.maxVal,
+            midPoint: defaults.midPoint,
+        };
+    }
+
+    /**
+     * Core pulse computation shared by the linear and eased variants.
+     *
+     * @param {number} max_val
+     * @param {number} mid_point
+     * @param {number} repeat
+     * @param {number} n
+    * @param {function(number): number} [shaper]
+     * @returns {number}
+     */
+    function pulseValue(max_val, mid_point, repeat, n, shaper) {
+        const {maxVal, midPoint, local, progress} = resolvePulseArgs(max_val, mid_point, repeat, n);
+        if (progress === 0 || progress === 1 && local === 1) {
+            return 0;
+        }
+
+        const ascending = local <= midPoint;
+        const segmentSpan = ascending ? midPoint : (1 - midPoint);
+        const raw = segmentSpan ? (ascending ? local / midPoint : (local - midPoint) / (1 - midPoint)) : 0;
+        const shaped = shaper ? shaper(Math.max(0, Math.min(1, raw))) : raw;
+        const value = ascending ? shaped : 1 - shaped;
+        return Math.max(0, Math.min(maxVal, value * maxVal));
+    }
+
+    /**
+     * Linear pulse that rises from 0 to `max_val` at `mid_point` and returns to 0.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n Progress value `[0, 1]`.
+     * @returns {number}
+     */
+    mina.pulseLinear = function (max_val, mid_point, repeat, n) {
+        return pulseValue(max_val, mid_point, repeat, n);
+    };
+
+    mina.pulseLinear.withParams = function (max_val, mid_point, repeat) {
+        return function (n) {
+            return mina.pulseLinear(max_val, mid_point, repeat, n);
+        };
+    };
+
+    // Backwards-compatible alias for legacy callers.
+    mina.pulse = mina.pulseLinear;
+
+    /**
+     * Ease-in-out pulse that eases into the peak and eases back to zero.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n Progress value `[0, 1]`.
+     * @returns {number}
+     */
+    mina.pulseEaseInOut = function (max_val, mid_point, repeat, n) {
+        return pulseValue(max_val, mid_point, repeat, n, mina.easeInOutSine);
+    };
+
+    mina.pulseEaseInOut.withParams = function (max_val, mid_point, repeat) {
+        return function (n) {
+            return mina.pulseEaseInOut(max_val, mid_point, repeat, n);
+        };
+    };
+
+    function normalizePulseDecayRepeat(repeat) {
+        const numeric = repeat === undefined ? 1 : +repeat;
+        if (!isFinite(numeric) || numeric <= 0) {
+            return 1;
+        }
+        return numeric;
+    }
+
+    function normalizePulseDecayTimeline(n) {
+        const numeric = isFinite(+n) ? +n : 0;
+        const timeline = Math.max(0, numeric);
+        const cycleIndex = Math.floor(timeline);
+        const local = timeline - cycleIndex;
+        return {cycleIndex, local};
+    }
+
+    function pulseDecayEnvelope(cycleIndex, decayFactor) {
+        if (cycleIndex <= 0) {
+            return 1;
+        }
+        const ratio = cycleIndex / (cycleIndex + decayFactor);
+        const envelopeInput = Math.max(0, Math.min(1, 1 - ratio));
+        return mina.easeOutQuad(envelopeInput);
+    }
+
+    /**
+     * Repeating pulse that accepts `n > 1` and applies time decay across cycles.
+     * The `repeat` parameter acts as the decay constant: larger values keep the
+     * envelope higher for more cycles, smaller values fade faster.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n Timeline progress where each whole number represents a full pulse.
+     * @returns {number}
+     */
+    mina.pulseDecay = function (max_val, mid_point, repeat, n) {
+        if (mid_point === undefined && repeat === undefined && n === undefined) {
+            n = max_val;
+            max_val = undefined;
+        }
+
+        const {cycleIndex, local} = normalizePulseDecayTimeline(n);
+        const decayFactor = normalizePulseDecayRepeat(repeat);
+        const envelope = pulseDecayEnvelope(cycleIndex, decayFactor);
+        if (envelope <= 0) {
+            return 0;
+        }
+
+        const numericMax = max_val === undefined ? 1 : +max_val;
+        const safeMax = isFinite(numericMax) ? numericMax : 0;
+        const amplitude = safeMax * envelope;
+        return pulseValue(amplitude, mid_point, 1, local);
+    };
+
+    mina.pulseDecay.withParams = function (max_val, mid_point, repeat) {
+        const {maxVal, midPoint} = normalizePulseBaseInputs(max_val, mid_point);
+        const decayFactor = normalizePulseDecayRepeat(repeat);
+        return function (n) {
+            const {cycleIndex, local} = normalizePulseDecayTimeline(n);
+            const envelope = pulseDecayEnvelope(cycleIndex, decayFactor);
+            if (envelope <= 0) {
+                return 0;
+            }
+            return pulseValue(maxVal * envelope, midPoint, 1, local);
+        };
+    };
+
+    const PROJECTILE_DEFAULT_MID = 0.5;
+    const PROJECTILE_MIN_MID = 0.0001;
+    const PROJECTILE_MAX_MID = 0.9999;
+    const PROJECTILE_MID_EPS = 1e-7;
+
+    function clampUnitInterval(value) {
+        if (value <= 0) {
+            return 0;
+        }
+        if (value >= 1) {
+            return 1;
+        }
+        return value;
+    }
+
+    function coerceProgress(value) {
+        const numeric = isFinite(+value) ? +value : 0;
+        return clampUnitInterval(numeric);
+    }
+
+    function normalizeStepCount(count) {
+        const numeric = Math.floor(isFinite(+count) ? +count : 0);
+        return Math.max(1, numeric || 1);
+    }
+
+    function normalizeStepPosition(position) {
+        if (typeof position === "string") {
+            const token = position.toLowerCase();
+            if (token === "start" || token === "leading") {
+                return "start";
+            }
+            if (token === "end" || token === "trailing") {
+                return "end";
+            }
+        }
+        if (position === 0 || position === "0") {
+            return "start";
+        }
+        return "end";
+    }
+
+    function evaluateSteps(count, position, progress) {
+        const t = clampUnitInterval(isFinite(+progress) ? +progress : 0);
+        const steps = normalizeStepCount(count);
+        const mode = normalizeStepPosition(position);
+        if (mode === "start") {
+            return Math.min(1, Math.max(0, Math.ceil(t * steps) / steps));
+        }
+        return Math.min(1, Math.max(0, Math.floor(t * steps) / steps));
+    }
+
+    function pseudoNoise(progress, octaves, frequency, seed, amplitude) {
+        const t = clampUnitInterval(isFinite(+progress) ? +progress : 0);
+        const octaveCount = Math.max(1, Math.floor(isFinite(+octaves) ? +octaves : 3));
+        const baseFrequency = Math.max(1, isFinite(+frequency) ? +frequency : 4);
+        const amp = Math.max(0, isFinite(+amplitude) ? +amplitude : 0.08);
+        const seedVal = isFinite(+seed) ? +seed : 0;
+        let total = 0;
+        let weight = 0;
+        let currentAmp = 1;
+        for (let i = 0; i < octaveCount; i++) {
+            const freq = baseFrequency * Math.pow(2, i);
+            const phase = seedVal * (i + 1) * 1.37;
+            total += Math.sin((t * Math.PI * freq) + phase) * currentAmp;
+            weight += currentAmp;
+            currentAmp *= 0.5;
+        }
+        const normalized = weight ? total / weight : 0;
+        const jitter = clampUnitInterval((normalized * amp) + 0.5);
+        const blended = clampUnitInterval((jitter - 0.5) + t);
+        return blended;
+    }
+
+    function springDampedValue(progress, frequency, damping) {
+        const t = coerceProgress(progress);
+        const freq = Math.max(0.1, isFinite(+frequency) ? +frequency : 8);
+        const damp = Math.max(0, isFinite(+damping) ? +damping : 1.1);
+        const envelope = Math.exp(-damp * t);
+        const value = 1 - envelope * Math.cos(freq * t);
+        return clampUnitInterval(value);
+    }
+
+    function rubberBandValue(progress, tightness) {
+        const t = coerceProgress(progress);
+        const stiffness = Math.max(0.01, isFinite(+tightness) ? +tightness : 0.75);
+        const centered = (t - 0.5) * 2;
+        const sign = centered >= 0 ? 1 : -1;
+        const distance = Math.abs(centered);
+        const eased = 1 - Math.exp(-distance / stiffness);
+        return clampUnitInterval(0.5 + sign * eased * 0.5);
+    }
+
+    function createOutInEasing(outFn, inFn) {
+        const easeOut = typeof outFn === "function" ? outFn : mina.linear;
+        const easeIn = typeof inFn === "function" ? inFn : mina.linear;
+        return function (n) {
+            const t = coerceProgress(n);
+            if (t < 0.5) {
+                return 0.5 * easeOut(t * 2);
+            }
+            return 0.5 * easeIn((t - 0.5) * 2) + 0.5;
+        };
+    }
+
+    const ANTICIPATE_DEFAULT_TENSION = 1.5;
+    const ANTICIPATE_OVERSHOOT_SCALE = 1.5;
+
+    function anticipateValue(t, tension) {
+        return t * t * ((tension + 1) * t - tension);
+    }
+
+    function overshootValue(t, tension) {
+        return t * t * ((tension + 1) * t + tension);
+    }
+
+    function flattenEasingInputs(input, target) {
+        if (!target) {
+            target = [];
+        }
+        if (input == null) {
+            return target;
+        }
+        if (Array.isArray(input)) {
+            for (let i = 0; i < input.length; i++) {
+                flattenEasingInputs(input[i], target);
+            }
+            return target;
+        }
+        target.push(input);
+        return target;
+    }
+
+    function resolveEasingReference(ref) {
+        if (typeof ref === "function") {
+            return ref;
+        }
+        if (typeof ref === "string" && typeof mina[ref] === "function") {
+            return mina[ref];
+        }
+        if (ref == null) {
+            return null;
+        }
+        if (typeof console !== "undefined" && console.warn) {
+            console.warn("[mina] Unknown easing reference", ref, "- falling back to linear");
+        }
+        return null;
+    }
+
+    function normalizeEasingList(inputs) {
+        const flattened = flattenEasingInputs(inputs, []);
+        if (!flattened.length) {
+            return [];
+        }
+        return flattened.map((item) => resolveEasingReference(item) || mina.linear);
+    }
+
+    function normalizeProjectileMidpoint(mid_point) {
+        let mid = mid_point === undefined ? PROJECTILE_DEFAULT_MID : +mid_point;
+        if (!isFinite(mid)) {
+            mid = PROJECTILE_DEFAULT_MID;
+        }
+        if (mid <= PROJECTILE_MIN_MID) {
+            return PROJECTILE_MIN_MID;
+        }
+        if (mid >= PROJECTILE_MAX_MID) {
+            return PROJECTILE_MAX_MID;
+        }
+        return mid;
+    }
+
+    function normalizeProjectileProgress(n) {
+        const numeric = isFinite(+n) ? +n : 0;
+        return clampUnitInterval(numeric);
+    }
+
+    function buildProjectileCoefficients(mid) {
+        const ascendA = -1 / (mid * mid);
+        const ascendB = 2 / mid;
+        const inv = 1 - mid;
+        const descendA = -1 / (inv * inv);
+        const descendB = 2 * mid / (inv * inv);
+        const descendC = 1 - (mid * mid) / (inv * inv);
+        return {mid, ascendA, ascendB, descendA, descendB, descendC};
+    }
+
+    const PROJECTILE_DEFAULT_COEFFS = buildProjectileCoefficients(PROJECTILE_DEFAULT_MID);
+
+    function getProjectileCoefficients(mid_point) {
+        const mid = normalizeProjectileMidpoint(mid_point);
+        if (Math.abs(mid - PROJECTILE_DEFAULT_MID) < PROJECTILE_MID_EPS) {
+            return PROJECTILE_DEFAULT_COEFFS;
+        }
+        return buildProjectileCoefficients(mid);
+    }
+
+    function evaluateProjectile(progress, coeffs) {
+        if (progress <= coeffs.mid) {
+            const value = coeffs.ascendA * progress * progress + coeffs.ascendB * progress;
+            return clampUnitInterval(value);
+        }
+        const value = coeffs.descendA * progress * progress + coeffs.descendB * progress + coeffs.descendC;
+        return clampUnitInterval(value);
+    }
+
+    /**
+     * Projectile-inspired easing that mimics upward deceleration and downward acceleration.
+     *
+     * @param {number} [mid_point=0.5] Normalized time at which the apex (value = 1) occurs.
+     * @param {number} n Progress value `[0, 1]`.
+     * @returns {number}
+     */
+    mina.projectile = function (mid_point, n) {
+        if (n === undefined) {
+            n = mid_point;
+            mid_point = undefined;
+        }
+        const progress = normalizeProjectileProgress(n);
+        const coeffs = (mid_point === undefined)
+            ? PROJECTILE_DEFAULT_COEFFS
+            : getProjectileCoefficients(mid_point);
+        return evaluateProjectile(progress, coeffs);
+    };
+
+    mina.projectile.withParams = function (mid_point) {
+        const coeffs = getProjectileCoefficients(mid_point);
+        return function (n) {
+            return evaluateProjectile(normalizeProjectileProgress(n), coeffs);
+        };
+    };
+
+    function applyComposeStages(stages, n) {
+        let value = coerceProgress(n);
+        if (!stages || !stages.length) {
+            return value;
+        }
+        for (let i = 0; i < stages.length; i++) {
+            value = stages[i](value);
+        }
+        return clampUnitInterval(value);
+    }
+
+    mina.compose = function () {
+        if (!arguments.length) {
+            return 0;
+        }
+        const inputArgs = Array.prototype.slice.call(arguments);
+        const progress = inputArgs.pop();
+        const stageInputs = (inputArgs.length === 1 && Array.isArray(inputArgs[0]))
+            ? inputArgs[0]
+            : inputArgs;
+        const stages = normalizeEasingList(stageInputs);
+        return applyComposeStages(stages, progress);
+    };
+
+    mina.compose.withParams = function () {
+        const inputArgs = Array.prototype.slice.call(arguments);
+        const stageInputs = (inputArgs.length === 1 && Array.isArray(inputArgs[0]))
+            ? inputArgs[0]
+            : inputArgs;
+        const stages = normalizeEasingList(stageInputs);
+        return function (n) {
+            return applyComposeStages(stages, n);
+        };
+    };
+
+
+    mina.delay = function () {
+        if (!arguments.length) {
+            return 0;
+        }
+        const inputArgs = Array.prototype.slice.call(arguments);
+        const progress = inputArgs.pop();
+        let easingCandidate;
+        if (inputArgs.length > 1) {
+            easingCandidate = inputArgs.pop();
+        }
+        const delayAmount = inputArgs.length ? inputArgs[0] : 0;
+        const easingFn = resolveEasingReference(easingCandidate) || mina.linear;
+        return applyDelayEasing(delayAmount, easingFn, progress);
+    };
+
+    mina.delay.withParams = function (delayAmount, easingCandidate) {
+        const safeDelay = clampUnitInterval(isFinite(+delayAmount) ? +delayAmount : 0);
+        const easingFn = resolveEasingReference(easingCandidate) || mina.linear;
+        return function (n) {
+            return applyDelayEasing(safeDelay, easingFn, n);
+        };
+    };
+
+    mina.delayHalf = mina.delay.withParams(0.5);
+    mina.delayQuarter = mina.delay.withParams(0.25);
+
+    /**
+     * Preset: anticipatory pull followed by a bounce settle.
+     * @type {MinaEasing}
+     */
+    mina.anticipateBounce = mina.compose.withParams(mina.easeInBack, mina.bounceOut);
+
+    /**
+     * Preset: hold the start for 25% of the timeline, then snap out exponentially.
+     * @type {MinaEasing}
+     */
+    mina.delayedSnap = mina.compose.withParams(mina.delayQuarter, mina.easeOutExpo);
+
+    /**
+     * Preset: punchy pulse that eases the return curve.
+     * @type {MinaEasing}
+     */
+    mina.pulseIntro = mina.compose.withParams(
+        mina.pulseLinear.withParams(1, 0.35, 1),
+        mina.easeOutQuart
+    );
+
+    /**
+     * Preset: dual spring response with a delayed secondary wobble.
+     * @type {MinaEasing}
+     */
+    mina.doubleSpring = mina.compose.withParams(
+        mina.springOut,
+        mina.delay.withParams(0.4, mina.springIn)
+    );
+
+    function applyDelayEasing(delayAmount, easingFn, progress) {
+        const delayRatio = clampUnitInterval(isFinite(+delayAmount) ? +delayAmount : 0);
+        const easedProgress = coerceProgress(progress);
+        const easing = easingFn || mina.linear;
+        if (delayRatio >= 1) {
+            return 0;
+        }
+        if (easedProgress <= delayRatio) {
+            return 0;
+        }
+        const span = 1 - delayRatio;
+        const local = clampUnitInterval((easedProgress - delayRatio) / span);
+        return clampUnitInterval(easing(local));
+    }
+
+
+    /**
+     * Discrete steps easing, equivalent to CSS `steps(count, position)`.
+     * Great for sprite-sheet animations, pagination dots, or counters that must snap between integers.
+     * @param {number} [count=4] Number of discrete segments.
+     * @param {"start"|"end"} [position="end"] Whether the first jump occurs immediately (`start`) or after the first interval (`end`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.steps = function (count, position, n) {
+        if (n === undefined) {
+            if (position === undefined) {
+                n = count;
+                count = undefined;
+            } else {
+                n = position;
+                position = undefined;
+            }
+        }
+        const stepCount = normalizeStepCount(count === undefined ? 4 : count);
+        const mode = normalizeStepPosition(position);
+        return evaluateSteps(stepCount, mode, n);
+    };
+
+    mina.steps.withParams = function (count, position) {
+        const stepCount = normalizeStepCount(count === undefined ? 4 : count);
+        const mode = normalizeStepPosition(position);
+        return function (n) {
+            return evaluateSteps(stepCount, mode, n);
+        };
+    };
+
+    /**
+     * Deterministic noise-based easing that introduces subtle organic jitter while remaining bounded.
+     * Perfect for shimmer, breathing indicators, or making robotic tweens feel alive.
+     * Arguments mirror `(octaves, frequency, seed, amplitude, progress)` but only progress is required.
+     * @returns {number}
+     */
+    mina.noise = function () {
+        if (!arguments.length) {
+            return 0;
+        }
+        const args = Array.prototype.slice.call(arguments);
+        const progress = args.pop();
+        const octaves = args.length ? args.shift() : undefined;
+        const frequency = args.length ? args.shift() : undefined;
+        const seed = args.length ? args.shift() : undefined;
+        const amplitude = args.length ? args.shift() : undefined;
+        return pseudoNoise(progress, octaves, frequency, seed, amplitude);
+    };
+
+    mina.noise.withParams = function (octaves, frequency, seed, amplitude) {
+        return function (n) {
+            return pseudoNoise(n, octaves, frequency, seed, amplitude);
+        };
+    };
+
+    /**
      * Creates a timing function equivalent to CSS `cubic-bezier(p1x, p1y, p2x, p2y)`.
      * Start and end points are fixed at `(0, 0)` and `(1, 1)`; `p1`/`p2` describe the tangent handles.
      *
@@ -1722,8 +2547,8 @@
      * mina.cubicBezier(0.42, 0, 0.58, 1, 0.5);
      */
     mina.cubicBezier = function (p1x, p1y, p2x, p2y, n) {
-        if (p1x === undefined && p1y === undefined && p2x === undefined && p2y === undefined) {
-            return mina.ease(n);
+        if (n === undefined && p1y === undefined && p2x === undefined && p2y === undefined) {
+            return mina.ease(p1x);
         }
 
         return cubic_bezier(p1x, p1y, p2x, p2y)(n);
@@ -1796,6 +2621,38 @@
     };
 
     /**
+     * Classic smoothstep easing (`3t^2 - 2t^3`).
+     * Handy for shader-style fades or camera moves that must start/stop gently.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.smoothStep = function (n) {
+        const t = coerceProgress(n);
+        return t * t * (3 - 2 * t);
+    };
+
+    /**
+     * Five-term smootherstep easing (`6t^5 - 15t^4 + 10t^3`).
+     * Use for camera or gradient transitions that need zero velocity and acceleration at the endpoints.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.smootherStep = function (n) {
+        const t = coerceProgress(n);
+        return t * t * t * (t * (t * 6 - 15) + 10);
+    };
+
+    // Lowercase aliases for familiarity with shader-style naming.
+    mina.smoothstep = mina.smoothStep;
+    mina.smootherstep = mina.smootherStep;
+
+    /**
+     * Sine ease that decelerates then accelerates; great for looping UI where the midpoint should feel like a breath.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInSine = createOutInEasing(mina.easeOutSine, mina.easeInSine);
+
+    /**
      * Quadratic ease-in curve (`t^2`).
      * @param {number} n Normalized progress `[0, 1]`.
      * @returns {number}
@@ -1819,6 +2676,11 @@
     mina.easeInOutQuad = function (n) {
         return n < 0.5 ? 2 * n * n : 1 - Math.pow(-2 * n + 2, 2) / 2;
     };
+    /**
+     * Quadratic ease that decelerates then accelerates; useful for slider handles moving between two resting states.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInQuad = createOutInEasing(mina.easeOutQuad, mina.easeInQuad);
 
     /**
      * Cubic ease-in curve (`t^3`).
@@ -1845,6 +2707,11 @@
     mina.easeInOutCubic = function (n) {
         return n < 0.5 ? 4 * Math.pow(n, 3) : 1 - Math.pow(-2 * n + 2, 3) / 2;
     };
+    /**
+     * Cubic ease that performs an out-then-in transition; adds drama to hero animations without overshoot.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInCubic = createOutInEasing(mina.easeOutCubic, mina.easeInCubic);
 
     /**
      * Quartic ease-in curve (`t^4`).
@@ -1871,6 +2738,11 @@
     mina.easeInOutQuart = function (n) {
         return n < 0.5 ? 8 * Math.pow(n, 4) : 1 - Math.pow(-2 * n + 2, 4) / 2;
     };
+    /**
+     * Quartic ease with out-then-in profile; nice for modals that settle halfway through a timeline sync.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInQuart = createOutInEasing(mina.easeOutQuart, mina.easeInQuart);
 
     /**
      * Quintic ease-in curve (`t^5`).
@@ -1896,6 +2768,11 @@
     mina.easeInOutQuint = function (n) {
         return n < 0.5 ? 16 * Math.pow(n, 5) : 1 - Math.pow(-2 * n + 2, 5) / 2;
     };
+    /**
+     * Quintic out-then-in curve for fast-moving elements that must pause mid-flight before accelerating again.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInQuint = createOutInEasing(mina.easeOutQuint, mina.easeInQuint);
 
     /**
      * Exponential ease-in that ramps quickly after a slow start.
@@ -1924,6 +2801,11 @@
         }
         return n < 0.5 ? Math.pow(2, 20 * n - 10) / 2 : (2 - Math.pow(2, -20 * n + 10)) / 2;
     };
+    /**
+     * Exponential out-then-in easing; ideal for chunky scrolling cards that want a sudden release then refocus.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInExpo = createOutInEasing(mina.easeOutExpo, mina.easeInExpo);
 
     /**
      * Circular ease-in curve that emulates the start of a circle arc.
@@ -1951,6 +2833,11 @@
             ? (1 - Math.sqrt(1 - 4 * n * n)) / 2
             : (Math.sqrt(1 - Math.pow(-2 * n + 2, 2)) + 1) / 2;
     };
+    /**
+     * Circular out-then-in easing, useful for focus rings or clip-path reveals that should feel orbital.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInCirc = createOutInEasing(mina.easeOutCirc, mina.easeInCirc);
 
     /**
      * Elastic ease-out wrapper using the default amplitude/period.
@@ -2024,6 +2911,63 @@
      * @type {MinaEasing}
      */
     mina.easeInOutBack = mina.backInOut;
+
+    /**
+     * Android-style anticipate easing that dips below 0 before accelerating forward.
+     * Perfect for swipe-to-dismiss or catapult effects where motion "winds up" before release.
+     * @param {number} [tension=1.5] Controls the amount of backwards pull.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.anticipate = function (tension, n) {
+        if (n === undefined) {
+            n = tension;
+            tension = undefined;
+        }
+        const t = coerceProgress(n);
+        const tightness = isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION;
+        return anticipateValue(t, tightness);
+    };
+
+    mina.anticipate.withParams = function (tension) {
+        const tightness = isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION;
+        return function (n) {
+            return anticipateValue(coerceProgress(n), tightness);
+        };
+    };
+
+    /**
+     * Anticipate + overshoot easing used by Android's AnticipateOvershootInterpolator.
+     * Works well for onboarding arrows, expanding FABs, or any element that should tease before settling.
+     * @param {number} [tension=1.5] Adjusts both anticipate and overshoot strength.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.anticipateOvershoot = function (tension, n) {
+        if (n === undefined) {
+            n = tension;
+            tension = undefined;
+        }
+        const tightness = (isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION) * ANTICIPATE_OVERSHOOT_SCALE;
+        let t = coerceProgress(n) * 2;
+        if (t < 1) {
+            return 0.5 * anticipateValue(t, tightness);
+        }
+        t -= 1;
+        return 0.5 * (overshootValue(t, tightness) + 1);
+    };
+
+    mina.anticipateOvershoot.withParams = function (tension) {
+        const tightness = (isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION) * ANTICIPATE_OVERSHOOT_SCALE;
+        return function (n) {
+            let t = coerceProgress(n) * 2;
+            if (t < 1) {
+                return 0.5 * anticipateValue(t, tightness);
+            }
+            t -= 1;
+            return 0.5 * (overshootValue(t, tightness) + 1);
+        };
+    };
 
     /**
      * Bounce ease-in derived from {@link mina.bounce}.
@@ -2100,6 +3044,93 @@
         return mina.spring(2 * n - 1) * 0.5 + 0.5;
     };
 
+    /**
+     * Configurable spring easing with adjustable oscillation frequency and damping.
+     * Use for pull-to-refresh, switches, or physics-inspired controls needing fine-tuned wobble.
+     * @param {number} [frequency=8] Angular frequency of the oscillation.
+     * @param {number} [damping=1.1] Damping factor; higher values settle faster.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.springDamped = function (frequency, damping, n) {
+        if (n === undefined) {
+            if (damping !== undefined) {
+                n = damping;
+                damping = undefined;
+            } else {
+                n = frequency;
+                frequency = undefined;
+            }
+        }
+        return springDampedValue(n, frequency, damping);
+    };
+
+    mina.springDamped.withParams = function (frequency, damping) {
+        return function (n) {
+            return springDampedValue(n, frequency, damping);
+        };
+    };
+
+    /**
+     * Rubber-band easing inspired by iOS overscroll curves.
+     * Ideal for edge-gesture resistance, overscroll glow, or elastic tooltips.
+     * The curve is centered at 0.5, so real implementations usually map it back to
+     * a signed displacement, e.g. `offset = base + range * (mina.rubber(p) - 0.5) * 2`,
+     * which keeps the motion symmetric while preventing the value from hitting hard bounds.
+     * @param {number} [tightness=0.75] Lower values feel stretchier, higher values stiffer.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.rubber = function (tightness, n) {
+        if (n === undefined) {
+            n = tightness;
+            tightness = undefined;
+        }
+        return rubberBandValue(n, tightness);
+    };
+
+    mina.rubber.withParams = function (tightness) {
+        return function (n) {
+            return rubberBandValue(n, tightness);
+        };
+    };
+
+    /**
+     * Alias for {@link mina.rubber}.
+     * @type {MinaEasing}
+     */
+    mina.rubberBand = mina.rubber;
+
+    /**
+     * Preset: anticipatory pull followed by a bounce settle—designed for swipe cards or draggable tiles that snap home.
+     * @type {MinaEasing}
+     */
+    mina.anticipateBounce = mina.compose.withParams(mina.easeInBack, mina.bounceOut);
+
+    /**
+     * Preset: hold the start for 25% of the timeline, then snap out exponentially; great for delayed emphasis reveals.
+     * @type {MinaEasing}
+     */
+    mina.delayedSnap = mina.compose.withParams(mina.delayQuarter, mina.easeOutExpo);
+
+    /**
+     * Preset: punchy pulse that eases the return curve—nice for recording LEDs or attention pings.
+     * @type {MinaEasing}
+     */
+    mina.pulseIntro = mina.compose.withParams(
+        mina.pulseLinear.withParams(1, 0.35, 1),
+        mina.easeOutQuart
+    );
+
+    /**
+     * Preset: dual spring response with a delayed secondary wobble, suited for toggles or UI knobs that should bounce twice.
+     * @type {MinaEasing}
+     */
+    mina.doubleSpring = mina.compose.withParams(
+        mina.springOut,
+        mina.delay.withParams(0.4, mina.springIn)
+    );
+
     // ========================================================================
     // Lowercase aliases for CSS-equivalent camelCase easing functions
     // ========================================================================
@@ -2154,6 +3185,12 @@
      * @see {@link mina.easeInOutSine}
      */
     mina.easeinoutsine = mina.easeInOutSine;
+    /**
+     * Lowercase alias for easeOutInSine.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInSine}
+     */
+    mina.easeoutinsine = mina.easeOutInSine;
 
     /**
      * Lowercase alias for easeInQuad.
@@ -2175,6 +3212,12 @@
      * @see {@link mina.easeInOutQuad}
      */
     mina.easeinoutquad = mina.easeInOutQuad;
+    /**
+     * Lowercase alias for easeOutInQuad.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInQuad}
+     */
+    mina.easeoutinquad = mina.easeOutInQuad;
 
     /**
      * Lowercase alias for easeInCubic.
@@ -2196,6 +3239,12 @@
      * @see {@link mina.easeInOutCubic}
      */
     mina.easeinoutcubic = mina.easeInOutCubic;
+    /**
+     * Lowercase alias for easeOutInCubic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInCubic}
+     */
+    mina.easeoutincubic = mina.easeOutInCubic;
 
     /**
      * Lowercase alias for easeInQuart.
@@ -2217,6 +3266,12 @@
      * @see {@link mina.easeInOutQuart}
      */
     mina.easeinoutquart = mina.easeInOutQuart;
+    /**
+     * Lowercase alias for easeOutInQuart.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInQuart}
+     */
+    mina.easeoutinquart = mina.easeOutInQuart;
 
     /**
      * Lowercase alias for easeInQuint.
@@ -2238,6 +3293,12 @@
      * @see {@link mina.easeInOutQuint}
      */
     mina.easeinoutquint = mina.easeInOutQuint;
+    /**
+     * Lowercase alias for easeOutInQuint.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInQuint}
+     */
+    mina.easeoutinquint = mina.easeOutInQuint;
 
     /**
      * Lowercase alias for easeInExpo.
@@ -2259,6 +3320,12 @@
      * @see {@link mina.easeInOutExpo}
      */
     mina.easeinoutexpo = mina.easeInOutExpo;
+    /**
+     * Lowercase alias for easeOutInExpo.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInExpo}
+     */
+    mina.easeoutinexpo = mina.easeOutInExpo;
 
     /**
      * Lowercase alias for easeInCirc.
@@ -2280,6 +3347,12 @@
      * @see {@link mina.easeInOutCirc}
      */
     mina.easeinoutcirc = mina.easeInOutCirc;
+    /**
+     * Lowercase alias for easeOutInCirc.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInCirc}
+     */
+    mina.easeoutincirc = mina.easeOutInCirc;
 
     /**
      * Lowercase alias for easeInElastic.
@@ -2359,8 +3432,14 @@
         setTimeout: true,
         setTimeoutNow: true,
         setInterval: true,
+        pauseAll: true,
+        resumeAll: true,
+        stopAll: true,
+        clearTimeout: true,
+        clearInterval: true,
         trakSkippedFrames: true,
         cubic_bezier: true,
+        getLast: true
     };
     /**
      * Determines whether the provided key refers to a registered easing function.
@@ -2405,6 +3484,74 @@
     }
 
     /**
+     * Pauses every running animation and managed timer, freezing global time.
+     * @returns {void}
+     */
+    mina.pauseAll = function () {
+        if (isGlobalPaused) {
+            return;
+        }
+        isGlobalPaused = true;
+        const ids = Object.keys(animations);
+        ids.forEach(function (key) {
+            const anim = animations[key];
+            if (!anim || anim.pdif) {
+                return;
+            }
+            pausedAnimations.set(anim.id, anim);
+            anim.pause();
+        });
+        pauseAllTimers();
+    };
+
+    /**
+     * Resumes animations and timers that were paused with {@link mina.pauseAll}.
+     * @returns {void}
+     */
+    mina.resumeAll = function () {
+        if (!isGlobalPaused) {
+            return;
+        }
+        isGlobalPaused = false;
+        const toResume = Array.from(pausedAnimations.values());
+        pausedAnimations.clear();
+        toResume.forEach(function (anim) {
+            if (anim && anim.pdif) {
+                anim.resume();
+            }
+        });
+        resumeAllTimers();
+    };
+
+    /**
+     * Stops all animations and timers, clearing any paused state.
+     * @returns {void}
+     */
+    mina.stopAll = function () {
+        const processed = new Set();
+        const ids = Object.keys(animations);
+        ids.forEach(function (key) {
+            const anim = animations[key];
+            if (anim && typeof anim.stop === "function") {
+                processed.add(anim.id);
+                anim.stop();
+            }
+        });
+        pausedAnimations.forEach(function (anim) {
+            if (!anim || processed.has(anim.id)) {
+                return;
+            }
+            if (typeof anim.stop === "function") {
+                anim.stop();
+            }
+        });
+        pausedAnimations.clear();
+        isGlobalPaused = false;
+        stopAllTimers();
+        last = undefined;
+    };
+
+    /**
      * Schedules a timeout that respects the global mina speed multiplier.
      *
      * @param {Function} callback Handler to invoke.
@@ -2413,8 +3560,8 @@
      * @returns {number}
      */
     mina.setTimeout = function (callback, deley, ...args) {
-        deley *= global_speed
-        return setTimeout(callback, deley, ...args);
+        const delay = Math.max(0, (+deley || 0) * global_speed);
+        return createTimeoutEntry(callback, delay, args);
     }
 
     /**
@@ -2426,8 +3573,8 @@
      * @returns {number|void}
      */
     mina.setTimeoutNow = function (callback, deley, ...args) {
-        deley *= global_speed
-        return (deley) ? setTimeout(callback, deley, ...args) : callback(...args);
+        const delay = Math.max(0, (+deley || 0) * global_speed);
+        return delay ? createTimeoutEntry(callback, delay, args) : callback(...args);
     }
 
     /**
@@ -2439,8 +3586,30 @@
      * @returns {number}
      */
     mina.setInterval = function (callback, interval, ...args) {
-        interval *= global_speed;
-        return setInterval(callback, interval, ...args);
+        const duration = Math.max(0, (+interval || 0) * global_speed);
+        return createIntervalEntry(callback, duration, args);
+    };
+
+    /**
+     * Clears a timeout created via {@link mina.setTimeout}.
+     * @param {string|number} id Timeout identifier returned by `mina.setTimeout`.
+     * @returns {void}
+     */
+    mina.clearTimeout = function (id) {
+        if (!handleManagedTimeoutClear(id)) {
+            return nativeClearTimeout(id);
+        }
+    };
+
+    /**
+     * Clears an interval created via {@link mina.setInterval}.
+     * @param {string|number} id Interval identifier returned by `mina.setInterval`.
+     * @returns {void}
+     */
+    mina.clearInterval = function (id) {
+        if (!handleManagedIntervalClear(id)) {
+            return nativeClearInterval(id);
+        }
     };
 
     /**
@@ -2717,6 +3886,12 @@
         };
         const xlink = "http://www.w3.org/1999/xlink";
         const xmlns = "http://www.w3.org/2000/svg";
+        Snap.xmlns = {
+            svg: xmlns,
+            html: "http://www.w3.org/1999/xhtml",
+            xlink
+
+        }
         const hub = {};
         Snap._.hub_rem = {};
         /**
@@ -4643,6 +5818,56 @@
             }
             return wrap(target);
         };
+
+        if (!String.rand) {
+            /**
+             * Generate a random string.
+             * @param {number} length Number of characters.
+             * @param {string|number|string[]|undefined} [symbols] Symbol set or mode: 'base64'|'url'|'alpha'|'upper'|'lower'|'num...' or number of base chars; or an array used as exclude.
+             * @param {string[]} [exclude] Optional list of values to avoid (regenerates if collision occurs).
+             * @returns {string}
+             */
+            String.rand = function (length, symbols, exclude) {
+                let result = [];
+                let characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+                if (Array.isArray(symbols)) {
+                    exclude = symbols;
+                    symbols = undefined
+                }
+                if (symbols) {
+                    if (typeof symbols === 'string') {
+                        const s = symbols.toLowerCase();
+                        if (s === 'base64') {
+                            characters += '+/';
+                        } else if (s === 'url') {
+                            characters += '-.~_';
+                        } else if (s === 'alpha') {
+                            characters = characters.slice(10);
+                        } else if (s.startsWith('num')) {
+                            characters = '0123456789';
+                        } else if (s === 'upper') {
+                            characters = characters.slice(10, 36);
+                        } else if (s === 'lower') {
+                            characters = characters.slice(36);
+                        }
+                    } else if (typeof symbols === 'number' &&
+                        (symbols = Math.min((Math.floor(symbols)), 36))) {
+                        characters = characters.slice(0, symbols);
+                    } else {
+                        characters += '!@#$%^&*()_+-={}[]|;:,.<>?/\\"\'';
+                    }
+
+                }
+                const charactersLength = characters.length;
+                for (let i = 0; i < length; i++) {
+                    result[i] = characters.charAt(
+                        Math.floor(Math.random() * charactersLength));
+                }
+                result = result.join('');
+                return (exclude && exclude.includes(result)) ? String.rand(length, symbols, exclude) : result;
+            };
+        }
+
         /**
          * Registers a plugin function that receives the Snap namespace and key prototypes.
          *
@@ -4651,7 +5876,7 @@
          * @param {function(Snap, Snap.Element, Snap.Paper, Window, Snap.Fragment, Function)} f Plugin callback.
          */
         Snap.plugin = function (f) {
-           f(Snap, Snap.getClass("Element"), Snap.getClass("Paper"), glob, Snap.getClass("Fragment"), eve);
+           f(Snap, Snap.getClass("Element"), Snap.getClass("Paper"), glob, Snap.getClass("Fragment"), eve, root.mina);
         };
         root.Snap_ia = Snap;
         root.Snap = root.Snap || Snap;
@@ -4884,7 +6109,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     ];
                     break;
                 case "path":
-                    result =  this.getPointSample();
+                    result = this.getPointSample();
                     break;
                 case "line":
                     result = [
@@ -4946,12 +6171,12 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 case "foreignObject":
                 default:
                     let bb = this.getBBox({approx: false, without_transform: true});
-                    result = [
+                    result = (bb) ? [
                         {x: bb.x, y: bb.y},
                         {x: bb.x2, y: bb.y},
                         {x: bb.x2, y: bb.y2},
                         {x: bb.x, y: bb.y2},
-                    ];
+                    ] : [];
 
             }
             if (result.length && use_local_transform) {
@@ -5293,12 +6518,28 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 pathfinder = Snap.path.get[el.type] || Snap.path.get.deflt;
             try {
                 if (isWithoutTransform) {
-                    _.bboxwt = pathfinder ?
-                        Snap.path.getBBox(el.realPath = pathfinder(el)) :
-                        Snap.box(el.node.getBBox());
-                    return Snap.box(_.bboxwt);
+                    if (pathfinder) {
+                        const realPath = pathfinder(el);
+                        if (realPath) {
+                            el.realPath = realPath;
+                            _.bboxwt = Snap.path.getBBox(realPath);
+                            return Snap.box(_.bboxwt);
+                        }
+                    }
+                    if (el.node && typeof el.node.getBBox === "function") {
+                        _.bboxwt = Snap.box(el.node.getBBox());
+                        return Snap.box(_.bboxwt);
+                    }
+                    return null;
                 } else {
-                    el.realPath = pathfinder(el);
+                    if (!pathfinder) {
+                        return null;
+                    }
+                    const realPath = pathfinder(el);
+                    if (!realPath) {
+                        return null;
+                    }
+                    el.realPath = realPath;
                     el.saveMatrix(el.transform().localMatrix);
                     // el.matrix = el.transform().globalMatrix;
                     matrix_for_x_y_attrs.add(el.matrix);
@@ -6112,7 +7353,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @returns {Element} Current element for chaining.
          */
         elproto.setPaper = function (paper, force) {
-            if (!is(paper,"Paper") ||
+            if (!is(paper, "Paper") ||
                 (!force && this.paper === paper)) return this;
 
             this.paper = paper;
@@ -6123,21 +7364,25 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         /**
          * Appends the provided element (or set) to the current element.
          * @param {Element|Set|Array<Element>} el Element, set, or array to append.
-         * @returns {Element} Parent element for chaining.
+         * @param {number} [index] Optional insertion index (0-based). If provided, inserts before current child at that index.
+         * @returns {Element} Parent element for chaining
          */
-        elproto.append = elproto.add = function (el) {
+        elproto.append = elproto.add = function (el, index) {
 
             if (el) {
                 clearParentCHull(this);
                 if (el.type === "set" || Array.isArray(el)) {
                     const it = this;
-                    el.forEach(function (el) {
-                        it.add(el);
+                    // Normalize iterable
+                    const list = el.items ? el.items : el;
+                    let baseIndex = (typeof index === "number" && index >= 0) ? index : undefined;
+                    list.forEach(function (child, i) {
+                        // Preserve order by shifting insertion point
+                        it.add(child, (baseIndex !== undefined) ? baseIndex + i : undefined);
                     });
                     return this;
                 }
 
-                // el = Snap(wrap(el));
                 el = wrap(el);
                 if ((el.hasPartner && el.hasPartner()) || el._partner_childern) {
                     let parent = el.parent();
@@ -6146,13 +7391,18 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                     this._propagateTransToPartnersChild(el);
                 }
                 const node = (this.div) ? this.div.node : this.node;
-                node.appendChild(el.node);
 
-                // if (this.sub_children && this.sub_children.length > 0) {
-                //     this.sub_children.push(el);
-                // } else {
-                //     this.sub_children = [el];
-                // }
+                if (typeof index === "number" && index >= 0) {
+                    const ref = node.childNodes[index] || null;
+                    if (ref && el.node !== ref) {
+                        node.insertBefore(el.node, ref);
+                    } else {
+                        node.appendChild(el.node);
+                    }
+                } else {
+                    node.appendChild(el.node);
+                }
+
                 if (el.setPaper && this.paper && el.type !== "svg" && el.paper !== this.paper) {
                     el.setPaper(this.paper);
                 }
@@ -6898,8 +8148,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                             height: +bb.height.toFixed(3),
                             contents: this.outerSVG(),
                         });
-                return "data:image/svg+xml;base64," +
-                    btoa(unescape(encodeURIComponent(svg)));
+               return "data:image/svg+xml;base64," +
+               btoa(encodeURIComponent(svg).replace(/%([0-9A-F]{2})/g, function (match, p1) {
+                   return String.fromCharCode(parseInt(p1, 16));
+               }));
             }
         };
 
@@ -8174,7 +9426,13 @@ Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      */
         proto.toDataURL = function () {
             if (window && window.btoa) {
-                return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(this)));
+                if (window && window.btoa) {
+                    return "data:image/svg+xml;base64," + btoa(
+                        encodeURIComponent(String(this)).replace(/%([0-9A-F]{2})/g, function(_, p1) {
+                            return String.fromCharCode(parseInt(p1, 16));
+                        })
+                    );
+                }
             }
         };
         proto.toDataURL.skip = true;
@@ -8676,7 +9934,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     const elproto = Element.prototype,
         is = Snap.is,
         Str = String,
@@ -8688,7 +9946,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (res.length == 1) {
                 res = res[0];
             }
-            return f ? f(res) : res;
+            let out = f ? f(res) : res;
+            if (f && out == "r") {
+                out = f([res]);
+            }
+            return out;
         };
     }
 
@@ -9285,9 +10547,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          *
          * @returns {boolean} `true` when all non-identity coefficients are zero.
          */
-        isIdentity() {
-            return this.a === 1 && !this.b && !this.c && this.d === 1 &&
+        isIdentity(error ) {
+            if (!error) return this.a === 1 && !this.b && !this.c && this.d === 1 &&
                 !this.e && !this.f;
+
+            return Math.abs(this.a - 1) <= error &&
+                Math.abs(this.b) <= error &&
+                Math.abs(this.c) <= error &&
+                Math.abs(this.d - 1) <= error &&
+                Math.abs(this.e) <= error &&
+                Math.abs(this.f) <= error;
         }
 
         /**
@@ -9675,7 +10944,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var has = "hasOwnProperty",
+    const has = "hasOwnProperty",
         make = Snap._.make,
         wrap = Snap._.wrap,
         is = Snap.is,
@@ -9688,13 +10957,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         E = "";
     /**
      * Snap.deurl @method
- *
+     *
      * Unwraps path from `"url(<path>)"`.
- * @param {string} value - url path
- * @returns {string} unwrapped path
-    */
+     * @param {string} value - url path
+     * @returns {string} unwrapped path
+     */
     Snap.deurl = function (value) {
-        var res = String(value).match(reURLValue);
+        const res = String(value).match(reURLValue);
         return res ? res[2] : value;
     }
     // Attributes event handlers
@@ -9730,7 +10999,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (value instanceof Element || value instanceof Fragment) {
             eve.stop();
             const ElementClass = Snap.getClass("Element");
-            var clip,
+            let clip,
                 node = value.node;
             while (node) {
                 if (node.nodeName === "clipPath") {
@@ -9784,7 +11053,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             } else {
                 fill = Snap.color(value);
                 if (fill.error) {
-                    var grad = Snap(getSomeDefs(this).ownerSVGElement).gradient(value);
+                    const grad = Snap(getSomeDefs(this).ownerSVGElement).gradient(value);
                     if (grad) {
                         if (!grad.node.id) {
                             $(grad.node, {
@@ -9799,7 +11068,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     fill = Str(fill);
                 }
             }
-            var attrs = {};
+            const attrs = {};
             attrs[name] = fill;
             $(this.node, attrs);
             this.node.style[name] = E;
@@ -9809,15 +11078,15 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     eve.on("snap.util.attr.fill", fillStroke("fill"));
     eve.on("snap.util.attr.stroke", fillStroke("stroke"));
-    var gradrg = /^([lr])(?:\(([^)]*)\))?(.*)$/i;
+    const gradrg = /^([lr])(?:\(([^)]*)\))?(.*)$/i;
     eve.on("snap.util.grad.parse", function parseGrad(string) {
         string = Str(string);
-        var tokens = string.match(gradrg);
+        const tokens = string.match(gradrg);
         if (!tokens) {
             return null;
         }
-        var type = tokens[1],
-            params = tokens[2],
+        const type = tokens[1];
+        let params = tokens[2],
             stops = tokens[3];
         params = params.split(/\s*,\s*/).map(function (el) {
             return +el == el ? +el : el;
@@ -9828,7 +11097,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         stops = stops.split("-");
         stops = stops.map(function (el) {
             el = el.split(":");
-            var out = {
+            const out = {
                 color: el[0]
             };
             if (el[1]) {
@@ -9836,13 +11105,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             return out;
         });
-        var len = stops.length,
+        let len = stops.length,
             start = 0,
             j = 0;
 
         function seed(i, end) {
-            var step = (end - start) / (i - j);
-            for (var k = j; k < i; k++) {
+            const step = (end - start) / (i - j);
+            for (let k = j; k < i; k++) {
                 stops[k].offset = +(+start + step * (k - j)).toFixed(2);
             }
             j = i;
@@ -9899,7 +11168,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     eve.on("snap.util.attr.#text", function (value) {
         eve.stop();
         value = Str(value);
-        var txt = glob.doc.createTextNode(value);
+        const txt = glob.doc.createTextNode(value);
         while (this.node.firstChild) {
             this.node.removeChild(this.node.firstChild);
         }
@@ -9921,7 +11190,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     })(-1);
     eve.on("snap.util.attr.viewBox", function (value) {
-        var vb;
+        let vb;
         if (is(value, "object") && "x" in value) {
             vb = [value.x, value.y, value.width, value.height].join(" ");
         } else if (is(value, "array")) {
@@ -9954,7 +11223,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     eve.on("snap.util.attr.textpath", function (value) {
         eve.stop();
         if (this.type == "text") {
-            var id, tp, node;
+            let id, tp, node;
             if (!value && this.textPath) {
                 tp = this.textPath;
                 while (tp.node.firstChild) {
@@ -9965,8 +11234,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return;
             }
             if (is(value, "string")) {
-                var defs = getSomeDefs(this),
-                    path = wrap(defs.parentNode).path(value),
+                let defs = getSomeDefs(this);
+                const path = wrap(defs.parentNode).path(value),
                     textpath_group = defs.querySelector("#text-paths");
                 defs = textpath_group || defs;
                 defs.appendChild(path.node);
@@ -10003,12 +11272,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     })(-1);
     eve.on("snap.util.attr.text", function (value) {
         if (this.type == "text") {
-            var i = 0,
-                node = this.node,
+            let i = 0;
+            const node = this.node,
                 tuner = function (chunk) {
-                    var out = $("tspan");
+                    const out = $("tspan");
                     if (is(chunk, "array")) {
-                        for (var i = 0; i < chunk.length; ++i) {
+                        for (let i = 0; i < chunk.length; ++i) {
                             const newChild = tuner(chunk[i]);
                             out.appendChild(newChild);
                         }
@@ -10021,10 +11290,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             while (node.firstChild) {
                 node.removeChild(node.firstChild);
             }
-            var tuned = tuner(value);
+            const tuned = tuner(value);
             while (tuned.firstChild) {
                 node.appendChild(tuned.firstChild);
             }
+            this.clearCHull();
+        } else if (this.type === "tspan") {
+            this.node.textContent = value;
             this.clearCHull();
         }
         eve.stop();
@@ -10068,6 +11340,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function fontClearBox(value) {
         this.clearCHull();
     }
+
     //Attributs
     eve.on("snap.util.attr.fontFamily", fontClearBox)(-1);
     eve.on("snap.util.attr.font-family", fontClearBox)(-1);
@@ -10095,7 +11368,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         function getter(end) {
             return function () {
                 eve.stop();
-                var style = glob.doc.defaultView.getComputedStyle(this.node, null).getPropertyValue("marker-" + end);
+                const style = glob.doc.defaultView.getComputedStyle(this.node, null).getPropertyValue("marker-" + end);
                 if (style == "none") {
                     return style;
                 } else {
@@ -10107,14 +11380,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         function setter(end) {
             return function (value) {
                 eve.stop();
-                var name = "marker" + end.charAt(0).toUpperCase() + end.substring(1);
+                const name = "marker" + end.charAt(0).toUpperCase() + end.substring(1);
                 if (value == "" || !value) {
                     this.node.style[name] = "none";
                     this.attrMonitor(name);
                     return;
                 }
                 if (value.type == "marker") {
-                    var id = value.node.id;
+                    const id = value.node.id;
                     if (!id) {
                         $(value.node, {id: value.id});
                         value.attrMonitor("id");
@@ -10147,10 +11420,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     })(-1);
 
     function textExtract(node) {
-        var out = [];
-        var children = node.childNodes;
-        for (var i = 0, ii = children.length; i < ii; ++i) {
-            var chi = children[i];
+        const out = [];
+        const children = node.childNodes;
+        let i = 0;
+        const ii = children.length;
+        for (; i < ii; ++i) {
+            const chi = children[i];
             if (chi.nodeType == 3) {
                 out.push(chi.nodeValue);
             }
@@ -10168,7 +11443,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     eve.on("snap.util.getattr.text", function () {
         if (this.type == "text" || this.type == "tspan") {
             eve.stop();
-            var out = textExtract(this.node);
+            const out = textExtract(this.node);
             return out.length == 1 ? out[0] : out;
         }
     })(-1);
@@ -10180,7 +11455,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return;
         }
         eve.stop();
-        var value = eve(["snap", "util", "getattr", "fill"], this, true).firstDefined();
+        const value = eve(["snap", "util", "getattr", "fill"], this, true).firstDefined();
         return Snap(Snap.deurl(value)) || value;
     })(-1);
     eve.on("snap.util.getattr.stroke", function (internal) {
@@ -10188,12 +11463,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return;
         }
         eve.stop();
-        var value = eve(["snap", "util", "getattr", "stroke"], this, true).firstDefined();
+        const value = eve(["snap", "util", "getattr", "stroke"], this, true).firstDefined();
         return Snap(Snap.deurl(value)) || value;
     })(-1);
     eve.on("snap.util.getattr.viewBox", function () {
         eve.stop();
-        var vb = $(this.node, "viewBox").trim();
+        let vb = $(this.node, "viewBox").trim();
         if (vb) {
             vb = vb.split(separator);
             return Snap.box(+vb[0], +vb[1], +vb[2], +vb[3]);
@@ -10202,7 +11477,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     })(-1);
     eve.on("snap.util.getattr.points", function () {
-        var p = $(this.node, "points").trim();
+        const p = $(this.node, "points").trim();
         eve.stop();
         if (p) {
 
@@ -10212,7 +11487,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     })(-1);
     eve.on("snap.util.getattr.path", function () {
-        var p = $(this.node, "d").trim();
+        const p = $(this.node, "d").trim();
         eve.stop();
         return p;
     })(-1);
@@ -10243,12 +11518,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-        var rgNotSpace = /\S+/g,
-            rgBadSpace = /[\t\r\n\f]/g,
-            rgTrim = /(^\s+|\s+$)/g,
-            Str = String,
-            elproto = Element.prototype;
-        /**
+    const rgNotSpace = /\S+/g,
+        rgBadSpace = /[\t\r\n\f]/g,
+        rgTrim = /(^\s+|\s+$)/g,
+        Str = String,
+        elproto = Element.prototype;
+    /**
          * Element.addClass @method
  *
          * Adds given class name or list of class names to the element.
@@ -10257,12 +11532,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
  * @returns {Element} original element.
         */
         elproto.addClass = function (value) {
-            var classes = (Array.isArray(value)) ? value : Str(value || "").match(rgNotSpace) || [],
+            const classes = (Array.isArray(value)) ? value : Str(value || "").match(rgNotSpace) || [],
                 elem = this.node,
                 isSvg = typeof elem.className === "object", //.hasOwnProperty("baseVal"),
                 className = isSvg ? elem.className.baseVal : elem.className,
-                curClasses = className.match(rgNotSpace) || [],
-                j,
+                curClasses = className.match(rgNotSpace) || [];
+            let j,
                 pos,
                 clazz,
                 finalValue;
@@ -10277,7 +11552,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
 
                 finalValue = curClasses.join(" ");
-                if (className != finalValue) {
+                if (className !== finalValue) {
                     if (isSvg) {
                         elem.className.baseVal = finalValue;
                     } else {
@@ -10309,11 +11584,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (Array.isArray(value)) {
                 value.forEach((v) => this.removeClass(v))
             }
-            var classes = Str(value || "").match(rgNotSpace) || [],
+            const classes = Str(value || "").match(rgNotSpace) || [],
                 elem = this.node,
                 isSVG = typeof elem.className === "object", // elem.className.hasOwnProperty("baseVal"),
-                className = isSVG ? elem.className.baseVal : elem.className,
-                curClasses = className.match(rgNotSpace) || [],
+                className = isSVG ? elem.className.baseVal : elem.className;
+            let curClasses = className.match(rgNotSpace) || [],
                 j,
                 pos,
                 clazz,
@@ -10333,7 +11608,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
 
                 finalValue = curClasses.join(" ");
-                if (className != finalValue) {
+                if (className !== finalValue) {
                     if (isSVG) {
                         elem.className.baseVal = finalValue;
                     } else {
@@ -10353,7 +11628,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {boolean} `true` if the element has given class
          */
         elproto.hasClass = function (value, conjunctive = false) {
-            var elem = this.node,
+            const elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
                 curClasses = className.match(rgNotSpace) || [];
             if (Array.isArray(value)) {
@@ -10367,7 +11642,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
 
         elproto.matchClass = function (regex) {
-            var elem = this.node,
+            const elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
                 curClasses = className.match(rgNotSpace) || [];
             //loop over all classes and check if any of them match the regex and get an array of all matching classes
@@ -10394,11 +11669,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     return this.removeClass(value);
                 }
             }
-            var classes = (value || "").match(rgNotSpace) || [],
+            const classes = (value || "").match(rgNotSpace) || [],
                 elem = this.node,
                 className = (typeof elem.className === "object") ? elem.className.baseVal : elem.className,
-                curClasses = className.match(rgNotSpace) || [],
-                j,
+                curClasses = className.match(rgNotSpace) || [];
+            let j,
                 pos,
                 clazz,
                 finalValue;
@@ -10413,7 +11688,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             finalValue = curClasses.join(" ");
-            if (className != finalValue) {
+            if (className !== finalValue) {
                 if (typeof elem.className === "object") {
                     elem.className.baseVal = finalValue;
                 } else {
@@ -10441,23 +11716,24 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
-    var operators = {
+    const operators = {
             "+": function (x, y) {
-                    return x + y;
-                },
+                return x + y;
+            },
             "-": function (x, y) {
-                    return x - y;
-                },
+                return x - y;
+            },
             "/": function (x, y) {
-                    return x / y;
-                },
+                return x / y;
+            },
             "*": function (x, y) {
-                    return x * y;
-                }
+                return x * y;
+            }
         },
         Str = String,
         reUnit = /[a-z]+$/i,
         reAddon = /^\s*([+\-\/*])\s*=\s*([\d.eE+\-]+)\s*([^\d\s]+)?\s*$/;
+
     function getNumber(val) {
         return val;
     }
@@ -10467,17 +11743,17 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
     }
     eve.on("snap.util.attr", function (val) {
-        var plus = Str(val).match(reAddon);
+        const plus = Str(val).match(reAddon);
         if (plus) {
-            var evnt = eve.nt(),
-                name = evnt.substring(evnt.lastIndexOf(".") + 1),
-                a = this.attr(name),
-                atr = {};
+            const evnt = eve.nt(),
+                name = evnt.substring(evnt.lastIndexOf(".") + 1);
+            let a = this.attr(name);
+            const atr = {};
             eve.stop();
-            var unit = plus[3] || "",
+            const unit = plus[3] || "",
                 aUnit = a.match(reUnit),
                 op = operators[plus[1]];
-            if (aUnit && aUnit == unit) {
+            if (aUnit && aUnit === unit) {
                 val = op(parseFloat(a), +plus[2]);
             } else {
                 a = this.asPX(name);
@@ -10491,15 +11767,15 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
     })(-10);
     eve.on("snap.util.equal", function (name, b) {
-        var A, B, a = Str(this.attr(name) || ""),
-            el = this,
+        let A, B, a = Str(this.attr(name) || "");
+        const el = this,
             bplus = Str(b).match(reAddon);
         if (bplus) {
             eve.stop();
-            var unit = bplus[3] || "",
+            const unit = bplus[3] || "",
                 aUnit = a.match(reUnit),
                 op = operators[bplus[1]];
-            if (aUnit && aUnit == unit) {
+            if (aUnit && aUnit === unit) {
                 return {
                     from: parseFloat(a),
                     to: op(parseFloat(a), +bplus[2]),
@@ -10791,8 +12067,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {number}
      *          Width divided by height.
      */
-    BBox.prototype.ration = function () {
-        return this.width / this.height;
+    BBox.prototype.ratio = function () {
+        return this.width / (this.height ? this.height : 1e-16);
     };
 
     /**
@@ -10883,7 +12159,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return this.corner(3);
             case 't':
             case 'tc':
-                return {x: this.cx, y: this.y2};
+                return {x: this.cx, y: this.y};
             case 'l':
             case 'lc':
                 return {x: this.x, y: this.cy};
@@ -11125,10 +12401,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
  * @property {Number} [t] - Parametric position (0-1)
  */
 
-/*
- * Copyright (c) 2018.  Orlin Vakarelov
- */
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
 
     const ERROR = 1e-12;
 
@@ -11230,7 +12503,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         mmax = Math.max,
         pow = Math.pow,
         abs = Math.abs,
-        STRICT_MODE = true;
+        STRICT_MODE = true,
+        GEN_TRANSFORM_DATA_KEY = "_ia_gen_transform_cache",
+        THIRD_SAMPLE_T1 = 1 / 3,
+        THIRD_SAMPLE_T2 = 2 / 3;
 
     /**
      * Caches path parsing results for performance
@@ -11328,7 +12604,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return Snap._.cacher(function (path, length, onlystart) {
             if (path instanceof Element) {
-                path = getPath[path.type](path);
+                const converter = getPath[path.type] || getPath.deflt;
+                path = converter && converter(path);
+                if (!path) {
+                    return null;
+                }
             }
             path = path2curve(path);
             let x, y, p, l, sp = "";
@@ -11729,7 +13009,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return true;
         }
 
-        return pathIntersectionNumber(getPath[path.type](path),
+        const converter = getPath[path.type] || getPath.deflt;
+        const elementPath = converter && converter(path);
+        if (!elementPath) {
+            return false;
+        }
+        return pathIntersectionNumber(elementPath,
             rectPath(rect_bbox.x, rect_bbox.y, rect_bbox.w, rect_bbox.h)) > 0;
 
     }
@@ -11908,7 +13193,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             path,
             m = new Snap.Matrix;
 
-        for (var i = 0, max = children.length; i < max; ++i) {
+        children_loop: for (var i = 0, max = children.length; i < max; ++i) {
             child = children[i];
 
             while (child.type == "use") { //process any use tags
@@ -11917,13 +13202,27 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     child = child.original;
                 } else {
                     const href = el.attr("xlink:href");
-                    child = child.original = child.node.ownerDocument.getElementById(
-                        href.substring(href.indexOf("#") + 1));
+                    if (typeof href !== "string" || href.indexOf("#") === -1) {
+                        // cannot resolve reference -> skip this child and continue the loop
+                        continue children_loop;
+                    }
+                    const id = href.substring(href.indexOf("#") + 1);
+                    const referenced = child.node.ownerDocument.getElementById(id);
+                    if (!referenced) {
+                        continue children_loop;
+                    }
+                    child = child.original = referenced;
                 }
             }
 
             pathfinder = Snap.path.get[child.type] || Snap.path.get.deflt;
+            if (typeof pathfinder !== "function") {
+                continue;
+            }
             path = pathfinder(child); //convert the element ot path
+            if (!path) {
+                continue;
+            }
             path = Snap.path.map(path, m.add(child.getLocalMatrix(STRICT_MODE)));
             comp_path = comp_path.concat(path);
         }
@@ -11985,7 +13284,19 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             },
             deflt: function (el) {
-                const bbox = el.node.getBBox();
+                const canMeasure = el && el.node && typeof el.node.getBBox === "function";
+                if (!canMeasure) {
+                    return null;
+                }
+                let bbox;
+                try {
+                    bbox = el.node.getBBox();
+                } catch (e) {
+                    return null;
+                }
+                if (!bbox) {
+                    return null;
+                }
                 return rectPath(bbox.x, bbox.y, bbox.width, bbox.height);
             },
         };
@@ -12086,7 +13397,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         if (!is(pathArray, "array") || !is(pathArray && pathArray[0], "array")) { // rough assumption
             if (is(pathArray, "object") && pathArray.type) {
-                pathArray = getPath[pathArray.type](pathArray);
+                const converter = getPath[pathArray.type] || getPath.deflt;
+                pathArray = converter && converter(pathArray);
+                if (!pathArray) {
+                    return [];
+                }
+            }
+            if (!pathArray) {
+                return [];
             }
             pathArray = Snap.parsePathString(pathArray);
         }
@@ -12651,7 +13969,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Number} Number of path segments
      */
     elproto.getNumberPathSegments = function () {
-        let path_str = getPath[this.type](this);
+        const converter = getPath[this.type] || getPath.deflt;
+        const path_str = converter && converter(this);
+        if (!path_str) {
+            return 0;
+        }
 
         let c_segs = path2curve(path_str, false, true);
         c_segs = removeRedundantCSegs(c_segs);
@@ -12896,7 +14218,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (type === "path") return (string_only) ? el.attr("d") : el;
         if (!getPath.hasOwnProperty(type)) return null;
 
-        const d = getPath[type](el);
+        const converter = getPath[type] || getPath.deflt;
+        if (typeof converter !== "function") {
+            return null;
+        }
+        const d = converter(el);
+        if (!d) {
+            return null;
+        }
 
         if (string_only) return d;
 
@@ -13112,7 +14441,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     elproto.getPointAtLength = function (length) {
         {
-            let path_str = getPath[this.type](this);
+            const converter = getPath[this.type] || getPath.deflt;
+            const path_str = converter && converter(this);
+            if (!path_str) {
+                return null;
+            }
             return getPointAtLength(path_str, length);
         }
     };
@@ -13519,7 +14852,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      *          Ordered points enriched with control handles and segment metadata.
      */
     elproto.getSegmentAnalysis = function () {
-        let path_str = getPath[this.type](this);
+        const converter = getPath[this.type] || getPath.deflt;
+        const path_str = converter && converter(this);
+        if (!path_str) {
+            return [];
+        }
 
         let c_segs = path2curve(path_str, false, true);
         c_segs = removeRedundantCSegs(c_segs);
@@ -13700,6 +15037,238 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Array} Array of cubic Bézier control points
      */
     Snap.path.cubicFromThirdPoints = cubicFromThirdPoints;
+
+    function ensureCubicCurve(bezier) {
+        if (!bezier) {
+            return null;
+        }
+        let current = (bezier.clone) ? bezier.clone() : Snap.bezier(bezier.points);
+        while (current.order < 3) {
+            current = current.raise();
+        }
+        return current;
+    }
+
+    function pushSamplePoint(storage, point, reuseIndex) {
+        if (reuseIndex != null) {
+            const existing = storage[reuseIndex];
+            if (existing && near(existing, point)) {
+                return reuseIndex;
+            }
+        }
+        storage.push({x: point.x, y: point.y});
+        return storage.length - 1;
+    }
+
+    function buildGenTransformCache(path) {
+        const originalD = path.attr("d") || "";
+        const poly = path.toPolyBezier();
+        if (!poly || !poly.curves || !poly.curves.length) {
+            return {
+                originalD: originalD,
+                poly: poly,
+                points: [],
+                transformedPoints: [],
+                segments: [],
+                subpaths: [],
+                tmpPoint: {x: 0, y: 0},
+            };
+        }
+
+        const points = [];
+        const segments = [];
+        const subpaths = [];
+        let prevEndIndex = null;
+        let currentSubpath = null;
+
+        const finalizeSubpath = function () {
+            if (!currentSubpath) return;
+            currentSubpath.endSegment = segments.length - 1;
+            currentSubpath.endPointIndex = prevEndIndex;
+            const startPoint = points[currentSubpath.startPointIndex];
+            const endPoint = points[currentSubpath.endPointIndex];
+            currentSubpath.closed = !!(startPoint && endPoint && near(startPoint, endPoint));
+        };
+
+        for (let i = 0; i < poly.curves.length; ++i) {
+            const curve = poly.curves[i];
+            const startsNew = !!curve.start || !currentSubpath;
+            const cubic = ensureCubicCurve(curve);
+            if (!cubic) {
+                continue;
+            }
+            let reduced;
+            reduced = cubic.reduce(true);
+            const parts = (reduced && reduced.length) ? reduced : [cubic];
+            for (let j = 0; j < parts.length; ++j) {
+                const piece = parts[j];
+                const beginsSubpath = startsNew && j === 0;
+                if (beginsSubpath) {
+                    finalizeSubpath();
+                    currentSubpath = {
+                        startSegment: segments.length,
+                        startPointIndex: null,
+                        endSegment: segments.length,
+                        endPointIndex: null,
+                        closed: false,
+                    };
+                    subpaths.push(currentSubpath);
+                    prevEndIndex = null;
+                } else if (!currentSubpath) {
+                    currentSubpath = {
+                        startSegment: segments.length,
+                        startPointIndex: null,
+                        endSegment: segments.length,
+                        endPointIndex: null,
+                        closed: false,
+                    };
+                    subpaths.push(currentSubpath);
+                }
+
+                const reuseIndex = (!beginsSubpath && prevEndIndex != null) ? prevEndIndex : null;
+                const idx0 = pushSamplePoint(points, piece.compute(0), reuseIndex);
+                const idx1 = pushSamplePoint(points, piece.compute(THIRD_SAMPLE_T1));
+                const idx2 = pushSamplePoint(points, piece.compute(THIRD_SAMPLE_T2));
+                const idx3 = pushSamplePoint(points, piece.compute(1));
+
+                segments.push({idx: [idx0, idx1, idx2, idx3]});
+
+                if (currentSubpath.startPointIndex == null) {
+                    currentSubpath.startPointIndex = idx0;
+                }
+                currentSubpath.endSegment = segments.length - 1;
+                currentSubpath.endPointIndex = idx3;
+                prevEndIndex = idx3;
+            }
+        }
+
+        finalizeSubpath();
+
+        return {
+            originalD: originalD,
+            poly: poly,
+            points: points,
+            transformedPoints: points.map((pt) => ({x: pt.x, y: pt.y})),
+            segments: segments,
+            subpaths: subpaths,
+            tmpPoint: {x: 0, y: 0},
+        };
+    }
+
+    function formatCoord(value) {
+        if (!isFinite(value)) {
+            return "0";
+        }
+        if (Math.abs(value) < ERROR) {
+            return "0";
+        }
+        const rounded = +value.toFixed(4);
+        if (rounded === 0) {
+            return "0";
+        }
+        return String(rounded);
+    }
+
+    function pointToString(point) {
+        return formatCoord(point.x) + "," + formatCoord(point.y);
+    }
+
+    function buildPathFromCache(cache) {
+        if (!cache.segments.length) {
+            return cache.originalD;
+        }
+
+        const parts = [];
+        const transformed = cache.transformedPoints;
+        const segments = cache.segments;
+        const subpaths = cache.subpaths.length ? cache.subpaths : [{
+            startSegment: 0,
+            endSegment: segments.length - 1,
+            startPointIndex: segments[0] ? segments[0].idx[0] : null,
+            closed: false,
+        }];
+
+        for (let i = 0; i < subpaths.length; ++i) {
+            const sub = subpaths[i];
+            if (sub.startPointIndex == null || sub.startSegment == null || sub.endSegment == null) {
+                continue;
+            }
+            const movePoint = transformed[sub.startPointIndex];
+            parts.push("M" + pointToString(movePoint));
+            for (let segIdx = sub.startSegment; segIdx <= sub.endSegment; ++segIdx) {
+                const segment = segments[segIdx];
+                if (!segment) continue;
+                const p0 = transformed[segment.idx[0]];
+                const p1 = transformed[segment.idx[1]];
+                const p2 = transformed[segment.idx[2]];
+                const p3 = transformed[segment.idx[3]];
+                const cubic = cubicFromThirdPoints(p0, p1, p2, p3);
+                parts.push("C" + pointToString(cubic[1]) + " " + pointToString(cubic[2]) + " " + pointToString(cubic[3]));
+            }
+            // if (sub.closed) {
+            //     parts.push("Z");
+            // }
+        }
+
+        return parts.join(" ");
+    }
+
+    elproto.genTransform = function (transform, options) {
+        if (this.type !== "path") {
+            return this;
+        }
+        let returnPathOnly = false;
+        if (typeof options === 'boolean') {
+            returnPathOnly = options;
+        } else if (options && typeof options === 'object') {
+            returnPathOnly = !!options.returnPath;
+        }
+        let cache = this.data(GEN_TRANSFORM_DATA_KEY);
+        if (!cache) {
+            cache = buildGenTransformCache(this);
+            this.data(GEN_TRANSFORM_DATA_KEY, cache);
+        }
+
+        if (typeof transform !== "function") {
+            if (returnPathOnly) {
+                return cache.originalD;
+            }
+            this.attr({d: cache.originalD});
+            return this;
+        }
+
+        if (!cache.points.length) {
+            return returnPathOnly ? cache.originalD : this;
+        }
+
+        const basePoints = cache.points;
+        const transformedPoints = cache.transformedPoints;
+        const inputPoint = cache.tmpPoint;
+
+        for (let i = 0, l = basePoints.length; i < l; ++i) {
+            const base = basePoints[i];
+            inputPoint.x = base.x;
+            inputPoint.y = base.y;
+            const mapped = transform(inputPoint) || inputPoint;
+            const target = transformedPoints[i];
+            target.x = (mapped && isFinite(mapped.x)) ? mapped.x : base.x;
+            target.y = (mapped && isFinite(mapped.y)) ? mapped.y : base.y;
+        }
+
+        const newPath = buildPathFromCache(cache);
+        if (returnPathOnly) {
+            return newPath || cache.originalD;
+        }
+        if (newPath) {
+            this.attr({d: newPath});
+        }
+        return this;
+    };
+
+    elproto.getTransformFix = function () {
+        this.removeData(GEN_TRANSFORM_DATA_KEY);
+        return this;
+    }
 
     /**
      * Finds dot coordinates on the given cubic beziér curve at the given t
@@ -16690,7 +18259,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             // no shortcut: use "de Casteljau" iteration.
 
             // if we have no t2, we're done
-            if (!t2) {
+            if (typeof t2 === 'undefined') {
                 return result;
             }
 
@@ -16820,61 +18389,116 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Splits the curve into simple segments suitable for offsetting and intersections.
+     * @param {boolean} [useExtremaPass=true] When true, performs the extrema-based pre-pass used by
+     * other algorithms that rely on extrema boundaries. Set to false to run only the simplicity pass.
      * @returns {Array<Bezier>} Array of simple sub-curves covering the original curve.
      */
-    reduce: function () {
-            let i, t1 = 0, t2 = 0;
-            const step = 0.01;
+    reduce: function (useExtremaPass) {
+            useExtremaPass = (typeof useExtremaPass === 'undefined') ? true : !!useExtremaPass;
+            let i, t1 = 0;
+            const order = this.order || (this.points.length - 1);
+            const minStep = 1e-4;
+            const maxIterations = 50;
             let segment;
             const pass1 = [], pass2 = [];
-            // first pass: split on extrema
-            let extrema = this.extrema().values;
-            if (extrema.indexOf(0) === -1) {
-                extrema = [0].coancat(extrema);
-            }
-            if (extrema.indexOf(1) === -1) {
-                extrema.push(1);
-            }
 
-            for (t1 = extrema[0], i = 1; i < extrema.length; ++i) {
-                t2 = extrema[i];
-                segment = this.split(t1, t2);
-                segment._t1 = t1;
-                segment._t2 = t2;
-                pass1.push(segment);
-                t1 = t2;
+            if (useExtremaPass) {
+                // first pass: split on extrema
+                let extrema = this.extrema().values;
+                if (extrema.indexOf(0) === -1) {
+                    extrema = [0].concat(extrema);
+                }
+                if (extrema.indexOf(1) === -1) {
+                    extrema.push(1);
+                }
+
+                extrema = extrema.filter(function (value, idx, arr) {
+                    return idx === 0 || !utils.approximately(value, arr[idx - 1]);
+                });
+
+                for (t1 = extrema[0], i = 1; i < extrema.length; ++i) {
+                    const t2 = extrema[i];
+                    if (utils.approximately(t2, t1)) {
+                        t1 = t2;
+                        continue;
+                    }
+                    segment = this.split(t1, t2);
+                    segment._t1 = t1;
+                    segment._t2 = t2;
+                    pass1.push(segment);
+                    t1 = t2;
+                }
+            } else {
+                const base = this.clone();
+                base._t1 = this._t1;
+                base._t2 = this._t2;
+                pass1.push(base);
             }
 
             // second pass: further reduce these segments to simple segments
-            pass1.forEach(function (p1) {
-                t1 = 0;
-                t2 = 0;
-                while (t2 <= 1) {
-                    for (t2 = t1 + step; t2 <= 1 + step; t2 += step) {
-                        segment = p1.split(t1, t2);
-                        if (!segment.simple()) {
-                            t2 -= step;
-                            if (abs(t1 - t2) < step) {
-                                // we can never form a reduction
+            for (let idx = 0; idx < pass1.length; ++idx) {
+                const p1 = pass1[idx];
+                if (p1.simple()) {
+                    pass2.push(p1);
+                    continue;
+                }
+
+                let localStart = 0;
+                while (localStart < 1) {
+                    let currentSegment = p1.split(localStart, 1);
+                    let segmentEnd = 1;
+
+                    if (!currentSegment.simple()) {
+                        let low = localStart;
+                        let high = 1;
+                        let attempts = 0;
+                        let bestSegment = null;
+                        let bestEnd = localStart;
+
+                        while (high - low > minStep && attempts++ < maxIterations) {
+                            const mid = low + (high - low) / 2;
+                            const testSegment = p1.split(localStart, mid);
+                            if (testSegment.simple()) {
+                                bestSegment = testSegment;
+                                bestEnd = mid;
+                                low = mid;
+                            } else {
+                                high = mid;
+                            }
+                        }
+
+                        if (!bestSegment) {
+                            const minEnd = Math.min(1, localStart + minStep);
+                            bestSegment = p1.split(localStart, minEnd);
+                            if (!bestSegment.simple()) {
                                 return [];
                             }
-                            segment = p1.split(t1, t2);
-                            segment._t1 = utils.map(t1, 0, 1, p1._t1, p1._t2);
-                            segment._t2 = utils.map(t2, 0, 1, p1._t1, p1._t2);
-                            pass2.push(segment);
-                            t1 = t2;
-                            break;
+                            segmentEnd = minEnd;
+                            currentSegment = bestSegment;
+                        } else {
+                            segmentEnd = bestEnd;
+                            currentSegment = bestSegment;
                         }
                     }
-                } //end while
 
-                if (t1 < 1) {
-                    segment = p1.split(t1, 1);
-                    segment._t1 = utils.map(t1, 0, 1, p1._t1, p1._t2);
-                    segment._t2 = p1._t2;
-                    pass2.push(segment);
+                    if (segmentEnd <= localStart || utils.approximately(segmentEnd, localStart)) {
+                        segmentEnd = Math.min(1, localStart + minStep);
+                        currentSegment = p1.split(localStart, segmentEnd);
+                        if (!currentSegment.simple()) {
+                            return [];
+                        }
+                    }
+
+                    currentSegment._t1 = utils.map(localStart, 0, 1, p1._t1, p1._t2);
+                    currentSegment._t2 = utils.map(segmentEnd, 0, 1, p1._t1, p1._t2);
+                    pass2.push(currentSegment);
+
+                    localStart = segmentEnd;
+                    if (localStart >= 1 || utils.approximately(localStart, 1)) {
+                        localStart = 1;
+                    }
                 }
-            });
+            }
             return pass2;
         },
 
@@ -19091,7 +20715,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     Snap.polygons.sat = sat;
 
-})
+});
+
+
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
@@ -24302,11 +25928,2068 @@ function voronoi(points) {
 }
 },{"circumcenter":2,"delaunay-triangulate":3,"uniq":26}]},{},[27]);
 
+/**
+ * Created by Vakarelov on 4/27/17.
+ */
+
+(function () {
+
+   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
+
+            /**
+             * Creates a circle given a center and a point on the circumference.
+             * Accepts plain coordinate pairs or Point-like objects with x/y keys.
+             *
+             * @param {number|{x:number,y:number}} x1 X coordinate of the center or the center point object.
+             * @param {number|{x:number,y:number}} y1 Y coordinate of the center or the point on the circle when passed as an object.
+             * @param {number} [x2] X coordinate of a point on the circle when primitive numbers are provided.
+             * @param {number} [y2] Y coordinate of a point on the circle when primitive numbers are provided.
+             * @return {Element} Circle element whose radius equals the distance between the supplied points.
+             */
+            Paper.prototype.circleCentPoint = function (x1, y1, x2, y2) {
+                if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
+                    x2 = y1.x;
+                    y2 = y1.y;
+                }
+
+                if (typeof x1 === "object" && y1.hasOwnProperty("x")) {
+                    y1 = x1.y;
+                    x1 = x1.x;
+                }
+
+
+                return this.circle(x1, y1, Snap.len(x1, y1, x2, y2));
+            };
+
+
+            /**
+             * Builds a circle defined by two points across its diameter.
+             * Both arguments may be number tuples or Point-like objects.
+             *
+             * @param {number|{x:number,y:number}} x1 X coordinate of the first point on the diameter or the full point object.
+             * @param {number|{x:number,y:number}} y1 Y coordinate of the first point or the second point object when passed directly.
+             * @param {number} [x2] X coordinate of the opposite point on the diameter.
+             * @param {number} [y2] Y coordinate of the opposite point on the diameter.
+             * @return {Element} Circle whose center is the midpoint between the supplied points.
+             */
+            Paper.prototype.circleTwoPoints = function (x1, y1, x2, y2) {
+                if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
+                    x2 = y1.x;
+                    y2 = y1.y;
+                }
+
+                if (typeof x1 === "object" && y1.hasOwnProperty("x")) {
+                    y1 = x1.y;
+                    x1 = x1.x;
+                }
+
+
+                return this.circle((x1 + x2) / 2, (y1 + y2) / 2, Snap.len(x1, y1, x2, y2) / 2);
+            };
+
+            /**
+             * Computes the circumcircle of three non-collinear points.
+             * Returns null when the points cannot define a finite circle.
+             *
+             * @param {number|{x:number,y:number}} x1 X coordinate of the first point or a Point-like object.
+             * @param {number|{x:number,y:number}} y1 Y coordinate of the first point or a Point-like object describing the second point.
+             * @param {number|{x:number,y:number}} x2 X coordinate of the second point or a Point-like object for the third point.
+             * @param {number} [y2] Y coordinate of the second point.
+             * @param {number} [x3] X coordinate of the third point.
+             * @param {number} [y3] Y coordinate of the third point.
+             * @return {Element|null} Circle element passing through the points, or null when a solution is not possible.
+             */
+            Paper.prototype.circleThreePoints = function (x1, y1, x2, y2, x3, y3) {
+
+                if (typeof x2 === "object" && x2.hasOwnProperty("x")) {
+                    x3 = x2.x;
+                    y3 = x2.y;
+                }
+
+                if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
+                    x2 = y1.x;
+                    y2 = y1.y;
+                }
+
+                if (typeof x1 === "object" && y1.hasOwnProperty("x")) {
+                    y1 = x1.y;
+                    x1 = x1.x;
+                }
+
+                const yDelta_a = y2 - y1;
+                const xDelta_a = x2 - x1;
+                const yDelta_b = y3 - y2;
+                const xDelta_b = x3 - x2;
+
+                const aSlope = yDelta_a / xDelta_a;
+                const bSlope = yDelta_b / xDelta_b;
+
+                const c_x = (aSlope * bSlope * (y1 - y3) + bSlope * (x1 + x2) - aSlope * (x2 + x3)) / (2 * (bSlope - aSlope));
+                const c_y = -1 * (c_x - (x1 + x2) / 2) / aSlope + (y1 + y2) / 2;
+
+                if (c_x === Infinity || c_y === Infinity) return null;
+
+                const r = Snap.len(c_x, c_y, x1, y1);
+
+                if (r > 100000) return null;
+
+                return this.circle(c_x, c_y, r)
+            };
+
+            /**
+             * Derives an ellipse from the implicit quadratic form Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0.
+             * Coefficients may come from curve fitting routines; invalid sets return null.
+             *
+             * @param {number} A Quadratic coefficient for x^2.
+             * @param {number} B Mixed term coefficient for xy.
+             * @param {number} C Quadratic coefficient for y^2.
+             * @param {number} D Linear coefficient for x.
+             * @param {number} E Linear coefficient for y.
+             * @param {number} [F=-1] Constant term; defaults to -1 when omitted.
+             * @param {boolean} [properties_only=false] When true, returns the ellipse parameters instead of drawing it.
+             * @return {Element|{x:number,y:number,rx:number,ry:number,angle:number}|null} Either a rendered ellipse, its properties, or null if coefficients do not form a valid ellipse.
+             */
+            Paper.prototype.ellipseFromEquation = function (A, B, C, D, E, F, properties_only) {
+                if (typeof F === "boolean"){
+                    properties_only = F;
+                    F = -1
+                }
+
+                if (F === undefined) F = -1;
+
+                let den = 4 * A * C - B * B;
+                if (den == 0) {
+                    return null;
+                }
+                let cx = (B * E - 2 * C * D) / den;
+                let cy = (B * D - 2 * A * E) / den;
+
+                // evaluate the a coefficient of the ellipse equation in normal form
+                // E(x,y) = a*(x-cx)^2 + b*(x-cx)*(y-cy) + c*(y-cy)^2 = 1
+                // where b = a*B , c = a*C, (cx,cy) == centre
+                let num = A * cx * cx
+                    + B * cx * cy
+                    + C * cy * cy
+                    - F;
+
+
+                //evaluate ellipse rotation angle
+                let rot = Math.atan2(-B, -(A - C)) / 2;
+//      cerr << "rot = " << rot << endl;
+                let swap_axes = false;
+                if (Math.abs(rot - 0) < 1e-6) {
+                    rot = 0;
+                }
+                if (Math.abs(rot - Math.PI / 2) < 1e-12 || rot < 0) {
+                    swap_axes = true;
+                }
+
+                // evaluate the length of the ellipse rays
+                const cosrot = Math.cos(rot);
+                const sinrot = Math.sin(rot);
+                const cos2 = cosrot * cosrot;
+                const sin2 = sinrot * sinrot;
+                const cossin = cosrot * sinrot;
+
+                den = A * cos2 + B * cossin + C * sin2;
+
+//
+//        rx2 = num/roots[0];
+//        ry2 = num/roots[1];
+
+                if (den === 0) {
+                    return null
+                }
+                const rx2 = num / den;
+                if (rx2 < 0) {
+                    return null;
+                }
+                let rx = Math.sqrt(rx2);
+
+                den = C * cos2 - B * cossin + A * sin2;
+                if (den === 0) {
+                    return null;
+                }
+                const ry2 = num / den;
+                if (ry2 < 0) {
+                    return null;
+                }
+
+                let ry = Math.sqrt(ry2);
+
+                // the solution is not unique so we choose always the ellipse
+                // with a rotation angle between 0 and PI/2
+                if (swap_axes) {
+                    //swap(rx, ry);
+                    const temp = rx;
+                    rx = ry;
+                    ry = temp;
+                }
+                if (Math.abs(rot - Math.PI / 2) < 1e-6
+                    || Math.abs(rot - Math.PI / 2) < 1e-6
+                    || Math.abs(rx - ry) < 1e-12
+                ) {
+                    rot = 0;
+                } else {
+                    if (rot < 0) {
+                        rot += Math.PI / 2;
+                    }
+                }
+
+                if (properties_only) {
+                    return {
+                        x: cx,
+                        y: cy,
+                        rx: rx,
+                        ry: ry,
+                        angle: Snap.deg(rot)
+                    }
+                } else {
+                    return this.ellipse(cx, cy, rx, ry).rotate(Snap.deg(rot), cx, cy)
+                }
+            };
+
+            /**
+             * Generates wedge-shaped annular segments (like a donut chart) between two radii.
+             * Styles may be provided as an array, object, or callback for per-segment customization.
+             *
+             * @param {number} num_segments Total number of segments to create.
+             * @param {number} [angle] Angular size of each segment in radians; defaults to 2π divided by the number of segments.
+             * @param {number} [start_angle=0] Base angle in radians where the first segment begins.
+             * @param {number} inner_rad Inner radius of the ring.
+             * @param {number} outer_rad Outer radius of the ring.
+             * @param {Function|Object|Array<string>} [style] Style definition; callbacks receive (path, group, index, inner_rad, outer_rad, angle_step, angle, points).
+             * @param {string} [id] Optional id prefix applied to each generated path.
+             * @param {Element} [group] Existing group to append to; a new group is created when multiple segments are generated.
+             * @param {string} [class_name] Optional CSS class added to each segment.
+             * @return {Element} The provided group when present, otherwise the last created path segment.
+             */
+            Paper.prototype.diskSegments = function (num_segments, angle, start_angle, inner_rad, outer_rad, style, id, group, class_name) {
+                if (!group && num_segments > 1) {
+                    group = this.g()
+                }
+
+                if (!id && group) id = group.getId();
+
+                if (!angle) angle = 2 * Math.PI / num_segments;
+
+                let d, p1, p2, p3, p4, c, angle_step, insc_rad, path, place;
+                for (let i = 0; i < num_segments; ++i) {
+                    angle_step = angle * i + start_angle; //Adding Pi to reposition upwards.
+                    p1 = Snap.fromPolar(inner_rad, angle_step - angle / 2);
+                    p2 = Snap.fromPolar(outer_rad, angle_step - angle / 2);
+                    p3 = Snap.fromPolar(outer_rad, angle_step + angle / 2);
+                    p4 = Snap.fromPolar(inner_rad, angle_step + angle / 2);
+
+                    d = "M " + p1.x + "," + p1.y +
+                        " L " + p2.x + "," + p2.y +
+                        " A " + outer_rad + "," + outer_rad + ",0,0,1," + p3.x + "," + p3.y +
+                        " L " + p4.x + "," + p4.y +
+                        " A " + (inner_rad) + "," + (inner_rad) + ",0,0,0," + p1.x + "," + p1.y;
+
+                    path = this.paper.path(d);
+                    if (id) path.attr("id", id + "_" + i);
+                    if (style) {
+                        if (Array.isArray(style)) {
+                            path.attr("style", style[i]);
+                        } else if (typeof style === "function") {
+                            style(path, group, i, inner_rad, outer_rad, angle_step, angle, [p1, p2, p3, p4]);
+                        } else {
+                            path.setStyle(style);
+                        }
+                    }
+
+                    if (class_name){
+                        path.addClass(class_name);
+                    }
+
+                    if (group) group.add(path);
+                }
+
+                return (group) ? group : path;
+            };
+
+            /**
+             * Builds a hollow disk by combining two concentric circles with even-odd fill rules.
+             *
+             * @param {number} cx Center X coordinate.
+             * @param {number} cy Center Y coordinate.
+             * @param {number} our_rad Outer radius of the disk.
+             * @param {number} inner_rad Inner radius that defines the hole.
+             * @return {Element} Path element representing the donut shape.
+             */
+            Paper.prototype.disk = function (cx, cy, our_rad, inner_rad) {
+                const outer = this.circle(cx, cy, our_rad).toDefs();
+                const inner = this.circle(cx, cy, inner_rad).toDefs();
+
+                const d = Snap.path.toPath(outer, true) + " " + Snap.path.toPath(inner, true);
+
+                outer.remove();
+                inner.remove();
+
+                return this.path(d).attr({fillRule: "evenodd"});
+            };
+
+            /**
+             * Clones a symbol or primitive along an arc, producing a circular fan layout.
+             * Accepts full Snap elements or lightweight descriptors for lines and circles.
+             *
+             * @param {number} rad Radius at which the fan elements are positioned.
+             * @param {number} angle Angular spread in degrees across the fan.
+             * @param {number} step Number of elements to distribute along the arc.
+             * @param {Element|Object} symbol Source element or descriptor ({type:"line", l:Number} or {type:"circle", r:Number}).
+             * @param {Function|Object|Array<string>} [style] Style hook; callbacks receive (element, group, index, angle, point).
+             * @param {string} [id] Id prefix applied to generated elements.
+             * @param {Element} [group] Group container; created when missing.
+             * @return {Element|undefined} Group populated with fan elements, or undefined when the symbol type is unsupported.
+             */
+            Paper.prototype.arcFan = function (rad, angle, step, symbol, style, id, group) {
+                if (!group) {
+                    group = this.g()
+                }
+
+                if (!id) id = group.getId();
+
+                let processor;
+
+                const that = this;
+                if (symbol.paper) {
+                    const box = symbol.getBBox();
+                    processor = function (p, angle, id) {
+                        const copy = symbol.clone().attr("id", id);
+                        copy.translate(p.x, p.y, undefined, box.cx, box.y2);
+                        copy.rotate(angle, p.x, p.y);
+                        return copy;
+                    }
+                } else if (symbol.type === "line") {
+                    processor = function (p, angle, id) {
+                        const p2 = {
+                            x: p.x + symbol.l * Math.cos(angle * Math.PI * 2 / 360),
+                            y: p.y + symbol.l * Math.sin(angle * Math.PI * 2 / 360)
+                        };
+                        return that.line(p.x, p.y, p2.x, p2.y).attr("id", id);
+                    }
+                } else if (symbol.type === "circle") {
+                    processor = function (p, angle, id) {
+                        return that.circle(p.x, p.y, symbol.r).attr("id", id);
+                    }
+                } else {
+                    return undefined;
+                }
+
+                for (let a = -angle / 2, i = 0, inc = angle / (step - 1); i < step; ++i, a += inc) {
+                    const p = Snap.fromPolar(rad, Snap.rad(a));
+                    const el = processor(p, a, id + "_" + i);
+                    if (style) {
+                        if (Array.isArray(style)) {
+                            el.attr("style", style[i]);
+                        } else if (typeof style === "function") {
+                            style(el, group, i, a, p);
+                        } else {
+                            el.setStyle(style);
+                        }
+                    }
+                    group.add(el);
+                }
+
+                return group;
+            };
+
+            /**
+             * Creates a rectangular grid of Snap rectangles sized to fill the provided bounds.
+             * Style can be an object applied to every rect or a callback for per-cell styling.
+             *
+             * @param {number} width Total width of the grid area.
+             * @param {number} height Total height of the grid area.
+             * @param {number} rows Number of horizontal slices.
+             * @param {number} cols Number of vertical slices.
+             * @param {Function|Object} style Style object or callback receiving (rect, colIndex, rowIndex).
+             * @param {string} [id] Optional id prefix used for the generated rectangles.
+             * @param {Element} [group] Existing group container; a new one is created when omitted.
+             * @return {Element} Group containing every grid cell.
+             */
+            Paper.prototype.grid = function (width, height, rows, cols, style, id, group) {
+                if (!group) {
+                    group = this.g()
+                }
+
+                if (!id) id = group.getId();
+
+                let style_fun;
+                if (typeof style !== "function") {
+                    style_fun = function (rect) {
+                        rect.setStyle(style)
+                    }
+                } else {
+                    style_fun = style;
+                }
+
+                const rect_w = width / cols;
+                const rect_h = height / rows;
+
+                for (let i = 0, j, rect; i < cols; ++i) {
+                    for (j = 0; j < rows; j++) {
+                        rect = this.rect(i * rect_w, j * rect_h, rect_w, rect_h).attr({
+                            id: id + "_" + i + "_" + j,
+                            position: i + ", " + j
+                        });
+
+                        style_fun(rect, i, j);
+                        group.add(rect);
+                    }
+                }
+
+                return group;
+            };
+
+            /**
+             * Draws a zigzag polyline between two points or along a horizontal length.
+             * The path alternates above and below the base line using the provided amplitude.
+             *
+             * @param {{x:number,y:number}} p1 Starting point of the polyline.
+             * @param {number|{x:number,y:number}} p2_width Either the horizontal length of the zigzag or the explicit end point.
+             * @param {number} period Distance between consecutive peaks.
+             * @param {number} amplitude Offset applied perpendicular to the base line for each peak.
+             * @param {boolean} [reverice=false] When true the zigzag starts below the baseline.
+             * @return {Element} Polyline element that visually represents the zigzag.
+             */
+            Paper.prototype.zigzag = function (p1, p2_width, period, amplitude, reverice) {
+                const p2 = (typeof p2_width === "number") ? {x: p1.x + p2_width, y: p1.y} : p2_width;
+
+                const length = (typeof p2_width === "number") ? p2_width : Snap.len(p1.x, p1.y, p2.x, p2.y);
+
+                const num_periods = Snap.round(length / period);
+                period = length / num_periods;
+
+                amplitude = (reverice) ? -amplitude : amplitude;
+
+                const v = {x: period / 2 * (p2.x - p1.x) / length, y: period / 2 * (p2.y - p1.y) / length};
+                const norm = {x: -amplitude * (p2.y - p1.y) / length, y: amplitude * (p2.x - p1.x) / length};
+
+                const points = [p1.x, p1.y];
+                for (let i = 1, px, py, amp_dir; i < 2 * num_periods; ++i) {
+                    amp_dir = (-1) * (i % 2);
+                    px = (i * v.x + p1.x) + (norm.x) * amp_dir;
+                    py = (i * v.y + p1.y) + (norm.y) * amp_dir;
+                    points.push(px);
+                    points.push(py);
+                }
+                points.push(p2.x);
+                points.push(p2.y);
+
+                return this.polyline(points);
+            }
+        }
+    );
+
+})();
+
+
+
+
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+
+    const mathMax = Math.max;
+    const mathMin = Math.min;
+    const mathAbs = Math.abs;
+    const TWO_PI = Math.PI * 2;
+
+    function clamp01(t) {
+        if (!isFinite(t)) {
+            return 0;
+        }
+        return t < 0 ? 0 : (t > 1 ? 1 : t);
+    }
+
+    function isPlainObject(val) {
+        return !!val && Object.prototype.toString.call(val) === "[object Object]";
+    }
+
+    function lerp(a, b, t) {
+        return a + (b - a) * t;
+    }
+
+    function lerpValue(from, to, t) {
+        if (typeof from === "number" && typeof to === "number") {
+            return lerp(from, to, t);
+        }
+        if (Array.isArray(from) && Array.isArray(to) && from.length === to.length) {
+            const out = [];
+            for (let i = 0; i < from.length; i++) {
+                out[i] = lerpValue(from[i], to[i], t);
+            }
+            return out;
+        }
+        if (isPlainObject(from) && isPlainObject(to)) {
+            const out = {};
+            const keys = Object.keys(from);
+            for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                if (typeof from[key] === "number" && typeof to[key] === "number") {
+                    out[key] = lerp(from[key], to[key], t);
+                } else {
+                    out[key] = t < 1 ? from[key] : to[key];
+                }
+            }
+            return out;
+        }
+        return t < 1 ? from : to;
+    }
+
+    function isRangeArray(val) {
+        return Array.isArray(val) && val.length === 2 &&
+            typeof val[0] === "number" && typeof val[1] === "number";
+    }
+
+    function buildObjectRangeSpec(obj) {
+        if (!isPlainObject(obj)) {
+            return null;
+        }
+        const keys = Object.keys(obj);
+        if (!keys.length) {
+            return null;
+        }
+        const entries = [];
+        let hasAnimated = false;
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            const value = obj[key];
+            if (isRangeArray(value)) {
+                entries.push({key: key, type: "range", from: value[0], to: value[1]});
+                hasAnimated = true;
+            } else if (isPlainObject(value) && "from" in value && "to" in value) {
+                entries.push({key: key, type: "range", from: value.from, to: value.to});
+                hasAnimated = true;
+            } else {
+                entries.push({key: key, type: "fixed", value: value});
+            }
+        }
+        return hasAnimated ? entries : null;
+    }
+
+    function resolveObjectRange(entries, eased) {
+        const out = {};
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            if (entry.type === "range") {
+                out[entry.key] = lerpValue(entry.from, entry.to, eased);
+            } else {
+                out[entry.key] = entry.value;
+            }
+        }
+        return out;
+    }
+
+    function ensurePoint(pt, fallback) {
+        const fp = fallback || {x: 0, y: 0};
+        if (!pt) {
+            return {x: fp.x, y: fp.y};
+        }
+        const x = +pt.x;
+        const y = +pt.y;
+        return {
+            x: isFinite(x) ? x : fp.x,
+            y: isFinite(y) ? y : fp.y,
+        };
+    }
+
+    function ensurePointLike(value, fallback) {
+        if (Array.isArray(value)) {
+            if (value.length >= 2) {
+                return ensurePoint({x: value[0], y: value[1]}, fallback);
+            }
+            return ensurePoint(null, fallback);
+        }
+        return ensurePoint(value, fallback);
+    }
+
+    function resolveAxisEndpoints2D(axisSpec) {
+        if (!axisSpec) {
+            return null;
+        }
+        if (Array.isArray(axisSpec)) {
+            if (axisSpec.length === 2) {
+                const first = ensurePointLike(axisSpec[0], null);
+                const second = ensurePointLike(axisSpec[1], null);
+                if (first && second) {
+                    return [first, second];
+                }
+            }
+            if (axisSpec.length === 4 && axisSpec.every(function (val) {
+                return typeof val === "number" && isFinite(val);
+            })) {
+                return [
+                    ensurePoint({x: axisSpec[0], y: axisSpec[1]}, null),
+                    ensurePoint({x: axisSpec[2], y: axisSpec[3]}, null),
+                ];
+            }
+        }
+        if (isPlainObject(axisSpec)) {
+            if (Array.isArray(axisSpec.points) && axisSpec.points.length >= 2) {
+                const first = ensurePointLike(axisSpec.points[0], null);
+                const second = ensurePointLike(axisSpec.points[1], null);
+                if (first && second) {
+                    return [first, second];
+                }
+            }
+            const from = axisSpec.from || axisSpec.start || axisSpec.p0 || axisSpec.a;
+            const to = axisSpec.to || axisSpec.end || axisSpec.p1 || axisSpec.b;
+            if (from && to) {
+                return [ensurePointLike(from, null), ensurePointLike(to, null)];
+            }
+        }
+        return null;
+    }
+
+    function buildAxisFrame(axisSpec, options) {
+        const opts = options || {};
+        const defaultAxis = opts.defaultAxis === "x" ? "x" : "y";
+        const fallbackOrigin = ensurePoint(opts.origin, {x: 0, y: 0});
+        let origin = fallbackOrigin;
+        let direction = defaultAxis === "x" ? {x: 1, y: 0} : {x: 0, y: 1};
+        let axisLabel = typeof axisSpec === "string" ? axisSpec.toLowerCase() : defaultAxis;
+        let axisLength = 0;
+        const endpoints = resolveAxisEndpoints2D(axisSpec);
+        if (endpoints && endpoints[0] && endpoints[1]) {
+            origin = endpoints[0];
+            const dx = endpoints[1].x - endpoints[0].x;
+            const dy = endpoints[1].y - endpoints[0].y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len >= 1e-6) {
+                direction = {x: dx / len, y: dy / len};
+                axisLength = len;
+                axisLabel = "custom";
+            }
+        } else if (axisSpec && typeof axisSpec === "object" && !Array.isArray(axisSpec)) {
+            if (axisSpec.origin) {
+                origin = ensurePoint(axisSpec.origin, origin);
+            }
+            if (axisSpec.direction) {
+                const dir = ensurePoint(axisSpec.direction, null);
+                const len = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
+                if (len >= 1e-6) {
+                    direction = {x: dir.x / len, y: dir.y / len};
+                    axisLabel = axisLabel || "custom";
+                }
+            }
+        } else if (typeof axisSpec === "string") {
+            if (axisLabel !== "x" && axisLabel !== "y") {
+                axisLabel = defaultAxis;
+            }
+            direction = axisLabel === "x" ? {x: 1, y: 0} : {x: 0, y: 1};
+        } else {
+            axisLabel = defaultAxis;
+            direction = defaultAxis === "x" ? {x: 1, y: 0} : {x: 0, y: 1};
+        }
+        origin = ensurePoint(origin, fallbackOrigin);
+        if (axisLabel !== "x" && axisLabel !== "y") {
+            axisLabel = "custom";
+        }
+        let ortho;
+        if (axisLabel === "x") {
+            ortho = {x: 0, y: 1};
+        } else if (axisLabel === "y") {
+            ortho = {x: 1, y: 0};
+        } else {
+            const raw = Snap.normalize({x: -direction.y, y: direction.x}) || {x: -direction.y, y: direction.x};
+            const mag = Math.sqrt(raw.x * raw.x + raw.y * raw.y) || 1;
+            ortho = {x: raw.x / mag, y: raw.y / mag};
+        }
+        return {
+            origin: origin,
+            direction: direction,
+            ortho: ortho,
+            axisLabel: axisLabel,
+            axisLength: axisLength,
+            toLocal: function (pt) {
+                const source = ensurePoint(pt, origin);
+                const relX = source.x - origin.x;
+                const relY = source.y - origin.y;
+                return {
+                    x: relX * ortho.x + relY * ortho.y,
+                    y: relX * direction.x + relY * direction.y,
+                };
+            },
+            fromLocal: function (localPt) {
+                const loc = ensurePoint(localPt, {x: 0, y: 0});
+                return {
+                    x: origin.x + ortho.x * loc.x + direction.x * loc.y,
+                    y: origin.y + ortho.y * loc.x + direction.y * loc.y,
+                };
+            },
+        };
+    }
+
+    function ensurePoint3D(pt, fallback) {
+        const fb = fallback || {x: 0, y: 0, z: 0};
+        if (!pt) {
+            return {x: fb.x || 0, y: fb.y || 0, z: fb.z || 0};
+        }
+        const x = +pt.x;
+        const y = +pt.y;
+        const z = pt.z == null ? fb.z : +pt.z;
+        return {
+            x: isFinite(x) ? x : (isFinite(fb.x) ? +fb.x : 0),
+            y: isFinite(y) ? y : (isFinite(fb.y) ? +fb.y : 0),
+            z: isFinite(z) ? z : (isFinite(fb.z) ? +fb.z : 0),
+        };
+    }
+
+    const MATRIX_GEN = (Snap.Matrix && Snap.Matrix.gen) || null;
+    const IDENTITY_4 = [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+    ];
+
+    function cloneMatrix4(m) {
+        return (m && m.length === 4) ? m.map(function (row) {
+            return row.slice(0, 4);
+        }) : identityMatrix4();
+    }
+
+    function identityMatrix4() {
+        return cloneMatrix4(IDENTITY_4);
+    }
+
+    function multiplyMatrix4(A, B) {
+        return MATRIX_GEN.multiply(A, B);
+    }
+
+    function normalizeMatrix4(value) {
+        if (!value) {
+            return identityMatrix4();
+        }
+        if (Array.isArray(value)) {
+            if (value.length === 4 && Array.isArray(value[0])) {
+                return value.slice(0, 4).map(function (row) {
+                    const clone = row.slice(0, 4);
+                    while (clone.length < 4) {
+                        clone.push(0);
+                    }
+                    return clone;
+                });
+            }
+            if (value.length === 16) {
+                return [
+                    value.slice(0, 4),
+                    value.slice(4, 8),
+                    value.slice(8, 12),
+                    value.slice(12, 16),
+                ];
+            }
+        }
+        if (typeof value === "string") {
+            const match = value.match(/matrix3d\s*\(([^)]+)\)/i);
+            const source = match ? match[1] : value;
+            const parts = source.split(/[\s,]+/).filter(Boolean).map(Number);
+            if (parts.length === 16) {
+                return [
+                    parts.slice(0, 4),
+                    parts.slice(4, 8),
+                    parts.slice(8, 12),
+                    parts.slice(12, 16),
+                ];
+            }
+        }
+        if (value && typeof value === "object") {
+            const keys = ["m11", "m12", "m13", "m14", "m21", "m22", "m23", "m24", "m31", "m32", "m33", "m34", "m41", "m42", "m43", "m44"];
+            const entries = keys.map(function (key) {
+                const num = +value[key];
+                return isFinite(num) ? num : null;
+            });
+            if (entries.every(function (entry) { return entry != null; })) {
+                return [
+                    entries.slice(0, 4),
+                    entries.slice(4, 8),
+                    entries.slice(8, 12),
+                    entries.slice(12, 16),
+                ];
+            }
+        }
+        return identityMatrix4();
+    }
+
+    function translationMatrix4(tx, ty, tz) {
+        const m = identityMatrix4();
+        m[0][3] = +tx || 0;
+        m[1][3] = +ty || 0;
+        m[2][3] = +tz || 0;
+        return m;
+    }
+
+    function scaleMatrix4(sx, sy, sz) {
+        const m = identityMatrix4();
+        m[0][0] = (sx == null ? 1 : +sx) || 0;
+        m[1][1] = (sy == null ? m[0][0] : +sy) || 0;
+        m[2][2] = (sz == null ? m[0][0] : +sz) || 0;
+        return m;
+    }
+
+    function rotationMatrixX(angle) {
+        const c = Math.cos(angle);
+        const s = Math.sin(angle);
+        return [
+            [1, 0, 0, 0],
+            [0, c, -s, 0],
+            [0, s, c, 0],
+            [0, 0, 0, 1],
+        ];
+    }
+
+    function rotationMatrixY(angle) {
+        const c = Math.cos(angle);
+        const s = Math.sin(angle);
+        return [
+            [c, 0, s, 0],
+            [0, 1, 0, 0],
+            [-s, 0, c, 0],
+            [0, 0, 0, 1],
+        ];
+    }
+
+    function rotationMatrixZ(angle) {
+        const c = Math.cos(angle);
+        const s = Math.sin(angle);
+        return [
+            [c, -s, 0, 0],
+            [s, c, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+        ];
+    }
+
+    function normalizeVector3(vec, fallback) {
+        const fb = fallback || {x: 0, y: 0, z: 1};
+        const source = ensurePoint3D(vec, fb);
+        const mag = Math.sqrt(source.x * source.x + source.y * source.y + source.z * source.z);
+        if (!mag || !isFinite(mag)) {
+            return normalizeVector3(fb, {x: 0, y: 0, z: 1});
+        }
+        return {
+            x: source.x / mag,
+            y: source.y / mag,
+            z: source.z / mag,
+        };
+    }
+
+    function rotationAxisMatrix(axis, angle) {
+        const v = normalizeVector3(axis, {x: 0, y: 0, z: 1});
+        const c = Math.cos(angle || 0);
+        const s = Math.sin(angle || 0);
+        const t = 1 - c;
+        return [
+            [t * v.x * v.x + c, t * v.x * v.y - s * v.z, t * v.x * v.z + s * v.y, 0],
+            [t * v.y * v.x + s * v.z, t * v.y * v.y + c, t * v.y * v.z - s * v.x, 0],
+            [t * v.z * v.x - s * v.y, t * v.z * v.y + s * v.x, t * v.z * v.z + c, 0],
+            [0, 0, 0, 1],
+        ];
+    }
+
+    function perspectiveMatrix(distance) {
+        const d = Math.max(1e-6, isFinite(+distance) ? +distance : 1);
+        return [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 1 / d, 1],
+        ];
+    }
+
+    function vectorSubtract(a, b) {
+        const pa = ensurePoint3D(a, {x: 0, y: 0, z: 0});
+        const pb = ensurePoint3D(b, {x: 0, y: 0, z: 0});
+        const diff = Snap.v_subtract(pa, pb);
+        return {
+            x: diff.x,
+            y: diff.y,
+            z: pa.z - pb.z,
+        };
+    }
+
+    function vectorCross(a, b) {
+        const pa = ensurePoint3D(a, {x: 0, y: 0, z: 0});
+        const pb = ensurePoint3D(b, {x: 0, y: 0, z: 0});
+        return {
+            x: pa.y * pb.z - pa.z * pb.y,
+            y: pa.z * pb.x - pa.x * pb.z,
+            z: Snap.cross(pa, pb),
+        };
+    }
+
+    function vectorDot(a, b) {
+        const pa = ensurePoint3D(a, {x: 0, y: 0, z: 0});
+        const pb = ensurePoint3D(b, {x: 0, y: 0, z: 0});
+        const xy = Snap.dot(pa, pb);
+        return xy + (pa.z * pb.z);
+    }
+
+    function lookAtMatrix(eye, target, up) {
+        const eyePt = ensurePoint3D(eye, {x: 0, y: 0, z: 1});
+        const targetPt = ensurePoint3D(target, {x: 0, y: 0, z: 0});
+        const upVec = normalizeVector3(up || {x: 0, y: 1, z: 0}, {x: 0, y: 1, z: 0});
+        const zAxis = normalizeVector3(vectorSubtract(eyePt, targetPt), {x: 0, y: 0, z: 1});
+        const xAxis = normalizeVector3(vectorCross(upVec, zAxis), {x: 1, y: 0, z: 0});
+        const yAxis = vectorCross(zAxis, xAxis);
+        return [
+            [xAxis.x, xAxis.y, xAxis.z, -vectorDot(xAxis, eyePt)],
+            [yAxis.x, yAxis.y, yAxis.z, -vectorDot(yAxis, eyePt)],
+            [zAxis.x, zAxis.y, zAxis.z, -vectorDot(zAxis, eyePt)],
+            [0, 0, 0, 1],
+        ];
+    }
+
+    function applyOriginToMatrix(matrix, origin) {
+        if (!origin) {
+            return cloneMatrix4(matrix);
+        }
+        const toOrigin = translationMatrix4(-origin.x, -origin.y, -origin.z);
+        const back = translationMatrix4(origin.x, origin.y, origin.z);
+        return multiplyMatrix4(back, multiplyMatrix4(matrix, toOrigin));
+    }
+
+    function transformPointWithMatrix(matrix, point, divideW) {
+        const vec = [[point.x], [point.y], [point.z], [1]];
+        const result = multiplyMatrix4(matrix, vec);
+        const w = (result[3] && result[3][0]) || 1;
+        const denom = (divideW === false || !isFinite(w) || Math.abs(w) < 1e-9) ? 1 : w;
+        const inv = 1 / denom;
+        return {
+            x: (result[0] && result[0][0] != null ? result[0][0] : 0) * inv,
+            y: (result[1] && result[1][0] != null ? result[1][0] : 0) * inv,
+            z: (result[2] && result[2][0] != null ? result[2][0] : 0) * inv,
+            w: w,
+        };
+    }
+
+    function resolveAxisInput(axis) {
+        if (typeof axis === "string") {
+            const lower = axis.toLowerCase();
+            if (lower === "x") {
+                return {x: 1, y: 0, z: 0};
+            }
+            if (lower === "y") {
+                return {x: 0, y: 1, z: 0};
+            }
+            if (lower === "z") {
+                return {x: 0, y: 0, z: 1};
+            }
+        }
+        if (Array.isArray(axis)) {
+            return ensurePoint3D({x: axis[0], y: axis[1], z: axis[2]}, {x: 0, y: 0, z: 1});
+        }
+        return ensurePoint3D(axis, {x: 0, y: 0, z: 1});
+    }
+
+    function buildMatrixTransform(matrix, options) {
+        const opts = options || {};
+        const fallbackPoint = ensurePoint3D(opts.fallbackPoint, {x: 0, y: 0, z: 0});
+        const divideW = opts.divideByW !== false;
+        const projector = typeof opts.project === "function" ? opts.project : null;
+        const targetMatrix = applyOriginToMatrix(normalizeMatrix4(matrix), opts.origin ? ensurePoint3D(opts.origin, fallbackPoint) : null);
+        return function matrixTransform(pt) {
+            const source = ensurePoint3D(pt, fallbackPoint);
+            const mapped = transformPointWithMatrix(targetMatrix, source, divideW);
+            if (projector) {
+                const projected = projector(mapped, pt);
+                if (projected) {
+                    return projected;
+                }
+            }
+            return mapped;
+        };
+    }
+
+    function memoizeSamples(samples, axisKey) {
+        if (!samples || !samples.length) {
+            return null;
+        }
+        const sorted = samples.slice().sort(function (a, b) {
+            return (a[axisKey] || 0) - (b[axisKey] || 0);
+        });
+        return {
+            axis: axisKey,
+            samples: sorted,
+            minAxis: sorted[0][axisKey] || 0,
+            maxAxis: sorted[sorted.length - 1][axisKey] || 0,
+        };
+    }
+
+    function sampleAtAxis(cache, axisValue) {
+        if (!cache) {
+            return null;
+        }
+        const axis = cache.axis;
+        const samples = cache.samples;
+        const len = samples.length;
+        if (!len) {
+            return null;
+        }
+        if (axisValue <= cache.minAxis) {
+            return samples[0];
+        }
+        if (axisValue >= cache.maxAxis) {
+            return samples[len - 1];
+        }
+        let low = 0;
+        let high = len - 1;
+        while (low <= high) {
+            const mid = (low + high) >> 1;
+            const value = samples[mid][axis];
+            if (value < axisValue) {
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+        const i2 = mathMin(low, len - 1);
+        const i1 = mathMax(i2 - 1, 0);
+        const s1 = samples[i1];
+        const s2 = samples[i2];
+        const span = (s2[axis] || 0) - (s1[axis] || 0) || 1;
+        const ratio = (axisValue - (s1[axis] || 0)) / span;
+        return {
+            x: lerp(s1.x || 0, s2.x || 0, ratio),
+            y: lerp(s1.y || 0, s2.y || 0, ratio),
+        };
+    }
+
+    const TRANSFORM_FLAG = "_ia_nlt_transform";
+    const TRANSFORM_NAME = "_ia_nlt_name";
+
+    function tagTransform(fn, name) {
+        if (typeof fn !== "function" || typeof name !== "string" || !name) {
+            return fn;
+        }
+        Object.defineProperty(fn, TRANSFORM_NAME, {
+            value: name,
+            configurable: true,
+            enumerable: false,
+            writable: true,
+        });
+        return fn;
+    }
+
+    /**
+     * Utility collection of reusable non-linear R^2 -> R^2 transforms.
+     * Each builder returns a point-mapping function compatible with genTransform.
+     */
+    class NonlinTransforms {
+        constructor() {
+            this._registry = Object.create(null);
+            this._linearEase = (glob.mina && glob.mina.linear) || function (t) {
+                return t;
+            };
+            this.identity = this._markTransform(function identityTransform(pt) {
+                return {
+                    x: pt && isFinite(pt.x) ? pt.x : 0,
+                    y: pt && isFinite(pt.y) ? pt.y : 0,
+                };
+            });
+            this.register("identity", function () {
+                return this.identity;
+            });
+            this._autoRegisterPrototype();
+            const defaults = glob && glob.SnapNonlinTransformsDefaults;
+            if (defaults) {
+                this.use(defaults);
+            }
+        }
+
+        register(name, factory) {
+            if (typeof name !== "string" || typeof factory !== "function") {
+                return this;
+            }
+            this._registry[name] = factory;
+            return this;
+        }
+
+        has(name) {
+            return !!this._registry[name];
+        }
+
+        list() {
+            return Object.keys(this._registry);
+        }
+
+        build(name) {
+            const factory = this._registry[name];
+            if (!factory) {
+                return null;
+            }
+            const args = Array.prototype.slice.call(arguments, 1);
+            return this._ensureTransform(factory.apply(this, args));
+        }
+
+        compose() {
+            const self = this;
+            const stack = [];
+            function pushEntry(entry) {
+                if (entry == null) {
+                    return;
+                }
+                const matrixTransform = self._wrapMatrixTransform(entry);
+                const transform = matrixTransform || self._ensureTransform(entry);
+                transform && stack.push(transform);
+            }
+            for (let i = 0; i < arguments.length; i++) {
+                const entry = arguments[i];
+                if (Array.isArray(entry)) {
+                    for (let j = 0; j < entry.length; j++) {
+                        pushEntry(entry[j]);
+                    }
+                    continue;
+                }
+                pushEntry(entry);
+            }
+            if (!stack.length) {
+                return this.identity;
+            }
+            if (stack.length === 1) {
+                return stack[0];
+            }
+            return this._markTransform(function composedTransform(pt) {
+                let current = pt;
+                for (let i = stack.length - 1; i >= 0; i--) {
+                    const fn = stack[i];
+                    current = fn(current) || current;
+                }
+                return current || self.identity(pt);
+            });
+        }
+
+        /**
+         * Registers multiple presets at once. Accepts arrays, plain objects, or method names.
+         * @param {Array|Object|string} presets
+         */
+        use(presets) {
+            if (!presets) {
+                return this;
+            }
+            if (Array.isArray(presets)) {
+                for (let i = 0; i < presets.length; i++) {
+                    this._registerPresetEntry(presets[i]);
+                }
+                return this;
+            }
+            if (typeof presets === "string") {
+                this._registerPresetEntry({name: presets});
+                return this;
+            }
+            if (isPlainObject(presets)) {
+                const keys = Object.keys(presets);
+                for (let i = 0; i < keys.length; i++) {
+                    const key = keys[i];
+                    this._registerPresetEntry({name: key, factory: presets[key]});
+                }
+            }
+            return this;
+        }
+
+        /**
+         * Creates a transform resolver whose parameters evolve with t in [0, 1].
+         * @example
+         * const tween = Snap.NonlinTransforms.parametrize('twistPinch', [
+         *     {x: 200, y: 200},
+         *     [20, 160],
+         *     [0, 360],
+         *     [0, 0.5],
+         * ]);
+         * element.animateGenTransform(tween, 1200, mina.easeinout);
+         */
+        parametrize(transformRef, paramDefs, easingDefs) {
+            const trans_factory = this._resolveFactory(transformRef);
+            if (!trans_factory) {
+                return function () {
+                    return null;
+                };
+            }
+            const params = Array.isArray(paramDefs) ? paramDefs : [];
+            const parsed = [];
+            let variableCount = 0;
+            for (let i = 0; i < params.length; i++) {
+                const def = params[i];
+                if (typeof def === "function") {
+                    parsed.push({kind: "fn", fn: def});
+                    continue;
+                }
+                if (Array.isArray(def) && def.length === 2) {
+                    parsed.push({kind: "range", from: def[0], to: def[1]});
+                    variableCount++;
+                    continue;
+                }
+                if (isPlainObject(def) && "from" in def && "to" in def) {
+                    parsed.push({kind: "range", from: def.from, to: def.to});
+                    variableCount++;
+                    continue;
+                }
+                if (isPlainObject(def)) {
+                    const spec = buildObjectRangeSpec(def);
+                    if (spec) {
+                        parsed.push({kind: "object-range", spec: spec});
+                        variableCount++;
+                        continue;
+                    }
+                }
+                parsed.push({kind: "fixed", value: def});
+            }
+            const easeList = this._normalizeEasing(easingDefs, variableCount);
+            const self = this;
+            return function (t) {
+                const clamped = clamp01(t == null ? 0 : t);
+                const args = new Array(parsed.length);
+                let variableCursor = 0;
+                for (let i = 0; i < parsed.length; i++) {
+                    const item = parsed[i];
+                    if (item.kind === "range") {
+                        const ease = easeList[variableCursor] || easeList[easeList.length - 1];
+                        const eased = ease ? clamp01(ease(clamped)) : clamped;
+                        args[i] = lerpValue(item.from, item.to, eased);
+                        variableCursor++;
+                    } else if (item.kind === "object-range") {
+                        const ease = easeList[variableCursor] || easeList[easeList.length - 1];
+                        const eased = ease ? clamp01(ease(clamped)) : clamped;
+                        args[i] = resolveObjectRange(item.spec, eased);
+                        variableCursor++;
+                    } else if (item.kind === "fn") {
+                        args[i] = item.fn.call(self, clamped);
+                    } else {
+                        args[i] = item.value;
+                    }
+                }
+                return self._ensureTransform(trans_factory.apply(self, args));
+            };
+        }
+
+        /**
+         * Builds a twist/pinch transform that rotates points around a center while
+         * easing the rotation toward the given radius.
+         * @param {{x:number,y:number}} center Anchor the twist effect.
+         * @param {number} radius Distance over which the twist fully fades out.
+         * @param {number} twist Degrees of rotation applied near the center.
+         * @param {number} pinch 0..1 factor pulling the radius inward.
+         * @returns {function({x:number,y:number}):{x:number,y:number}} Point mapper.
+         * @example
+         * const twistTween = Snap.NonlinTransforms.parametrize("twistPinch", [
+         *     {x: 200, y: 200},
+         *     180,
+         *     [0, 360],
+         *     0.35,
+         * ]);
+         * element.animateGenTransform(twistTween, 800, mina.easeinout);
+         */
+        twistPinch(center, radius, twist, pinch) {
+            const c = ensurePoint(center, {x: 0, y: 0});
+            const r = Math.max(1, +radius || 0);
+            const t = isFinite(twist) ? +twist : 0;
+            const p = isFinite(pinch) ? +pinch : 0;
+            return this._markTransform(createTwistPinchTransform(c, r, t, p));
+        }
+
+        /**
+         * Creates concentric ripples that modulate distance from a center point.
+         * @param {{x:number,y:number}} center Ripple origin.
+         * @param {number} amplitude Maximum radial displacement.
+         * @param {number} wavelength Distance between ripple crests.
+         * @param {number} decay Exponential falloff per unit distance.
+         * @param {number} phase Additional phase offset in radians.
+         * @returns {function({x:number,y:number}):{x:number,y:number}} Point mapper.
+         * @example
+         * const ripple = Snap.NonlinTransforms.radialRipple({x: 0, y: 0}, 30, 80, 0.01, 0);
+         * paper.circle(0, 0, 200).attr({transform: ripple});
+         */
+        radialRipple(center, amplitude, wavelength, decay, phase) {
+            const c = ensurePoint(center, {x: 0, y: 0});
+            const amp = isFinite(amplitude) ? +amplitude : 0;
+            const wave = mathMax(1e-6, isFinite(wavelength) ? +wavelength : 1);
+            const decayFactor = mathMax(0, isFinite(decay) ? +decay : 0);
+            const phaseShift = isFinite(phase) ? +phase : 0;
+            return this._markTransform(function ripple(pt) {
+                const dx = pt.x - c.x;
+                const dy = pt.y - c.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (!dist) {
+                    return {x: pt.x, y: pt.y};
+                }
+                const attenuation = decayFactor ? Math.exp(-decayFactor * dist) : 1;
+                const offset = amp * attenuation * Math.sin((dist / wave) * TWO_PI + phaseShift);
+                const scale = (dist + offset) / dist;
+                return {
+                    x: c.x + dx * scale,
+                    y: c.y + dy * scale,
+                };
+            });
+        }
+
+        /**
+         * Expands or contracts points inside a radius to simulate a bulge/pinch.
+         * @param {{x:number,y:number}} center Bulge origin.
+         * @param {number} radius Influence radius for the bulge.
+         * @param {number} strength Positive = bulge outward, negative = pinch inward.
+         * @returns {function({x:number,y:number}):{x:number,y:number}} Point mapper.
+         * @example
+         * const bulgeTween = Snap.NonlinTransforms.parametrize("bulge", [
+         *     {x: 320, y: 140},
+         *     120,
+         *     [-0.3, 0.5],
+         * ]);
+         * element.animateGenTransform(bulgeTween, 600, mina.easeout);
+         */
+        bulge(center, radius, strength) {
+            const c = ensurePoint(center, {x: 0, y: 0});
+            const r = mathMax(1e-3, isFinite(radius) ? +radius : 0);
+            const s = isFinite(strength) ? +strength : 0;
+            return this._markTransform(function bulgeTransform(pt) {
+                const dx = pt.x - c.x;
+                const dy = pt.y - c.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (!dist) {
+                    return {x: pt.x, y: pt.y};
+                }
+                const ratio = mathMin(1, dist / r);
+                const influence = 1 - ratio * ratio;
+                const delta = 1 + s * influence;
+                return {
+                    x: c.x + dx * delta,
+                    y: c.y + dy * delta,
+                };
+            });
+        }
+
+        /**
+         * Offsets points along one axis using a sinusoidal displacement.
+         * @param {"x"|"y"|Array|Object} axis Axis descriptor (string or two points) whose coordinate drives the sine.
+         * @param {number} amplitude Peak offset applied to the orthogonal axis.
+         * @param {number} wavelength Distance for one full sine cycle.
+         * @param {number} phase Phase shift in radians.
+         * @param {number} decay Exponential attenuation along the driving axis.
+         * @returns {function({x:number,y:number}):{x:number,y:number}} Point mapper.
+         * @example
+         * const waveTween = Snap.NonlinTransforms.parametrize("sineWave", [
+         *     "x",
+         *     25,
+         *     120,
+         *     [0, Math.PI * 2],
+         *     0.002,
+         * ]);
+         * path.animateGenTransform(waveTween, 1000, mina.easeinout);
+         */
+        sineWave(axis, amplitude, wavelength, phase, decay) {
+            const axisInput = axis == null ? "x" : axis;
+            const defaultAxis = (typeof axisInput === "string" && axisInput === "y") ? "y" : "x";
+            const axisFrame = buildAxisFrame(axisInput, {origin: {x: 0, y: 0}, defaultAxis: defaultAxis});
+            const amp = isFinite(amplitude) ? +amplitude : 0;
+            const wave = mathMax(1e-6, isFinite(wavelength) ? +wavelength : 1);
+            const phaseShift = isFinite(phase) ? +phase : 0;
+            const decayFactor = mathMax(0, isFinite(decay) ? +decay : 0);
+            return this._markTransform(function sineTransform(pt) {
+                const point = ensurePoint(pt, {x: 0, y: 0});
+                const local = axisFrame.toLocal(point);
+                const axisValue = local.y;
+                const orthoValue = local.x;
+                const attenuation = decayFactor ? Math.exp(-decayFactor * mathAbs(axisValue)) : 1;
+                const offset = amp * attenuation * Math.sin((axisValue / wave) * TWO_PI + phaseShift);
+                const nextLocal = {
+                    x: orthoValue + offset,
+                    y: axisValue,
+                };
+                return axisFrame.fromLocal(nextLocal);
+            });
+        }
+
+        /**
+         * Warps points using a cantilever beam deflection profile.
+         * @param {{x:number,y:number}} origin Reference origin for normalization.
+         * @param {number} length Normalized beam length.
+         * @param {number} EI Flexural rigidity (E * I) controlling stiffness.
+         * @param {number} thetaTip Tip rotation in radians.
+         * @param {number} gain Multiplier applied to deflection magnitude.
+         * @param {"x"|"y"|Array|Object} axis Axis descriptor (string or two points) along which the beam extends.
+         * @param {number} falloff Exponential attenuation away from the beam plane.
+         * @returns {function({x:number,y:number}):{x:number,y:number}} Point mapper.
+         * @example
+         * const bend = Snap.NonlinTransforms.cantilever({x: 0, y: 0}, 400, 80, 0.2, 1, "y", 0.001);
+         * element.genTransform(bend(Snap.path.getPointAtLength(path, 0)));
+         */
+        cantilever(origin, length, EI, thetaTip, gain, axis, falloff) {
+            const L = mathMax(1e-3, isFinite(length) ? +length : 1);
+            const samples = cantileverSmallDeflection(L, mathMax(1e-3, +EI || 1), 64, +thetaTip || 0);
+            const axisInput = axis == null ? "y" : axis;
+            const horizontalSamples = typeof axisInput === "string" && axisInput === "x";
+            const axisKey = horizontalSamples ? "x" : "y";
+            const oriented = horizontalSamples ? samples.map(function (pt) {
+                return {x: pt.y, y: pt.x};
+            }) : samples;
+            return this._curveWarp(oriented, {
+                origin: origin,
+                axis: axisInput,
+                axisKey: axisKey,
+                deflectionKey: axisKey === "x" ? "y" : "x",
+                gain: isFinite(gain) ? +gain : 1,
+                falloff: mathMax(0, isFinite(falloff) ? +falloff : 0),
+            });
+        }
+
+        /**
+         * Follows a circular-arc spring profile to bend points along a rod.
+         * @param {{x:number,y:number}} origin Reference origin for normalization.
+         * @param {number} length Spring length used to generate the arc samples.
+         * @param {number} angle Total bend angle in radians.
+         * @param {number} gain Multiplier applied to the deflection samples.
+         * @param {"x"|"y"|Array|Object} axis Axis descriptor (string or two points) along which the spring extends.
+         * @param {number} falloff Exponential attenuation away from the spring plane.
+         * @returns {function({x:number,y:number}):{x:number,y:number}} Point mapper.
+         * @example
+         * const springTween = Snap.NonlinTransforms.parametrize("springBend", [
+         *     {x: 0, y: 0},
+         *     300,
+         *     [0, Math.PI / 3],
+         *     1,
+         *     "y",
+         *     0.0005,
+         * ]);
+         * element.animateGenTransform(springTween, 1200, mina.easeinout);
+         */
+        springBend(origin, length, angle, gain, axis, falloff) {
+            const L = mathMax(1e-3, isFinite(length) ? +length : 1);
+            const points = bentSpring(L, 64, +angle || 0);
+            const axisInput = axis == null ? "y" : axis;
+            const horizontalSamples = typeof axisInput === "string" && axisInput === "x";
+            const axisKey = horizontalSamples ? "x" : "y";
+            const oriented = horizontalSamples ? points.map(function (pt) {
+                return {x: pt.y, y: pt.x};
+            }) : points;
+            return this._curveWarp(oriented, {
+                origin: origin,
+                axis: axisInput,
+                axisKey: axisKey,
+                deflectionKey: axisKey === "x" ? "y" : "x",
+                gain: isFinite(gain) ? +gain : 1,
+                falloff: mathMax(0, isFinite(falloff) ? +falloff : 0),
+            });
+        }
+
+        /**
+         * Bends space around a cantilever segment defined by two endpoints.
+         * Points are projected onto the rod, the rod is bent via small-deflection
+         * beam theory, and offsets are reapplied using the local bent normal.
+         *
+         * @param {{x:number,y:number}} fixed Clamp point (origin) of the rod.
+         * @param {{x:number,y:number}} tip Point describing the initial straight tip.
+         * @param {number} thetaTip Tip rotation in degrees applied to the rod end.
+         * @param {number} [falloff=0] Optional exponential attenuation away from the rod.
+         * @returns {function({x:number,y:number}):{x:number,y:number}} Point mapper.
+         * @example
+         * const bendTween = Snap.NonlinTransforms.parametrize("bendCantilever", [
+         *     {x: 80, y: 80},
+         *     {x: 80, y: 320},
+         *     [0, 120],
+         *     0.35,
+         * ]);
+         * paper.path(pathString).animateGenTransform(bendTween, 900, mina.easeinout);
+         */
+        bendCantilever(fixed, tip, thetaTip, falloff=0) {
+            thetaTip = Snap.rad(thetaTip)
+            const clamp = ensurePoint(fixed, {x: 0, y: 0});
+            const tipPoint = ensurePoint(tip, {x: clamp.x, y: clamp.y + 1});
+            const axisVec = {
+                x: tipPoint.x - clamp.x,
+                y: tipPoint.y - clamp.y,
+            };
+            const length = Snap.len(clamp.x, clamp.y, tipPoint.x, tipPoint.y);
+            if (!length || !isFinite(length)) {
+                return this.identity;
+            }
+            const rotation = isFinite(thetaTip) ? +thetaTip : 0;
+            const falloffFactor = mathMax(0, isFinite(falloff) ? +falloff : 0);
+            const axisDir = Snap.normalize(axisVec);
+            const axisNormal = Snap.normalize(Snap.orthogonal(axisDir, true));
+            const localToWorld = function (vec) {
+                return {
+                    x: axisNormal.x * (vec && vec.x || 0) + axisDir.x * (vec && vec.y || 0),
+                    y: axisNormal.y * (vec && vec.x || 0) + axisDir.y * (vec && vec.y || 0),
+                };
+            };
+            const segments = 64;
+            return this._markTransform(function bendCantileverTransform(pt) {
+                const point = ensurePoint(pt, clamp);
+                const rel = {
+                    x: point.x - clamp.x,
+                    y: point.y - clamp.y,
+                };
+                const progress = mathMin(length, mathMax(0, Snap.dot(rel, axisDir)));
+                const projected = {
+                    x: clamp.x + axisDir.x * progress,
+                    y: clamp.y + axisDir.y * progress,
+                };
+                const distanceVec = {
+                    x: point.x - projected.x,
+                    y: point.y - projected.y,
+                };
+                const bendState = cantileverSmallBend(progress, rotation, length, segments);
+                const centerWorld = {
+                    x: clamp.x + axisDir.x * bendState.position.y + axisNormal.x * bendState.position.x,
+                    y: clamp.y + axisDir.y * bendState.position.y + axisNormal.y * bendState.position.x,
+                };
+                const normalWorld = Snap.normalize(localToWorld({
+                    x: Math.cos(bendState.angle),
+                    y: -Math.sin(bendState.angle),
+                }));
+                const tangentWorld = Snap.normalize(localToWorld({
+                    x: Math.sin(bendState.angle),
+                    y: Math.cos(bendState.angle),
+                }));
+                const normalOffset = Snap.dot(distanceVec, axisNormal);
+                const tangentOffset = Snap.dot(distanceVec, axisDir);
+                const attenuation = falloffFactor ? Math.exp(-falloffFactor * mathAbs(normalOffset)) : 1;
+                return {
+                    x: centerWorld.x + normalWorld.x * normalOffset * attenuation + tangentWorld.x * tangentOffset,
+                    y: centerWorld.y + normalWorld.y * normalOffset * attenuation + tangentWorld.y * tangentOffset,
+                };
+            });
+        }
+
+        /**
+         * Builds a general 3D transform from an explicit 4x4 matrix description.
+         *
+         * The matrix may be provided as a CSS `matrix3d(...)` string, a flat array of
+         * 16 numbers, a nested `[[row]]` array, or an object exposing `m11..m44`.
+         * The returned mapper can be fed directly into `element.genTransform` or
+         * composed with other non-linear transforms.
+         *
+         * @param {(Array<number>|number[][]|string|Object)} matrixValue Matrix descriptor compatible with CSS matrix3d formats.
+         * @param {Object} [options]
+         * @param {Point3D} [options.origin] Pivot applied before/after the matrix (translate->matrix->translate back).
+         * @param {Point3D} [options.fallbackPoint={x:0,y:0,z:0}] Default coordinate used when an input point omits xyz.
+         * @param {boolean} [options.divideByW=true] Skip the homogeneous divide when the matrix represents an affine-only stage.
+         * @param {function({x:number,y:number,z:number,w:number},Point3D):Point3D} [options.project] Optional projector run after the multiply (e.g., drop `z`).
+         * @returns {function(Point3D):Point3D} Point-mapping function suitable for `genTransform`.
+         *
+         * @example
+         * const tilt = Snap.NonlinTransforms.matrix3d(
+         *     "matrix3d(1,0,0,0, 0,0.9,-0.4,0, 0,0.4,0.9,0, 0,0,0,1)",
+         *     {origin: {x: 200, y: 150, z: 0}}
+         * );
+         * paper.path(pathString).genTransform(tilt);
+         */
+        matrix3d(matrixValue, options) {
+            const transform = buildMatrixTransform(matrixValue || identityMatrix4(), options);
+            return this._markTransform(transform);
+        }
+
+        /**
+         * Creates a standard 3D translation matrix.
+         *
+         * @param {number} [tx=0] Offset along the X axis.
+         * @param {number} [ty=0] Offset along the Y axis.
+         * @param {number} [tz=0] Offset along the Z axis (positive moves the viewer).
+         * @param {Object} [options] Same optional parameters accepted by {@link matrix3d} (origin, projector...).
+         * @returns {function(Point3D):Point3D}
+         *
+         * @example
+         * const pan = Snap.NonlinTransforms.translate3d(120, 40, 0);
+         * meshPath.genTransform(pan);
+         */
+        translate3d(tx, ty, tz, options) {
+            return this.matrix3d(translationMatrix4(tx, ty, tz), options);
+        }
+
+        /**
+         * Scales points along each axis independently.
+         *
+         * @param {number} sx Scale applied to X coordinates.
+         * @param {number} [sy=sx] Scale applied to Y coordinates (defaults to {@link sx}).
+         * @param {number} [sz=sx] Scale applied to Z coordinates (defaults to {@link sx}).
+         * @param {Object} [options] Forwarded to {@link matrix3d}; supply `origin` to scale about a pivot.
+         * @returns {function(Point3D):Point3D}
+         *
+         * @example
+         * const squashTween = Snap.NonlinTransforms.parametrize("scale3d", [
+         *     [1, 1.2],
+         *     [1, 0.8],
+         *     1,
+         *     {origin: {x: 160, y: 90, z: 0}},
+         * ]);
+         * element.animateGenTransform(squashTween, 600, mina.easeinout);
+         */
+        scale3d(sx, sy, sz, options) {
+            return this.matrix3d(scaleMatrix4(sx, sy, sz), options);
+        }
+
+        /**
+         * Rotates points around the X axis.
+         *
+         * @param {number} angle Rotation angle in degrees (positive rotates toward Y).
+         * @param {Object} [options] Optional {@link matrix3d} settings (common use: `{origin: {x,y,z}}`).
+         * @returns {function(Point3D):Point3D}
+         *
+         * @example
+         * const flip = Snap.NonlinTransforms.rotateX(-35, {origin: {x: 240, y: 180, z: 0}});
+         * path.genTransform(flip);
+         */
+        rotateX(angle, options) {
+            return this.matrix3d(rotationMatrixX(Snap.rad(angle || 0)), options);
+        }
+
+        /**
+         * Rotates points around the Y axis.
+         *
+         * @param {number} angle Rotation angle in degrees (positive rotates toward Z).
+         * @param {Object} [options] Optional {@link matrix3d} settings.
+         * @returns {function(Point3D):Point3D}
+         *
+         * @example
+         * const swivelTween = Snap.NonlinTransforms.parametrize("rotateY", [
+         *     [0, 25],
+         * ]);
+         * polyline.animateGenTransform(swivelTween, 500, mina.easeout);
+         */
+        rotateY(angle, options) {
+            return this.matrix3d(rotationMatrixY(Snap.rad(angle || 0)), options);
+        }
+
+        /**
+         * Rotates points around the Z axis (behaves like a classic 2D rotation).
+         *
+         * @param {number} angle Rotation angle in degrees.
+         * @param {Object} [options] Optional {@link matrix3d} settings.
+         * @returns {function(Point3D):Point3D}
+         *
+         * @example
+         * const spin = Snap.NonlinTransforms.rotateZ(90);
+         * group.genTransform(spin);
+         */
+        rotateZ(angle, options) {
+            return this.matrix3d(rotationMatrixZ(Snap.rad(angle || 0)), options);
+        }
+
+        /**
+         * Rotates around an arbitrary axis in 3D space.
+         *
+         * Two call styles are supported:
+         * - `rotate3d([x, y, z], angle, options)` where the first argument describes the axis.
+         * - `rotate3d(x, y, z, angle, options)` numeric signature, similar to CSS `rotate3d`.
+         * Axis descriptors may also be strings (`"x"`, `"y"`, `"z"`) or `{x,y,z}` objects.
+         *
+         * @param {(number|Array|Object|string)} ax Axis descriptor or X component.
+         * @param {(number|Object)} ay Rotation angle (degrees) when {@link ax} is descriptive, otherwise the Y component.
+         * @param {(number|Object)} [az] Z component for numeric usage or `options` when {@link ax} is descriptive.
+         * @param {number} [angle] Rotation angle in degrees when numeric signature is used.
+         * @param {Object} [options] Optional projector/origin settings.
+         * @returns {function(Point3D):Point3D}
+         *
+         * @example
+         * // Rotate up to 30 degrees around the vector (0, 1, 1)
+         * const twistTween = Snap.NonlinTransforms.parametrize("rotate3d", [
+         *     [0, 1, 1],
+         *     [0, 30],
+         *     {origin: {x: 150, y: 120, z: 0}},
+         * ]);
+         * path.animateGenTransform(twistTween, 800, mina.easeinout);
+         */
+        rotate3d(ax, ay, az, angle, options) {
+            let axisVector;
+            let theta;
+            let opts;
+            if (Array.isArray(ax) || isPlainObject(ax) || typeof ax === "string") {
+                axisVector = resolveAxisInput(ax);
+                theta = ay;
+                opts = az;
+            } else {
+                axisVector = ensurePoint3D({x: ax, y: ay, z: az}, {x: 0, y: 0, z: 1});
+                theta = angle;
+                opts = options;
+            }
+            const radians = Snap.rad(theta || 0);
+            return this.matrix3d(rotationAxisMatrix(axisVector, radians), opts);
+        }
+
+        /**
+         * Applies a perspective divide that simulates a camera positioned on the Z axis.
+         *
+         * @param {number} distance Distance from the viewer to the projection plane (must be > 0).
+         * @param {Object} [options] Optional projector/origin overrides; commonly supply `project` to drop the resulting `z`.
+         * @returns {function(Point3D):Point3D}
+         *
+         * @example
+         * const persp = Snap.NonlinTransforms.perspective(800, {
+         *     project: (pt) => ({x: pt.x, y: pt.y})
+         * });
+         * path.genTransform(Snap.NonlinTransforms.compose(persp, some3dTransform));
+         */
+        perspective(distance, options) {
+            return this.matrix3d(perspectiveMatrix(distance), options);
+        }
+
+        /**
+         * Builds a classic "look-at" matrix using eye, target, and up vectors.
+         *
+         * @param {Point3D} eye Camera position in world space.
+         * @param {Point3D} target Point the camera is focused on.
+         * @param {Point3D} [up={x:0,y:1,z:0}] Up vector (defaults to +Y).
+         * @param {Object} [options] Optional projector/origin overrides, forwarded to {@link matrix3d}.
+         * @returns {function(Point3D):Point3D}
+         *
+         * @example
+         * const view = Snap.NonlinTransforms.lookAt(
+         *     {x: 0, y: 0, z: 600},
+         *     {x: 0, y: 0, z: 0},
+         *     {x: 0, y: 1, z: 0}
+         * );
+         * surface.genTransform(view);
+         */
+        lookAt(eye, target, up, options) {
+            return this.matrix3d(lookAtMatrix(eye, target, up), options);
+        }
+
+        _curveWarp(samples, options) {
+            const axisKey = (options && options.axisKey) === "x" ? "x" : "y";
+            const deflectionKey = (options && options.deflectionKey) || (axisKey === "x" ? "y" : "x");
+            const cache = memoizeSamples(samples, axisKey);
+            if (!cache) {
+                return this.identity;
+            }
+            const origin = ensurePoint(options && options.origin, {x: 0, y: 0});
+            const axisInput = options && options.axis != null ? options.axis : axisKey;
+            const axisFrame = buildAxisFrame(axisInput, {origin: origin, defaultAxis: axisKey});
+            const gain = isFinite(options && options.gain) ? +options.gain : 1;
+            const falloff = mathMax(0, isFinite(options && options.falloff) ? +options.falloff : 0);
+            const minAxis = cache.minAxis;
+            const maxAxis = cache.maxAxis;
+            const span = (maxAxis - minAxis) || 1;
+            return this._markTransform(function curveWarp(pt) {
+                const point = ensurePoint(pt, origin);
+                const local = axisFrame.toLocal(point);
+                const axisCoord = local.y;
+                const normalized = clamp01(axisCoord / span);
+                const sampleAxis = minAxis + normalized * span;
+                const sample = sampleAtAxis(cache, sampleAxis) || {x: 0, y: 0};
+                const deflection = (sample[deflectionKey] || 0) * gain;
+                const attenuation = falloff ? Math.exp(-falloff * mathAbs(local.x)) : 1;
+                const nextLocal = {
+                    x: local.x + deflection * attenuation,
+                    y: axisCoord,
+                };
+                return axisFrame.fromLocal(nextLocal);
+            });
+        }
+
+        _resolveFactory(ref) {
+            if (typeof ref === "string") {
+                return this._registry[ref] || null;
+            }
+            if (typeof ref === "function") {
+                if (ref._ia_nlt_transform) {
+                    return function () {
+                        return ref;
+                    };
+                }
+                return ref;
+            }
+            return null;
+        }
+
+        _normalizeEasing(easingDefs, count) {
+            const list = [];
+            if (Array.isArray(easingDefs)) {
+                for (let i = 0; i < count; i++) {
+                    list[i] = typeof easingDefs[i] === "function" ? easingDefs[i] : this._linearEase;
+                }
+                return list.length ? list : [this._linearEase];
+            }
+            const ease = typeof easingDefs === "function" ? easingDefs : this._linearEase;
+            for (let i = 0; i < count; i++) {
+                list[i] = ease;
+            }
+            return list.length ? list : [this._linearEase];
+        }
+
+        _ensureTransform(fn) {
+            if (typeof fn !== "function") {
+                return null;
+            }
+            return this._markTransform(fn);
+        }
+
+        _wrapMatrixTransform(entry) {
+            if (!Snap.is(entry, "matrix") || typeof entry.apply !== "function") {
+                return null;
+            }
+            const matrix = entry;
+            return this._markTransform(function matrixTransform(pt) {
+                const point = ensurePoint(pt, {x: 0, y: 0});
+                const applied = matrix.apply({x: point.x, y: point.y});
+                if (Array.isArray(applied)) {
+                    return ensurePoint({x: applied[0], y: applied[1]}, point);
+                }
+                return ensurePoint(applied, point);
+            });
+        }
+
+        _markTransform(fn) {
+            if (typeof fn !== "function") {
+                return null;
+            }
+            if (!fn[TRANSFORM_FLAG]) {
+                Object.defineProperty(fn, TRANSFORM_FLAG, {
+                    value: true,
+                    configurable: false,
+                    enumerable: false,
+                    writable: false,
+                });
+            }
+            return fn;
+        }
+
+        _registerPresetEntry(entry) {
+            if (!entry) {
+                return;
+            }
+            let name;
+            let resolver = null;
+            if (typeof entry === "string") {
+                name = entry;
+            } else if (Array.isArray(entry)) {
+                name = entry[0];
+                resolver = entry[1];
+            } else if (isPlainObject(entry)) {
+                name = entry.name || entry.id || entry.key;
+                resolver = entry.factory || entry.fn;
+                if (!resolver && typeof entry.method === "string") {
+                    const methodName = entry.method;
+                    if (typeof this[methodName] === "function") {
+                        resolver = function () {
+                            return this[methodName].apply(this, arguments);
+                        };
+                    }
+                }
+            }
+            if (!resolver && typeof name === "string" && typeof this[name] === "function") {
+                resolver = function () {
+                    return this[name].apply(this, arguments);
+                };
+            }
+            if (typeof name !== "string" || !resolver) {
+                return;
+            }
+            this.register(name, resolver);
+        }
+
+        _autoRegisterPrototype() {
+            const proto = NonlinTransforms.prototype;
+            const props = Object.getOwnPropertyNames(proto);
+            for (let i = 0; i < props.length; i++) {
+                const key = props[i];
+                if (key === "constructor") {
+                    continue;
+                }
+                const method = proto[key];
+                if (typeof method !== "function") {
+                    continue;
+                }
+                const taggedName = method[TRANSFORM_NAME];
+                if (!taggedName) {
+                    continue;
+                }
+                this.register(taggedName, function () {
+                    return method.apply(this, arguments);
+                });
+            }
+        }
+
+    }
+
+    NonlinTransforms.prototype.cantileverSmallBend = cantileverSmallBend
+
+    Object.defineProperty(NonlinTransforms, "annotate", {
+        value: function (fn, name) {
+            return tagTransform(fn, name);
+        },
+        enumerable: false,
+        configurable: false,
+        writable: false,
+    });
+
+    tagTransform(NonlinTransforms.prototype.twistPinch, "twistPinch");
+    tagTransform(NonlinTransforms.prototype.radialRipple, "radialRipple");
+    tagTransform(NonlinTransforms.prototype.bulge, "bulge");
+    tagTransform(NonlinTransforms.prototype.sineWave, "sineWave");
+    tagTransform(NonlinTransforms.prototype.cantilever, "cantilever");
+    tagTransform(NonlinTransforms.prototype.springBend, "springBend");
+    tagTransform(NonlinTransforms.prototype.bendCantilever, "bendCantilever");
+    tagTransform(NonlinTransforms.prototype.matrix3d, "matrix3d");
+    tagTransform(NonlinTransforms.prototype.translate3d, "translate3d");
+    tagTransform(NonlinTransforms.prototype.scale3d, "scale3d");
+    tagTransform(NonlinTransforms.prototype.rotateX, "rotateX");
+    tagTransform(NonlinTransforms.prototype.rotateY, "rotateY");
+    tagTransform(NonlinTransforms.prototype.rotateZ, "rotateZ");
+    tagTransform(NonlinTransforms.prototype.rotate3d, "rotate3d");
+    tagTransform(NonlinTransforms.prototype.perspective, "perspective");
+    tagTransform(NonlinTransforms.prototype.lookAt, "lookAt");
+
+    Snap.NonlinTransforms = new NonlinTransforms();
+
+
+    /**
+     * Small-deflection cantilever centerline under tip rotation (linear beam theory).
+     * x is the original axial coordinate (0 at clamp, L at tip).
+     * Returns points (X, Y) where X is lateral deflection, Y is axial position.
+     *
+     * @param {number} L - Beam length.
+     * @param {number} EI - Flexural rigidity (E * I).
+     * @param {number} numPoints - Number of samples along the beam.
+     * @param {number} thetaTip - Tip rotation in radians (small angles).
+     * @returns {Array<{x:number, y:number}>}
+     */
+    function cantileverSmallDeflection(L, EI, numPoints, thetaTip) {
+        const P = (2 * EI * thetaTip) / (L * L); // equivalent tip load
+        const pts = [];
+        for (let i = 0; i <= numPoints; i++) {
+            const x = (i / numPoints) * L; // axial coordinate along the beam
+            const w = (P * x * x / (6 * EI)) * (3 * L - x); // lateral deflection
+            pts.push({ x: w, y: x });
+        }
+        return pts;
+    }
+
+    /**
+     * Computes the bent position and outward normal for a point along the cantilever.
+     * Uses the small-angle deflection profile plus an inextensible arc assumption
+     * to move the point in both axes instead of offsetting along one axis only.
+     *
+     * @param {number|{y:number}} point - Distance from the clamp along the original rod (0..L).
+     * @param {number} thetaTip - Tip rotation in radians (small angles).
+     * @param {number} L - Beam length.
+     * @param {number} [segments=64] - Integration slices for the arc reconstruction.
+     * @returns {{position:{x:number,y:number}, normal:{x:number,y:number}, angle:number}}
+     */
+    function cantileverSmallBend(point, thetaTip, L, segments) {
+        const length = Math.max(1e-6, isFinite(L) ? Math.abs(L) : 0);
+        const tipRotation = isFinite(thetaTip) ? thetaTip : 0;
+        const clampDistance = clamp01(resolvePointDistance(point) / (length || 1)) * length;
+        const slices = Math.max(1, segments && isFinite(segments) ? Math.floor(segments) : 64);
+
+        if (!clampDistance) {
+            return {
+                position: {x: 0, y: 0},
+                normal: {x: -1, y: 0},
+                angle: 0,
+            };
+        }
+
+        const slopeFactor = tipRotation / (length * length);
+        const step = clampDistance / slices;
+        let posX = 0;
+        let posY = 0;
+        let angle = 0;
+
+        for (let i = 0; i < slices; i++) {
+            const mid = step * (i + 0.5);
+            const slope = slopeAt(mid, slopeFactor, length);
+            angle = Math.atan(slope);
+            posX += Math.sin(angle) * step;
+            posY += Math.cos(angle) * step;
+        }
+
+        const normal = Snap.normalize({
+            x: -Math.cos(angle),
+            y: Math.sin(angle),
+        });
+
+        return {
+            position: {x: posX, y: posY},
+            normal: normal,
+            angle: angle,
+        };
+
+        function resolvePointDistance(input) {
+            if (typeof input === "number") {
+                return Math.max(0, Math.min(length, input));
+            }
+            if (input && typeof input === "object" && isFinite(input.y)) {
+                return Math.max(0, Math.min(length, +input.y));
+            }
+            return 0;
+        }
+
+        function slopeAt(x, factor, beamLength) {
+            // dw/dx of the small-deflection solution for a cantilever with equivalent tip load.
+            return factor * (2 * beamLength * x - x * x);
+        }
+
+    }
+
+
+    /**
+     * Compute bent spring positions as a circular arc.
+     * @param {number} length - Total length of the spring (rod).
+     * @param {number} numPoints - Number of discrete points.
+     * @param {number} angle - Bend angle in radians (displacement of top point).
+     * @returns {Array<{x:number, y:number}>} Array of point coordinates.
+     */
+    function bentSpring(length, numPoints, angle) {
+        const points = [];
+
+        // Handle straight rod case (angle = 0)
+        if (Math.abs(angle) < 1e-8) {
+            for (let i = 0; i <= numPoints; i++) {
+                const t = (i / numPoints) * length;
+                points.push({ x: 0, y: t });
+            }
+            return points;
+        }
+
+        // Radius of circular arc
+        const R = length / angle;
+
+        for (let i = 0; i <= numPoints; i++) {
+            const phi = (i / numPoints) * angle;
+            const x = R * Math.sin(phi);
+            const y = R * (1 - Math.cos(phi));
+            points.push({ x, y });
+        }
+
+        return points;
+    }
+
+    /**
+     * Creates a non-linear transform that twists points around `center`
+     * while gently pinching them toward the origin based on radius.
+     *
+     * @param {{x:number,y:number}} center - rotation anchor
+     * @param {number} radius - distance after which the effect fades out
+     * @param {number} twist - degrees of rotation applied at the center
+     * @param {number} pinch - 0..1 pinch strength (0=no pinch, 1=full pinch)
+     */
+    function createTwistPinchTransform(center, radius, twist, pinch) {
+        const cx = center.x;
+        const cy = center.y;
+        const maxR = Math.max(1e-6, radius);
+        const pinchAmt = Math.max(0, Math.min(1, pinch));
+        twist = Snap.rad(twist)
+
+        return function (pt) {
+            const dx = pt.x - cx;
+            const dy = pt.y - cy;
+            const r = Math.sqrt(dx * dx + dy * dy);
+            const t = Math.min(r / maxR, 1);            // falloff 0→1 within radius
+            const angle = Math.atan2(dy, dx);
+            const twistedAngle = angle + twist * (1 - t * t); // more twist near center
+            const pinchedRadius = r * (1 - pinchAmt * (1 - t)); // pull center inward
+
+            return {
+                x: cx + pinchedRadius * Math.cos(twistedAngle),
+                y: cy + pinchedRadius * Math.sin(twistedAngle),
+            };
+        };
+    }
+});
 (function (root) {
     let Snap_ia = root.Snap_ia || root.Snap;
 
     //Global Snap Plugin
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
 
         const STRICT_MODE = true;
         //Snap Constants
@@ -25409,7 +29092,7 @@ function voronoi(points) {
 
 
     //Matrix functions
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
         //Matrix Extentions
 
         /**
@@ -25563,12 +29246,13 @@ function voronoi(points) {
         };
     })
 
-}(typeof window !== "undefined" ? window : (global)))
+}(typeof window !== "undefined" ? window : (global)));
+
 (function (root) {
 
     let Snap_ia = root.Snap_ia || root.Snap;
 //Element Extansions
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
 
         //ELEMENT Functions
 
@@ -25896,7 +29580,7 @@ function voronoi(points) {
 
             pt = pt.matrixTransform(matrix);
             return (pt.y) ? Math.sqrt(pt.x * pt.x + pt.y * pt.y) : Math.abs(pt.x);
-        }
+        };
 
         /**
          * Returns the distance in local SVG units that corresponds to a screen-space measurement.
@@ -26037,7 +29721,7 @@ function voronoi(points) {
          * @returns {Snap.Element} The removed element.
          */
         Element.prototype.remove = function (skip_linked, skip_reg_fun_childern) {
-            if (!skip_linked && IA_Designer &&
+            if (!skip_linked && global.IA_Designer &&
                 IA_Designer.class_defs.LINKED_RESOURCE) {
                 let recourse_class = this.data(
                     IA_Designer.class_defs.LINKED_RESOURCE) || [];
@@ -26358,31 +30042,62 @@ function voronoi(points) {
 
         /**
          * Converts the element to a path element while preserving all non-geometric attributes.
+         * When `options.recursive` is true and the element is group-like, the conversion is
+         * applied to every descendant without flattening the grouping structure. The underlying
+         * DOM node is replaced, but the existing Snap id is reattached so hub caching stays valid.
          *
          * @function Snap.Element#makePath
-         * @returns {Snap.Element} The converted path element or the original element if already a path or group.
+         * @param {Object} [options]
+         * @param {boolean} [options.recursive=false] Process every descendant of groups before returning.
+         * @returns {Snap.Element} The converted path element or the original element when no conversion is needed.
          */
-        Element.prototype.makePath = function () {
-            if (this.isGroupLike() || this.type === 'path') return this;
+        Element.prototype.makePath = function (recursive) {
+           
 
-            let path_str = Snap.path.toPath(this, true);
+            if (this.isGroupLike()) {
+                if (recursive) {
+                    const children = this.getChildren(true);
+                    children.forEach((child) => child.makePath(recursive));
+                }
+                return this;
+            }
 
-            const geom = this.getGeometryAttr(true);
-            let attr_obj = {};
-            geom.forEach((attr) => attr_obj[attr] = '');
-            this.attr(attr_obj);
-            this.attr({path: path_str});
+            if (this.type === 'path') return this;
+        
+            const pathData = Snap.path.toPath(this, true);
+            if (!pathData || !this.paper) return this;
+        
+            const doc = this.paper.node.ownerDocument;
+            const newNode = doc.createElementNS(Snap.xmlns.svg, 'path');
+        
+            const attributes = this.getAttributes();
+            const geometryAttrs = new Set(this.getGeometryAttr(true));
+        
+            Object.keys(attributes).forEach((name) => {
+                if (geometryAttrs.has(name)) return;
+                let value = attributes[name];
+                if (name === 'style' && typeof value === 'object') {
+                    value = Snap.convertStyleFormat(value, true);
+                }
+                if (value !== undefined && value !== null) {
+                    newNode.setAttribute(name, value);
+                }
+            });
+        
+            newNode.setAttribute('d', pathData);
+        
+            const oldNode = this.node;
+            const parent = oldNode.parentNode;
+            if (parent) parent.replaceChild(newNode, oldNode);
 
-            this.node.outerHTML = this.node.outerHTML.replace(this.type,
-                'path data-temp="temp"');
-
-            let node = document.querySelector('[data-temp="temp"]');
-
-            this.node = node;
-            this.attr('data-temp', '');
-
+            newNode.snap = this.id;
+            this.node = newNode;
             this.type = 'path';
 
+            if (oldNode && oldNode.snap === this.id) {
+                delete oldNode.snap;
+            }
+        
             return this;
         };
 
@@ -28778,6 +32493,398 @@ function voronoi(points) {
                 after_callback && (typeof after_callback === 'function') && after_callback.call(el);
             });
             eve.once("snap.mina.stop." + anim.id, function () {
+                frameBuffer.completed = true;
+                frameBuffer.stats.end = frameBuffer.stats.end || performance.now();
+                eve.off("snap.mina.*." + anim.id);
+                delete el.anims[anim.id];
+            });
+            eve(["snap", "animcreated", el.id], anim);
+
+            return anim;
+        };
+
+        function collectPathTargets(rootNode, bucket) {
+            bucket = bucket || [];
+            const visit = function (node) {
+                if (!node || typeof node !== 'object') {
+                    return;
+                }
+                if (node.type === 'path') {
+                    bucket.push(node);
+                    return;
+                }
+                if (typeof node.isGroupLike === 'function' && node.isGroupLike()) {
+                    const children = node.getChildren && node.getChildren(true);
+                    if (children && children.length) {
+                        children.forEach(visit);
+                    }
+                }
+            };
+            visit(rootNode);
+            return bucket;
+        }
+
+        Element.prototype.animateGenTransformBuffered = function (transform_t, duration, easing, after_callback) {
+            this.makePath(true);
+            if (typeof transform_t !== 'function') {
+                return null;
+            }
+
+            const el = this;
+            const targets = collectPathTargets(this);
+
+            if (!targets.length) {
+                return null;
+            }
+
+            const resolveTransform = function (progress) {
+                const clamped = Math.max(0, Math.min(1, progress || 0));
+                const resolver = transform_t.call(el, clamped);
+                return (typeof resolver === 'function') ? resolver : null;
+            };
+
+            const initialTransform = resolveTransform(0);
+            if (!initialTransform) {
+                return null;
+            }
+
+            const FRAME_INTERVAL = 16;
+            const PRODUCER_BUDGET_MS = 6;
+            const STARTUP_BUDGET_MS = 12;
+            const easingFn = easing || mina.linear;
+            duration = +duration || 0;
+
+            const applyFramePaths = function (frame) {
+                if (!frame || !Array.isArray(frame.paths)) {
+                    return;
+                }
+                for (let i = 0; i < frame.paths.length; ++i) {
+                    const target = targets[i];
+                    const pathData = frame.paths[i];
+                    if (target && typeof pathData === 'string') {
+                        target.attr({d: pathData});
+                    }
+                }
+            };
+
+            const computeFrameAt = function (timeMs, progressOverride) {
+                let progress;
+                if (typeof progressOverride === 'number') {
+                    progress = Math.max(0, Math.min(1, progressOverride));
+                } else if (duration > 0) {
+                    progress = Math.max(0, Math.min(1, timeMs / duration));
+                } else {
+                    progress = 1;
+                }
+                const resolver = resolveTransform(progress);
+                if (!resolver) {
+                    return {time: timeMs, progress: progress, paths: null};
+                }
+                const paths = [];
+                for (let i = 0; i < targets.length; ++i) {
+                    const val = targets[i].genTransform(resolver, true);
+                    paths.push((typeof val === 'string') ? val : targets[i].attr('d'));
+                }
+                return {
+                    time: timeMs,
+                    progress: progress,
+                    paths: paths
+                };
+            };
+
+            const firstFrame = computeFrameAt(0, 0);
+            applyFramePaths(firstFrame);
+
+            const frameBuffer = {
+                frames: [firstFrame],
+                frameInterval: FRAME_INTERVAL,
+                nextTime: FRAME_INTERVAL,
+                completed: false,
+                producerScheduled: false,
+                lastProducedTime: firstFrame.time || 0,
+                stats: {
+                    start: performance.now(),
+                    produced: 1,
+                    asyncBatches: 0,
+                    blockingBatches: 0,
+                    blockingTimeMs: 0,
+                    end: null
+                }
+            };
+
+            if (duration <= 0) {
+                const finalFrame = computeFrameAt(0, 1);
+                frameBuffer.frames.push(finalFrame);
+                frameBuffer.stats.produced++;
+                frameBuffer.completed = true;
+                frameBuffer.stats.end = performance.now();
+                applyFramePaths(finalFrame);
+                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+                console.info('anim perf', {
+                    phase: 'dynamic-buffer-single-frame',
+                    frames: frameBuffer.frames.length,
+                    buffer_ms: 0,
+                    skipped_frames: 0,
+                    skipped_time_ms: 0
+                });
+                return null;
+            }
+
+            const finishBuffer = function () {
+                if (frameBuffer.completed) {
+                    return;
+                }
+                const lastFrame = frameBuffer.frames[frameBuffer.frames.length - 1];
+                if (!lastFrame || lastFrame.time < duration) {
+                    frameBuffer.frames.push(computeFrameAt(duration, 1));
+                    frameBuffer.stats.produced++;
+                }
+                frameBuffer.completed = true;
+                frameBuffer.lastProducedTime = duration;
+                frameBuffer.stats.end = performance.now();
+            };
+
+            const produceChunk = function (options) {
+                if (frameBuffer.completed) {
+                    return;
+                }
+                options = options || {};
+                const blocking = !!options.blocking;
+                const budget = blocking ? Infinity : Math.max(options.budget || PRODUCER_BUDGET_MS, 2);
+                const targetTime = (typeof options.until === 'number') ? options.until : null;
+                blocking ? frameBuffer.stats.blockingBatches++ : frameBuffer.stats.asyncBatches++;
+                const startMark = performance.now();
+                let produced = 0;
+                const withinBudget = function () {
+                    if (blocking) return true;
+                    if (produced === 0) {
+                        return (performance.now() - startMark) < budget;
+                    }
+                    return (performance.now() - startMark) <= budget;
+                };
+
+                while (!frameBuffer.completed && frameBuffer.nextTime < duration && withinBudget()) {
+                    const frameTime = Math.min(frameBuffer.nextTime, duration);
+                    const frame = computeFrameAt(frameTime);
+                    frameBuffer.frames.push(frame);
+                    frameBuffer.stats.produced++;
+                    frameBuffer.lastProducedTime = frameTime;
+                    frameBuffer.nextTime += FRAME_INTERVAL;
+                    produced++;
+                    if (targetTime != null && frameTime >= targetTime) {
+                        break;
+                    }
+                }
+
+                if (!frameBuffer.completed && frameBuffer.nextTime >= duration) {
+                    finishBuffer();
+                }
+            };
+
+            const ensureFrameReady = function (timeMs) {
+                const lastFrame = frameBuffer.frames[frameBuffer.frames.length - 1];
+                if (frameBuffer.completed || !lastFrame || lastFrame.time >= timeMs) {
+                    return;
+                }
+                const blockStart = performance.now();
+                produceChunk({blocking: true, until: timeMs});
+                frameBuffer.stats.blockingTimeMs += performance.now() - blockStart;
+                const updatedLast = frameBuffer.frames[frameBuffer.frames.length - 1];
+                if (!frameBuffer.completed && (!updatedLast || updatedLast.time < timeMs)) {
+                    finishBuffer();
+                }
+            };
+
+            const scheduleProducer = function () {
+                if (frameBuffer.completed || frameBuffer.producerScheduled) {
+                    return;
+                }
+                frameBuffer.producerScheduled = true;
+                const runner = function (deadline) {
+                    frameBuffer.producerScheduled = false;
+                    const remaining = (deadline && typeof deadline.timeRemaining === 'function') ? deadline.timeRemaining() : PRODUCER_BUDGET_MS;
+                    produceChunk({budget: Math.max(remaining, PRODUCER_BUDGET_MS)});
+                    if (!frameBuffer.completed) {
+                        scheduleProducer();
+                    }
+                };
+                if (typeof root !== 'undefined' && typeof root.requestIdleCallback === 'function') {
+                    root.requestIdleCallback(runner);
+                } else {
+                    setTimeout(function () {
+                        runner({timeRemaining: function () {
+                                return PRODUCER_BUDGET_MS;
+                            }});
+                    }, 0);
+                }
+            };
+
+            produceChunk({budget: STARTUP_BUDGET_MS});
+            scheduleProducer();
+
+            const playbackState = {
+                index: 0,
+                skippedFrames: 0,
+                skippedTime: 0,
+                frameInterval: FRAME_INTERVAL
+            };
+
+            const getFrameForTime = function (elapsed) {
+                ensureFrameReady(elapsed);
+                if (!frameBuffer.frames.length) {
+                    return null;
+                }
+                let targetIdx = playbackState.index;
+                while (targetIdx + 1 < frameBuffer.frames.length && frameBuffer.frames[targetIdx + 1].time <= elapsed) {
+                    targetIdx++;
+                }
+                if (targetIdx !== playbackState.index) {
+                    const skipped = (targetIdx - playbackState.index) - 1;
+                    if (skipped > 0) {
+                        playbackState.skippedFrames += skipped;
+                        playbackState.skippedTime += skipped * playbackState.frameInterval;
+                    }
+                    playbackState.index = targetIdx;
+                }
+                return frameBuffer.frames[playbackState.index];
+            };
+
+            const start = mina.time();
+            const end = start + duration;
+
+            const set = function () {
+                const now = mina.time();
+                const elapsed = Math.max(0, Math.min(now - start, duration));
+                const frame = getFrameForTime(elapsed);
+                applyFramePaths(frame);
+                if (elapsed >= duration) {
+                    ensureFrameReady(duration);
+                    applyFramePaths(frameBuffer.frames[frameBuffer.frames.length - 1]);
+                }
+            };
+
+            const anim = mina(
+                [0],
+                [1],
+                start,
+                end,
+                mina.time,
+                set,
+                easingFn
+            );
+
+            el.anims = el.anims || {};
+            el.anims[anim.id] = anim;
+            anim._callback = after_callback;
+            eve.once("snap.mina.finish." + anim.id, function () {
+                ensureFrameReady(duration);
+                finishBuffer();
+                eve.off("snap.mina.*." + anim.id);
+                delete el.anims[anim.id];
+                console.info('anim perf', {
+                    phase: 'dynamic-buffer',
+                    frames: frameBuffer.frames.length,
+                    buffer_completed: frameBuffer.completed,
+                    buffer_ms: frameBuffer.stats.end ? +(frameBuffer.stats.end - frameBuffer.stats.start).toFixed(2) : null,
+                    async_batches: frameBuffer.stats.asyncBatches,
+                    blocking_batches: frameBuffer.stats.blockingBatches,
+                    blocking_time_ms: +frameBuffer.stats.blockingTimeMs.toFixed(2),
+                    skipped_frames: playbackState.skippedFrames,
+                    skipped_time_ms: +playbackState.skippedTime.toFixed(2)
+                });
+                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+            });
+            eve.once("snap.mina.stop." + anim.id, function () {
+                eve.off("snap.mina.*." + anim.id);
+                delete el.anims[anim.id];
+            });
+            eve(["snap", "animcreated", el.id], anim);
+
+            return anim;
+        };
+
+        Element.prototype.animateGenTransform = function (transform_t, duration, easing, after_callback) {
+            this.makePath(true);
+            if (typeof transform_t !== 'function') {
+                return null;
+            }
+
+            const el = this;
+            const targets = collectPathTargets(this);
+            if (!targets.length) {
+                return null;
+            }
+
+            const resolveTransform = function (progress) {
+                const clamped = Math.max(0, Math.min(1, progress || 0));
+                const resolver = transform_t.call(el, clamped);
+                return (typeof resolver === 'function') ? resolver : null;
+            };
+
+            const initialTransform = resolveTransform(0);
+            if (!initialTransform) {
+                return null;
+            }
+
+            const applyTransform = function (resolver) {
+                if (!resolver) {
+                    return;
+                }
+                for (let i = 0; i < targets.length; ++i) {
+                    targets[i].genTransform(resolver);
+                }
+            };
+
+            const easingFn = easing || mina.linear;
+            duration = +duration || 0;
+
+            if (duration <= 0) {
+                applyTransform(initialTransform);
+                applyTransform(resolveTransform(1));
+                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+                return null;
+            }
+
+            applyTransform(initialTransform);
+
+            const perfStats = {
+                frames: 0
+            };
+
+            const start = mina.time();
+            const end = start + duration;
+
+            const set = function (res) {
+                perfStats.frames++;
+                const t = res[0];
+                const done = t >= .99999;
+                const transformFn = resolveTransform(done ? 1 : t);
+                applyTransform(transformFn);
+            };
+
+            const anim = mina(
+                [0],
+                [1],
+                start,
+                end,
+                mina.time,
+                set,
+                easingFn
+            );
+
+            el.anims = el.anims || {};
+            el.anims[anim.id] = anim;
+            anim._callback = after_callback;
+            eve.once("snap.mina.finish." + anim.id, function () {
+                eve.off("snap.mina.*." + anim.id);
+                delete el.anims[anim.id];
+                console.info('anim perf', {
+                    phase: 'direct',
+                    frames: perfStats.frames
+                });
+                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+            });
+            eve.once("snap.mina.stop." + anim.id, function () {
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
@@ -29781,11 +33888,12 @@ function voronoi(points) {
 
     });
 }(window || this))
+;
 (function (root) {
         let Snap_ia = root.Snap_ia || root.Snap;
 
         //Paper functions, require snap_extensions and element_extensions
-        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+       Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
             const paper_element_extension = {};
             /**
              * Registers a lazily executed Paper extension that can augment any SVG root.
@@ -29961,7 +34069,7 @@ function voronoi(points) {
              */
             Paper.prototype.htmlInsert = function (
                 x, y, width, height, html, style) {
-                const div = '<div xmlns="http://www.w3.org/1999/xhtml" class="IA_Designer_html"></div>';
+                const div = '<div xmlns="' + Snap.xmlns.html + '" class="IA_Designer_html"></div>';
                 const el = this.foreignObject(x, y, width, height, div);
                 let div_el;
                 if (el.type !== "foreignObject" && el.hasPartner()) {
@@ -30070,7 +34178,7 @@ function voronoi(points) {
              */
             const textInputBox = function (id, x, y, width, height) {
                 const html = '<div id ="' + id +
-                    '" xmlns="http://www.w3.org/1999/xhtml">' +
+                    '" xmlns="' + Snap.xmlns.html + '">' +
                     '<form>' +
                     '<input type="text" value="test">' +
                     '</form>' +
@@ -30519,7 +34627,7 @@ function voronoi(points) {
         });
 
         //Shape builders
-        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+       Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
 
                 /**
                  * Builds a circle from a centre point and a point lying on its circumference.
@@ -30978,7 +35086,7 @@ function voronoi(points) {
             }
         );
 
-        Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+       Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
             //Add paper functions to elements
 
 
@@ -31056,6 +35164,6 @@ function voronoi(points) {
     }(typeof window !== "undefined" ? window : (global))
 )
 ;
-return Snap_ia;
+return Snap;
 }));
 ;

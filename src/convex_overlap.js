@@ -88,4 +88,5 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     Snap.polygons.sat = sat;
 
-})
+});
+

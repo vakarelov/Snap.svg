@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 (function (glob, factory) {
     // AMD support
     if (typeof define == "function" && define.amd) {
@@ -48,6 +49,29 @@
         return true;
     };
     let lastTimeStamp;
+    const nativeSetTimeout = window.setTimeout ? window.setTimeout.bind(window) : function (callback) {
+            if (typeof callback === "function") {
+                callback();
+            }
+            return null;
+        };
+    const nativeClearTimeout = window.clearTimeout ? window.clearTimeout.bind(window) : function () {
+        };
+    const nativeSetInterval = window.setInterval ? window.setInterval.bind(window) : function (callback) {
+            if (typeof callback === "function") {
+                callback();
+            }
+            return null;
+        };
+    const nativeClearInterval = window.clearInterval ? window.clearInterval.bind(window) : function () {
+        };
+    const managedTimeouts = new Map();
+    const managedIntervals = new Map();
+    let timeoutCounter = 0;
+    let intervalCounter = 0;
+    let isGlobalPaused = false;
+    const pausedAnimations = new Map();
+    let timerOverridesInstalled = false;
 
     /**
      * @typedef {(number|number[])} AnimationValue
@@ -169,6 +193,233 @@
     const timer = Date.now || function () {
         return +new Date;
     };
+
+    const TIMEOUT_PREFIX = "mina-t-";
+    const INTERVAL_PREFIX = "mina-i-";
+
+    function installTimerOverrides() {
+        if (timerOverridesInstalled || typeof window === "undefined") {
+            return;
+        }
+        timerOverridesInstalled = true;
+        window.clearTimeout = function (id) {
+            if (!handleManagedTimeoutClear(id)) {
+                return nativeClearTimeout(id);
+            }
+        };
+        window.clearInterval = function (id) {
+            if (!handleManagedIntervalClear(id)) {
+                return nativeClearInterval(id);
+            }
+        };
+    }
+
+    function createTimeoutEntry(callback, delay, args) {
+        const id = TIMEOUT_PREFIX + (++timeoutCounter);
+        const entry = {
+            id,
+            callback,
+            args,
+            start: null,
+            remaining: Math.max(0, delay || 0),
+            nativeHandle: null,
+            paused: isGlobalPaused,
+            cleared: false,
+        };
+        managedTimeouts.set(id, entry);
+        if (!isGlobalPaused) {
+            armTimeout(entry, entry.remaining);
+        }
+        return id;
+    }
+
+    function armTimeout(entry, wait) {
+        entry.remaining = Math.max(0, wait || 0);
+        entry.start = timer();
+        entry.nativeHandle = nativeSetTimeout(function () {
+            runManagedTimeout(entry.id);
+        }, entry.remaining);
+        entry.paused = false;
+    }
+
+    function runManagedTimeout(id) {
+        const entry = managedTimeouts.get(id);
+        if (!entry || entry.cleared) {
+            return;
+        }
+        entry.nativeHandle = null;
+        if (isGlobalPaused) {
+            entry.paused = true;
+            entry.remaining = 0;
+            return;
+        }
+        entry.cleared = true;
+        managedTimeouts.delete(id);
+        entry.callback && entry.callback.apply(undefined, entry.args);
+    }
+
+    function pauseManagedTimeout(entry) {
+        if (!entry || entry.cleared || entry.paused) {
+            return;
+        }
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+            const elapsed = entry.start != null ? (timer() - entry.start) : 0;
+            entry.remaining = Math.max(0, entry.remaining - elapsed);
+        }
+        entry.nativeHandle = null;
+        entry.paused = true;
+    }
+
+    function resumeManagedTimeout(entry) {
+        if (!entry || entry.cleared || !entry.paused) {
+            return;
+        }
+        armTimeout(entry, entry.remaining);
+    }
+
+    function cancelManagedTimeout(id) {
+        const entry = managedTimeouts.get(id);
+        if (!entry) {
+            return false;
+        }
+        entry.cleared = true;
+        entry.paused = false;
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+        }
+        managedTimeouts.delete(id);
+        return true;
+    }
+
+    function handleManagedTimeoutClear(id) {
+        if (!isManagedTimeoutId(id)) {
+            return false;
+        }
+        return cancelManagedTimeout(id);
+    }
+
+    function isManagedTimeoutId(id) {
+        return typeof id === "string" && id.indexOf(TIMEOUT_PREFIX) === 0;
+    }
+
+    function createIntervalEntry(callback, interval, args) {
+        const id = INTERVAL_PREFIX + (++intervalCounter);
+        const entry = {
+            id,
+            callback,
+            args,
+            interval: Math.max(0, interval || 0),
+            remaining: Math.max(0, interval || 0),
+            start: null,
+            nativeHandle: null,
+            paused: isGlobalPaused,
+            cleared: false,
+        };
+        managedIntervals.set(id, entry);
+        if (!isGlobalPaused) {
+            armInterval(entry, entry.interval);
+        }
+        return id;
+    }
+
+    function armInterval(entry, wait) {
+        entry.remaining = Math.max(0, wait || 0);
+        entry.start = timer();
+        entry.nativeHandle = nativeSetTimeout(function () {
+            runManagedInterval(entry.id);
+        }, entry.remaining);
+        entry.paused = false;
+    }
+
+    function runManagedInterval(id) {
+        const entry = managedIntervals.get(id);
+        if (!entry || entry.cleared) {
+            return;
+        }
+        entry.nativeHandle = null;
+        if (isGlobalPaused) {
+            entry.paused = true;
+            return;
+        }
+        entry.callback && entry.callback.apply(undefined, entry.args);
+        if (entry.cleared) {
+            managedIntervals.delete(id);
+            return;
+        }
+        if (!isGlobalPaused) {
+            armInterval(entry, entry.interval);
+        } else {
+            entry.paused = true;
+        }
+    }
+
+    function pauseManagedInterval(entry) {
+        if (!entry || entry.cleared || entry.paused) {
+            return;
+        }
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+            const elapsed = entry.start != null ? (timer() - entry.start) : 0;
+            entry.remaining = Math.max(0, entry.remaining - elapsed);
+        } else {
+            entry.remaining = entry.interval;
+        }
+        entry.nativeHandle = null;
+        entry.paused = true;
+    }
+
+    function resumeManagedInterval(entry) {
+        if (!entry || entry.cleared || !entry.paused) {
+            return;
+        }
+        const wait = entry.remaining > 0 ? entry.remaining : entry.interval;
+        armInterval(entry, wait);
+    }
+
+    function cancelManagedInterval(id) {
+        const entry = managedIntervals.get(id);
+        if (!entry) {
+            return false;
+        }
+        entry.cleared = true;
+        entry.paused = false;
+        if (entry.nativeHandle != null) {
+            nativeClearTimeout(entry.nativeHandle);
+        }
+        managedIntervals.delete(id);
+        return true;
+    }
+
+    function handleManagedIntervalClear(id) {
+        if (!isManagedIntervalId(id)) {
+            return false;
+        }
+        return cancelManagedInterval(id);
+    }
+
+    function isManagedIntervalId(id) {
+        return typeof id === "string" && id.indexOf(INTERVAL_PREFIX) === 0;
+    }
+
+    function pauseAllTimers() {
+        managedTimeouts.forEach(pauseManagedTimeout);
+        managedIntervals.forEach(pauseManagedInterval);
+    }
+
+    function resumeAllTimers() {
+        managedTimeouts.forEach(resumeManagedTimeout);
+        managedIntervals.forEach(resumeManagedInterval);
+    }
+
+    function stopAllTimers() {
+        const timeoutIds = Array.from(managedTimeouts.keys());
+        timeoutIds.forEach(cancelManagedTimeout);
+        const intervalIds = Array.from(managedIntervals.keys());
+        intervalIds.forEach(cancelManagedInterval);
+    }
+
+    installTimerOverrides();
 
     /**
      * Gets or sets the current status of an animation.
@@ -423,6 +674,13 @@
         const anim = new Animation(a, A, b, B, get, set, easing);
         animations[anim.id] = anim;
         (Array.isArray(last)) ? last.push(anim) : last = anim;
+        if (isGlobalPaused) {
+            if (!pausedAnimations.has(anim.id)) {
+                pausedAnimations.set(anim.id, anim);
+            }
+            anim.pause();
+            return anim;
+        }
         let len = 0;
         for (const key of Object.keys(animations)) {
             len++;
@@ -673,6 +931,573 @@
     }
 
     /**
+     * Normalizes the arguments used by the pulse easing helpers.
+     * Allows calling pattern where only progress is supplied.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n
+     * @returns {{maxVal: number, midPoint: number, repeatCount: number, local: number, progress: number}}
+     */
+    function resolvePulseArgs(max_val, mid_point, repeat, n) {
+        if (mid_point === undefined && repeat === undefined && n === undefined) {
+            n = max_val;
+            max_val = undefined;
+        }
+
+        const maxVal = (max_val === undefined ? 1 : +max_val) || 0;
+        let midPoint = mid_point === undefined ? 0.5 : +mid_point;
+        midPoint = Math.min(0.9999, Math.max(0.0001, isFinite(midPoint) ? midPoint : 0.5));
+        const repeatCount = Math.max(0.0001, Math.abs(repeat === undefined ? 1 : +repeat) || 1);
+        const progress = Math.max(0, Math.min(1, isFinite(+n) ? +n : 0));
+
+        const fullCycles = progress * repeatCount;
+        const cycleIndex = Math.floor(fullCycles);
+        let local = fullCycles - cycleIndex;
+        if (progress === 1) {
+            local = 1;
+        }
+
+        return {maxVal, midPoint, repeatCount, local, progress};
+    }
+
+    function normalizePulseBaseInputs(max_val, mid_point) {
+        const defaults = resolvePulseArgs(max_val, mid_point, 1, 0);
+        return {
+            maxVal: defaults.maxVal,
+            midPoint: defaults.midPoint,
+        };
+    }
+
+    /**
+     * Core pulse computation shared by the linear and eased variants.
+     *
+     * @param {number} max_val
+     * @param {number} mid_point
+     * @param {number} repeat
+     * @param {number} n
+    * @param {function(number): number} [shaper]
+     * @returns {number}
+     */
+    function pulseValue(max_val, mid_point, repeat, n, shaper) {
+        const {maxVal, midPoint, local, progress} = resolvePulseArgs(max_val, mid_point, repeat, n);
+        if (progress === 0 || progress === 1 && local === 1) {
+            return 0;
+        }
+
+        const ascending = local <= midPoint;
+        const segmentSpan = ascending ? midPoint : (1 - midPoint);
+        const raw = segmentSpan ? (ascending ? local / midPoint : (local - midPoint) / (1 - midPoint)) : 0;
+        const shaped = shaper ? shaper(Math.max(0, Math.min(1, raw))) : raw;
+        const value = ascending ? shaped : 1 - shaped;
+        return Math.max(0, Math.min(maxVal, value * maxVal));
+    }
+
+    /**
+     * Linear pulse that rises from 0 to `max_val` at `mid_point` and returns to 0.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n Progress value `[0, 1]`.
+     * @returns {number}
+     */
+    mina.pulseLinear = function (max_val, mid_point, repeat, n) {
+        return pulseValue(max_val, mid_point, repeat, n);
+    };
+
+    mina.pulseLinear.withParams = function (max_val, mid_point, repeat) {
+        return function (n) {
+            return mina.pulseLinear(max_val, mid_point, repeat, n);
+        };
+    };
+
+    // Backwards-compatible alias for legacy callers.
+    mina.pulse = mina.pulseLinear;
+
+    /**
+     * Ease-in-out pulse that eases into the peak and eases back to zero.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n Progress value `[0, 1]`.
+     * @returns {number}
+     */
+    mina.pulseEaseInOut = function (max_val, mid_point, repeat, n) {
+        return pulseValue(max_val, mid_point, repeat, n, mina.easeInOutSine);
+    };
+
+    mina.pulseEaseInOut.withParams = function (max_val, mid_point, repeat) {
+        return function (n) {
+            return mina.pulseEaseInOut(max_val, mid_point, repeat, n);
+        };
+    };
+
+    function normalizePulseDecayRepeat(repeat) {
+        const numeric = repeat === undefined ? 1 : +repeat;
+        if (!isFinite(numeric) || numeric <= 0) {
+            return 1;
+        }
+        return numeric;
+    }
+
+    function normalizePulseDecayTimeline(n) {
+        const numeric = isFinite(+n) ? +n : 0;
+        const timeline = Math.max(0, numeric);
+        const cycleIndex = Math.floor(timeline);
+        const local = timeline - cycleIndex;
+        return {cycleIndex, local};
+    }
+
+    function pulseDecayEnvelope(cycleIndex, decayFactor) {
+        if (cycleIndex <= 0) {
+            return 1;
+        }
+        const ratio = cycleIndex / (cycleIndex + decayFactor);
+        const envelopeInput = Math.max(0, Math.min(1, 1 - ratio));
+        return mina.easeOutQuad(envelopeInput);
+    }
+
+    /**
+     * Repeating pulse that accepts `n > 1` and applies time decay across cycles.
+     * The `repeat` parameter acts as the decay constant: larger values keep the
+     * envelope higher for more cycles, smaller values fade faster.
+     *
+     * @param {number} [max_val=1]
+     * @param {number} [mid_point=0.5]
+     * @param {number} [repeat=1]
+     * @param {number} n Timeline progress where each whole number represents a full pulse.
+     * @returns {number}
+     */
+    mina.pulseDecay = function (max_val, mid_point, repeat, n) {
+        if (mid_point === undefined && repeat === undefined && n === undefined) {
+            n = max_val;
+            max_val = undefined;
+        }
+
+        const {cycleIndex, local} = normalizePulseDecayTimeline(n);
+        const decayFactor = normalizePulseDecayRepeat(repeat);
+        const envelope = pulseDecayEnvelope(cycleIndex, decayFactor);
+        if (envelope <= 0) {
+            return 0;
+        }
+
+        const numericMax = max_val === undefined ? 1 : +max_val;
+        const safeMax = isFinite(numericMax) ? numericMax : 0;
+        const amplitude = safeMax * envelope;
+        return pulseValue(amplitude, mid_point, 1, local);
+    };
+
+    mina.pulseDecay.withParams = function (max_val, mid_point, repeat) {
+        const {maxVal, midPoint} = normalizePulseBaseInputs(max_val, mid_point);
+        const decayFactor = normalizePulseDecayRepeat(repeat);
+        return function (n) {
+            const {cycleIndex, local} = normalizePulseDecayTimeline(n);
+            const envelope = pulseDecayEnvelope(cycleIndex, decayFactor);
+            if (envelope <= 0) {
+                return 0;
+            }
+            return pulseValue(maxVal * envelope, midPoint, 1, local);
+        };
+    };
+
+    const PROJECTILE_DEFAULT_MID = 0.5;
+    const PROJECTILE_MIN_MID = 0.0001;
+    const PROJECTILE_MAX_MID = 0.9999;
+    const PROJECTILE_MID_EPS = 1e-7;
+
+    function clampUnitInterval(value) {
+        if (value <= 0) {
+            return 0;
+        }
+        if (value >= 1) {
+            return 1;
+        }
+        return value;
+    }
+
+    function coerceProgress(value) {
+        const numeric = isFinite(+value) ? +value : 0;
+        return clampUnitInterval(numeric);
+    }
+
+    function normalizeStepCount(count) {
+        const numeric = Math.floor(isFinite(+count) ? +count : 0);
+        return Math.max(1, numeric || 1);
+    }
+
+    function normalizeStepPosition(position) {
+        if (typeof position === "string") {
+            const token = position.toLowerCase();
+            if (token === "start" || token === "leading") {
+                return "start";
+            }
+            if (token === "end" || token === "trailing") {
+                return "end";
+            }
+        }
+        if (position === 0 || position === "0") {
+            return "start";
+        }
+        return "end";
+    }
+
+    function evaluateSteps(count, position, progress) {
+        const t = clampUnitInterval(isFinite(+progress) ? +progress : 0);
+        const steps = normalizeStepCount(count);
+        const mode = normalizeStepPosition(position);
+        if (mode === "start") {
+            return Math.min(1, Math.max(0, Math.ceil(t * steps) / steps));
+        }
+        return Math.min(1, Math.max(0, Math.floor(t * steps) / steps));
+    }
+
+    function pseudoNoise(progress, octaves, frequency, seed, amplitude) {
+        const t = clampUnitInterval(isFinite(+progress) ? +progress : 0);
+        const octaveCount = Math.max(1, Math.floor(isFinite(+octaves) ? +octaves : 3));
+        const baseFrequency = Math.max(1, isFinite(+frequency) ? +frequency : 4);
+        const amp = Math.max(0, isFinite(+amplitude) ? +amplitude : 0.08);
+        const seedVal = isFinite(+seed) ? +seed : 0;
+        let total = 0;
+        let weight = 0;
+        let currentAmp = 1;
+        for (let i = 0; i < octaveCount; i++) {
+            const freq = baseFrequency * Math.pow(2, i);
+            const phase = seedVal * (i + 1) * 1.37;
+            total += Math.sin((t * Math.PI * freq) + phase) * currentAmp;
+            weight += currentAmp;
+            currentAmp *= 0.5;
+        }
+        const normalized = weight ? total / weight : 0;
+        const jitter = clampUnitInterval((normalized * amp) + 0.5);
+        const blended = clampUnitInterval((jitter - 0.5) + t);
+        return blended;
+    }
+
+    function springDampedValue(progress, frequency, damping) {
+        const t = coerceProgress(progress);
+        const freq = Math.max(0.1, isFinite(+frequency) ? +frequency : 8);
+        const damp = Math.max(0, isFinite(+damping) ? +damping : 1.1);
+        const envelope = Math.exp(-damp * t);
+        const value = 1 - envelope * Math.cos(freq * t);
+        return clampUnitInterval(value);
+    }
+
+    function rubberBandValue(progress, tightness) {
+        const t = coerceProgress(progress);
+        const stiffness = Math.max(0.01, isFinite(+tightness) ? +tightness : 0.75);
+        const centered = (t - 0.5) * 2;
+        const sign = centered >= 0 ? 1 : -1;
+        const distance = Math.abs(centered);
+        const eased = 1 - Math.exp(-distance / stiffness);
+        return clampUnitInterval(0.5 + sign * eased * 0.5);
+    }
+
+    function createOutInEasing(outFn, inFn) {
+        const easeOut = typeof outFn === "function" ? outFn : mina.linear;
+        const easeIn = typeof inFn === "function" ? inFn : mina.linear;
+        return function (n) {
+            const t = coerceProgress(n);
+            if (t < 0.5) {
+                return 0.5 * easeOut(t * 2);
+            }
+            return 0.5 * easeIn((t - 0.5) * 2) + 0.5;
+        };
+    }
+
+    const ANTICIPATE_DEFAULT_TENSION = 1.5;
+    const ANTICIPATE_OVERSHOOT_SCALE = 1.5;
+
+    function anticipateValue(t, tension) {
+        return t * t * ((tension + 1) * t - tension);
+    }
+
+    function overshootValue(t, tension) {
+        return t * t * ((tension + 1) * t + tension);
+    }
+
+    function flattenEasingInputs(input, target) {
+        if (!target) {
+            target = [];
+        }
+        if (input == null) {
+            return target;
+        }
+        if (Array.isArray(input)) {
+            for (let i = 0; i < input.length; i++) {
+                flattenEasingInputs(input[i], target);
+            }
+            return target;
+        }
+        target.push(input);
+        return target;
+    }
+
+    function resolveEasingReference(ref) {
+        if (typeof ref === "function") {
+            return ref;
+        }
+        if (typeof ref === "string" && typeof mina[ref] === "function") {
+            return mina[ref];
+        }
+        if (ref == null) {
+            return null;
+        }
+        if (typeof console !== "undefined" && console.warn) {
+            console.warn("[mina] Unknown easing reference", ref, "- falling back to linear");
+        }
+        return null;
+    }
+
+    function normalizeEasingList(inputs) {
+        const flattened = flattenEasingInputs(inputs, []);
+        if (!flattened.length) {
+            return [];
+        }
+        return flattened.map((item) => resolveEasingReference(item) || mina.linear);
+    }
+
+    function normalizeProjectileMidpoint(mid_point) {
+        let mid = mid_point === undefined ? PROJECTILE_DEFAULT_MID : +mid_point;
+        if (!isFinite(mid)) {
+            mid = PROJECTILE_DEFAULT_MID;
+        }
+        if (mid <= PROJECTILE_MIN_MID) {
+            return PROJECTILE_MIN_MID;
+        }
+        if (mid >= PROJECTILE_MAX_MID) {
+            return PROJECTILE_MAX_MID;
+        }
+        return mid;
+    }
+
+    function normalizeProjectileProgress(n) {
+        const numeric = isFinite(+n) ? +n : 0;
+        return clampUnitInterval(numeric);
+    }
+
+    function buildProjectileCoefficients(mid) {
+        const ascendA = -1 / (mid * mid);
+        const ascendB = 2 / mid;
+        const inv = 1 - mid;
+        const descendA = -1 / (inv * inv);
+        const descendB = 2 * mid / (inv * inv);
+        const descendC = 1 - (mid * mid) / (inv * inv);
+        return {mid, ascendA, ascendB, descendA, descendB, descendC};
+    }
+
+    const PROJECTILE_DEFAULT_COEFFS = buildProjectileCoefficients(PROJECTILE_DEFAULT_MID);
+
+    function getProjectileCoefficients(mid_point) {
+        const mid = normalizeProjectileMidpoint(mid_point);
+        if (Math.abs(mid - PROJECTILE_DEFAULT_MID) < PROJECTILE_MID_EPS) {
+            return PROJECTILE_DEFAULT_COEFFS;
+        }
+        return buildProjectileCoefficients(mid);
+    }
+
+    function evaluateProjectile(progress, coeffs) {
+        if (progress <= coeffs.mid) {
+            const value = coeffs.ascendA * progress * progress + coeffs.ascendB * progress;
+            return clampUnitInterval(value);
+        }
+        const value = coeffs.descendA * progress * progress + coeffs.descendB * progress + coeffs.descendC;
+        return clampUnitInterval(value);
+    }
+
+    /**
+     * Projectile-inspired easing that mimics upward deceleration and downward acceleration.
+     *
+     * @param {number} [mid_point=0.5] Normalized time at which the apex (value = 1) occurs.
+     * @param {number} n Progress value `[0, 1]`.
+     * @returns {number}
+     */
+    mina.projectile = function (mid_point, n) {
+        if (n === undefined) {
+            n = mid_point;
+            mid_point = undefined;
+        }
+        const progress = normalizeProjectileProgress(n);
+        const coeffs = (mid_point === undefined)
+            ? PROJECTILE_DEFAULT_COEFFS
+            : getProjectileCoefficients(mid_point);
+        return evaluateProjectile(progress, coeffs);
+    };
+
+    mina.projectile.withParams = function (mid_point) {
+        const coeffs = getProjectileCoefficients(mid_point);
+        return function (n) {
+            return evaluateProjectile(normalizeProjectileProgress(n), coeffs);
+        };
+    };
+
+    function applyComposeStages(stages, n) {
+        let value = coerceProgress(n);
+        if (!stages || !stages.length) {
+            return value;
+        }
+        for (let i = 0; i < stages.length; i++) {
+            value = stages[i](value);
+        }
+        return clampUnitInterval(value);
+    }
+
+    mina.compose = function () {
+        if (!arguments.length) {
+            return 0;
+        }
+        const inputArgs = Array.prototype.slice.call(arguments);
+        const progress = inputArgs.pop();
+        const stageInputs = (inputArgs.length === 1 && Array.isArray(inputArgs[0]))
+            ? inputArgs[0]
+            : inputArgs;
+        const stages = normalizeEasingList(stageInputs);
+        return applyComposeStages(stages, progress);
+    };
+
+    mina.compose.withParams = function () {
+        const inputArgs = Array.prototype.slice.call(arguments);
+        const stageInputs = (inputArgs.length === 1 && Array.isArray(inputArgs[0]))
+            ? inputArgs[0]
+            : inputArgs;
+        const stages = normalizeEasingList(stageInputs);
+        return function (n) {
+            return applyComposeStages(stages, n);
+        };
+    };
+
+
+    mina.delay = function () {
+        if (!arguments.length) {
+            return 0;
+        }
+        const inputArgs = Array.prototype.slice.call(arguments);
+        const progress = inputArgs.pop();
+        let easingCandidate;
+        if (inputArgs.length > 1) {
+            easingCandidate = inputArgs.pop();
+        }
+        const delayAmount = inputArgs.length ? inputArgs[0] : 0;
+        const easingFn = resolveEasingReference(easingCandidate) || mina.linear;
+        return applyDelayEasing(delayAmount, easingFn, progress);
+    };
+
+    mina.delay.withParams = function (delayAmount, easingCandidate) {
+        const safeDelay = clampUnitInterval(isFinite(+delayAmount) ? +delayAmount : 0);
+        const easingFn = resolveEasingReference(easingCandidate) || mina.linear;
+        return function (n) {
+            return applyDelayEasing(safeDelay, easingFn, n);
+        };
+    };
+
+    mina.delayHalf = mina.delay.withParams(0.5);
+    mina.delayQuarter = mina.delay.withParams(0.25);
+
+    /**
+     * Preset: anticipatory pull followed by a bounce settle.
+     * @type {MinaEasing}
+     */
+    mina.anticipateBounce = mina.compose.withParams(mina.easeInBack, mina.bounceOut);
+
+    /**
+     * Preset: hold the start for 25% of the timeline, then snap out exponentially.
+     * @type {MinaEasing}
+     */
+    mina.delayedSnap = mina.compose.withParams(mina.delayQuarter, mina.easeOutExpo);
+
+    /**
+     * Preset: punchy pulse that eases the return curve.
+     * @type {MinaEasing}
+     */
+    mina.pulseIntro = mina.compose.withParams(
+        mina.pulseLinear.withParams(1, 0.35, 1),
+        mina.easeOutQuart
+    );
+
+    /**
+     * Preset: dual spring response with a delayed secondary wobble.
+     * @type {MinaEasing}
+     */
+    mina.doubleSpring = mina.compose.withParams(
+        mina.springOut,
+        mina.delay.withParams(0.4, mina.springIn)
+    );
+
+    function applyDelayEasing(delayAmount, easingFn, progress) {
+        const delayRatio = clampUnitInterval(isFinite(+delayAmount) ? +delayAmount : 0);
+        const easedProgress = coerceProgress(progress);
+        const easing = easingFn || mina.linear;
+        if (delayRatio >= 1) {
+            return 0;
+        }
+        if (easedProgress <= delayRatio) {
+            return 0;
+        }
+        const span = 1 - delayRatio;
+        const local = clampUnitInterval((easedProgress - delayRatio) / span);
+        return clampUnitInterval(easing(local));
+    }
+
+
+    /**
+     * Discrete steps easing, equivalent to CSS `steps(count, position)`.
+     * Great for sprite-sheet animations, pagination dots, or counters that must snap between integers.
+     * @param {number} [count=4] Number of discrete segments.
+     * @param {"start"|"end"} [position="end"] Whether the first jump occurs immediately (`start`) or after the first interval (`end`).
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.steps = function (count, position, n) {
+        if (n === undefined) {
+            if (position === undefined) {
+                n = count;
+                count = undefined;
+            } else {
+                n = position;
+                position = undefined;
+            }
+        }
+        const stepCount = normalizeStepCount(count === undefined ? 4 : count);
+        const mode = normalizeStepPosition(position);
+        return evaluateSteps(stepCount, mode, n);
+    };
+
+    mina.steps.withParams = function (count, position) {
+        const stepCount = normalizeStepCount(count === undefined ? 4 : count);
+        const mode = normalizeStepPosition(position);
+        return function (n) {
+            return evaluateSteps(stepCount, mode, n);
+        };
+    };
+
+    /**
+     * Deterministic noise-based easing that introduces subtle organic jitter while remaining bounded.
+     * Perfect for shimmer, breathing indicators, or making robotic tweens feel alive.
+     * Arguments mirror `(octaves, frequency, seed, amplitude, progress)` but only progress is required.
+     * @returns {number}
+     */
+    mina.noise = function () {
+        if (!arguments.length) {
+            return 0;
+        }
+        const args = Array.prototype.slice.call(arguments);
+        const progress = args.pop();
+        const octaves = args.length ? args.shift() : undefined;
+        const frequency = args.length ? args.shift() : undefined;
+        const seed = args.length ? args.shift() : undefined;
+        const amplitude = args.length ? args.shift() : undefined;
+        return pseudoNoise(progress, octaves, frequency, seed, amplitude);
+    };
+
+    mina.noise.withParams = function (octaves, frequency, seed, amplitude) {
+        return function (n) {
+            return pseudoNoise(n, octaves, frequency, seed, amplitude);
+        };
+    };
+
+    /**
      * Creates a timing function equivalent to CSS `cubic-bezier(p1x, p1y, p2x, p2y)`.
      * Start and end points are fixed at `(0, 0)` and `(1, 1)`; `p1`/`p2` describe the tangent handles.
      *
@@ -765,8 +1590,8 @@
      * mina.cubicBezier(0.42, 0, 0.58, 1, 0.5);
      */
     mina.cubicBezier = function (p1x, p1y, p2x, p2y, n) {
-        if (p1x === undefined && p1y === undefined && p2x === undefined && p2y === undefined) {
-            return mina.ease(n);
+        if (n === undefined && p1y === undefined && p2x === undefined && p2y === undefined) {
+            return mina.ease(p1x);
         }
 
         return cubic_bezier(p1x, p1y, p2x, p2y)(n);
@@ -839,6 +1664,38 @@
     };
 
     /**
+     * Classic smoothstep easing (`3t^2 - 2t^3`).
+     * Handy for shader-style fades or camera moves that must start/stop gently.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.smoothStep = function (n) {
+        const t = coerceProgress(n);
+        return t * t * (3 - 2 * t);
+    };
+
+    /**
+     * Five-term smootherstep easing (`6t^5 - 15t^4 + 10t^3`).
+     * Use for camera or gradient transitions that need zero velocity and acceleration at the endpoints.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.smootherStep = function (n) {
+        const t = coerceProgress(n);
+        return t * t * t * (t * (t * 6 - 15) + 10);
+    };
+
+    // Lowercase aliases for familiarity with shader-style naming.
+    mina.smoothstep = mina.smoothStep;
+    mina.smootherstep = mina.smootherStep;
+
+    /**
+     * Sine ease that decelerates then accelerates; great for looping UI where the midpoint should feel like a breath.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInSine = createOutInEasing(mina.easeOutSine, mina.easeInSine);
+
+    /**
      * Quadratic ease-in curve (`t^2`).
      * @param {number} n Normalized progress `[0, 1]`.
      * @returns {number}
@@ -862,6 +1719,11 @@
     mina.easeInOutQuad = function (n) {
         return n < 0.5 ? 2 * n * n : 1 - Math.pow(-2 * n + 2, 2) / 2;
     };
+    /**
+     * Quadratic ease that decelerates then accelerates; useful for slider handles moving between two resting states.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInQuad = createOutInEasing(mina.easeOutQuad, mina.easeInQuad);
 
     /**
      * Cubic ease-in curve (`t^3`).
@@ -888,6 +1750,11 @@
     mina.easeInOutCubic = function (n) {
         return n < 0.5 ? 4 * Math.pow(n, 3) : 1 - Math.pow(-2 * n + 2, 3) / 2;
     };
+    /**
+     * Cubic ease that performs an out-then-in transition; adds drama to hero animations without overshoot.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInCubic = createOutInEasing(mina.easeOutCubic, mina.easeInCubic);
 
     /**
      * Quartic ease-in curve (`t^4`).
@@ -914,6 +1781,11 @@
     mina.easeInOutQuart = function (n) {
         return n < 0.5 ? 8 * Math.pow(n, 4) : 1 - Math.pow(-2 * n + 2, 4) / 2;
     };
+    /**
+     * Quartic ease with out-then-in profile; nice for modals that settle halfway through a timeline sync.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInQuart = createOutInEasing(mina.easeOutQuart, mina.easeInQuart);
 
     /**
      * Quintic ease-in curve (`t^5`).
@@ -939,6 +1811,11 @@
     mina.easeInOutQuint = function (n) {
         return n < 0.5 ? 16 * Math.pow(n, 5) : 1 - Math.pow(-2 * n + 2, 5) / 2;
     };
+    /**
+     * Quintic out-then-in curve for fast-moving elements that must pause mid-flight before accelerating again.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInQuint = createOutInEasing(mina.easeOutQuint, mina.easeInQuint);
 
     /**
      * Exponential ease-in that ramps quickly after a slow start.
@@ -967,6 +1844,11 @@
         }
         return n < 0.5 ? Math.pow(2, 20 * n - 10) / 2 : (2 - Math.pow(2, -20 * n + 10)) / 2;
     };
+    /**
+     * Exponential out-then-in easing; ideal for chunky scrolling cards that want a sudden release then refocus.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInExpo = createOutInEasing(mina.easeOutExpo, mina.easeInExpo);
 
     /**
      * Circular ease-in curve that emulates the start of a circle arc.
@@ -994,6 +1876,11 @@
             ? (1 - Math.sqrt(1 - 4 * n * n)) / 2
             : (Math.sqrt(1 - Math.pow(-2 * n + 2, 2)) + 1) / 2;
     };
+    /**
+     * Circular out-then-in easing, useful for focus rings or clip-path reveals that should feel orbital.
+     * @type {MinaEasing}
+     */
+    mina.easeOutInCirc = createOutInEasing(mina.easeOutCirc, mina.easeInCirc);
 
     /**
      * Elastic ease-out wrapper using the default amplitude/period.
@@ -1067,6 +1954,63 @@
      * @type {MinaEasing}
      */
     mina.easeInOutBack = mina.backInOut;
+
+    /**
+     * Android-style anticipate easing that dips below 0 before accelerating forward.
+     * Perfect for swipe-to-dismiss or catapult effects where motion "winds up" before release.
+     * @param {number} [tension=1.5] Controls the amount of backwards pull.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.anticipate = function (tension, n) {
+        if (n === undefined) {
+            n = tension;
+            tension = undefined;
+        }
+        const t = coerceProgress(n);
+        const tightness = isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION;
+        return anticipateValue(t, tightness);
+    };
+
+    mina.anticipate.withParams = function (tension) {
+        const tightness = isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION;
+        return function (n) {
+            return anticipateValue(coerceProgress(n), tightness);
+        };
+    };
+
+    /**
+     * Anticipate + overshoot easing used by Android's AnticipateOvershootInterpolator.
+     * Works well for onboarding arrows, expanding FABs, or any element that should tease before settling.
+     * @param {number} [tension=1.5] Adjusts both anticipate and overshoot strength.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.anticipateOvershoot = function (tension, n) {
+        if (n === undefined) {
+            n = tension;
+            tension = undefined;
+        }
+        const tightness = (isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION) * ANTICIPATE_OVERSHOOT_SCALE;
+        let t = coerceProgress(n) * 2;
+        if (t < 1) {
+            return 0.5 * anticipateValue(t, tightness);
+        }
+        t -= 1;
+        return 0.5 * (overshootValue(t, tightness) + 1);
+    };
+
+    mina.anticipateOvershoot.withParams = function (tension) {
+        const tightness = (isFinite(+tension) ? +tension : ANTICIPATE_DEFAULT_TENSION) * ANTICIPATE_OVERSHOOT_SCALE;
+        return function (n) {
+            let t = coerceProgress(n) * 2;
+            if (t < 1) {
+                return 0.5 * anticipateValue(t, tightness);
+            }
+            t -= 1;
+            return 0.5 * (overshootValue(t, tightness) + 1);
+        };
+    };
 
     /**
      * Bounce ease-in derived from {@link mina.bounce}.
@@ -1143,6 +2087,93 @@
         return mina.spring(2 * n - 1) * 0.5 + 0.5;
     };
 
+    /**
+     * Configurable spring easing with adjustable oscillation frequency and damping.
+     * Use for pull-to-refresh, switches, or physics-inspired controls needing fine-tuned wobble.
+     * @param {number} [frequency=8] Angular frequency of the oscillation.
+     * @param {number} [damping=1.1] Damping factor; higher values settle faster.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.springDamped = function (frequency, damping, n) {
+        if (n === undefined) {
+            if (damping !== undefined) {
+                n = damping;
+                damping = undefined;
+            } else {
+                n = frequency;
+                frequency = undefined;
+            }
+        }
+        return springDampedValue(n, frequency, damping);
+    };
+
+    mina.springDamped.withParams = function (frequency, damping) {
+        return function (n) {
+            return springDampedValue(n, frequency, damping);
+        };
+    };
+
+    /**
+     * Rubber-band easing inspired by iOS overscroll curves.
+     * Ideal for edge-gesture resistance, overscroll glow, or elastic tooltips.
+     * The curve is centered at 0.5, so real implementations usually map it back to
+     * a signed displacement, e.g. `offset = base + range * (mina.rubber(p) - 0.5) * 2`,
+     * which keeps the motion symmetric while preventing the value from hitting hard bounds.
+     * @param {number} [tightness=0.75] Lower values feel stretchier, higher values stiffer.
+     * @param {number} n Normalized progress `[0, 1]`.
+     * @returns {number}
+     */
+    mina.rubber = function (tightness, n) {
+        if (n === undefined) {
+            n = tightness;
+            tightness = undefined;
+        }
+        return rubberBandValue(n, tightness);
+    };
+
+    mina.rubber.withParams = function (tightness) {
+        return function (n) {
+            return rubberBandValue(n, tightness);
+        };
+    };
+
+    /**
+     * Alias for {@link mina.rubber}.
+     * @type {MinaEasing}
+     */
+    mina.rubberBand = mina.rubber;
+
+    /**
+     * Preset: anticipatory pull followed by a bounce settle—designed for swipe cards or draggable tiles that snap home.
+     * @type {MinaEasing}
+     */
+    mina.anticipateBounce = mina.compose.withParams(mina.easeInBack, mina.bounceOut);
+
+    /**
+     * Preset: hold the start for 25% of the timeline, then snap out exponentially; great for delayed emphasis reveals.
+     * @type {MinaEasing}
+     */
+    mina.delayedSnap = mina.compose.withParams(mina.delayQuarter, mina.easeOutExpo);
+
+    /**
+     * Preset: punchy pulse that eases the return curve—nice for recording LEDs or attention pings.
+     * @type {MinaEasing}
+     */
+    mina.pulseIntro = mina.compose.withParams(
+        mina.pulseLinear.withParams(1, 0.35, 1),
+        mina.easeOutQuart
+    );
+
+    /**
+     * Preset: dual spring response with a delayed secondary wobble, suited for toggles or UI knobs that should bounce twice.
+     * @type {MinaEasing}
+     */
+    mina.doubleSpring = mina.compose.withParams(
+        mina.springOut,
+        mina.delay.withParams(0.4, mina.springIn)
+    );
+
     // ========================================================================
     // Lowercase aliases for CSS-equivalent camelCase easing functions
     // ========================================================================
@@ -1197,6 +2228,12 @@
      * @see {@link mina.easeInOutSine}
      */
     mina.easeinoutsine = mina.easeInOutSine;
+    /**
+     * Lowercase alias for easeOutInSine.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInSine}
+     */
+    mina.easeoutinsine = mina.easeOutInSine;
 
     /**
      * Lowercase alias for easeInQuad.
@@ -1218,6 +2255,12 @@
      * @see {@link mina.easeInOutQuad}
      */
     mina.easeinoutquad = mina.easeInOutQuad;
+    /**
+     * Lowercase alias for easeOutInQuad.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInQuad}
+     */
+    mina.easeoutinquad = mina.easeOutInQuad;
 
     /**
      * Lowercase alias for easeInCubic.
@@ -1239,6 +2282,12 @@
      * @see {@link mina.easeInOutCubic}
      */
     mina.easeinoutcubic = mina.easeInOutCubic;
+    /**
+     * Lowercase alias for easeOutInCubic.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInCubic}
+     */
+    mina.easeoutincubic = mina.easeOutInCubic;
 
     /**
      * Lowercase alias for easeInQuart.
@@ -1260,6 +2309,12 @@
      * @see {@link mina.easeInOutQuart}
      */
     mina.easeinoutquart = mina.easeInOutQuart;
+    /**
+     * Lowercase alias for easeOutInQuart.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInQuart}
+     */
+    mina.easeoutinquart = mina.easeOutInQuart;
 
     /**
      * Lowercase alias for easeInQuint.
@@ -1281,6 +2336,12 @@
      * @see {@link mina.easeInOutQuint}
      */
     mina.easeinoutquint = mina.easeInOutQuint;
+    /**
+     * Lowercase alias for easeOutInQuint.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInQuint}
+     */
+    mina.easeoutinquint = mina.easeOutInQuint;
 
     /**
      * Lowercase alias for easeInExpo.
@@ -1302,6 +2363,12 @@
      * @see {@link mina.easeInOutExpo}
      */
     mina.easeinoutexpo = mina.easeInOutExpo;
+    /**
+     * Lowercase alias for easeOutInExpo.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInExpo}
+     */
+    mina.easeoutinexpo = mina.easeOutInExpo;
 
     /**
      * Lowercase alias for easeInCirc.
@@ -1323,6 +2390,12 @@
      * @see {@link mina.easeInOutCirc}
      */
     mina.easeinoutcirc = mina.easeInOutCirc;
+    /**
+     * Lowercase alias for easeOutInCirc.
+     * @type {MinaEasing}
+     * @see {@link mina.easeOutInCirc}
+     */
+    mina.easeoutincirc = mina.easeOutInCirc;
 
     /**
      * Lowercase alias for easeInElastic.
@@ -1402,8 +2475,14 @@
         setTimeout: true,
         setTimeoutNow: true,
         setInterval: true,
+        pauseAll: true,
+        resumeAll: true,
+        stopAll: true,
+        clearTimeout: true,
+        clearInterval: true,
         trakSkippedFrames: true,
         cubic_bezier: true,
+        getLast: true
     };
     /**
      * Determines whether the provided key refers to a registered easing function.
@@ -1448,6 +2527,74 @@
     }
 
     /**
+     * Pauses every running animation and managed timer, freezing global time.
+     * @returns {void}
+     */
+    mina.pauseAll = function () {
+        if (isGlobalPaused) {
+            return;
+        }
+        isGlobalPaused = true;
+        const ids = Object.keys(animations);
+        ids.forEach(function (key) {
+            const anim = animations[key];
+            if (!anim || anim.pdif) {
+                return;
+            }
+            pausedAnimations.set(anim.id, anim);
+            anim.pause();
+        });
+        pauseAllTimers();
+    };
+
+    /**
+     * Resumes animations and timers that were paused with {@link mina.pauseAll}.
+     * @returns {void}
+     */
+    mina.resumeAll = function () {
+        if (!isGlobalPaused) {
+            return;
+        }
+        isGlobalPaused = false;
+        const toResume = Array.from(pausedAnimations.values());
+        pausedAnimations.clear();
+        toResume.forEach(function (anim) {
+            if (anim && anim.pdif) {
+                anim.resume();
+            }
+        });
+        resumeAllTimers();
+    };
+
+    /**
+     * Stops all animations and timers, clearing any paused state.
+     * @returns {void}
+     */
+    mina.stopAll = function () {
+        const processed = new Set();
+        const ids = Object.keys(animations);
+        ids.forEach(function (key) {
+            const anim = animations[key];
+            if (anim && typeof anim.stop === "function") {
+                processed.add(anim.id);
+                anim.stop();
+            }
+        });
+        pausedAnimations.forEach(function (anim) {
+            if (!anim || processed.has(anim.id)) {
+                return;
+            }
+            if (typeof anim.stop === "function") {
+                anim.stop();
+            }
+        });
+        pausedAnimations.clear();
+        isGlobalPaused = false;
+        stopAllTimers();
+        last = undefined;
+    };
+
+    /**
      * Schedules a timeout that respects the global mina speed multiplier.
      *
      * @param {Function} callback Handler to invoke.
@@ -1456,8 +2603,8 @@
      * @returns {number}
      */
     mina.setTimeout = function (callback, deley, ...args) {
-        deley *= global_speed
-        return setTimeout(callback, deley, ...args);
+        const delay = Math.max(0, (+deley || 0) * global_speed);
+        return createTimeoutEntry(callback, delay, args);
     }
 
     /**
@@ -1469,8 +2616,8 @@
      * @returns {number|void}
      */
     mina.setTimeoutNow = function (callback, deley, ...args) {
-        deley *= global_speed
-        return (deley) ? setTimeout(callback, deley, ...args) : callback(...args);
+        const delay = Math.max(0, (+deley || 0) * global_speed);
+        return delay ? createTimeoutEntry(callback, delay, args) : callback(...args);
     }
 
     /**
@@ -1482,8 +2629,30 @@
      * @returns {number}
      */
     mina.setInterval = function (callback, interval, ...args) {
-        interval *= global_speed;
-        return setInterval(callback, interval, ...args);
+        const duration = Math.max(0, (+interval || 0) * global_speed);
+        return createIntervalEntry(callback, duration, args);
+    };
+
+    /**
+     * Clears a timeout created via {@link mina.setTimeout}.
+     * @param {string|number} id Timeout identifier returned by `mina.setTimeout`.
+     * @returns {void}
+     */
+    mina.clearTimeout = function (id) {
+        if (!handleManagedTimeoutClear(id)) {
+            return nativeClearTimeout(id);
+        }
+    };
+
+    /**
+     * Clears an interval created via {@link mina.setInterval}.
+     * @param {string|number} id Interval identifier returned by `mina.setInterval`.
+     * @returns {void}
+     */
+    mina.clearInterval = function (id) {
+        if (!handleManagedIntervalClear(id)) {
+            return nativeClearInterval(id);
+        }
     };
 
     /**

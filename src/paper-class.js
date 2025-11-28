@@ -1129,7 +1129,13 @@ Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      */
         proto.toDataURL = function () {
             if (window && window.btoa) {
-                return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(this)));
+                if (window && window.btoa) {
+                    return "data:image/svg+xml;base64," + btoa(
+                        encodeURIComponent(String(this)).replace(/%([0-9A-F]{2})/g, function(_, p1) {
+                            return String.fromCharCode(parseInt(p1, 16));
+                        })
+                    );
+                }
             }
         };
         proto.toDataURL.skip = true;

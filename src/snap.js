@@ -235,6 +235,12 @@
         };
         const xlink = "http://www.w3.org/1999/xlink";
         const xmlns = "http://www.w3.org/2000/svg";
+        Snap.xmlns = {
+            svg: xmlns,
+            html: "http://www.w3.org/1999/xhtml",
+            xlink
+
+        }
         const hub = {};
         Snap._.hub_rem = {};
         /**
@@ -2161,6 +2167,56 @@
             }
             return wrap(target);
         };
+
+        if (!String.rand) {
+            /**
+             * Generate a random string.
+             * @param {number} length Number of characters.
+             * @param {string|number|string[]|undefined} [symbols] Symbol set or mode: 'base64'|'url'|'alpha'|'upper'|'lower'|'num...' or number of base chars; or an array used as exclude.
+             * @param {string[]} [exclude] Optional list of values to avoid (regenerates if collision occurs).
+             * @returns {string}
+             */
+            String.rand = function (length, symbols, exclude) {
+                let result = [];
+                let characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+                if (Array.isArray(symbols)) {
+                    exclude = symbols;
+                    symbols = undefined
+                }
+                if (symbols) {
+                    if (typeof symbols === 'string') {
+                        const s = symbols.toLowerCase();
+                        if (s === 'base64') {
+                            characters += '+/';
+                        } else if (s === 'url') {
+                            characters += '-.~_';
+                        } else if (s === 'alpha') {
+                            characters = characters.slice(10);
+                        } else if (s.startsWith('num')) {
+                            characters = '0123456789';
+                        } else if (s === 'upper') {
+                            characters = characters.slice(10, 36);
+                        } else if (s === 'lower') {
+                            characters = characters.slice(36);
+                        }
+                    } else if (typeof symbols === 'number' &&
+                        (symbols = Math.min((Math.floor(symbols)), 36))) {
+                        characters = characters.slice(0, symbols);
+                    } else {
+                        characters += '!@#$%^&*()_+-={}[]|;:,.<>?/\\"\'';
+                    }
+
+                }
+                const charactersLength = characters.length;
+                for (let i = 0; i < length; i++) {
+                    result[i] = characters.charAt(
+                        Math.floor(Math.random() * charactersLength));
+                }
+                result = result.join('');
+                return (exclude && exclude.includes(result)) ? String.rand(length, symbols, exclude) : result;
+            };
+        }
+
         /**
          * Registers a plugin function that receives the Snap namespace and key prototypes.
          *
@@ -2169,7 +2225,7 @@
          * @param {function(Snap, Snap.Element, Snap.Paper, Window, Snap.Fragment, Function)} f Plugin callback.
          */
         Snap.plugin = function (f) {
-           f(Snap, Snap.getClass("Element"), Snap.getClass("Paper"), glob, Snap.getClass("Fragment"), eve);
+           f(Snap, Snap.getClass("Element"), Snap.getClass("Paper"), glob, Snap.getClass("Fragment"), eve, root.mina);
         };
         root.Snap_ia = Snap;
         root.Snap = root.Snap || Snap;

@@ -20,10 +20,7 @@
  * @property {Number} [t] - Parametric position (0-1)
  */
 
-/*
- * Copyright (c) 2018.  Orlin Vakarelov
- */
-Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
 
     const ERROR = 1e-12;
 
@@ -125,7 +122,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         mmax = Math.max,
         pow = Math.pow,
         abs = Math.abs,
-        STRICT_MODE = true;
+        STRICT_MODE = true,
+        GEN_TRANSFORM_DATA_KEY = "_ia_gen_transform_cache",
+        THIRD_SAMPLE_T1 = 1 / 3,
+        THIRD_SAMPLE_T2 = 2 / 3;
 
     /**
      * Caches path parsing results for performance
@@ -223,7 +223,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         return Snap._.cacher(function (path, length, onlystart) {
             if (path instanceof Element) {
-                path = getPath[path.type](path);
+                const converter = getPath[path.type] || getPath.deflt;
+                path = converter && converter(path);
+                if (!path) {
+                    return null;
+                }
             }
             path = path2curve(path);
             let x, y, p, l, sp = "";
@@ -624,7 +628,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return true;
         }
 
-        return pathIntersectionNumber(getPath[path.type](path),
+        const converter = getPath[path.type] || getPath.deflt;
+        const elementPath = converter && converter(path);
+        if (!elementPath) {
+            return false;
+        }
+        return pathIntersectionNumber(elementPath,
             rectPath(rect_bbox.x, rect_bbox.y, rect_bbox.w, rect_bbox.h)) > 0;
 
     }
@@ -803,7 +812,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             path,
             m = new Snap.Matrix;
 
-        for (var i = 0, max = children.length; i < max; ++i) {
+        children_loop: for (var i = 0, max = children.length; i < max; ++i) {
             child = children[i];
 
             while (child.type == "use") { //process any use tags
@@ -812,13 +821,27 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     child = child.original;
                 } else {
                     const href = el.attr("xlink:href");
-                    child = child.original = child.node.ownerDocument.getElementById(
-                        href.substring(href.indexOf("#") + 1));
+                    if (typeof href !== "string" || href.indexOf("#") === -1) {
+                        // cannot resolve reference -> skip this child and continue the loop
+                        continue children_loop;
+                    }
+                    const id = href.substring(href.indexOf("#") + 1);
+                    const referenced = child.node.ownerDocument.getElementById(id);
+                    if (!referenced) {
+                        continue children_loop;
+                    }
+                    child = child.original = referenced;
                 }
             }
 
             pathfinder = Snap.path.get[child.type] || Snap.path.get.deflt;
+            if (typeof pathfinder !== "function") {
+                continue;
+            }
             path = pathfinder(child); //convert the element ot path
+            if (!path) {
+                continue;
+            }
             path = Snap.path.map(path, m.add(child.getLocalMatrix(STRICT_MODE)));
             comp_path = comp_path.concat(path);
         }
@@ -880,7 +903,19 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             },
             deflt: function (el) {
-                const bbox = el.node.getBBox();
+                const canMeasure = el && el.node && typeof el.node.getBBox === "function";
+                if (!canMeasure) {
+                    return null;
+                }
+                let bbox;
+                try {
+                    bbox = el.node.getBBox();
+                } catch (e) {
+                    return null;
+                }
+                if (!bbox) {
+                    return null;
+                }
                 return rectPath(bbox.x, bbox.y, bbox.width, bbox.height);
             },
         };
@@ -981,7 +1016,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
         if (!is(pathArray, "array") || !is(pathArray && pathArray[0], "array")) { // rough assumption
             if (is(pathArray, "object") && pathArray.type) {
-                pathArray = getPath[pathArray.type](pathArray);
+                const converter = getPath[pathArray.type] || getPath.deflt;
+                pathArray = converter && converter(pathArray);
+                if (!pathArray) {
+                    return [];
+                }
+            }
+            if (!pathArray) {
+                return [];
             }
             pathArray = Snap.parsePathString(pathArray);
         }
@@ -1546,7 +1588,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Number} Number of path segments
      */
     elproto.getNumberPathSegments = function () {
-        let path_str = getPath[this.type](this);
+        const converter = getPath[this.type] || getPath.deflt;
+        const path_str = converter && converter(this);
+        if (!path_str) {
+            return 0;
+        }
 
         let c_segs = path2curve(path_str, false, true);
         c_segs = removeRedundantCSegs(c_segs);
@@ -1791,7 +1837,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (type === "path") return (string_only) ? el.attr("d") : el;
         if (!getPath.hasOwnProperty(type)) return null;
 
-        const d = getPath[type](el);
+        const converter = getPath[type] || getPath.deflt;
+        if (typeof converter !== "function") {
+            return null;
+        }
+        const d = converter(el);
+        if (!d) {
+            return null;
+        }
 
         if (string_only) return d;
 
@@ -2007,7 +2060,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     elproto.getPointAtLength = function (length) {
         {
-            let path_str = getPath[this.type](this);
+            const converter = getPath[this.type] || getPath.deflt;
+            const path_str = converter && converter(this);
+            if (!path_str) {
+                return null;
+            }
             return getPointAtLength(path_str, length);
         }
     };
@@ -2414,7 +2471,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      *          Ordered points enriched with control handles and segment metadata.
      */
     elproto.getSegmentAnalysis = function () {
-        let path_str = getPath[this.type](this);
+        const converter = getPath[this.type] || getPath.deflt;
+        const path_str = converter && converter(this);
+        if (!path_str) {
+            return [];
+        }
 
         let c_segs = path2curve(path_str, false, true);
         c_segs = removeRedundantCSegs(c_segs);
@@ -2595,6 +2656,238 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Array} Array of cubic Bézier control points
      */
     Snap.path.cubicFromThirdPoints = cubicFromThirdPoints;
+
+    function ensureCubicCurve(bezier) {
+        if (!bezier) {
+            return null;
+        }
+        let current = (bezier.clone) ? bezier.clone() : Snap.bezier(bezier.points);
+        while (current.order < 3) {
+            current = current.raise();
+        }
+        return current;
+    }
+
+    function pushSamplePoint(storage, point, reuseIndex) {
+        if (reuseIndex != null) {
+            const existing = storage[reuseIndex];
+            if (existing && near(existing, point)) {
+                return reuseIndex;
+            }
+        }
+        storage.push({x: point.x, y: point.y});
+        return storage.length - 1;
+    }
+
+    function buildGenTransformCache(path) {
+        const originalD = path.attr("d") || "";
+        const poly = path.toPolyBezier();
+        if (!poly || !poly.curves || !poly.curves.length) {
+            return {
+                originalD: originalD,
+                poly: poly,
+                points: [],
+                transformedPoints: [],
+                segments: [],
+                subpaths: [],
+                tmpPoint: {x: 0, y: 0},
+            };
+        }
+
+        const points = [];
+        const segments = [];
+        const subpaths = [];
+        let prevEndIndex = null;
+        let currentSubpath = null;
+
+        const finalizeSubpath = function () {
+            if (!currentSubpath) return;
+            currentSubpath.endSegment = segments.length - 1;
+            currentSubpath.endPointIndex = prevEndIndex;
+            const startPoint = points[currentSubpath.startPointIndex];
+            const endPoint = points[currentSubpath.endPointIndex];
+            currentSubpath.closed = !!(startPoint && endPoint && near(startPoint, endPoint));
+        };
+
+        for (let i = 0; i < poly.curves.length; ++i) {
+            const curve = poly.curves[i];
+            const startsNew = !!curve.start || !currentSubpath;
+            const cubic = ensureCubicCurve(curve);
+            if (!cubic) {
+                continue;
+            }
+            let reduced;
+            reduced = cubic.reduce(true);
+            const parts = (reduced && reduced.length) ? reduced : [cubic];
+            for (let j = 0; j < parts.length; ++j) {
+                const piece = parts[j];
+                const beginsSubpath = startsNew && j === 0;
+                if (beginsSubpath) {
+                    finalizeSubpath();
+                    currentSubpath = {
+                        startSegment: segments.length,
+                        startPointIndex: null,
+                        endSegment: segments.length,
+                        endPointIndex: null,
+                        closed: false,
+                    };
+                    subpaths.push(currentSubpath);
+                    prevEndIndex = null;
+                } else if (!currentSubpath) {
+                    currentSubpath = {
+                        startSegment: segments.length,
+                        startPointIndex: null,
+                        endSegment: segments.length,
+                        endPointIndex: null,
+                        closed: false,
+                    };
+                    subpaths.push(currentSubpath);
+                }
+
+                const reuseIndex = (!beginsSubpath && prevEndIndex != null) ? prevEndIndex : null;
+                const idx0 = pushSamplePoint(points, piece.compute(0), reuseIndex);
+                const idx1 = pushSamplePoint(points, piece.compute(THIRD_SAMPLE_T1));
+                const idx2 = pushSamplePoint(points, piece.compute(THIRD_SAMPLE_T2));
+                const idx3 = pushSamplePoint(points, piece.compute(1));
+
+                segments.push({idx: [idx0, idx1, idx2, idx3]});
+
+                if (currentSubpath.startPointIndex == null) {
+                    currentSubpath.startPointIndex = idx0;
+                }
+                currentSubpath.endSegment = segments.length - 1;
+                currentSubpath.endPointIndex = idx3;
+                prevEndIndex = idx3;
+            }
+        }
+
+        finalizeSubpath();
+
+        return {
+            originalD: originalD,
+            poly: poly,
+            points: points,
+            transformedPoints: points.map((pt) => ({x: pt.x, y: pt.y})),
+            segments: segments,
+            subpaths: subpaths,
+            tmpPoint: {x: 0, y: 0},
+        };
+    }
+
+    function formatCoord(value) {
+        if (!isFinite(value)) {
+            return "0";
+        }
+        if (Math.abs(value) < ERROR) {
+            return "0";
+        }
+        const rounded = +value.toFixed(4);
+        if (rounded === 0) {
+            return "0";
+        }
+        return String(rounded);
+    }
+
+    function pointToString(point) {
+        return formatCoord(point.x) + "," + formatCoord(point.y);
+    }
+
+    function buildPathFromCache(cache) {
+        if (!cache.segments.length) {
+            return cache.originalD;
+        }
+
+        const parts = [];
+        const transformed = cache.transformedPoints;
+        const segments = cache.segments;
+        const subpaths = cache.subpaths.length ? cache.subpaths : [{
+            startSegment: 0,
+            endSegment: segments.length - 1,
+            startPointIndex: segments[0] ? segments[0].idx[0] : null,
+            closed: false,
+        }];
+
+        for (let i = 0; i < subpaths.length; ++i) {
+            const sub = subpaths[i];
+            if (sub.startPointIndex == null || sub.startSegment == null || sub.endSegment == null) {
+                continue;
+            }
+            const movePoint = transformed[sub.startPointIndex];
+            parts.push("M" + pointToString(movePoint));
+            for (let segIdx = sub.startSegment; segIdx <= sub.endSegment; ++segIdx) {
+                const segment = segments[segIdx];
+                if (!segment) continue;
+                const p0 = transformed[segment.idx[0]];
+                const p1 = transformed[segment.idx[1]];
+                const p2 = transformed[segment.idx[2]];
+                const p3 = transformed[segment.idx[3]];
+                const cubic = cubicFromThirdPoints(p0, p1, p2, p3);
+                parts.push("C" + pointToString(cubic[1]) + " " + pointToString(cubic[2]) + " " + pointToString(cubic[3]));
+            }
+            // if (sub.closed) {
+            //     parts.push("Z");
+            // }
+        }
+
+        return parts.join(" ");
+    }
+
+    elproto.genTransform = function (transform, options) {
+        if (this.type !== "path") {
+            return this;
+        }
+        let returnPathOnly = false;
+        if (typeof options === 'boolean') {
+            returnPathOnly = options;
+        } else if (options && typeof options === 'object') {
+            returnPathOnly = !!options.returnPath;
+        }
+        let cache = this.data(GEN_TRANSFORM_DATA_KEY);
+        if (!cache) {
+            cache = buildGenTransformCache(this);
+            this.data(GEN_TRANSFORM_DATA_KEY, cache);
+        }
+
+        if (typeof transform !== "function") {
+            if (returnPathOnly) {
+                return cache.originalD;
+            }
+            this.attr({d: cache.originalD});
+            return this;
+        }
+
+        if (!cache.points.length) {
+            return returnPathOnly ? cache.originalD : this;
+        }
+
+        const basePoints = cache.points;
+        const transformedPoints = cache.transformedPoints;
+        const inputPoint = cache.tmpPoint;
+
+        for (let i = 0, l = basePoints.length; i < l; ++i) {
+            const base = basePoints[i];
+            inputPoint.x = base.x;
+            inputPoint.y = base.y;
+            const mapped = transform(inputPoint) || inputPoint;
+            const target = transformedPoints[i];
+            target.x = (mapped && isFinite(mapped.x)) ? mapped.x : base.x;
+            target.y = (mapped && isFinite(mapped.y)) ? mapped.y : base.y;
+        }
+
+        const newPath = buildPathFromCache(cache);
+        if (returnPathOnly) {
+            return newPath || cache.originalD;
+        }
+        if (newPath) {
+            this.attr({d: newPath});
+        }
+        return this;
+    };
+
+    elproto.getTransformFix = function () {
+        this.removeData(GEN_TRANSFORM_DATA_KEY);
+        return this;
+    }
 
     /**
      * Finds dot coordinates on the given cubic beziér curve at the given t

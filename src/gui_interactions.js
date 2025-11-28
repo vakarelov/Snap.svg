@@ -1,7 +1,7 @@
 (function (root) {
     "use strict";
     let Snap_ia = (typeof window !== "undefined") ? window.Snap || window.Snap_ia : root.Snap;
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
 
         //GUI-DEPENDENT INTERACTION FUNCTIONS
         //These extensions require IADesigner library

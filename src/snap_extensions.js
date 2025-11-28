@@ -2,7 +2,7 @@
     let Snap_ia = root.Snap_ia || root.Snap;
 
     //Global Snap Plugin
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
 
         const STRICT_MODE = true;
         //Snap Constants
@@ -1105,7 +1105,7 @@
 
 
     //Matrix functions
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
         //Matrix Extentions
 
         /**
@@ -1259,4 +1259,4 @@
         };
     })
 
-}(typeof window !== "undefined" ? window : (global)))
+}(typeof window !== "undefined" ? window : (global)));

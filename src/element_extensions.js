@@ -2,7 +2,7 @@
 
     let Snap_ia = root.Snap_ia || root.Snap;
 //Element Extansions
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
 
         //ELEMENT Functions
 
@@ -330,7 +330,7 @@
 
             pt = pt.matrixTransform(matrix);
             return (pt.y) ? Math.sqrt(pt.x * pt.x + pt.y * pt.y) : Math.abs(pt.x);
-        }
+        };
 
         /**
          * Returns the distance in local SVG units that corresponds to a screen-space measurement.
@@ -471,7 +471,7 @@
          * @returns {Snap.Element} The removed element.
          */
         Element.prototype.remove = function (skip_linked, skip_reg_fun_childern) {
-            if (!skip_linked && IA_Designer &&
+            if (!skip_linked && global.IA_Designer &&
                 IA_Designer.class_defs.LINKED_RESOURCE) {
                 let recourse_class = this.data(
                     IA_Designer.class_defs.LINKED_RESOURCE) || [];
@@ -792,31 +792,62 @@
 
         /**
          * Converts the element to a path element while preserving all non-geometric attributes.
+         * When `options.recursive` is true and the element is group-like, the conversion is
+         * applied to every descendant without flattening the grouping structure. The underlying
+         * DOM node is replaced, but the existing Snap id is reattached so hub caching stays valid.
          *
          * @function Snap.Element#makePath
-         * @returns {Snap.Element} The converted path element or the original element if already a path or group.
+         * @param {Object} [options]
+         * @param {boolean} [options.recursive=false] Process every descendant of groups before returning.
+         * @returns {Snap.Element} The converted path element or the original element when no conversion is needed.
          */
-        Element.prototype.makePath = function () {
-            if (this.isGroupLike() || this.type === 'path') return this;
+        Element.prototype.makePath = function (recursive) {
+           
 
-            let path_str = Snap.path.toPath(this, true);
+            if (this.isGroupLike()) {
+                if (recursive) {
+                    const children = this.getChildren(true);
+                    children.forEach((child) => child.makePath(recursive));
+                }
+                return this;
+            }
 
-            const geom = this.getGeometryAttr(true);
-            let attr_obj = {};
-            geom.forEach((attr) => attr_obj[attr] = '');
-            this.attr(attr_obj);
-            this.attr({path: path_str});
+            if (this.type === 'path') return this;
+        
+            const pathData = Snap.path.toPath(this, true);
+            if (!pathData || !this.paper) return this;
+        
+            const doc = this.paper.node.ownerDocument;
+            const newNode = doc.createElementNS(Snap.xmlns.svg, 'path');
+        
+            const attributes = this.getAttributes();
+            const geometryAttrs = new Set(this.getGeometryAttr(true));
+        
+            Object.keys(attributes).forEach((name) => {
+                if (geometryAttrs.has(name)) return;
+                let value = attributes[name];
+                if (name === 'style' && typeof value === 'object') {
+                    value = Snap.convertStyleFormat(value, true);
+                }
+                if (value !== undefined && value !== null) {
+                    newNode.setAttribute(name, value);
+                }
+            });
+        
+            newNode.setAttribute('d', pathData);
+        
+            const oldNode = this.node;
+            const parent = oldNode.parentNode;
+            if (parent) parent.replaceChild(newNode, oldNode);
 
-            this.node.outerHTML = this.node.outerHTML.replace(this.type,
-                'path data-temp="temp"');
-
-            let node = document.querySelector('[data-temp="temp"]');
-
-            this.node = node;
-            this.attr('data-temp', '');
-
+            newNode.snap = this.id;
+            this.node = newNode;
             this.type = 'path';
 
+            if (oldNode && oldNode.snap === this.id) {
+                delete oldNode.snap;
+            }
+        
             return this;
         };
 
@@ -3212,6 +3243,398 @@
                 after_callback && (typeof after_callback === 'function') && after_callback.call(el);
             });
             eve.once("snap.mina.stop." + anim.id, function () {
+                frameBuffer.completed = true;
+                frameBuffer.stats.end = frameBuffer.stats.end || performance.now();
+                eve.off("snap.mina.*." + anim.id);
+                delete el.anims[anim.id];
+            });
+            eve(["snap", "animcreated", el.id], anim);
+
+            return anim;
+        };
+
+        function collectPathTargets(rootNode, bucket) {
+            bucket = bucket || [];
+            const visit = function (node) {
+                if (!node || typeof node !== 'object') {
+                    return;
+                }
+                if (node.type === 'path') {
+                    bucket.push(node);
+                    return;
+                }
+                if (typeof node.isGroupLike === 'function' && node.isGroupLike()) {
+                    const children = node.getChildren && node.getChildren(true);
+                    if (children && children.length) {
+                        children.forEach(visit);
+                    }
+                }
+            };
+            visit(rootNode);
+            return bucket;
+        }
+
+        Element.prototype.animateGenTransformBuffered = function (transform_t, duration, easing, after_callback) {
+            this.makePath(true);
+            if (typeof transform_t !== 'function') {
+                return null;
+            }
+
+            const el = this;
+            const targets = collectPathTargets(this);
+
+            if (!targets.length) {
+                return null;
+            }
+
+            const resolveTransform = function (progress) {
+                const clamped = Math.max(0, Math.min(1, progress || 0));
+                const resolver = transform_t.call(el, clamped);
+                return (typeof resolver === 'function') ? resolver : null;
+            };
+
+            const initialTransform = resolveTransform(0);
+            if (!initialTransform) {
+                return null;
+            }
+
+            const FRAME_INTERVAL = 16;
+            const PRODUCER_BUDGET_MS = 6;
+            const STARTUP_BUDGET_MS = 12;
+            const easingFn = easing || mina.linear;
+            duration = +duration || 0;
+
+            const applyFramePaths = function (frame) {
+                if (!frame || !Array.isArray(frame.paths)) {
+                    return;
+                }
+                for (let i = 0; i < frame.paths.length; ++i) {
+                    const target = targets[i];
+                    const pathData = frame.paths[i];
+                    if (target && typeof pathData === 'string') {
+                        target.attr({d: pathData});
+                    }
+                }
+            };
+
+            const computeFrameAt = function (timeMs, progressOverride) {
+                let progress;
+                if (typeof progressOverride === 'number') {
+                    progress = Math.max(0, Math.min(1, progressOverride));
+                } else if (duration > 0) {
+                    progress = Math.max(0, Math.min(1, timeMs / duration));
+                } else {
+                    progress = 1;
+                }
+                const resolver = resolveTransform(progress);
+                if (!resolver) {
+                    return {time: timeMs, progress: progress, paths: null};
+                }
+                const paths = [];
+                for (let i = 0; i < targets.length; ++i) {
+                    const val = targets[i].genTransform(resolver, true);
+                    paths.push((typeof val === 'string') ? val : targets[i].attr('d'));
+                }
+                return {
+                    time: timeMs,
+                    progress: progress,
+                    paths: paths
+                };
+            };
+
+            const firstFrame = computeFrameAt(0, 0);
+            applyFramePaths(firstFrame);
+
+            const frameBuffer = {
+                frames: [firstFrame],
+                frameInterval: FRAME_INTERVAL,
+                nextTime: FRAME_INTERVAL,
+                completed: false,
+                producerScheduled: false,
+                lastProducedTime: firstFrame.time || 0,
+                stats: {
+                    start: performance.now(),
+                    produced: 1,
+                    asyncBatches: 0,
+                    blockingBatches: 0,
+                    blockingTimeMs: 0,
+                    end: null
+                }
+            };
+
+            if (duration <= 0) {
+                const finalFrame = computeFrameAt(0, 1);
+                frameBuffer.frames.push(finalFrame);
+                frameBuffer.stats.produced++;
+                frameBuffer.completed = true;
+                frameBuffer.stats.end = performance.now();
+                applyFramePaths(finalFrame);
+                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+                console.info('anim perf', {
+                    phase: 'dynamic-buffer-single-frame',
+                    frames: frameBuffer.frames.length,
+                    buffer_ms: 0,
+                    skipped_frames: 0,
+                    skipped_time_ms: 0
+                });
+                return null;
+            }
+
+            const finishBuffer = function () {
+                if (frameBuffer.completed) {
+                    return;
+                }
+                const lastFrame = frameBuffer.frames[frameBuffer.frames.length - 1];
+                if (!lastFrame || lastFrame.time < duration) {
+                    frameBuffer.frames.push(computeFrameAt(duration, 1));
+                    frameBuffer.stats.produced++;
+                }
+                frameBuffer.completed = true;
+                frameBuffer.lastProducedTime = duration;
+                frameBuffer.stats.end = performance.now();
+            };
+
+            const produceChunk = function (options) {
+                if (frameBuffer.completed) {
+                    return;
+                }
+                options = options || {};
+                const blocking = !!options.blocking;
+                const budget = blocking ? Infinity : Math.max(options.budget || PRODUCER_BUDGET_MS, 2);
+                const targetTime = (typeof options.until === 'number') ? options.until : null;
+                blocking ? frameBuffer.stats.blockingBatches++ : frameBuffer.stats.asyncBatches++;
+                const startMark = performance.now();
+                let produced = 0;
+                const withinBudget = function () {
+                    if (blocking) return true;
+                    if (produced === 0) {
+                        return (performance.now() - startMark) < budget;
+                    }
+                    return (performance.now() - startMark) <= budget;
+                };
+
+                while (!frameBuffer.completed && frameBuffer.nextTime < duration && withinBudget()) {
+                    const frameTime = Math.min(frameBuffer.nextTime, duration);
+                    const frame = computeFrameAt(frameTime);
+                    frameBuffer.frames.push(frame);
+                    frameBuffer.stats.produced++;
+                    frameBuffer.lastProducedTime = frameTime;
+                    frameBuffer.nextTime += FRAME_INTERVAL;
+                    produced++;
+                    if (targetTime != null && frameTime >= targetTime) {
+                        break;
+                    }
+                }
+
+                if (!frameBuffer.completed && frameBuffer.nextTime >= duration) {
+                    finishBuffer();
+                }
+            };
+
+            const ensureFrameReady = function (timeMs) {
+                const lastFrame = frameBuffer.frames[frameBuffer.frames.length - 1];
+                if (frameBuffer.completed || !lastFrame || lastFrame.time >= timeMs) {
+                    return;
+                }
+                const blockStart = performance.now();
+                produceChunk({blocking: true, until: timeMs});
+                frameBuffer.stats.blockingTimeMs += performance.now() - blockStart;
+                const updatedLast = frameBuffer.frames[frameBuffer.frames.length - 1];
+                if (!frameBuffer.completed && (!updatedLast || updatedLast.time < timeMs)) {
+                    finishBuffer();
+                }
+            };
+
+            const scheduleProducer = function () {
+                if (frameBuffer.completed || frameBuffer.producerScheduled) {
+                    return;
+                }
+                frameBuffer.producerScheduled = true;
+                const runner = function (deadline) {
+                    frameBuffer.producerScheduled = false;
+                    const remaining = (deadline && typeof deadline.timeRemaining === 'function') ? deadline.timeRemaining() : PRODUCER_BUDGET_MS;
+                    produceChunk({budget: Math.max(remaining, PRODUCER_BUDGET_MS)});
+                    if (!frameBuffer.completed) {
+                        scheduleProducer();
+                    }
+                };
+                if (typeof root !== 'undefined' && typeof root.requestIdleCallback === 'function') {
+                    root.requestIdleCallback(runner);
+                } else {
+                    setTimeout(function () {
+                        runner({timeRemaining: function () {
+                                return PRODUCER_BUDGET_MS;
+                            }});
+                    }, 0);
+                }
+            };
+
+            produceChunk({budget: STARTUP_BUDGET_MS});
+            scheduleProducer();
+
+            const playbackState = {
+                index: 0,
+                skippedFrames: 0,
+                skippedTime: 0,
+                frameInterval: FRAME_INTERVAL
+            };
+
+            const getFrameForTime = function (elapsed) {
+                ensureFrameReady(elapsed);
+                if (!frameBuffer.frames.length) {
+                    return null;
+                }
+                let targetIdx = playbackState.index;
+                while (targetIdx + 1 < frameBuffer.frames.length && frameBuffer.frames[targetIdx + 1].time <= elapsed) {
+                    targetIdx++;
+                }
+                if (targetIdx !== playbackState.index) {
+                    const skipped = (targetIdx - playbackState.index) - 1;
+                    if (skipped > 0) {
+                        playbackState.skippedFrames += skipped;
+                        playbackState.skippedTime += skipped * playbackState.frameInterval;
+                    }
+                    playbackState.index = targetIdx;
+                }
+                return frameBuffer.frames[playbackState.index];
+            };
+
+            const start = mina.time();
+            const end = start + duration;
+
+            const set = function () {
+                const now = mina.time();
+                const elapsed = Math.max(0, Math.min(now - start, duration));
+                const frame = getFrameForTime(elapsed);
+                applyFramePaths(frame);
+                if (elapsed >= duration) {
+                    ensureFrameReady(duration);
+                    applyFramePaths(frameBuffer.frames[frameBuffer.frames.length - 1]);
+                }
+            };
+
+            const anim = mina(
+                [0],
+                [1],
+                start,
+                end,
+                mina.time,
+                set,
+                easingFn
+            );
+
+            el.anims = el.anims || {};
+            el.anims[anim.id] = anim;
+            anim._callback = after_callback;
+            eve.once("snap.mina.finish." + anim.id, function () {
+                ensureFrameReady(duration);
+                finishBuffer();
+                eve.off("snap.mina.*." + anim.id);
+                delete el.anims[anim.id];
+                console.info('anim perf', {
+                    phase: 'dynamic-buffer',
+                    frames: frameBuffer.frames.length,
+                    buffer_completed: frameBuffer.completed,
+                    buffer_ms: frameBuffer.stats.end ? +(frameBuffer.stats.end - frameBuffer.stats.start).toFixed(2) : null,
+                    async_batches: frameBuffer.stats.asyncBatches,
+                    blocking_batches: frameBuffer.stats.blockingBatches,
+                    blocking_time_ms: +frameBuffer.stats.blockingTimeMs.toFixed(2),
+                    skipped_frames: playbackState.skippedFrames,
+                    skipped_time_ms: +playbackState.skippedTime.toFixed(2)
+                });
+                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+            });
+            eve.once("snap.mina.stop." + anim.id, function () {
+                eve.off("snap.mina.*." + anim.id);
+                delete el.anims[anim.id];
+            });
+            eve(["snap", "animcreated", el.id], anim);
+
+            return anim;
+        };
+
+        Element.prototype.animateGenTransform = function (transform_t, duration, easing, after_callback) {
+            this.makePath(true);
+            if (typeof transform_t !== 'function') {
+                return null;
+            }
+
+            const el = this;
+            const targets = collectPathTargets(this);
+            if (!targets.length) {
+                return null;
+            }
+
+            const resolveTransform = function (progress) {
+                const clamped = Math.max(0, Math.min(1, progress || 0));
+                const resolver = transform_t.call(el, clamped);
+                return (typeof resolver === 'function') ? resolver : null;
+            };
+
+            const initialTransform = resolveTransform(0);
+            if (!initialTransform) {
+                return null;
+            }
+
+            const applyTransform = function (resolver) {
+                if (!resolver) {
+                    return;
+                }
+                for (let i = 0; i < targets.length; ++i) {
+                    targets[i].genTransform(resolver);
+                }
+            };
+
+            const easingFn = easing || mina.linear;
+            duration = +duration || 0;
+
+            if (duration <= 0) {
+                applyTransform(initialTransform);
+                applyTransform(resolveTransform(1));
+                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+                return null;
+            }
+
+            applyTransform(initialTransform);
+
+            const perfStats = {
+                frames: 0
+            };
+
+            const start = mina.time();
+            const end = start + duration;
+
+            const set = function (res) {
+                perfStats.frames++;
+                const t = res[0];
+                const done = t >= .99999;
+                const transformFn = resolveTransform(done ? 1 : t);
+                applyTransform(transformFn);
+            };
+
+            const anim = mina(
+                [0],
+                [1],
+                start,
+                end,
+                mina.time,
+                set,
+                easingFn
+            );
+
+            el.anims = el.anims || {};
+            el.anims[anim.id] = anim;
+            anim._callback = after_callback;
+            eve.once("snap.mina.finish." + anim.id, function () {
+                eve.off("snap.mina.*." + anim.id);
+                delete el.anims[anim.id];
+                console.info('anim perf', {
+                    phase: 'direct',
+                    frames: perfStats.frames
+                });
+                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+            });
+            eve.once("snap.mina.stop." + anim.id, function () {
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
@@ -4215,3 +4638,4 @@
 
     });
 }(window || this))
+;

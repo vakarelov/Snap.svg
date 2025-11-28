@@ -272,8 +272,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {number}
      *          Width divided by height.
      */
-    BBox.prototype.ration = function () {
-        return this.width / this.height;
+    BBox.prototype.ratio = function () {
+        return this.width / (this.height ? this.height : 1e-16);
     };
 
     /**
