@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-11-28
+// build: 2025-12-01
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -10495,6 +10495,24 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         /**
+         * Applies a pseudo-random translation, rotation, and scaling around an optional origin.
+         * Useful for generating varied transforms for effects or automated testing.
+         *
+         * @param {number} [cx=0] - Horizontal origin for rotation and scaling.
+         * @param {number} [cy=0] - Vertical origin for rotation and scaling.
+         * @param {boolean} [positive=false] - When `true`, restricts translations to positive offsets.
+         * @param {number} [distance=300] - Maximum translation distance along each axis.
+         * @param {boolean} [diff_scale=false] - When `true`, allows non-uniform (x/y) scaling.
+         * @param {boolean} [skip_rotation=false] - When `true`, prevents random rotation.
+         * @param {boolean} [skip_scale=false] - When `true`, prevents random scaling.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        static random(cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
+            const m = new Matrix();
+            return m.randomTrans(cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale);
+        }
+
+        /**
          * Returns a coefficient of the matrix by index (`0 → a`, `5 → f`).
          *
          * @param {number} i - Index of the coefficient (0-5).
@@ -10786,6 +10804,59 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 dx: split.dx,
                 dy: split.dy
             };
+        }
+
+        /**
+         * Recombines translation/scale/rotation/shear parameters into a matrix.
+         * Accepts the positional form used by {@link split} or the full object returned by it.
+         *
+         * @param {object|number[]} trans - Either a split-result object or `[dx, dy]` tuple.
+         * @param {number[]|number} [scale] - `[scalex, scaley]` array or a uniform scale number.
+         * @param {number} [angle=0] - Rotation in degrees.
+         * @param {number} [shear=0] - Shear amount (same factor returned by {@link split}).
+         * @returns {Matrix} Newly composed matrix.
+         */
+        static combine(trans, scale, angle, shear) {
+            let params;
+            if (trans && typeof trans === "object" && !Array.isArray(trans) && trans.dx != null) {
+                params = {
+                    dx: trans.dx || 0,
+                    dy: trans.dy || 0,
+                    scalex: trans.scalex == null ? 1 : trans.scalex,
+                    scaley: trans.scaley == null ? 1 : trans.scaley,
+                    rotate: trans.rotate || 0,
+                    shear: trans.shear || 0
+                };
+            } else {
+                const dx = Array.isArray(trans) ? +trans[0] || 0 : 0;
+                const dy = Array.isArray(trans) ? +trans[1] || 0 : 0;
+                let sx, sy;
+                if (Array.isArray(scale)) {
+                    sx = +scale[0] || 0;
+                    sy = +scale[1] || 0;
+                } else if (typeof scale === "number") {
+                    sx = sy = scale;
+                } else {
+                    sx = sy = 1;
+                }
+                params = {
+                    dx: dx,
+                    dy: dy,
+                    scalex: sx,
+                    scaley: sy,
+                    rotate: angle || 0,
+                    shear: shear || 0
+                };
+            }
+
+            const m = new Matrix();
+            m.translate(params.dx, params.dy);
+            params.rotate && m.rotate(params.rotate);
+            params.shear && m.skew(params.shear, 0);
+            if (params.scalex != 1 || params.scaley != 1) {
+                m.scale(params.scalex, params.scaley);
+            }
+            return m;
         }
     }
 

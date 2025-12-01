@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Snap.svg Point Utilities -- Voronoi Playground</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="style.css">
+    <script src="../../../dist/snap.svg.js"></script>
+    <script defer src="main.js"></script>
+</head>
+<body>
+<header>
+    <h1>Voronoi Playground</h1>
+    <p>
+        Interactive exploration of <code>Snap.voronoi</code>, <code>Snap.closestPair</code>, and <code>Snap.kdTree</code> added in
+        <code>point_utils.js</code>. Move the pointer, click to insert anchors, and regenerate random sites to see how the
+        derived structures adapt.
+    </p>
+</header>
+<section class="controls">
+    <label>
+        Sites
+        <input type="range" id="site-count" min="5" max="120" value="30">
+        <span id="site-count-value">30</span>
+    </label>
+    <button id="regenerate">Randomize</button>
+    <button id="clear">Reset</button>
+    <label><input type="checkbox" id="toggle-triangles" checked>Show Delaunay triangles</label>
+    <label><input type="checkbox" id="toggle-pair" checked>Show closest pair</label>
+</section>
+<section class="stage-wrapper">
+    <svg id="voronoi-stage" width="960" height="600" role="img" aria-label="Voronoi diagram playground"></svg>
+    <aside class="readout">
+        <p><strong>Nearest site:</strong> <span id="nearest-label">--</span></p>
+        <p><strong>Distance:</strong> <span id="nearest-distance">--</span></p>
+        <p><strong>Hovered polygon vertices:</strong> <span id="polygon-size">--</span></p>
+    </aside>
+</section>
+<footer>
+    <p>Click anywhere inside the SVG to add a site. The Voronoi tessellation, Delaunay triangulation, KD-tree lookup, and
+        closest-pair overlay update in real time.</p>
+</footer>
+</body>
+</html>

@@ -797,8 +797,7 @@
          * DOM node is replaced, but the existing Snap id is reattached so hub caching stays valid.
          *
          * @function Snap.Element#makePath
-         * @param {Object} [options]
-         * @param {boolean} [options.recursive=false] Process every descendant of groups before returning.
+         * @param recursive {boolean}  Process every descendant of groups before returning.
          * @returns {Snap.Element} The converted path element or the original element when no conversion is needed.
          */
         Element.prototype.makePath = function (recursive) {
@@ -807,7 +806,10 @@
             if (this.isGroupLike()) {
                 if (recursive) {
                     const children = this.getChildren(true);
-                    children.forEach((child) => child.makePath(recursive));
+                    children.forEach((child) => {
+                        child.makePath(recursive)
+                        child.propagateTransform(true)
+                    });
                 }
                 return this;
             }
@@ -1804,9 +1806,13 @@
          * @returns {Snap.Element} The element itself for chaining.
          */
         Element.prototype.translateAnimate = function (duration,
-                                                       x, y, prev_trans, cx, cy, use_bbox_cache) {
+                                                       x, y,
+                                                       prev_trans, cx, cy,
+                                                       use_bbox_cache,
+                                                       easing)
+        {
 
-            let easing = mina.easeinout;
+             easing = easing || mina.easeinout;
             if (Array.isArray(duration)) {
                 easing = duration[1];
                 duration = duration[0];
@@ -2207,6 +2213,7 @@
         /**
          * Pushes the current transformation down to descendant elements, optionally skipping specific attributes.
          *
+         * @function Snap.Element#propagateTransform
          * @param {string} [exclude_attribute] Attribute name that, when present on an element, prevents propagation.
          * @param {Snap.Matrix} [_transform] Matrix to prepend before propagating; defaults to the element's local transform.
          * @param {boolean} [full=false] When `true`, also applies the transform to geometry attributes (paths, polygons, etc.).
@@ -3116,6 +3123,89 @@
 //                 }
 //             };
 
+        const TRANSFORM_COMPONENT_KEYS = ["dx", "dy", "scalex", "scaley", "rotate", "shear"];
+        const TRANSFORM_COMPONENT_DEFAULTS = {
+            dx: 0,
+            dy: 0,
+            scalex: 1,
+            scaley: 1,
+            rotate: 0,
+            shear: 0
+        };
+
+        function isTransformEasingSpecObject(value) {
+            if (!value || typeof value !== "object" || Array.isArray(value)) {
+                return false;
+            }
+            if (typeof value.default === "function") {
+                return true;
+            }
+            return TRANSFORM_COMPONENT_KEYS.some((key) => typeof value[key] === "function");
+        }
+
+        function clampUnitProgress(value) {
+            if (!isFinite(value)) {
+                return 0;
+            }
+            if (value < 0) {
+                return 0;
+            }
+            if (value > 1) {
+                return 1;
+            }
+            return value;
+        }
+
+        function sanitizeTransformComponentValue(value, key) {
+            const defaultValue = TRANSFORM_COMPONENT_DEFAULTS[key];
+            return (typeof value === "number" && isFinite(value)) ? value : defaultValue;
+        }
+
+        function smallestAngleDelta(start, end) {
+            let delta = end - start;
+            while (delta > 180) {
+                delta -= 360;
+            }
+            while (delta < -180) {
+                delta += 360;
+            }
+            return delta;
+        }
+
+        function buildTransformEasingInterpolator(fromMatrix, toMatrix, spec) {
+            const fromSplit = fromMatrix.split();
+            const toSplit = toMatrix.split();
+            const startValues = {};
+            const deltaValues = {};
+
+            TRANSFORM_COMPONENT_KEYS.forEach((key) => {
+                const fromVal = sanitizeTransformComponentValue(fromSplit[key], key);
+                const toVal = sanitizeTransformComponentValue(toSplit[key], key);
+                startValues[key] = fromVal;
+                deltaValues[key] = (key === "rotate") ? smallestAngleDelta(fromVal, toVal) : (toVal - fromVal);
+            });
+
+            const resolveEasing = (key) => {
+                if (spec && typeof spec[key] === "function") {
+                    return spec[key];
+                }
+                if (spec && typeof spec.default === "function") {
+                    return spec.default;
+                }
+                return mina.linear;
+            };
+
+            return function (progress) {
+                const parts = {};
+                TRANSFORM_COMPONENT_KEYS.forEach((key) => {
+                    const ease = resolveEasing(key);
+                    const easedProgress = clampUnitProgress(ease ? ease(progress) : progress);
+                    parts[key] = startValues[key] + deltaValues[key] * easedProgress;
+                });
+                return Snap.Matrix.combine(parts);
+            };
+        }
+
         /**
          * Animates a transformation matrix change over time.
          *
@@ -3151,9 +3241,15 @@
                 f: matrix.f - loc.f,
             };
 
-            if (easing_direct_matrix) {
-                easing = easing(loc, matrix);
-            }
+
+            const transformEasingSpec = (!easing_direct_matrix && isTransformEasingSpecObject(easing)) ? easing : null;
+            const transformInterpolator = transformEasingSpec
+                ? buildTransformEasingInterpolator(loc, matrix, transformEasingSpec)
+                : null;
+
+            const matrixEasingFn = (easing_direct_matrix && typeof easing === 'function')
+                ? easing(loc, matrix)
+                : null;
 
             if (!duration) {
                 console.log('Zero duration');
@@ -3168,8 +3264,13 @@
                 let t = res[0];
                 const done = t >= .99999;
                 if (!done) {
-                    if (easing_direct_matrix) {
-                        step_matrix = easing(t).toString();
+                    if (matrixEasingFn) {
+                        const easedMatrix = matrixEasingFn(t);
+                        step_matrix = (easedMatrix && typeof easedMatrix.toString === 'function')
+                            ? easedMatrix.toString()
+                            : matrix.toString();
+                    } else if (transformInterpolator) {
+                        step_matrix = transformInterpolator(t).toString();
                     } else {
                         step_matrix = 'matrix('
                             + (loc.a + dif.a * t) + ','
@@ -3224,6 +3325,7 @@
                 }
             };
 
+            const usesTransformSpec = !!transformInterpolator;
             const anim = mina(
                 [0],
                 [1],
@@ -3231,7 +3333,9 @@
                 end,
                 mina.time,
                 set,
-                (easing_direct_matrix) ? mina.linear : (easing || mina.linear)
+                (easing_direct_matrix || usesTransformSpec)
+                    ? mina.linear
+                    : (typeof easing === 'function' ? easing : mina.linear)
             );
 
             el.anims[anim.id] = anim;

@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-11-28
+// build: 2025-12-01
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -10495,6 +10495,24 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         /**
+         * Applies a pseudo-random translation, rotation, and scaling around an optional origin.
+         * Useful for generating varied transforms for effects or automated testing.
+         *
+         * @param {number} [cx=0] - Horizontal origin for rotation and scaling.
+         * @param {number} [cy=0] - Vertical origin for rotation and scaling.
+         * @param {boolean} [positive=false] - When `true`, restricts translations to positive offsets.
+         * @param {number} [distance=300] - Maximum translation distance along each axis.
+         * @param {boolean} [diff_scale=false] - When `true`, allows non-uniform (x/y) scaling.
+         * @param {boolean} [skip_rotation=false] - When `true`, prevents random rotation.
+         * @param {boolean} [skip_scale=false] - When `true`, prevents random scaling.
+         * @returns {Matrix} The matrix instance for chaining.
+         */
+        static random(cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
+            const m = new Matrix();
+            return m.randomTrans(cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale);
+        }
+
+        /**
          * Returns a coefficient of the matrix by index (`0 → a`, `5 → f`).
          *
          * @param {number} i - Index of the coefficient (0-5).
@@ -10786,6 +10804,59 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 dx: split.dx,
                 dy: split.dy
             };
+        }
+
+        /**
+         * Recombines translation/scale/rotation/shear parameters into a matrix.
+         * Accepts the positional form used by {@link split} or the full object returned by it.
+         *
+         * @param {object|number[]} trans - Either a split-result object or `[dx, dy]` tuple.
+         * @param {number[]|number} [scale] - `[scalex, scaley]` array or a uniform scale number.
+         * @param {number} [angle=0] - Rotation in degrees.
+         * @param {number} [shear=0] - Shear amount (same factor returned by {@link split}).
+         * @returns {Matrix} Newly composed matrix.
+         */
+        static combine(trans, scale, angle, shear) {
+            let params;
+            if (trans && typeof trans === "object" && !Array.isArray(trans) && trans.dx != null) {
+                params = {
+                    dx: trans.dx || 0,
+                    dy: trans.dy || 0,
+                    scalex: trans.scalex == null ? 1 : trans.scalex,
+                    scaley: trans.scaley == null ? 1 : trans.scaley,
+                    rotate: trans.rotate || 0,
+                    shear: trans.shear || 0
+                };
+            } else {
+                const dx = Array.isArray(trans) ? +trans[0] || 0 : 0;
+                const dy = Array.isArray(trans) ? +trans[1] || 0 : 0;
+                let sx, sy;
+                if (Array.isArray(scale)) {
+                    sx = +scale[0] || 0;
+                    sy = +scale[1] || 0;
+                } else if (typeof scale === "number") {
+                    sx = sy = scale;
+                } else {
+                    sx = sy = 1;
+                }
+                params = {
+                    dx: dx,
+                    dy: dy,
+                    scalex: sx,
+                    scaley: sy,
+                    rotate: angle || 0,
+                    shear: shear || 0
+                };
+            }
+
+            const m = new Matrix();
+            m.translate(params.dx, params.dy);
+            params.rotate && m.rotate(params.rotate);
+            params.shear && m.skew(params.shear, 0);
+            if (params.scalex != 1 || params.scaley != 1) {
+                m.scale(params.scalex, params.scaley);
+            }
+            return m;
         }
     }
 
@@ -25384,45 +25455,27 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     /**
-     * Finds the nearest neighbours while reporting axis-aligned offsets and Euclidean distance.
-     * @deprecated This overload is superseded by the streamlined variant defined later in this file.
+     * Finds the nearest neighbours while reporting axis-aligned offsets (when applicable) and distance metadata.
      * @param {Array<number>|{x:number,y:number}} point Query point.
      * @param {number} [num=1] Number of neighbours to return.
      * @param {boolean} [sqere_dist=false] When `true`, returns squared distance values.
-     * @returns {Array|Array[]} Array describing the nearest neighbour(s) with axis deltas.
+     * @returns {Array|Array[]} Array describing the nearest neighbour(s) along with deltas.
      */
     KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
-        num = Math.floor(num || 1);
-        let points = this.nearest(point, num);
+      num = Math.max(1, Math.floor(num || 1));
 
-        switch (this._ax) {
-            case 1:
-                if (num > 1) {
-                    return points.map((p) => [p,
-                        Math.abs((point[0] || point.x || 0) - (p[0] || p.x || 0)),
-                        dist(point, p)])
-                } else {
-                    return [points,
-                        Math.abs((point[0] || point.x || 0) - (points[0] || points.x || 0)),
-                        dist(point, points, sqere_dist)]
-                }
-            case 2:
-                if (num > 1) {
-                    return points.map((p) => [p,
-                        Math.abs((point[1] || point.y || 0) - (p[1] || p.y || 0)),
-                        dist(point, p)])
-                } else {
-                    return [points,
-                        Math.abs((point[1] || point.y || 0) - (points[1] || points.y || 0)),
-                        dist(point, points, sqere_dist)]
-                }
-            default:
-                if (num > 1) {
-                    return points.map((p) => [p, dist(point, p)])
-                } else {
-                    return [points, dist(point, points, sqere_dist)]
-                }
-        }
+      const query = normalizeQueryPoint(point, this);
+      const labels = (num > 1)
+        ? this.kNearestNeighbors(num, query)
+        : [this.nearestNeighbor(query)];
+
+      const resolved = labels.map((label) => resolveKDPoint(this, label));
+
+      if (num > 1) {
+        return resolved.map((p) => formatNearestResult(this, point, p, sqere_dist));
+      }
+
+      return formatNearestResult(this, point, resolved[0], sqere_dist);
     }
 
 
@@ -25452,23 +25505,106 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     }
 
-    /**
-     * Finds the nearest neighbours using the KDTree, returning only Euclidean distance metadata.
-     * @param {Array<number>|{x:number,y:number}} point Query point.
-     * @param {number} [num=1] Number of neighbours to retrieve.
-     * @param {boolean} [sqere_dist=false] When `true`, distances are squared.
-     * @returns {Array|Array[]} Nearest neighbour result.
-     */
-    KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
-        num = Math.floor(num || 1);
-        let points = this.nearest(point, num);
+      function normalizeQueryPoint(point, tree) {
+        const dims = tree.dimensions;
+        const query = new Array(dims);
 
-        if (num > 1) {
-            return points.map((p) => [p, dist(point, p)])
-        } else {
-            return [points, dist(point, points, sqere_dist)]
+        for (let i = 0; i < dims; i++) {
+          query[i] = readAxis(point, i, tree);
         }
-    }
+
+        return query;
+      }
+
+      function readAxis(point, axisIndex, tree) {
+        const effectiveAxis = getEffectiveAxis(axisIndex, tree);
+
+        if (point == null) {
+          return 0;
+        }
+
+        if (isArrayLikePoint(point)) {
+          const value = point[effectiveAxis];
+          return typeof value === 'number' ? value : 0;
+        }
+
+        if (effectiveAxis === 0) {
+          if (typeof point.x === 'number') return point.x;
+          if (typeof point[0] === 'number') return point[0];
+        }
+
+        if (effectiveAxis === 1) {
+          if (typeof point.y === 'number') return point.y;
+          if (typeof point[1] === 'number') return point[1];
+        }
+
+        const fallback = point[effectiveAxis];
+        return typeof fallback === 'number' ? fallback : 0;
+      }
+
+      function getEffectiveAxis(axisIndex, tree) {
+        if (tree.dimensions === 1) {
+          return tree._ax === 2 ? 1 : 0;
+        }
+
+        return axisIndex;
+      }
+
+      function isArrayLikePoint(value) {
+        if (Array.isArray(value)) {
+          return true;
+        }
+
+        if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView) {
+          return ArrayBuffer.isView(value);
+        }
+
+        return false;
+      }
+
+      function resolveKDPoint(tree, label) {
+        if (label == null) {
+          return label;
+        }
+
+        if (isArrayLikePoint(label) || typeof label === 'object') {
+          return label;
+        }
+
+        if (typeof label === 'number') {
+          if (tree.points && tree.points[label] !== undefined) {
+            return tree.points[label];
+          }
+
+          if (tree.axes && tree.axes.length) {
+            const coords = new Array(tree.dimensions);
+            for (let i = 0; i < tree.dimensions; i++) {
+              coords[i] = tree.axes[i][label];
+            }
+            return coords;
+          }
+        }
+
+        return label;
+      }
+
+      function formatNearestResult(tree, origin, target, sqere_dist) {
+        const axisMode = tree._ax === 1 || tree._ax === 2;
+
+        if (target == null) {
+          return axisMode ? [null, 0, 0] : [null, 0];
+        }
+
+        if (axisMode) {
+          return [
+            target,
+            Math.abs(readAxis(origin, 0, tree) - readAxis(target, 0, tree)),
+            dist(origin, target, sqere_dist)
+          ];
+        }
+
+        return [target, dist(origin, target, sqere_dist)];
+      }
 
     /**
      * Creates a KDTree helper for the given set of points.
@@ -30047,8 +30183,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * DOM node is replaced, but the existing Snap id is reattached so hub caching stays valid.
          *
          * @function Snap.Element#makePath
-         * @param {Object} [options]
-         * @param {boolean} [options.recursive=false] Process every descendant of groups before returning.
+         * @param recursive {boolean}  Process every descendant of groups before returning.
          * @returns {Snap.Element} The converted path element or the original element when no conversion is needed.
          */
         Element.prototype.makePath = function (recursive) {
@@ -30057,7 +30192,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (this.isGroupLike()) {
                 if (recursive) {
                     const children = this.getChildren(true);
-                    children.forEach((child) => child.makePath(recursive));
+                    children.forEach((child) => {
+                        child.makePath(recursive)
+                        child.propagateTransform(true)
+                    });
                 }
                 return this;
             }
@@ -31054,9 +31192,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Snap.Element} The element itself for chaining.
          */
         Element.prototype.translateAnimate = function (duration,
-                                                       x, y, prev_trans, cx, cy, use_bbox_cache) {
+                                                       x, y,
+                                                       prev_trans, cx, cy,
+                                                       use_bbox_cache,
+                                                       easing)
+        {
 
-            let easing = mina.easeinout;
+             easing = easing || mina.easeinout;
             if (Array.isArray(duration)) {
                 easing = duration[1];
                 duration = duration[0];
@@ -31457,6 +31599,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         /**
          * Pushes the current transformation down to descendant elements, optionally skipping specific attributes.
          *
+         * @function Snap.Element#propagateTransform
          * @param {string} [exclude_attribute] Attribute name that, when present on an element, prevents propagation.
          * @param {Snap.Matrix} [_transform] Matrix to prepend before propagating; defaults to the element's local transform.
          * @param {boolean} [full=false] When `true`, also applies the transform to geometry attributes (paths, polygons, etc.).
@@ -32366,6 +32509,89 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 //                 }
 //             };
 
+        const TRANSFORM_COMPONENT_KEYS = ["dx", "dy", "scalex", "scaley", "rotate", "shear"];
+        const TRANSFORM_COMPONENT_DEFAULTS = {
+            dx: 0,
+            dy: 0,
+            scalex: 1,
+            scaley: 1,
+            rotate: 0,
+            shear: 0
+        };
+
+        function isTransformEasingSpecObject(value) {
+            if (!value || typeof value !== "object" || Array.isArray(value)) {
+                return false;
+            }
+            if (typeof value.default === "function") {
+                return true;
+            }
+            return TRANSFORM_COMPONENT_KEYS.some((key) => typeof value[key] === "function");
+        }
+
+        function clampUnitProgress(value) {
+            if (!isFinite(value)) {
+                return 0;
+            }
+            if (value < 0) {
+                return 0;
+            }
+            if (value > 1) {
+                return 1;
+            }
+            return value;
+        }
+
+        function sanitizeTransformComponentValue(value, key) {
+            const defaultValue = TRANSFORM_COMPONENT_DEFAULTS[key];
+            return (typeof value === "number" && isFinite(value)) ? value : defaultValue;
+        }
+
+        function smallestAngleDelta(start, end) {
+            let delta = end - start;
+            while (delta > 180) {
+                delta -= 360;
+            }
+            while (delta < -180) {
+                delta += 360;
+            }
+            return delta;
+        }
+
+        function buildTransformEasingInterpolator(fromMatrix, toMatrix, spec) {
+            const fromSplit = fromMatrix.split();
+            const toSplit = toMatrix.split();
+            const startValues = {};
+            const deltaValues = {};
+
+            TRANSFORM_COMPONENT_KEYS.forEach((key) => {
+                const fromVal = sanitizeTransformComponentValue(fromSplit[key], key);
+                const toVal = sanitizeTransformComponentValue(toSplit[key], key);
+                startValues[key] = fromVal;
+                deltaValues[key] = (key === "rotate") ? smallestAngleDelta(fromVal, toVal) : (toVal - fromVal);
+            });
+
+            const resolveEasing = (key) => {
+                if (spec && typeof spec[key] === "function") {
+                    return spec[key];
+                }
+                if (spec && typeof spec.default === "function") {
+                    return spec.default;
+                }
+                return mina.linear;
+            };
+
+            return function (progress) {
+                const parts = {};
+                TRANSFORM_COMPONENT_KEYS.forEach((key) => {
+                    const ease = resolveEasing(key);
+                    const easedProgress = clampUnitProgress(ease ? ease(progress) : progress);
+                    parts[key] = startValues[key] + deltaValues[key] * easedProgress;
+                });
+                return Snap.Matrix.combine(parts);
+            };
+        }
+
         /**
          * Animates a transformation matrix change over time.
          *
@@ -32401,9 +32627,15 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 f: matrix.f - loc.f,
             };
 
-            if (easing_direct_matrix) {
-                easing = easing(loc, matrix);
-            }
+
+            const transformEasingSpec = (!easing_direct_matrix && isTransformEasingSpecObject(easing)) ? easing : null;
+            const transformInterpolator = transformEasingSpec
+                ? buildTransformEasingInterpolator(loc, matrix, transformEasingSpec)
+                : null;
+
+            const matrixEasingFn = (easing_direct_matrix && typeof easing === 'function')
+                ? easing(loc, matrix)
+                : null;
 
             if (!duration) {
                 console.log('Zero duration');
@@ -32418,8 +32650,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 let t = res[0];
                 const done = t >= .99999;
                 if (!done) {
-                    if (easing_direct_matrix) {
-                        step_matrix = easing(t).toString();
+                    if (matrixEasingFn) {
+                        const easedMatrix = matrixEasingFn(t);
+                        step_matrix = (easedMatrix && typeof easedMatrix.toString === 'function')
+                            ? easedMatrix.toString()
+                            : matrix.toString();
+                    } else if (transformInterpolator) {
+                        step_matrix = transformInterpolator(t).toString();
                     } else {
                         step_matrix = 'matrix('
                             + (loc.a + dif.a * t) + ','
@@ -32474,6 +32711,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             };
 
+            const usesTransformSpec = !!transformInterpolator;
             const anim = mina(
                 [0],
                 [1],
@@ -32481,7 +32719,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 end,
                 mina.time,
                 set,
-                (easing_direct_matrix) ? mina.linear : (easing || mina.linear)
+                (easing_direct_matrix || usesTransformSpec)
+                    ? mina.linear
+                    : (typeof easing === 'function' ? easing : mina.linear)
             );
 
             el.anims[anim.id] = anim;

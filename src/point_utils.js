@@ -4664,45 +4664,27 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }
 
     /**
-     * Finds the nearest neighbours while reporting axis-aligned offsets and Euclidean distance.
-     * @deprecated This overload is superseded by the streamlined variant defined later in this file.
+     * Finds the nearest neighbours while reporting axis-aligned offsets (when applicable) and distance metadata.
      * @param {Array<number>|{x:number,y:number}} point Query point.
      * @param {number} [num=1] Number of neighbours to return.
      * @param {boolean} [sqere_dist=false] When `true`, returns squared distance values.
-     * @returns {Array|Array[]} Array describing the nearest neighbour(s) with axis deltas.
+     * @returns {Array|Array[]} Array describing the nearest neighbour(s) along with deltas.
      */
     KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
-        num = Math.floor(num || 1);
-        let points = this.nearest(point, num);
+      num = Math.max(1, Math.floor(num || 1));
 
-        switch (this._ax) {
-            case 1:
-                if (num > 1) {
-                    return points.map((p) => [p,
-                        Math.abs((point[0] || point.x || 0) - (p[0] || p.x || 0)),
-                        dist(point, p)])
-                } else {
-                    return [points,
-                        Math.abs((point[0] || point.x || 0) - (points[0] || points.x || 0)),
-                        dist(point, points, sqere_dist)]
-                }
-            case 2:
-                if (num > 1) {
-                    return points.map((p) => [p,
-                        Math.abs((point[1] || point.y || 0) - (p[1] || p.y || 0)),
-                        dist(point, p)])
-                } else {
-                    return [points,
-                        Math.abs((point[1] || point.y || 0) - (points[1] || points.y || 0)),
-                        dist(point, points, sqere_dist)]
-                }
-            default:
-                if (num > 1) {
-                    return points.map((p) => [p, dist(point, p)])
-                } else {
-                    return [points, dist(point, points, sqere_dist)]
-                }
-        }
+      const query = normalizeQueryPoint(point, this);
+      const labels = (num > 1)
+        ? this.kNearestNeighbors(num, query)
+        : [this.nearestNeighbor(query)];
+
+      const resolved = labels.map((label) => resolveKDPoint(this, label));
+
+      if (num > 1) {
+        return resolved.map((p) => formatNearestResult(this, point, p, sqere_dist));
+      }
+
+      return formatNearestResult(this, point, resolved[0], sqere_dist);
     }
 
 
@@ -4732,23 +4714,106 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     }
 
-    /**
-     * Finds the nearest neighbours using the KDTree, returning only Euclidean distance metadata.
-     * @param {Array<number>|{x:number,y:number}} point Query point.
-     * @param {number} [num=1] Number of neighbours to retrieve.
-     * @param {boolean} [sqere_dist=false] When `true`, distances are squared.
-     * @returns {Array|Array[]} Nearest neighbour result.
-     */
-    KDTree.prototype.nearest_dist = function (point, num, sqere_dist) {
-        num = Math.floor(num || 1);
-        let points = this.nearest(point, num);
+      function normalizeQueryPoint(point, tree) {
+        const dims = tree.dimensions;
+        const query = new Array(dims);
 
-        if (num > 1) {
-            return points.map((p) => [p, dist(point, p)])
-        } else {
-            return [points, dist(point, points, sqere_dist)]
+        for (let i = 0; i < dims; i++) {
+          query[i] = readAxis(point, i, tree);
         }
-    }
+
+        return query;
+      }
+
+      function readAxis(point, axisIndex, tree) {
+        const effectiveAxis = getEffectiveAxis(axisIndex, tree);
+
+        if (point == null) {
+          return 0;
+        }
+
+        if (isArrayLikePoint(point)) {
+          const value = point[effectiveAxis];
+          return typeof value === 'number' ? value : 0;
+        }
+
+        if (effectiveAxis === 0) {
+          if (typeof point.x === 'number') return point.x;
+          if (typeof point[0] === 'number') return point[0];
+        }
+
+        if (effectiveAxis === 1) {
+          if (typeof point.y === 'number') return point.y;
+          if (typeof point[1] === 'number') return point[1];
+        }
+
+        const fallback = point[effectiveAxis];
+        return typeof fallback === 'number' ? fallback : 0;
+      }
+
+      function getEffectiveAxis(axisIndex, tree) {
+        if (tree.dimensions === 1) {
+          return tree._ax === 2 ? 1 : 0;
+        }
+
+        return axisIndex;
+      }
+
+      function isArrayLikePoint(value) {
+        if (Array.isArray(value)) {
+          return true;
+        }
+
+        if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView) {
+          return ArrayBuffer.isView(value);
+        }
+
+        return false;
+      }
+
+      function resolveKDPoint(tree, label) {
+        if (label == null) {
+          return label;
+        }
+
+        if (isArrayLikePoint(label) || typeof label === 'object') {
+          return label;
+        }
+
+        if (typeof label === 'number') {
+          if (tree.points && tree.points[label] !== undefined) {
+            return tree.points[label];
+          }
+
+          if (tree.axes && tree.axes.length) {
+            const coords = new Array(tree.dimensions);
+            for (let i = 0; i < tree.dimensions; i++) {
+              coords[i] = tree.axes[i][label];
+            }
+            return coords;
+          }
+        }
+
+        return label;
+      }
+
+      function formatNearestResult(tree, origin, target, sqere_dist) {
+        const axisMode = tree._ax === 1 || tree._ax === 2;
+
+        if (target == null) {
+          return axisMode ? [null, 0, 0] : [null, 0];
+        }
+
+        if (axisMode) {
+          return [
+            target,
+            Math.abs(readAxis(origin, 0, tree) - readAxis(target, 0, tree)),
+            dist(origin, target, sqere_dist)
+          ];
+        }
+
+        return [target, dist(origin, target, sqere_dist)];
+      }
 
     /**
      * Creates a KDTree helper for the given set of points.

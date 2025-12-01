@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Snap.svg Point Utilities -- Proximity Explorer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="style.css">
+    <script src="../../../dist/snap.svg-min.js"></script>
+    <script defer src="main.js"></script>
+</head>
+<body>
+<header>
+    <h1>Proximity Explorer</h1>
+    <p>Visualizes <code>Snap.kdTree</code> queries alongside the adaptive <code>Snap.nearPairs</code> solver. Two point sets are
+        generated with <code>Snap.randomPoints</code>; move the pointer to probe nearest neighbours per set and inspect the
+        closest cross-set link selected automatically from either brute force or KD-tree search.</p>
+</header>
+<section class="controls">
+    <label>
+        Set A
+        <input type="range" id="count-a" min="5" max="500" value="40">
+        <span id="count-a-value">40</span>
+    </label>
+    <label>
+        Set B
+        <input type="range" id="count-b" min="5" max="500" value="40">
+        <span id="count-b-value">40</span>
+    </label>
+    <button id="refresh">Randomize sets</button>
+    <button id="dense">Dense mode</button>
+</section>
+<section class="stage-wrapper">
+    <svg id="proximity-stage" width="960" height="600" role="img" aria-label="KD-tree and near-pair visualizer"></svg>
+    <aside class="readout">
+        <label>
+            Solver mode
+            <select id="solver-mode">
+                <option value="auto" selected>Auto (threshold)</option>
+                <option value="brute">Force brute-force</option>
+                <option value="kd">Force KD-tree</option>
+            </select>
+        </label>
+        <p><strong>Nearest A:</strong> <span id="nearest-a">--</span> (<span id="dist-a">--</span>)</p>
+        <p><strong>Nearest B:</strong> <span id="nearest-b">--</span> (<span id="dist-b">--</span>)</p>
+        <p><strong>Closest pair distance:</strong> <span id="pair-length">--</span></p>
+        <p><strong>Solver:</strong> <span id="pair-mode">--</span></p>
+        <p><strong>Estimated comparisons:</strong> <span id="pair-comparisons">--</span></p>
+        <p><strong>Approx. speedup:</strong> <span id="pair-speedup">--</span></p>
+    </aside>
+</section>
+<footer>
+    <p>Use dense mode to push both sets above the <code>25k</code> cross-product threshold where <code>Snap.nearPairs</code>
+        falls back to KD-tree acceleration.</p>
+</footer>
+</body>
+</html>
