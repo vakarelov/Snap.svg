@@ -1,25 +1,25 @@
 console.log('🎨 Bezier 3D Projection Demo Loaded');
 
 // Check if Snap and bezier plugin are available
-if (typeof Snap_ia === 'undefined') {
-    console.error('Snap_ia not found! Make sure snap.svg_ia.js is loaded.');
-    alert('Error: Snap_ia library not loaded. Check console for details.');
-} else if (typeof Snap_ia.bezier === 'undefined') {
-    console.error('Snap_ia.bezier not found! Make sure bezier.js plugin is loaded.');
+if (typeof Snap === 'undefined') {
+    console.error('Snap not found! Make sure snap.svg_ia.js is loaded.');
+    alert('Error: Snap library not loaded. Check console for details.');
+} else if (typeof Snap.bezier === 'undefined') {
+    console.error('Snap.bezier not found! Make sure bezier.js plugin is loaded.');
     alert('Error: Bezier plugin not loaded. Check console for details.');
 } else {
-    console.log(' Snap_ia loaded successfully');
+    console.log(' Snap loaded successfully');
     console.log(' Bezier plugin loaded successfully');
 }
 
 // Initialize Snap.svg instances for each view
 const svgs = {
-    xy: Snap_ia('#svg-xy'),
-    xz: Snap_ia('#svg-xz'),
-    yz: Snap_ia('#svg-yz'),
-    persp: Snap_ia('#svg-persp'),
-    iso: Snap_ia('#svg-iso'),
-    perspFloat: Snap_ia('#svg-persp-float')  // Floating perspective view
+    xy: Snap('#svg-xy'),
+    xz: Snap('#svg-xz'),
+    yz: Snap('#svg-yz'),
+    persp: Snap('#svg-persp'),
+    iso: Snap('#svg-iso'),
+    perspFloat: Snap('#svg-persp-float')  // Floating perspective view
 };
 
 // ViewBox state for panning - stores current pan offset for each view
@@ -53,7 +53,7 @@ const controlPoints3D = [
 ];
 
 // Eve event system for coordinating updates
-const eve = Snap_ia.eve || window.eve;
+const eve = Snap.eve || window.eve;
 
 // Coordinate updates across all views
 function emitControlPointChange(index, dimension, value) {
@@ -126,7 +126,7 @@ function drawCameraIcon(snapSvg, camX, camY, camZ, targetX, targetY, targetZ, of
     // Calculate direction vector for camera cone
     const dx = targetPos.x - camPos.x;
     const dy = targetPos.y - camPos.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Snap.len(dx,dy);
 
     if (dist > 0.1) {
         const dirX = dx / dist;
@@ -184,6 +184,9 @@ function drawCameraIcon(snapSvg, camX, camY, camZ, targetX, targetY, targetZ, of
         return {x: wx, y: wy};
     };
 
+    // Enable move behavior using transforms
+    cameraCircle.move();
+
     // Set up event listeners for camera movement
     eve.on(`drag.move.start.${cameraCircle.id}`, function() {
         const el = this;
@@ -217,9 +220,6 @@ function drawCameraIcon(snapSvg, camX, camY, camZ, targetX, targetY, targetZ, of
         const el = this;
         el.attr({ fillOpacity: 1 });
     });
-
-    // Enable move behavior using transforms
-    cameraCircle.move();
 
     // Draw camera label
     cameraGroup.text(camPos.x + 10, camPos.y - 10, '📷').attr({
@@ -587,7 +587,7 @@ function drawBezierCurve(snapSvg, bezier2d, offsetX, offsetY, scale, xLabel, yLa
                 const origCy = parseFloat(el.attr('cy'));
 
                 // Get the transform matrix
-                const matrix = el.transform().localMatrix;
+                const matrix = el.getLocalMatrix();
 
                 console.log(`Move ongoing - Point ${el.data('pointIndex')}: screen(${screenX.toFixed(1)}, ${screenY.toFixed(1)}), orig(${origCx.toFixed(1)}, ${origCy.toFixed(1)}), matrix(${matrix.e.toFixed(1)}, ${matrix.f.toFixed(1)})`);
 
@@ -645,7 +645,7 @@ function drawBezierCurve(snapSvg, bezier2d, offsetX, offsetY, scale, xLabel, yLa
 function updateCurve() {
     try {
         // Create 3D curve using global control points
-        const curve3d = Snap_ia.bezier([
+        const curve3d = Snap.bezier([
             {x: controlPoints3D[0].x, y: controlPoints3D[0].y, z: controlPoints3D[0].z},
             {x: controlPoints3D[1].x, y: controlPoints3D[1].y, z: controlPoints3D[1].z},
             {x: controlPoints3D[2].x, y: controlPoints3D[2].y, z: controlPoints3D[2].z},
@@ -755,7 +755,7 @@ function animateRotation() {
     let angle = 0;
     const animate = () => {
         try {
-            const curve3d = Snap_ia.bezier([
+            const curve3d = Snap.bezier([
                 {x: controlPoints3D[0].x, y: controlPoints3D[0].y, z: controlPoints3D[0].z},
                 {x: controlPoints3D[1].x, y: controlPoints3D[1].y, z: controlPoints3D[1].z},
                 {x: controlPoints3D[2].x, y: controlPoints3D[2].y, z: controlPoints3D[2].z},
@@ -842,32 +842,41 @@ for (let i = 0; i < 4; i++) {
 });
 
 // Initialize when page loads
-window.addEventListener('load', () => {
-    console.log('Page loaded, initializing demo...');
+function initializeDemo() {
+    console.log('Initializing demo...');
     setTimeout(() => {
-        if (typeof Snap_ia !== 'undefined' && typeof Snap_ia.bezier === 'function') {
+        if (typeof Snap !== 'undefined' && typeof Snap.bezier === 'function') {
             updateCurve();
-            console.log(' Demo initialized successfully!');
+            console.log('✅ Demo initialized successfully!');
         } else {
             console.error('❌ Required libraries not loaded');
-            console.error('Snap_ia:', typeof Snap_ia);
-            console.error('Snap_ia.bezier:', typeof Snap_ia?.bezier);
+            console.error('Snap:', typeof Snap);
+            console.error('Snap.bezier:', typeof Snap?.bezier);
             document.querySelectorAll('svg').forEach(svg => {
                 svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#f44336" font-size="12">Error: Libraries not loaded</text>';
             });
         }
     }, 100);
-});
+}
+
+// Handle both cases: page already loaded or still loading
+if (document.readyState === 'loading') {
+    // Page is still loading, wait for DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', initializeDemo);
+} else {
+    // Page has already loaded (happens with htmlpreview.github.io and late-loaded scripts)
+    initializeDemo();
+}
 
 // ===== Floating Perspective View Controls =====
-const floatingPerspective = document.getElementById('floatingPerspective');
-const perspectiveViewInMain = document.querySelector('.perspective-grid');
+const floatingPerspective = Snap(document.getElementById('floatingPerspective'));
+const perspectiveViewInMain = Snap(document.querySelector('.perspective-grid'));
 let floatingViewHidden = false;
 
 // Check if perspective view is visible in viewport
 function isPerspectiveViewVisible() {
     if (!perspectiveViewInMain) return true;
-    const rect = perspectiveViewInMain.getBoundingClientRect();
+    const rect = perspectiveViewInMain.node.getBoundingClientRect();
     const windowHeight = window.innerHeight || document.documentElement.clientHeight;
     // Consider it hidden if the top is above the viewport
     return rect.bottom > 0 && rect.top < windowHeight;
@@ -880,15 +889,15 @@ function handleScroll() {
     const perspectiveVisible = isPerspectiveViewVisible();
 
     if (!perspectiveVisible) {
-        floatingPerspective.classList.add('visible');
+        floatingPerspective.addClass('visible');
     } else {
-        floatingPerspective.classList.remove('visible');
+        floatingPerspective.removeClass('visible');
     }
 }
 
 // Hide floating perspective (user action)
 function hideFloatingPerspective() {
-    floatingPerspective.classList.remove('visible');
+    floatingPerspective.removeClass('visible');
     floatingViewHidden = true;
 }
 
@@ -913,7 +922,7 @@ setTimeout(handleScroll, 500);
 
 // ===== Make Floating View Draggable =====
 (function() {
-    const header = floatingPerspective.querySelector('.view-header');
+    const header = floatingPerspective.select('.view-header');
     let isDragging = false;
     let currentX;
     let currentY;
@@ -922,12 +931,12 @@ setTimeout(handleScroll, 500);
     let xOffset = 0;
     let yOffset = 0;
 
-    header.addEventListener('mousedown', dragStart);
+    header.node.addEventListener('mousedown', dragStart);
     document.addEventListener('mousemove', drag);
     document.addEventListener('mouseup', dragEnd);
 
     // Touch events for mobile
-    header.addEventListener('touchstart', dragStart);
+    header.node.addEventListener('touchstart', dragStart);
     document.addEventListener('touchmove', drag);
     document.addEventListener('touchend', dragEnd);
 
@@ -940,7 +949,7 @@ setTimeout(handleScroll, 500);
             initialY = e.clientY - yOffset;
         }
 
-        if (e.target === header || header.contains(e.target)) {
+        if (e.target === header.node || header.node.contains(e.target)) {
             if (!e.target.classList.contains('close-btn')) {
                 isDragging = true;
             }
@@ -963,7 +972,7 @@ setTimeout(handleScroll, 500);
             yOffset = currentY;
 
             // Keep within viewport bounds
-            const rect = floatingPerspective.getBoundingClientRect();
+            const rect = floatingPerspective.node.getBoundingClientRect();
             const maxX = window.innerWidth - rect.width - 20;
             const maxY = window.innerHeight - rect.height - 20;
 
@@ -981,7 +990,7 @@ setTimeout(handleScroll, 500);
     }
 
     function setTranslate(xPos, yPos, el) {
-        el.style.transform = `translate(${xPos}px, ${yPos}px)`;
+        el.translate(xPos, yPos, "id"); //id makes it as if identity matri is used as a bases
     }
 })();
 
