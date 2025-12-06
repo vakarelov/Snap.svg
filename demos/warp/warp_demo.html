@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Snap Warp Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            color-scheme: light dark;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: radial-gradient(circle at top, #f8fbff 0%, #e1e9ff 45%, #d9e7ff 100%);
+            color: #0f172a;
+        }
+
+        header {
+            padding: 1.5rem clamp(1rem, 4vw, 4rem) 0.5rem;
+        }
+
+        h1 {
+            margin: 0 0 0.35rem;
+            font-size: clamp(1.4rem, 2.8vw, 2.4rem);
+        }
+
+        p {
+            margin: 0.25rem 0;
+            max-width: 720px;
+            line-height: 1.45;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 clamp(1rem, 4vw, 4rem) 2rem;
+        }
+
+        .stage-wrapper {
+            width: min(90vw, 820px);
+            background: #ffffffcc;
+            border-radius: 18px;
+            backdrop-filter: blur(6px);
+            box-shadow: 0 16px 50px -18px rgba(15, 23, 42, 0.5);
+            padding: clamp(0.5rem, 1.5vw, 1.5rem);
+        }
+
+        #warp-stage {
+            width: 100%;
+            height: min(60vh, 480px);
+            display: block;
+            border-radius: 12px;
+            background: #0f172a;
+        }
+
+        footer {
+            text-align: center;
+            font-size: 0.85rem;
+            opacity: 0.75;
+            padding-bottom: 1rem;
+        }
+
+        button {
+            cursor: pointer;
+            padding: 0.45rem 0.9rem;
+            border-radius: 999px;
+            border: 1px solid #475569;
+            background: #e2e8f0;
+            color: #0f172a;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.6rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .caption {
+            margin: 0 0 1rem;
+            font-size: 0.9rem;
+            color: #1e293b;
+            opacity: 0.85;
+        }
+
+        select, label {
+            font-size: 0.95rem;
+        }
+
+        select {
+            padding: 0.35rem 0.6rem;
+            border-radius: 8px;
+            border: 1px solid #94a3b8;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        #status {
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Warp Field Demo</h1>
+    <p>Drag the mini grid to see how localized warps bend nearby geometry without flinging it across the plane. Each
+        preset uses a different
+        <code>Snap.NonlinTransforms</code> field that keeps points in roughly the same neighborhood for intuitive
+        sculpting.</p>
+</header>
+<main>
+    <div class="stage-wrapper">
+        <div class="controls">
+            <button type="button" id="reset">Reset position</button>
+            <button type="button" id="toggle">Toggle warp</button>
+            <label for="warp-select">Warp preset:</label>
+            <select id="warp-select">
+                <option value="twistPinch" selected>Pinch & swirl</option>
+                <option value="bulge">Soft bulge</option>
+                <option value="ripple">Radial ripple</option>
+                <option value="sineDepth">3D sine wave</option>
+            </select>
+            <span id="status">Warp active</span>
+        </div>
+        <p class="caption" id="warp-description">Pinches the grid inward while gently twisting around the probe's
+            center.</p>
+        <svg id="warp-stage" viewBox="0 0 720 480"></svg>
+    </div>
+</main>
+<footer>
+
+    <script src="../../dist/snap.svg.js"></script>
+    <script src="warp_demo.js"></script>
+</body>
+</html>

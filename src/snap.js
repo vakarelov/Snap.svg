@@ -691,41 +691,68 @@
          * @returns {number} angle in degrees
          */
         Snap.angle = angle;
-        /**
+       /**
          * Snap.len @method
          *
          * Returns distance between two points
-         * @param {number} x1 - x coord of first point
-         * @param {number} y1 - y coord of first point
-         * @param {number} x2 - x coord of second point
-         * @param {number} y2 - y coord of second point
+         * @param {number|Object|Array} x1 - x coord of first point or first point object/array
+         * @param {number|Object|Array} y1 - y coord of first point or second point object/array
+         * @param {number} [x2] - x coord of second point
+         * @param {number} [y2] - y coord of second point
+         * @param {number} [z1] - z coord of first point (for 3D)
+         * @param {number} [z2] - z coord of second point (for 3D)
          * @returns {number} distance
          */
-        Snap.len = function (x1, y1, x2, y2) {
-            return Math.sqrt(Snap.len2(x1, y1, x2, y2));
+        Snap.len = function (x1, y1, x2, y2, z1, z2) {
+            return Math.sqrt(Snap.len2(...arguments));
         };
         /**
          * Snap.len2 @method
          *
-         * Returns squared distance between two points
-         * @param {number} x1 - x coord of first point
-         * @param {number} y1 - y coord of first point
-         * @param {number} x2 - x coord of second point
-         * @param {number} y2 - y coord of second point
-         * @returns {number} distance
+         * Returns squared distance between two points (supports 2D and 3D)
+         * Signatures supported:
+         *  - (x1, y1, x2, y2)             -> 2D
+         *  - (x1, y1, z1, x2, y2, z2)     -> 3D (positional 6 args)
+         *  - (point1, point2)             -> objects/arrays, may include z
+         *  - (point1, x2, y2 [, z2])      -> mixed
+         *
+         * @returns {number} squared distance
          */
-        Snap.len2 = function (x1, y1, x2, y2) {
-            if (typeof y1 === "object") {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+        Snap.len2 = function (x1, y1, x2, y2, z1, z2) {
+            // Positional 6-arg: (x1, y1, z1, x2, y2, z2)
+            if (arguments.length >= 6 && typeof arguments[2] !== "object") {
+                z1 = arguments[2];
+                x2 = arguments[3];
+                y2 = arguments[4];
+                z2 = arguments[5];
+            } else {
+                // If second param is an object/array -> it's the second point: (pt1, pt2)
+                if (typeof y1 === "object") {
+                    x2 = y1.x || y1[0] || 0;
+                    y2 = y1.y || y1[1] || 0;
+                    z2 = y1.z || y1[2] || 0;
+                }
+                // If first param is an object/array -> unpack first point
+                if (typeof x1 === "object") {
+                    z1 = x1.z || x1[2] || 0;
+                    y1 = x1.y || x1[1] || 0;
+                    x1 = x1.x || x1[0] || 0;
+                }
+                // If third param is an object/array -> unpack second point given as third arg
+                if (typeof x2 === "object") {
+                    z2 = x2.z || x2[2] || 0;
+                    y2 = x2.y || x2[1] || 0;
+                    x2 = x2.x || x2[0] || 0;
+                }
             }
-            if (typeof x1 == "object") {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            x2 = x2 || 0;
-            y2 = y2 || 0;
-            return (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
+            x1 = +x1 || 0;
+            y1 = +y1 || 0;
+            z1 = +z1 || 0;
+            x2 = +x2 || 0;
+            y2 = +y2 || 0;
+            z2 = +z2 || 0;
+            const dx = x1 - x2, dy = y1 - y2, dz = z1 - z2;
+            return dx * dx + dy * dy + dz * dz;
         };
         /**
          * Snap.closestPoint @method

@@ -2,19 +2,17 @@
  * Copyright (c) 2018.  Orlin Vakarelov
  */
 Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
-        const hub = Snap._.hub;
-        const ID = Snap._.id;
-        const $ = Snap._.$;
-        const has = "hasOwnProperty";
-
-
-        /**
-         * Element class
-         * Wraps an SVG element with Snap methods
-         *
-         * @class Snap.Element
-         * @param {SVGElement} el Underlying DOM node.
-         */
+    const hub = Snap._.hub;
+    const ID = Snap._.id;
+    const $ = Snap._.$;
+    const has = "hasOwnProperty";
+    /**
+     * Element class
+     * Wraps an SVG element with Snap methods
+     *
+     * @class Snap.Element
+     * @param {SVGElement} el Underlying DOM node.
+     */
         class Element {
             constructor(el) {
                 if (el.snap in hub) {
@@ -140,6 +138,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Collects representative points for the element's geometry.
+         *
+         * @function Snap.Element#getPoints
          * @param {boolean} [use_local_transform=false] When true, applies the element's local matrix to the returned points.
          * @param {boolean} [skip_hidden=false] When true, ignores children with `display: none`.
          * @returns {Point2DList} Array of points that describe the element footprint.
@@ -251,6 +251,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Builds the convex hull for an element, optionally applying its current transform.
+         *
+         * @function Snap.Element#getCHull
          * @param {boolean} [with_transform=false] When true, returns the hull in global coordinates.
          * @param {boolean} [skip_hidden=false] When true, excludes hidden descendants while computing the hull.
          * @returns {(Point2DList|null)} Array of hull vertices ordered clockwise, or `null` for unresolved targets.
@@ -296,6 +298,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Resolves the underlying element referenced by a `<use>` node.
+         *
+         * @function Snap.Element#getUseTarget
          * @returns {Element|null} Resolved target element or `null` when no referenced node is available.
          */
         elproto.getUseTarget = function () {
@@ -316,6 +320,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Persists the provided matrix on the element instance for subsequent lookups.
+         *
+         * @function Snap.Element#saveMatrix
          * @param {Snap.Matrix} m Matrix to assign as the element's current transform cache.
          */
         elproto.saveMatrix = function (m) {
@@ -352,6 +358,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * clip-path intersection.
          * The returned descriptor exposes the canonical {@link Snap.BBox} API enriched with helper fields such as `cx`,
          * `cy`, `path`, `vb`, and circle radii (`r0`, `r1`, `r2`).
+         *
+         * @function Snap.Element#getBBox
          * @param {boolean|Element|Snap.Matrix|Object} [settings] When `true`, omits the local transform from the answer. A
          * {@link Element} scopes the result relative to an ancestor. A {@link Snap.Matrix} explicitly defines the applied
          * transform. An options object may contain `without_transform`, `cache_bbox`, `include_clip_path`, `approx`,
@@ -617,6 +625,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Convenience wrapper around {@link Element#getBBox} that enforces approximate convex-hull evaluation.
+         *
+         * @function Snap.Element#getBBoxApprox
          * @param {Object} [setting={}] Optional settings forwarded to {@link Element#getBBox}.
          * @returns {Snap.BBox|null} Approximate bounding box or `null` on failure.
          */
@@ -627,6 +637,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Forces precise bounding-box computation for the element, ignoring cached approximations.
+         *
+         * @function Snap.Element#getBBoxExact
          * @param {boolean|Object|Snap.Matrix} [settigns] Options forwarded to {@link Element#getBBox}.
          * @returns {Snap.BBox|null} Exact bounding box or `null` on failure.
          */
@@ -642,6 +654,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Registers or triggers attribute change monitors on the element.
+         *
+         * @function Snap.Element#attrMonitor
          * @param {string|string[]} attr Attribute name or list of names to monitor.
          * @param {Function} [callback_val] Callback invoked with the attribute's current value when changes occur. When
          * omitted, previously registered callbacks for `attr` are executed immediately.
@@ -775,6 +789,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Clears cached convex hull data for the element and optionally its ancestors.
+         *
+         * @function Snap.Element#clearCHull
          * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
          */
         elproto.clearCHull = function (force_top) {
@@ -804,6 +820,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          */
         /**
          * Gets or sets the element transform.
+         *
+         * @function Snap.Element#transform
          * @param {string|Snap.Matrix} [tstr] Transform string or matrix to apply. When omitted, returns a descriptor with
          * the current transform matrices.
          * @param {boolean} [do_update=false] When true, refreshes cached bounding boxes after applying the transform.
@@ -955,6 +973,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Normalises the element's current transform attribute and saves it as a matrix.
+         *
+         * @function Snap.Element#transToMatrix
          */
         elproto.transToMatrix = function () {
             let tstr = "";
@@ -991,6 +1011,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Updates the cached bounding box after a transformation or clears it when the new transform is incompatible.
+         *
+         * @function Snap.Element#updateBBoxCache
          * @param {Snap.Matrix} [matrix] Matrix describing the current transformation.
          * @param {boolean|number} [apply] When `-1`, clears the cache entirely. Otherwise controls whether child caches are
          * updated.
@@ -1069,6 +1091,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Expands cached bounding boxes up the parent chain when the current element grows in size.
+         *
+         * @function Snap.Element#expandParenBBoxCatch
          * @param {Snap.BBox|{x:number,y:number,r:number}} bbox_circ Bounding region describing the new extent.
          * @param {boolean} [is_circle=false] Indicates that `bbox_circ` represents a circle definition.
          */
@@ -1107,6 +1131,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          */
         /**
          * Invalidates cached bounding boxes stored on parent elements.
+         *
+         * @function Snap.Element#eraseParentBBoxCache
          * @param {Snap.BBox|{x:number,y:number,r:number}} [bbox_circle] Bounding region used to decide whether the parent
          * caches still contain the element.
          */
@@ -1150,6 +1176,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Removes the cached bounding box from the element and, recursively, its children.
+         *
+         * @function Snap.Element#eraseBBoxCache
          */
         elproto.eraseBBoxCache = function () {
             this.attr({bbox: ""});
@@ -1163,6 +1191,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Retrieves the element's local matrix, parsing it from the DOM when not cached.
+         *
+         * @function Snap.Element#getLocalMatrix
          * @param {boolean} [strict=false] Enforces strict parsing semantics for the transform attribute.
          * @returns {Snap.Matrix} Local transformation matrix.
          */
@@ -1177,6 +1207,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns the element's current global transformation matrix using the DOM CTM API.
+         *
+         * @function Snap.Element#getGlobalMatrix
          * @returns {Snap.Matrix} Global matrix representing the element's absolute transform.
          */
         elproto.getGlobalMatrix = function () {
@@ -1187,6 +1219,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Registers a DOM or Snap partner that should mirror this element's transformations and style updates.
+         *
+         * @function Snap.Element#setPartner
          * @param {Element|HTMLElement|Object} el_dom Partner reference (Snap element, DOM node, or jQuery-like wrapper).
          * @param {boolean} [strict] Reserved flag for stricter partner synchronisation.
          */
@@ -1223,6 +1257,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Updates the registry of partner children when elements are added or removed.
+         *
+         * @function Snap.Element#_updatePartnerChild
          * @param {Element} el Child element that was added or removed.
          * @param {boolean} [remove=false] Indicates whether the child should be removed from the registry.
          * @returns {Element} Current element for chaining.
@@ -1258,6 +1294,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Propagates transformation updates to partner children.
+         *
+         * @function Snap.Element#_propagateTransToPartnersChild
          * @param {Element} el Partner child receiving the propagated transform.
          * @param {Snap.Matrix} [trans] Matrix to apply; defaults to the current element's global matrix.
          */
@@ -1273,6 +1311,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Applies the provided matrix to each registered partner, keeping their transforms aligned.
+         *
+         * @function Snap.Element#_applyToPartner
          * @param {Snap.Matrix} matrix Matrix to propagate.
          */
         elproto._applyToPartner = function (matrix) {
@@ -1300,6 +1340,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Removes partner associations or optionally deletes the partner nodes themselves.
+         *
+         * @function Snap.Element#removePartner
          * @param {"dom"|"element"|Element|HTMLElement|Snap|boolean} [el_type] Partner type or specific partner reference.
          * @param {boolean} [remove_elements=false] When true, removes the partner elements from the DOM/SVG tree.
          */
@@ -1357,6 +1399,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Determines whether any partners are currently registered with the element.
+         *
+         * @function Snap.Element#hasPartner
          * @returns {boolean} True when at least one DOM or Snap partner exists.
          */
         elproto.hasPartner = function () {
@@ -1365,6 +1409,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns registered partners filtered by type.
+         *
+         * @function Snap.Element#getPartners
          * @param {"dom"|"element"|"both"} [el_type] Desired partner category.
          * @returns {Array|Object|undefined} Matching partners or `undefined` when none exist.
          */
@@ -1382,6 +1428,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Applies style updates to registered partners, mirroring key display-related properties.
+         *
+         * @function Snap.Element#setPartnerStyle
          * @param {Object} style_obj Style object whose `opacity` and `display` values are forwarded to partners.
          */
         elproto.setPartnerStyle = function (style_obj) {
@@ -1398,6 +1446,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns the element's parent element.
+         *
+         * @function Snap.Element#parent
          * @returns {Element} Parent element wrapper.
          */
         elproto.parent = function () {
@@ -1406,6 +1456,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Assigns a new paper instance to the element and all of its descendants.
+         *
+         * @function Snap.Element#setPaper
          * @param {Paper} paper Target paper instance.
          * @param {boolean} [force=false] When true, reassigns even if the paper is unchanged.
          * @returns {Element} Current element for chaining.
@@ -1421,6 +1473,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Appends the provided element (or set) to the current element.
+         *
+         * @function Snap.Element#append
+         * @function Snap.Element#add
          * @param {Element|Set|Array<Element>} el Element, set, or array to append.
          * @param {number} [index] Optional insertion index (0-based). If provided, inserts before current child at that index.
          * @returns {Element} Parent element for chaining
@@ -1473,6 +1528,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Appends the current element to the specified parent.
+         *
+         * @function Snap.Element#appendTo
          * @param {Element} el Parent element that will receive this node.
          * @returns {Element} Child element for chaining.
          */
@@ -1486,6 +1543,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Prepends the specified element (or set) to the current element.
+         *
+         * @function Snap.Element#prepend
          * @param {Element|Set} el Element to prepend.
          * @returns {Element} Parent element for chaining.
          */
@@ -1517,6 +1576,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Prepends this element to the specified parent.
+         *
+         * @function Snap.Element#prependTo
          * @param {Element} el Parent element to receive this node.
          * @returns {Element} Child element for chaining.
          */
@@ -1527,6 +1588,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the provided element before the current element.
+         *
+         * @function Snap.Element#before
          * @param {Element|Set} el Element to insert.
          * @returns {Element} Parent element for chaining.
          */
@@ -1552,6 +1615,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the provided element after the current element.
+         *
+         * @function Snap.Element#after
          * @param {Element} el Element to insert.
          * @returns {Element} Parent element for chaining.
          */
@@ -1576,6 +1641,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the current element before the provided sibling.
+         *
+         * @function Snap.Element#insertBefore
          * @param {Element} el Sibling element used as insertion point.
          * @returns {Element} Parent element for chaining.
          */
@@ -1591,6 +1658,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the current element after the provided sibling.
+         *
+         * @function Snap.Element#insertAfter
          * @param {Element} el Sibling element used as insertion reference.
          * @returns {Element} Parent element for chaining.
          */
@@ -1606,6 +1675,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Removes the element from the DOM and detaches partner associations.
+         *
+         * @function Snap.Element#remove
          * @returns {Array<Element>} Collection of child elements that were detached alongside this element.
          */
         elproto.remove = function () {
@@ -1627,8 +1698,13 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             // parent && parent.add();
             return this.getChildren();
         };
+
         /**
          * Removes all child elements from the DOM.
+         * Iterates over direct children and removes each child element.
+         *
+         * @function Snap.Element#removeChildren
+         * @returns {Element} The current element for chaining.
          */
         elproto.removeChildren = function () {
             this.getChildren().forEach(function (el) {
@@ -1639,12 +1715,22 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return this;
         };
 
+        /**
+         * Alias for {@link Element#removeChildren}.
+         *
+         * @function Snap.Element#clear
+         * @returns {Element} The current element for chaining.
+         */
+        elproto.clear = elproto.removeChildren;
+
         /*
          * Element.getChildren
          * @method
          *
          * Returns an array of the children of the element, filtering out non-geometric elements. It shoulc be called
          * for the groups or the topmost svg element.
+         *
+         * @function Snap.Element#getChildren
          * */
         elproto.getChildren = function (visible, include_text) {
             if (this.sub_children) return this.sub_children;
@@ -1691,6 +1777,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Determines whether the element contains any non-meta child nodes.
+         *
+         * @function Snap.Element#hasChildren
          * @returns {boolean} True when at least one meaningful child exists.
          */
         elproto.hasChildren = function () {
@@ -1713,6 +1801,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns the first descendant matching the provided CSS selector.
+         *
+         * @function Snap.Element#select
          * @param {string} query CSS selector compatible with SVG.
          * @returns {Element|null} Wrapped element or `null` when not found.
          */
@@ -1722,6 +1812,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Returns all descendants matching the provided CSS selector.
+         *
+         * @function Snap.Element#selectAll
          * @param {string} query CSS selector compatible with SVG.
          * @returns {Array<Element>|Set} Collection containing all matches.
          */
@@ -1752,6 +1844,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Resolves an attribute value into pixels.
+         *
+         * @function Snap.Element#asPX
          * @param {string} attr Attribute name.
          * @param {string|number} [value] Optional raw value; defaults to the current attribute.
          * @returns {number} Attribute value converted to pixels.
@@ -1765,6 +1859,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 // SIERRA Element.use(): I suggest adding a note about how to access the original element the returned <use> instantiates. It's a part of SVG with which ordinary web developers may be least familiar.
         /**
          * Creates a `<use>` element referencing this element or one matched by the provided selector and appends it.
+         *
+         * @function Snap.Element#addUse
+         * @function Snap.Element#use
          * @param {string} [css_ref] CSS reference resolving to an element to clone.
          * @param {number} [x] Optional x-offset applied to the generated `<use>`.
          * @param {number} [y] Optional y-offset applied to the generated `<use>`.
@@ -1886,6 +1983,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Clones the element, optionally hiding it, renaming IDs, or performing a deep `use` expansion.
+         *
+         * @function Snap.Element#clone
          * @param {boolean} [hidden] When true, skips inserting the clone into the DOM.
          * @param {Function} [id_rename_callback] Callback used to generate unique IDs for the clone and descendants.
          * @param {boolean} [deep_copy=false] When true, expands `<use>` references into actual nodes.
@@ -1949,6 +2048,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Determines whether the element behaves like a grouping container.
+         *
+         * @function Snap.Element#isGroupLike
          * @returns {boolean} True for group-like elements.
          */
         elproto.isGroupLike = function () {
@@ -1957,6 +2058,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Recursively expands `<use>` elements into standalone clones.
+         *
+         * @function Snap.Element#removeUses
          */
         elproto.removeUses = function () {
             if (this.isGroupLike()) {
@@ -2002,6 +2105,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Moves the element into the shared `<defs>` section.
+         *
+         * @function Snap.Element#toDefs
          * @returns {Element} Current element for chaining.
          */
         elproto.toDefs = function () {
@@ -2011,6 +2116,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Converts the current element into a reusable `<pattern>` definition.
+         *
+         * @function Snap.Element#pattern
+         * @function Snap.Element#toPattern
          * @param {number|Object} [x] X coordinate or bounding-box object.
          * @param {number} [y]
          * @param {number} [width]
@@ -2043,6 +2151,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Converts the current element into a `<marker>` definition.
+         *
+         * @function Snap.Element#marker
          * @param {number|Object} [x] X coordinate or bounding-box-like descriptor containing marker data.
          * @param {number} [y]
          * @param {number} [width]
@@ -2083,6 +2193,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * Adds or retrieves given value associated with given key. (Don’t confuse
          * with `data-` attributes)
          *
+         * @function Snap.Element#data
          * See also @Element.removeData
          * @param {string} key - key to store data
          * @param {any} value - #optional value to store
@@ -2124,6 +2235,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          *
          * Removes value associated with an element by given key.
          * If key is not provided, removes all the data of the element.
+         *
+         * @function Snap.Element#removeData
          * @param {string} key - #optional key
          * @returns {object} @Element
          */
@@ -2140,12 +2253,14 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          *
          * Returns SVG code for the element, equivalent to HTML's `outerHTML`.
          *
+         * @function Snap.Element#outerSVG
          * See also @Element.innerSVG
          * @returns {string} SVG code for the element
          */
         /**
          * Element.toString @method
          *
+         * @function Snap.Element#toString
          * See @Element.outerSVG
          */
         elproto.outerSVG = elproto.toString = toString(1);
@@ -2153,6 +2268,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * Element.innerSVG @method
          *
          * Returns SVG code for the element's contents, equivalent to HTML's `innerHTML`
+         *
+         * @function Snap.Element#innerSVG
          * @returns {string} SVG code for the element
          */
         elproto.innerSVG = toString();
@@ -2194,6 +2311,12 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             };
         }
 
+        /**
+         * Serialises the element into a standalone SVG data URI.
+         *
+         * @function Snap.Element#toDataURL
+         * @returns {string|undefined} Base64 data URI or `undefined` when `window.btoa` is unavailable.
+         */
         elproto.toDataURL = function () {
             if (window && window.btoa) {
                 const bb = this.getBBox(),
@@ -2206,10 +2329,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                             height: +bb.height.toFixed(3),
                             contents: this.outerSVG(),
                         });
-               return "data:image/svg+xml;base64," +
-               btoa(encodeURIComponent(svg).replace(/%([0-9A-F]{2})/g, function (match, p1) {
-                   return String.fromCharCode(parseInt(p1, 16));
-               }));
+                return "data:image/svg+xml;base64," +
+                    btoa(encodeURIComponent(svg).replace(/%([0-9A-F]{2})/g, function (match, p1) {
+                        return String.fromCharCode(parseInt(p1, 16));
+                    }));
             }
         };
 
@@ -2218,6 +2341,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          *
          * Gets or sets given attributes of the element.
          *
+         * @function Snap.Element#attr
          * @param {object} params - contains key-value pairs of attributes you want to set
          * or
          * @param {string} param - name of the attribute
@@ -2272,8 +2396,19 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return el;
         };
 
+        /**
+         * Alias for {@link Snap.Element#attr} that mirrors jQuery-style APIs.
+         *
+         * @function Snap.Element#css
+         */
         elproto.css = elproto.attr;
 
+        /**
+         * Registers a callback to be invoked when the element is removed from the DOM.
+         *
+         * @function Snap.Element#registerRemoveFunction
+         * @param {Function} fun Callback executed with the element as argument upon removal.
+         */
         elproto.registerRemoveFunction = function (fun) {
             if (this.id in hub_rem) {
                 hub_rem[this.id].push(fun);
@@ -2282,6 +2417,11 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         };
 
+        /**
+         * Invokes and clears all registered removal callbacks for the element.
+         *
+         * @function Snap.Element#cleanupAfterRemove
+         */
         elproto.cleanupAfterRemove = function () {
             let reg_fun = hub_rem[this.id];
             if (reg_fun) {

@@ -2,7 +2,7 @@
 
     let Snap_ia = root.Snap_ia || root.Snap;
 //Element Extansions
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
         //ELEMENT Functions
 
@@ -801,8 +801,6 @@
          * @returns {Snap.Element} The converted path element or the original element when no conversion is needed.
          */
         Element.prototype.makePath = function (recursive) {
-           
-
             if (this.isGroupLike()) {
                 if (recursive) {
                     const children = this.getChildren(true);
@@ -815,16 +813,16 @@
             }
 
             if (this.type === 'path') return this;
-        
+
             const pathData = Snap.path.toPath(this, true);
             if (!pathData || !this.paper) return this;
-        
+
             const doc = this.paper.node.ownerDocument;
             const newNode = doc.createElementNS(Snap.xmlns.svg, 'path');
-        
+
             const attributes = this.getAttributes();
             const geometryAttrs = new Set(this.getGeometryAttr(true));
-        
+
             Object.keys(attributes).forEach((name) => {
                 if (geometryAttrs.has(name)) return;
                 let value = attributes[name];
@@ -835,9 +833,9 @@
                     newNode.setAttribute(name, value);
                 }
             });
-        
+
             newNode.setAttribute('d', pathData);
-        
+
             const oldNode = this.node;
             const parent = oldNode.parentNode;
             if (parent) parent.replaceChild(newNode, oldNode);
@@ -849,7 +847,7 @@
             if (oldNode && oldNode.snap === this.id) {
                 delete oldNode.snap;
             }
-        
+
             return this;
         };
 
@@ -1185,7 +1183,7 @@
          * @returns {Snap.Element} The element for chaining.
          */
         Element.prototype.move = function (el, mcontext, scontext, econtext, select) {
-            if (typeof el === "object" && !Snap.is(el, "Element")){
+            if (typeof el === "object" && !Snap.is(el, "Element")) {
                 [mcontext, scontext, econtext, el] = [el, mcontext, scontext, this]
             }
 
@@ -1449,7 +1447,8 @@
                 // el.rotate(.2*(Date.now() - el.data("t")), localPt.x + el.data('op').x, localPt.y + el.data('op').y)
             }
 
-            eve(['drag', 'move', 'ongoing', el.id], el);
+            eve(['drag', 'move', 'ongoing', el.id], el, el);
+            if (this.event) eve(this.event, el, el);
         };
 
         _.startMove = function (x, y, ev, el, select, coordTarget) {
@@ -1465,8 +1464,10 @@
             el.data('ot', localMatrix);
             if (select) {
                 eve(['drag', 'move', 'select', 'start'], el, [localMatrix]);
+                if (this.event) eve(this.event, el, [localMatrix]);
             } else {
-                eve(['drag', 'move', 'start', el.id], el);
+                eve(['drag', 'move', 'start', el.id], el, el);
+                if (this.event) eve(this.event, el, el);
             }
 
             const limits = this.limits;
@@ -1551,8 +1552,11 @@
                     // el.updateBBoxCache(old_matrix.invert().multLeft(cur_matrix), true);
                     eve(['drag', 'move', 'select', 'end'], el,
                         [cur_matrix, old_matrix]);
+                    if (this.event) eve(this.event, el, [cur_matrix, old_matrix]);
+
                 } else {
-                    eve(['drag', 'move', 'end', el.id], el);
+                    eve(['drag', 'move', 'end', el.id], el, el);
+                    if (this.event) eve(this.event, el, el);
                 }
                 el.data('active', false);
             }
@@ -1631,6 +1635,8 @@
 
             el.data('last_angle', [abs_angle_new, adjusted_new]);
             eve(['drag', 'revolve', 'ongoing', el.id], el, abs_angle_new, adjusted_new, newPoint);
+            if (this.event) eve(this.event, el, abs_angle_new, adjusted_new, newPoint);
+
         };
 
         _.startRevolve = function (x, y, ev, el, center, coordTarget) {
@@ -1658,8 +1664,8 @@
 
             el.data('s', false);
 
-            eve(['drag', 'revolve', 'start', el.id], el);
-
+            eve(['drag', 'revolve', 'start', el.id], el, el);
+            if (this.event) eve(this.event, el, el);
         };
 
         _.endRevolve = function (ev, el, center) {
@@ -1669,6 +1675,8 @@
                 }
                 el.data('active', false);
                 eve(['drag', 'revolve', 'end', el.id], el, el.data('last_angle')[0],
+                    el.data('last_angle')[1]);
+                if (this.event) eve(this.event, el, el.data('last_angle')[0],
                     el.data('last_angle')[1]);
             }
         };
@@ -3241,7 +3249,7 @@
                 f: matrix.f - loc.f,
             };
 
-
+          
             const transformEasingSpec = (!easing_direct_matrix && isTransformEasingSpecObject(easing)) ? easing : null;
             const transformInterpolator = transformEasingSpec
                 ? buildTransformEasingInterpolator(loc, matrix, transformEasingSpec)
@@ -3566,9 +3574,11 @@
                     root.requestIdleCallback(runner);
                 } else {
                     setTimeout(function () {
-                        runner({timeRemaining: function () {
+                        runner({
+                            timeRemaining: function () {
                                 return PRODUCER_BUDGET_MS;
-                            }});
+                            }
+                        });
                     }, 0);
                 }
             };
@@ -4071,16 +4081,16 @@
          * @param {number} error - Error tolerance
          * @returns {boolean|Object} False if not elliptical, ellipse parameters if elliptical and save=true
          */
-        Element.prototype.isElliptical = function(path, save, num_tests, error) {
+        Element.prototype.isElliptical = function (path, save, num_tests, error) {
 
-            if (typeof path === "boolean"){
+            if (typeof path === "boolean") {
                 error = num_tests;
                 num_tests = save;
                 save = path;
                 path = undefined;
             }
 
-            if (!isNaN(path)){
+            if (!isNaN(path)) {
                 error = save;
                 num_tests = path;
                 save = false;
@@ -4188,7 +4198,7 @@
         }
 
         Element.prototype.isRectangular = function (path, save) {
-            if (typeof path === "boolean"){
+            if (typeof path === "boolean") {
                 save = path;
                 path = undefined;
             }

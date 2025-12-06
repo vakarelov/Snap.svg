@@ -24,6 +24,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         if (typeof from === "number" && typeof to === "number") {
             return lerp(from, to, t);
         }
+        // Use Snap.v_lerp for vector-like objects (optimized for animations)
+        if (isPlainObject(from) && isPlainObject(to) &&
+            'x' in from && 'y' in from && 'x' in to && 'y' in to) {
+            return Snap.v_lerp(from, to, t);
+        }
         if (Array.isArray(from) && Array.isArray(to) && from.length === to.length) {
             const out = [];
             for (let i = 0; i < from.length; i++) {
@@ -112,6 +117,409 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return ensurePoint(null, fallback);
         }
         return ensurePoint(value, fallback);
+    }
+
+    function pickFirstDefined(obj, keys) {
+        if (!obj) {
+            return undefined;
+        }
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            if (key != null && obj[key] != null) {
+                return obj[key];
+            }
+        }
+        return undefined;
+    }
+
+    function toCoeffArray(source) {
+        if (!source) {
+            return null;
+        }
+        if (Array.isArray(source)) {
+            return source;
+        }
+        const isTypedArray = typeof ArrayBuffer !== "undefined" && typeof ArrayBuffer.isView === "function" && ArrayBuffer.isView(source);
+        if (isTypedArray) {
+            return Array.prototype.slice.call(source, 0);
+        }
+        if (typeof source.length === "number" && source.length >= 4 && typeof source !== "function") {
+            const out = new Array(source.length);
+            for (let i = 0; i < source.length; i++) {
+                out[i] = source[i];
+            }
+            return out;
+        }
+        return null;
+    }
+
+    function hasMobiusCoeffDescriptorFields(value) {
+        if (!isPlainObject(value)) {
+            return false;
+        }
+        if (value.coefficients || value.values || value.params || value.abcd) {
+            return true;
+        }
+        const keys = ["a", "A", "b", "B", "c", "C", "d", "D"];
+        for (let i = 0; i < keys.length; i++) {
+            if (value[keys[i]] != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function resolveOptionalOriginPoint(value) {
+        if (value == null) {
+            return null;
+        }
+        return ensurePoint(value, {x: 0, y: 0});
+    }
+
+    /**
+     * Lightweight complex helper exposed as {@link Snap.Complex} for consistent math utilities.
+     * Methods accept plain numbers, `[re, im]`, `{x,y}`, `{re,im}` and similar shapes.
+     */
+    class SnapComplex {
+        /**
+         * Normalize any supported input into a `{re, im}` object.
+         * @param {*} value Number/string/array/object describing a complex value.
+         * @param {{re:number,im:number}} [fallback] Value returned when input cannot be parsed.
+         * @returns {{re:number,im:number}}
+         */
+        static from(value, fallback) {
+            const fb = fallback || SnapComplex.ZERO;
+            if (value == null) {
+                return {re: fb.re, im: fb.im};
+            }
+            if (typeof value === "number" && isFinite(value)) {
+                return {re: value, im: 0};
+            }
+            if (typeof value === "string") {
+                const parsed = parseFloat(value);
+                if (isFinite(parsed)) {
+                    return {re: parsed, im: 0};
+                }
+            }
+            if (Array.isArray(value)) {
+                return {
+                    re: SnapComplex._parseNumber(value[0], fb.re),
+                    im: SnapComplex._parseNumber(value[1], fb.im),
+                };
+            }
+            if (typeof value === "object") {
+                if (value.re != null || value.im != null) {
+                    return {
+                        re: SnapComplex._parseNumber(value.re, fb.re),
+                        im: SnapComplex._parseNumber(value.im, fb.im),
+                    };
+                }
+                if (value.real != null || value.imag != null) {
+                    return {
+                        re: SnapComplex._parseNumber(value.real, fb.re),
+                        im: SnapComplex._parseNumber(value.imag, fb.im),
+                    };
+                }
+                if (value.x != null || value.y != null) {
+                    return {
+                        re: SnapComplex._parseNumber(value.x, fb.re),
+                        im: SnapComplex._parseNumber(value.y, fb.im),
+                    };
+                }
+            }
+            return {re: fb.re, im: fb.im};
+        }
+
+        /**
+         * Convert a point-like structure into a complex number (x -> Re, y -> Im).
+         * @param {{x:number,y:number}|Array|*} value
+         * @returns {{re:number,im:number}}
+         */
+        static fromPoint(value) {
+            const point = ensurePoint(value, {x: 0, y: 0});
+            return {re: point.x, im: point.y};
+        }
+
+        /**
+         * Complex addition.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @returns {{re:number,im:number}}
+         */
+        static add(a, b) {
+            return {
+                re: a.re + b.re,
+                im: a.im + b.im,
+            };
+        }
+
+        /**
+         * Complex subtraction.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @returns {{re:number,im:number}}
+         */
+        static sub(a, b) {
+            return {
+                re: a.re - b.re,
+                im: a.im - b.im,
+            };
+        }
+
+        /**
+         * Complex negation.
+         * @param {{re:number,im:number}} z
+         * @returns {{re:number,im:number}}
+         */
+        static neg(z) {
+            return {
+                re: -z.re,
+                im: -z.im,
+            };
+        }
+
+        /**
+         * Complex multiplication.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @returns {{re:number,im:number}}
+         */
+        static mul(a, b) {
+            return {
+                re: a.re * b.re - a.im * b.im,
+                im: a.re * b.im + a.im * b.re,
+            };
+        }
+
+        /**
+         * Squared magnitude (|z|^2).
+         * @param {{re:number,im:number}} z
+         * @returns {number}
+         */
+        static absSq(z) {
+            return z.re * z.re + z.im * z.im;
+        }
+
+        /**
+         * Complex conjugate.
+         * @param {{re:number,im:number}} z
+         * @returns {{re:number,im:number}}
+         */
+        static conj(z) {
+            return {
+                re: z.re,
+                im: -z.im,
+            };
+        }
+
+        /**
+         * Complex division a / b.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @returns {{re:number,im:number}}
+         */
+        static div(a, b) {
+            const denom = SnapComplex.absSq(b);
+            if (denom <= 1e-18) {
+                throw new Error("Mobius transform undefined where denominator is zero");
+            }
+            return {
+                re: (a.re * b.re + a.im * b.im) / denom,
+                im: (a.im * b.re - a.re * b.im) / denom,
+            };
+        }
+
+        /**
+         * Checks whether |z| is below the provided epsilon.
+         * @param {{re:number,im:number}} z
+         * @param {number} [threshold=1e-12]
+         * @returns {boolean}
+         */
+        static isZero(z, threshold) {
+            const eps = threshold || 1e-12;
+            return SnapComplex.absSq(z) <= eps * eps;
+        }
+
+        /**
+         * Real scalar multiplication.
+         * @param {{re:number,im:number}} z
+         * @param {number} scalar
+         * @returns {{re:number,im:number}}
+         */
+        static scale(z, scalar) {
+            const num = +scalar || 0;
+            return {
+                re: z.re * num,
+                im: z.im * num,
+            };
+        }
+
+        /**
+         * Equality check within tolerance.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @param {number} [eps=1e-9]
+         * @returns {boolean}
+         */
+        static equals(a, b, eps) {
+            const diff = SnapComplex.sub(a, b);
+            const tol = eps || 1e-9;
+            return SnapComplex.absSq(diff) <= tol * tol;
+        }
+
+        /**
+         * Parses various coefficient descriptors into `{a,b,c,d}` each being `{re,im}`.
+         * Supports positional args, arrays `[a,b,c,d]`, or objects `{a,b,c,d}` / `{coefficients: [...]}`.
+         * @returns {{a:{re:number,im:number},b:{re:number,im:number},c:{re:number,im:number},d:{re:number,im:number}}}
+         */
+        static normalizeCoefficients(aArg, bArg, cArg, dArg) {
+            let aVal = aArg;
+            let bVal = bArg;
+            let cVal = cArg;
+            let dVal = dArg;
+
+            const descriptorOnly = aArg != null && (
+                arguments.length <= 1 ||
+                (arguments.length > 1 && bArg === undefined && cArg === undefined && dArg === undefined)
+            );
+
+            if (descriptorOnly) {
+                const directArray = toCoeffArray(aArg);
+                if (directArray && directArray.length >= 4) {
+                    aVal = directArray[0];
+                    bVal = directArray[1];
+                    cVal = directArray[2];
+                    dVal = directArray[3];
+                } else if (isPlainObject(aArg)) {
+                    const arraySource = toCoeffArray(aArg.coefficients) ||
+                        toCoeffArray(aArg.values) || toCoeffArray(aArg.params) ||
+                        toCoeffArray(aArg.abcd);
+                    if (arraySource && arraySource.length >= 4) {
+                        aVal = arraySource[0];
+                        bVal = arraySource[1];
+                        cVal = arraySource[2];
+                        dVal = arraySource[3];
+                    } else if ("a" in aArg || "b" in aArg || "c" in aArg || "d" in aArg) {
+                        aVal = pickFirstDefined(aArg, ["a", "A"]);
+                        bVal = pickFirstDefined(aArg, ["b", "B"]);
+                        cVal = pickFirstDefined(aArg, ["c", "C"]);
+                        dVal = pickFirstDefined(aArg, ["d", "D"]);
+                    }
+                }
+            }
+
+            return {
+                a: SnapComplex.from(aVal != null ? aVal : 1, SnapComplex.ONE),
+                b: SnapComplex.from(bVal != null ? bVal : 0, SnapComplex.ZERO),
+                c: SnapComplex.from(cVal != null ? cVal : 0, SnapComplex.ZERO),
+                d: SnapComplex.from(dVal != null ? dVal : 1, SnapComplex.ONE),
+            };
+        }
+    }
+
+    SnapComplex.ZERO = Object.freeze({re: 0, im: 0});
+    SnapComplex.ONE = Object.freeze({re: 1, im: 0});
+    SnapComplex._parseNumber = function (value, fallback) {
+        const num = +value;
+        return isFinite(num) ? num : fallback;
+    };
+
+    Snap.Complex = SnapComplex;
+
+    function composeMobiusCoefficients(outer, inner) {
+        const a = SnapComplex.normalizeCoefficients(outer);
+        const b = SnapComplex.normalizeCoefficients(inner);
+        return {
+            a: SnapComplex.add(SnapComplex.mul(a.a, b.a), SnapComplex.mul(a.b, b.c)),
+            b: SnapComplex.add(SnapComplex.mul(a.a, b.b), SnapComplex.mul(a.b, b.d)),
+            c: SnapComplex.add(SnapComplex.mul(a.c, b.a), SnapComplex.mul(a.d, b.c)),
+            d: SnapComplex.add(SnapComplex.mul(a.c, b.b), SnapComplex.mul(a.d, b.d)),
+        };
+    }
+
+    function invertMobiusCoefficients(coeffs) {
+        const normalized = SnapComplex.normalizeCoefficients(coeffs);
+        const determinant = SnapComplex.sub(
+            SnapComplex.mul(normalized.a, normalized.d),
+            SnapComplex.mul(normalized.b, normalized.c)
+        );
+        if (SnapComplex.isZero(determinant, 1e-12)) {
+            throw new Error("Cannot invert degenerate Möbius transform");
+        }
+        return {
+            a: normalized.d,
+            b: SnapComplex.neg(normalized.b),
+            c: SnapComplex.neg(normalized.c),
+            d: normalized.a,
+        };
+    }
+
+    function buildCircleNormalization(circleSpec) {
+        if (!circleSpec) {
+            return null;
+        }
+        const centerPoint = ensurePoint(circleSpec.center, {x: 0, y: 0});
+        const radiusValue = Math.max(1e-9, isFinite(circleSpec.radius) ? Math.abs(circleSpec.radius) : 1);
+        const centerComplex = SnapComplex.fromPoint(centerPoint);
+        const invRadius = 1 / radiusValue;
+        const aNorm = SnapComplex.from(invRadius, SnapComplex.ZERO);
+        const normalize = {
+            a: aNorm,
+            b: SnapComplex.scale(SnapComplex.neg(centerComplex), invRadius),
+            c: SnapComplex.ZERO,
+            d: SnapComplex.ONE,
+        };
+        const denormalize = {
+            a: SnapComplex.from(radiusValue, SnapComplex.ZERO),
+            b: centerComplex,
+            c: SnapComplex.ZERO,
+            d: SnapComplex.ONE,
+        };
+        return {
+            toUnit: normalize,
+            fromUnit: denormalize,
+            center: centerComplex,
+            radius: radiusValue,
+        };
+    }
+
+    function ensureAnchorTriplet(list, label) {
+        if (!Array.isArray(list) || list.length < 3) {
+            throw new Error(label + " requires three anchor points");
+        }
+        const triplet = [];
+        for (let i = 0; i < 3; i++) {
+            triplet[i] = SnapComplex.from(list[i], SnapComplex.ZERO);
+        }
+        for (let i = 0; i < 3; i++) {
+            for (let j = i + 1; j < 3; j++) {
+                if (SnapComplex.equals(triplet[i], triplet[j], 1e-9)) {
+                    throw new Error(label + " anchors must be distinct");
+                }
+            }
+        }
+        return triplet;
+    }
+
+    function mobiusFromTripleToCanonical(z1, z2, z3) {
+        const z2MinusZ3 = SnapComplex.sub(z2, z3);
+        const z2MinusZ1 = SnapComplex.sub(z2, z1);
+        return {
+            a: z2MinusZ3,
+            b: SnapComplex.mul(SnapComplex.neg(z2MinusZ3), z1),
+            c: z2MinusZ1,
+            d: SnapComplex.mul(SnapComplex.neg(z2MinusZ1), z3),
+        };
+    }
+
+    function clampToUnitDisk(alpha) {
+        const magSq = SnapComplex.absSq(alpha);
+        if (magSq < 1) {
+            return alpha;
+        }
+        const mag = Math.sqrt(magSq) || 1;
+        const scale = 0.999 / mag;
+        return SnapComplex.scale(alpha, scale);
     }
 
     function resolveAxisEndpoints2D(axisSpec) {
@@ -374,15 +782,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function normalizeVector3(vec, fallback) {
         const fb = fallback || {x: 0, y: 0, z: 1};
         const source = ensurePoint3D(vec, fb);
-        const mag = Math.sqrt(source.x * source.x + source.y * source.y + source.z * source.z);
-        if (!mag || !isFinite(mag)) {
-            return normalizeVector3(fb, {x: 0, y: 0, z: 1});
+        const normalized = Snap.normalize(source);
+
+        // Handle zero vector case with fallback
+        if (!normalized || (normalized.x === 0 && normalized.y === 0 && (!normalized.z || normalized.z === 0))) {
+            return Snap.normalize(fb) || fb;
         }
-        return {
-            x: source.x / mag,
-            y: source.y / mag,
-            z: source.z / mag,
-        };
+        return normalized;
     }
 
     function rotationAxisMatrix(axis, angle) {
@@ -411,29 +817,22 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function vectorSubtract(a, b) {
         const pa = ensurePoint3D(a, {x: 0, y: 0, z: 0});
         const pb = ensurePoint3D(b, {x: 0, y: 0, z: 0});
-        const diff = Snap.v_subtract(pa, pb);
-        return {
-            x: diff.x,
-            y: diff.y,
-            z: pa.z - pb.z,
-        };
+        // Snap.v_subtract now supports 3D natively
+        return Snap.v_subtract(pa, pb);
     }
 
     function vectorCross(a, b) {
         const pa = ensurePoint3D(a, {x: 0, y: 0, z: 0});
         const pb = ensurePoint3D(b, {x: 0, y: 0, z: 0});
-        return {
-            x: pa.y * pb.z - pa.z * pb.y,
-            y: pa.z * pb.x - pa.x * pb.z,
-            z: Snap.cross(pa, pb),
-        };
+        // Snap.cross now returns a 3D vector {x, y, z} for 3D inputs
+        return Snap.cross(pa, pb);
     }
 
     function vectorDot(a, b) {
         const pa = ensurePoint3D(a, {x: 0, y: 0, z: 0});
         const pb = ensurePoint3D(b, {x: 0, y: 0, z: 0});
-        const xy = Snap.dot(pa, pb);
-        return xy + (pa.z * pb.z);
+        // Snap.dot now includes z component automatically for 3D vectors
+        return Snap.dot(pa, pb);
     }
 
     function lookAtMatrix(eye, target, up) {
@@ -866,6 +1265,163 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     y: c.y + dy * delta,
                 };
             });
+        }
+
+        /**
+         * Builds a Möbius (fractional linear) transform: z -> (a z + b) / (c z + d).
+         * Coefficients may be provided as numbers, [real, imag] arrays, {x,y}, {re,im}, or
+         * via an object `{a,b,c,d}` / `{coefficients: [a,b,c,d]}` / positional arguments.
+         * An optional `origin` pivot may be supplied either on the descriptor object or as
+         * a trailing options argument `{origin: {x, y}}` to shift the transform center.
+         *
+         * @param {(number|Array|Object)} aArg Coefficient a or descriptor containing all coefficients.
+         * @param {(number|Array|Object)} [bArg] Coefficient b when using positional form.
+         * @param {(number|Array|Object)} [cArg] Coefficient c when using positional form.
+         * @param {(number|Array|Object)} [dArg] Coefficient d when using positional form.
+         * @param {Object} [options] Optional settings (only used when provided as the final argument).
+         * @param {PointLike} [options.origin] Pivot point honored when the trailing argument supplies options.
+         * @returns {function({x:number,y:number}):{x:number,y:number}}
+         */
+        mobius(aArg, bArg, cArg, dArg) {
+            const rawArgs = Array.prototype.slice.call(arguments);
+            let originPoint = null;
+            if (rawArgs.length) {
+                const tail = rawArgs[rawArgs.length - 1];
+                if (isPlainObject(tail) && ("origin" in tail) && !hasMobiusCoeffDescriptorFields(tail)) {
+                    if (tail.origin != null) {
+                        originPoint = resolveOptionalOriginPoint(tail.origin);
+                    }
+                    rawArgs.pop();
+                }
+            }
+            if (!originPoint && rawArgs.length && isPlainObject(rawArgs[0]) && ("origin" in rawArgs[0]) && rawArgs[0].origin != null) {
+                originPoint = resolveOptionalOriginPoint(rawArgs[0].origin);
+            }
+            const coeffs = SnapComplex.normalizeCoefficients.apply(SnapComplex, rawArgs);
+            const determinant = SnapComplex.sub(SnapComplex.mul(coeffs.a, coeffs.d), SnapComplex.mul(coeffs.b, coeffs.c));
+            if (SnapComplex.isZero(determinant, 1e-9)) {
+                throw new Error("Mobius transform requires ad - bc != 0");
+            }
+            const hasOrigin = !!originPoint;
+            return this._markTransform(function mobiusTransform(pt) {
+                const point = ensurePoint(pt, {x: 0, y: 0});
+                const local = hasOrigin ? {x: point.x - originPoint.x, y: point.y - originPoint.y} : point;
+                const z = SnapComplex.fromPoint(local);
+                const numerator = SnapComplex.add(SnapComplex.mul(coeffs.a, z), coeffs.b);
+                const denominator = SnapComplex.add(SnapComplex.mul(coeffs.c, z), coeffs.d);
+                const mapped = SnapComplex.div(numerator, denominator);
+                if (!hasOrigin) {
+                    return {
+                        x: mapped.re,
+                        y: mapped.im,
+                    };
+                }
+                return {
+                    x: mapped.re + originPoint.x,
+                    y: mapped.im + originPoint.y,
+                };
+            });
+        }
+
+        /**
+         * Disk automorphism with angle+center controls optionally constrained to an arbitrary circle.
+         * Implements z -> e^{iθ} (z - α) / (1 - conjugate(α) z) in normalized unit-disk coordinates.
+         * @param {*} center Point/complex describing the attractor α.
+         * @param {number} angle Rotation in degrees applied after the automorphism.
+         * @param {Object} [options] Optional reference circle/origin overrides.
+         * @param {{center:PointLike,radius:number}} [options.referenceCircle] Normalization circle used to remap coordinates.
+         * @param {PointLike} [options.origin] Pivot shift applied after the automorphism.
+         * @returns {function({x:number,y:number}):{x:number,y:number}}
+         */
+        mobiusDisk(center, angle, options) {
+            const circleNorm = options && options.referenceCircle ? buildCircleNormalization(options.referenceCircle) : null;
+            const rawCenter = SnapComplex.from(center != null ? center : {x: 0, y: 0}, SnapComplex.ZERO);
+            let alpha = rawCenter;
+            if (circleNorm) {
+                alpha = SnapComplex.div(
+                    SnapComplex.sub(alpha, circleNorm.center),
+                    SnapComplex.from(circleNorm.radius, SnapComplex.ZERO)
+                );
+            }
+            alpha = clampToUnitDisk(alpha);
+            const theta = Snap.rad(angle || 0);
+            const rotation = {re: Math.cos(theta), im: Math.sin(theta)};
+            const baseCoeffs = {
+                a: rotation,
+                b: SnapComplex.mul(rotation, SnapComplex.neg(alpha)),
+                c: SnapComplex.neg(SnapComplex.conj(alpha)),
+                d: SnapComplex.ONE,
+            };
+            let coeffs = baseCoeffs;
+            if (circleNorm) {
+                coeffs = composeMobiusCoefficients(circleNorm.fromUnit, composeMobiusCoefficients(baseCoeffs, circleNorm.toUnit));
+            }
+            if (options && options.origin != null) {
+                coeffs.origin = options.origin;
+            }
+            return this.mobius(coeffs);
+        }
+
+        /**
+         * Upper half-plane automorphism with intuitive real parameters (shift, scale, tilt).
+         * Uses real PSL(2,R) matrices to preserve the upper half-plane boundary (real axis).
+         * @param {number} shift Translation along the real axis.
+         * @param {number} scale Positive scale factor about the real axis.
+         * @param {number} tilt Projective tilt controlling curvature of vertical geodesics.
+         * @param {Object} [options] Optional origin override.
+         * @param {PointLike} [options.origin] Pivot applied before composing the transform.
+         * @returns {function({x:number,y:number}):{x:number,y:number}}
+         */
+        mobiusUpperHalfPlane(shift, scale, tilt, options) {
+            const tx = isFinite(shift) ? +shift : 0;
+            const scl = mathMax(1e-9, isFinite(scale) ? +scale : 1);
+            const tl = isFinite(tilt) ? +tilt : 0;
+            const root = Math.sqrt(scl);
+            const translation = {
+                a: SnapComplex.ONE,
+                b: SnapComplex.from(tx, SnapComplex.ZERO),
+                c: SnapComplex.ZERO,
+                d: SnapComplex.ONE,
+            };
+            const dilation = {
+                a: SnapComplex.from(root, SnapComplex.ZERO),
+                b: SnapComplex.ZERO,
+                c: SnapComplex.ZERO,
+                d: SnapComplex.from(1 / root, SnapComplex.ZERO),
+            };
+            const tiltMatrix = {
+                a: SnapComplex.ONE,
+                b: SnapComplex.ZERO,
+                c: SnapComplex.from(tl, SnapComplex.ZERO),
+                d: SnapComplex.ONE,
+            };
+            const coeffs = composeMobiusCoefficients(translation, composeMobiusCoefficients(dilation, tiltMatrix));
+            if (options && options.origin != null) {
+                coeffs.origin = options.origin;
+            }
+            return this.mobius(coeffs);
+        }
+
+        /**
+         * Builds the unique Möbius transformation mapping three boundary anchors to new positions.
+         * Anchors should lie on a common circle/line for predictable geometry.
+         * @param {Array<*>} sourceAnchors Three source anchor points.
+         * @param {Array<*>} targetAnchors Three target anchor points.
+         * @param {Object} [options] Optional origin override.
+         * @param {PointLike} [options.origin] Pivot applied before composing the transform.
+         * @returns {function({x:number,y:number}):{x:number,y:number}}
+         */
+        mobiusAnchors(sourceAnchors, targetAnchors, options) {
+            const source = ensureAnchorTriplet(sourceAnchors, "mobiusAnchors source");
+            const target = ensureAnchorTriplet(targetAnchors, "mobiusAnchors target");
+            const toCanonical = mobiusFromTripleToCanonical(source[0], source[1], source[2]);
+            const targetToCanonical = mobiusFromTripleToCanonical(target[0], target[1], target[2]);
+            const fromCanonical = invertMobiusCoefficients(targetToCanonical);
+            const coeffs = composeMobiusCoefficients(fromCanonical, toCanonical);
+            if (options && options.origin != null) {
+                coeffs.origin = options.origin;
+            }
+            return this.mobius(coeffs);
         }
 
         /**
@@ -1425,6 +1981,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     tagTransform(NonlinTransforms.prototype.twistPinch, "twistPinch");
     tagTransform(NonlinTransforms.prototype.radialRipple, "radialRipple");
     tagTransform(NonlinTransforms.prototype.bulge, "bulge");
+    tagTransform(NonlinTransforms.prototype.mobius, "mobius");
+    tagTransform(NonlinTransforms.prototype.mobiusDisk, "mobiusDisk");
+    tagTransform(NonlinTransforms.prototype.mobiusUpperHalfPlane, "mobiusUpperHalfPlane");
+    tagTransform(NonlinTransforms.prototype.mobiusAnchors, "mobiusAnchors");
     tagTransform(NonlinTransforms.prototype.sineWave, "sineWave");
     tagTransform(NonlinTransforms.prototype.cantilever, "cantilever");
     tagTransform(NonlinTransforms.prototype.springBend, "springBend");

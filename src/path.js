@@ -755,9 +755,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     function rectPath(x, y, w, h, rx, ry) {
+        let res;
         if (rx) {
             if (!ry) ry = rx;
-            return [
+            res = [
                 ["M", +x + +rx, y],
                 ["l", w - rx * 2, 0],
                 ["a", rx, ry, 0, 0, 1, rx, ry],
@@ -769,8 +770,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
                 ["a", rx, ry, 0, 0, 1, rx, -ry],
                 ["z"],
             ];
+        } else {
+            res = [["M", x, y], ["l", w, 0], ["l", 0, h], ["l", -w, 0], ["z"]];
         }
-        const res = [["M", x, y], ["l", w, 0], ["l", 0, h], ["l", -w, 0], ["z"]];
         res.toString = toString;
         return res;
     }
@@ -1721,6 +1723,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return points;
     }
 
+    /**
+     * Gets sampled points along a path
+     * @method Element.getPointSample
+     * @param {Number} [sample=10] - Number of sample points to generate along the path
+     * @returns {Array<{x:Number, y:Number}>} Array of sampled point coordinates, or null if not a path
+     */
     elproto.getPointSample = getPointSample;
 
     function mapPath(path, matrix) {
@@ -1888,16 +1896,30 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
      */
     elproto.isCompound = isCompound;
 
+    /**
+     * Gets control points and endpoints for a path element
+     * @method Element.getControlPoints
+     * @param {Boolean} [segment_points] - If true, only includes segment endpoints and control points
+     * @param {Boolean} [skip_same_last] - If true, removes duplicate points at path boundaries
+     * @returns {Array<Array<Number>>} Array of [x, y] coordinate pairs representing control and segment points
+     */
     elproto.getControlPoints = getControlPoints;
     /**
      * Gets control points for path segments
      * @method getControlPoints
      * @memberof Snap.path
      * @param {string|Array|Element} path - Path string, path array, or path element
-     * @returns {Array} Array of control point coordinates
+     * @param {Boolean} [segment_points] - If true, only includes segment endpoints and control points
+     * @param {Boolean} [skip_same_last] - If true, removes duplicate points at path boundaries
+     * @returns {Array<Array<Number>>} Array of [x, y] coordinate pairs representing control and segment points
      */
     Snap.path.getControlPoints = getControlPoints;
 
+    /**
+     * Checks if an element represents a closed polygon
+     * @method Element.isPolygon
+     * @returns {Boolean} True if element is a polygon, polyline, line, or path representing a closed polygon
+     */
     elproto.isPolygon = isPolygon;
     /**
      * Checks if a path represents a closed polygon
@@ -1942,13 +1964,18 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
 
     /**
      * Splits a compound path into individual path segments
+     * @method Element.getCompoundSegments
+     * @returns {Array<String|Array>} Array of individual path segments, or null if invalid input
+     */
+    elproto.getCompoundSegments = getPathCompoundSegments;
+    /**
+     * Splits a compound path into individual path segments
      * @method getCompoundSegments
      * @memberof Snap.path
      * @param {string|Array|Element} path - Path string, path array, or path element
      * @returns {Array} Array of individual path segments
      */
     Snap.path.getCompoundSegments = getPathCompoundSegments;
-    elproto.getCompoundSegments = getPathCompoundSegments;
 
     function polygonLength(el, close, matrix) {
 
@@ -1976,10 +2003,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     /**
-     * Element.getTotalLength @method
-     *
-     * Returns the length of the path in pixels (only works for `path` elements)
-     * @returns {number} length
+     * Gets the total length of the element in pixels
+     * @method Element.getTotalLength
+     * @returns {number} Total length in pixels for path, polyline, polygon, rect, line, ellipse, or circle elements
+     * @description Works for path, polyline, polygon, line, rect, ellipse, and circle elements.
+     * Uses getTotalLength() API for paths if available, or calculates based on element type.
      */
     elproto.getTotalLength = function () {
         if (this.type === "path" && this.node.getTotalLength) {
@@ -2125,9 +2153,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     /**
-     * Reverses the direction of a path, polygon, or polyline
+     * Reverses the direction of a path, polygon, or polyline element
      * @method Element.reverse
-     * @returns {Element} Element for chaining
+     * @returns {Element} Returns this element for method chaining
+     * @description For paths, reverses all path segments. For polylines and polygons, reverses the point order.
+     * Only applies to path, polygon, and polyline elements; returns this unchanged for other types.
      */
     elproto.reverse = function () {
         const type = this.type;
@@ -2465,10 +2495,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     /**
-     * Generates {@link PathPoint} descriptors for the element's path data.
-     *
-     * @returns {PathPoint[]}
-     *          Ordered points enriched with control handles and segment metadata.
+     * Analyzes path segments and generates detailed point descriptors
+     * @method Element.getSegmentAnalysis
+     * @returns {Array<PathPoint>} Array of PathPoint objects with control handles and segment metadata
      */
     elproto.getSegmentAnalysis = function () {
         const converter = getPath[this.type] || getPath.deflt;
@@ -2679,7 +2708,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return storage.length - 1;
     }
 
-    function buildGenTransformCache(path) {
+    function buildGenTransformCache(path, options) {
         const originalD = path.attr("d") || "";
         const poly = path.toPolyBezier();
         if (!poly || !poly.curves || !poly.curves.length) {
@@ -2694,6 +2723,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
             };
         }
 
+        options = options || {};
         const points = [];
         const segments = [];
         const subpaths = [];
@@ -2717,7 +2747,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
                 continue;
             }
             let reduced;
-            reduced = cubic.reduce(true);
+            let step2 = !!options.simplify;
+            let max_size = options.max_size || undefined;
+            reduced = cubic.reduce(step2, max_size);
             const parts = (reduced && reduced.length) ? reduced : [cubic];
             for (let j = 0; j < parts.length; ++j) {
                 const piece = parts[j];
@@ -2832,19 +2864,35 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return parts.join(" ");
     }
 
+    /**
+     * Applies a generative transformation function to path control points
+     * @method Element.genTransform
+    * @param {Function} transform - Function that accepts {x, y} and returns transformed {x, y} coordinates
+    * @param {Boolean|Object} [options] - If boolean, returns path string instead of modifying element.
+    *        If an object, can contain:
+    *        - `returnPath` {boolean}: Return the transformed `d` string without mutating the element.
+    *        - `filter` {function(Point):boolean}: Skip transformation for points where filter returns false.
+    *        - `simplify` {boolean}: Reduce/split curves to ensure each section bends less than ~60° before sampling.
+    *        - `max_size` {number}: Force curve sections to be subdivided until each span is below this length, even if `simplify` is false.
+     * @returns {Element|String} Returns element for chaining, or path string if returnPath is true
+     */
     elproto.genTransform = function (transform, options) {
         if (this.type !== "path") {
             return this;
         }
         let returnPathOnly = false;
+        let filter;
         if (typeof options === 'boolean') {
             returnPathOnly = options;
         } else if (options && typeof options === 'object') {
             returnPathOnly = !!options.returnPath;
+            if (options.filter && typeof options.filter === 'function') {
+                filter = options.filter;
+            }
         }
         let cache = this.data(GEN_TRANSFORM_DATA_KEY);
         if (!cache) {
-            cache = buildGenTransformCache(this);
+            cache = buildGenTransformCache(this, options);
             this.data(GEN_TRANSFORM_DATA_KEY, cache);
         }
 
@@ -2868,7 +2916,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
             const base = basePoints[i];
             inputPoint.x = base.x;
             inputPoint.y = base.y;
-            const mapped = transform(inputPoint) || inputPoint;
+            const transformed = (!filter || filter(inputPoint)) ? transform(inputPoint) : null;
+            const mapped = transformed || inputPoint;
             const target = transformedPoints[i];
             target.x = (mapped && isFinite(mapped.x)) ? mapped.x : base.x;
             target.y = (mapped && isFinite(mapped.y)) ? mapped.y : base.y;
@@ -2884,6 +2933,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return this;
     };
 
+    /**
+     * Clears the generative transform cache for this element
+     * @method Element.getTransformFix
+     * @returns {Element} Returns this element for method chaining
+     */
     elproto.getTransformFix = function () {
         this.removeData(GEN_TRANSFORM_DATA_KEY);
         return this;

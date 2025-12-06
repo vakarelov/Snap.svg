@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-12-01
+// build: 2025-12-05
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -4342,41 +4342,68 @@
          * @returns {number} angle in degrees
          */
         Snap.angle = angle;
-        /**
+       /**
          * Snap.len @method
          *
          * Returns distance between two points
-         * @param {number} x1 - x coord of first point
-         * @param {number} y1 - y coord of first point
-         * @param {number} x2 - x coord of second point
-         * @param {number} y2 - y coord of second point
+         * @param {number|Object|Array} x1 - x coord of first point or first point object/array
+         * @param {number|Object|Array} y1 - y coord of first point or second point object/array
+         * @param {number} [x2] - x coord of second point
+         * @param {number} [y2] - y coord of second point
+         * @param {number} [z1] - z coord of first point (for 3D)
+         * @param {number} [z2] - z coord of second point (for 3D)
          * @returns {number} distance
          */
-        Snap.len = function (x1, y1, x2, y2) {
-            return Math.sqrt(Snap.len2(x1, y1, x2, y2));
+        Snap.len = function (x1, y1, x2, y2, z1, z2) {
+            return Math.sqrt(Snap.len2(...arguments));
         };
         /**
          * Snap.len2 @method
          *
-         * Returns squared distance between two points
-         * @param {number} x1 - x coord of first point
-         * @param {number} y1 - y coord of first point
-         * @param {number} x2 - x coord of second point
-         * @param {number} y2 - y coord of second point
-         * @returns {number} distance
+         * Returns squared distance between two points (supports 2D and 3D)
+         * Signatures supported:
+         *  - (x1, y1, x2, y2)             -> 2D
+         *  - (x1, y1, z1, x2, y2, z2)     -> 3D (positional 6 args)
+         *  - (point1, point2)             -> objects/arrays, may include z
+         *  - (point1, x2, y2 [, z2])      -> mixed
+         *
+         * @returns {number} squared distance
          */
-        Snap.len2 = function (x1, y1, x2, y2) {
-            if (typeof y1 === "object") {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+        Snap.len2 = function (x1, y1, x2, y2, z1, z2) {
+            // Positional 6-arg: (x1, y1, z1, x2, y2, z2)
+            if (arguments.length >= 6 && typeof arguments[2] !== "object") {
+                z1 = arguments[2];
+                x2 = arguments[3];
+                y2 = arguments[4];
+                z2 = arguments[5];
+            } else {
+                // If second param is an object/array -> it's the second point: (pt1, pt2)
+                if (typeof y1 === "object") {
+                    x2 = y1.x || y1[0] || 0;
+                    y2 = y1.y || y1[1] || 0;
+                    z2 = y1.z || y1[2] || 0;
+                }
+                // If first param is an object/array -> unpack first point
+                if (typeof x1 === "object") {
+                    z1 = x1.z || x1[2] || 0;
+                    y1 = x1.y || x1[1] || 0;
+                    x1 = x1.x || x1[0] || 0;
+                }
+                // If third param is an object/array -> unpack second point given as third arg
+                if (typeof x2 === "object") {
+                    z2 = x2.z || x2[2] || 0;
+                    y2 = x2.y || x2[1] || 0;
+                    x2 = x2.x || x2[0] || 0;
+                }
             }
-            if (typeof x1 == "object") {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            x2 = x2 || 0;
-            y2 = y2 || 0;
-            return (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
+            x1 = +x1 || 0;
+            y1 = +y1 || 0;
+            z1 = +z1 || 0;
+            x2 = +x2 || 0;
+            y2 = +y2 || 0;
+            z2 = +z2 || 0;
+            const dx = x1 - x2, dy = y1 - y2, dz = z1 - z2;
+            return dx * dx + dy * dy + dz * dz;
         };
         /**
          * Snap.closestPoint @method
@@ -5944,19 +5971,17 @@ Snap.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
  * Copyright (c) 2018.  Orlin Vakarelov
  */
 Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
-        const hub = Snap._.hub;
-        const ID = Snap._.id;
-        const $ = Snap._.$;
-        const has = "hasOwnProperty";
-
-
-        /**
-         * Element class
-         * Wraps an SVG element with Snap methods
-         *
-         * @class Snap.Element
-         * @param {SVGElement} el Underlying DOM node.
-         */
+    const hub = Snap._.hub;
+    const ID = Snap._.id;
+    const $ = Snap._.$;
+    const has = "hasOwnProperty";
+    /**
+     * Element class
+     * Wraps an SVG element with Snap methods
+     *
+     * @class Snap.Element
+     * @param {SVGElement} el Underlying DOM node.
+     */
         class Element {
             constructor(el) {
                 if (el.snap in hub) {
@@ -6082,6 +6107,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Collects representative points for the element's geometry.
+         *
+         * @function Snap.Element#getPoints
          * @param {boolean} [use_local_transform=false] When true, applies the element's local matrix to the returned points.
          * @param {boolean} [skip_hidden=false] When true, ignores children with `display: none`.
          * @returns {Point2DList} Array of points that describe the element footprint.
@@ -6193,6 +6220,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Builds the convex hull for an element, optionally applying its current transform.
+         *
+         * @function Snap.Element#getCHull
          * @param {boolean} [with_transform=false] When true, returns the hull in global coordinates.
          * @param {boolean} [skip_hidden=false] When true, excludes hidden descendants while computing the hull.
          * @returns {(Point2DList|null)} Array of hull vertices ordered clockwise, or `null` for unresolved targets.
@@ -6238,6 +6267,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Resolves the underlying element referenced by a `<use>` node.
+         *
+         * @function Snap.Element#getUseTarget
          * @returns {Element|null} Resolved target element or `null` when no referenced node is available.
          */
         elproto.getUseTarget = function () {
@@ -6258,6 +6289,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Persists the provided matrix on the element instance for subsequent lookups.
+         *
+         * @function Snap.Element#saveMatrix
          * @param {Snap.Matrix} m Matrix to assign as the element's current transform cache.
          */
         elproto.saveMatrix = function (m) {
@@ -6294,6 +6327,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * clip-path intersection.
          * The returned descriptor exposes the canonical {@link Snap.BBox} API enriched with helper fields such as `cx`,
          * `cy`, `path`, `vb`, and circle radii (`r0`, `r1`, `r2`).
+         *
+         * @function Snap.Element#getBBox
          * @param {boolean|Element|Snap.Matrix|Object} [settings] When `true`, omits the local transform from the answer. A
          * {@link Element} scopes the result relative to an ancestor. A {@link Snap.Matrix} explicitly defines the applied
          * transform. An options object may contain `without_transform`, `cache_bbox`, `include_clip_path`, `approx`,
@@ -6559,6 +6594,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Convenience wrapper around {@link Element#getBBox} that enforces approximate convex-hull evaluation.
+         *
+         * @function Snap.Element#getBBoxApprox
          * @param {Object} [setting={}] Optional settings forwarded to {@link Element#getBBox}.
          * @returns {Snap.BBox|null} Approximate bounding box or `null` on failure.
          */
@@ -6569,6 +6606,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Forces precise bounding-box computation for the element, ignoring cached approximations.
+         *
+         * @function Snap.Element#getBBoxExact
          * @param {boolean|Object|Snap.Matrix} [settigns] Options forwarded to {@link Element#getBBox}.
          * @returns {Snap.BBox|null} Exact bounding box or `null` on failure.
          */
@@ -6584,6 +6623,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Registers or triggers attribute change monitors on the element.
+         *
+         * @function Snap.Element#attrMonitor
          * @param {string|string[]} attr Attribute name or list of names to monitor.
          * @param {Function} [callback_val] Callback invoked with the attribute's current value when changes occur. When
          * omitted, previously registered callbacks for `attr` are executed immediately.
@@ -6717,6 +6758,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Clears cached convex hull data for the element and optionally its ancestors.
+         *
+         * @function Snap.Element#clearCHull
          * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
          */
         elproto.clearCHull = function (force_top) {
@@ -6746,6 +6789,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          */
         /**
          * Gets or sets the element transform.
+         *
+         * @function Snap.Element#transform
          * @param {string|Snap.Matrix} [tstr] Transform string or matrix to apply. When omitted, returns a descriptor with
          * the current transform matrices.
          * @param {boolean} [do_update=false] When true, refreshes cached bounding boxes after applying the transform.
@@ -6897,6 +6942,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Normalises the element's current transform attribute and saves it as a matrix.
+         *
+         * @function Snap.Element#transToMatrix
          */
         elproto.transToMatrix = function () {
             let tstr = "";
@@ -6933,6 +6980,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Updates the cached bounding box after a transformation or clears it when the new transform is incompatible.
+         *
+         * @function Snap.Element#updateBBoxCache
          * @param {Snap.Matrix} [matrix] Matrix describing the current transformation.
          * @param {boolean|number} [apply] When `-1`, clears the cache entirely. Otherwise controls whether child caches are
          * updated.
@@ -7011,6 +7060,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Expands cached bounding boxes up the parent chain when the current element grows in size.
+         *
+         * @function Snap.Element#expandParenBBoxCatch
          * @param {Snap.BBox|{x:number,y:number,r:number}} bbox_circ Bounding region describing the new extent.
          * @param {boolean} [is_circle=false] Indicates that `bbox_circ` represents a circle definition.
          */
@@ -7049,6 +7100,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          */
         /**
          * Invalidates cached bounding boxes stored on parent elements.
+         *
+         * @function Snap.Element#eraseParentBBoxCache
          * @param {Snap.BBox|{x:number,y:number,r:number}} [bbox_circle] Bounding region used to decide whether the parent
          * caches still contain the element.
          */
@@ -7092,6 +7145,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Removes the cached bounding box from the element and, recursively, its children.
+         *
+         * @function Snap.Element#eraseBBoxCache
          */
         elproto.eraseBBoxCache = function () {
             this.attr({bbox: ""});
@@ -7105,6 +7160,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Retrieves the element's local matrix, parsing it from the DOM when not cached.
+         *
+         * @function Snap.Element#getLocalMatrix
          * @param {boolean} [strict=false] Enforces strict parsing semantics for the transform attribute.
          * @returns {Snap.Matrix} Local transformation matrix.
          */
@@ -7119,6 +7176,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns the element's current global transformation matrix using the DOM CTM API.
+         *
+         * @function Snap.Element#getGlobalMatrix
          * @returns {Snap.Matrix} Global matrix representing the element's absolute transform.
          */
         elproto.getGlobalMatrix = function () {
@@ -7129,6 +7188,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Registers a DOM or Snap partner that should mirror this element's transformations and style updates.
+         *
+         * @function Snap.Element#setPartner
          * @param {Element|HTMLElement|Object} el_dom Partner reference (Snap element, DOM node, or jQuery-like wrapper).
          * @param {boolean} [strict] Reserved flag for stricter partner synchronisation.
          */
@@ -7165,6 +7226,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Updates the registry of partner children when elements are added or removed.
+         *
+         * @function Snap.Element#_updatePartnerChild
          * @param {Element} el Child element that was added or removed.
          * @param {boolean} [remove=false] Indicates whether the child should be removed from the registry.
          * @returns {Element} Current element for chaining.
@@ -7200,6 +7263,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Propagates transformation updates to partner children.
+         *
+         * @function Snap.Element#_propagateTransToPartnersChild
          * @param {Element} el Partner child receiving the propagated transform.
          * @param {Snap.Matrix} [trans] Matrix to apply; defaults to the current element's global matrix.
          */
@@ -7215,6 +7280,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Applies the provided matrix to each registered partner, keeping their transforms aligned.
+         *
+         * @function Snap.Element#_applyToPartner
          * @param {Snap.Matrix} matrix Matrix to propagate.
          */
         elproto._applyToPartner = function (matrix) {
@@ -7242,6 +7309,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Removes partner associations or optionally deletes the partner nodes themselves.
+         *
+         * @function Snap.Element#removePartner
          * @param {"dom"|"element"|Element|HTMLElement|Snap|boolean} [el_type] Partner type or specific partner reference.
          * @param {boolean} [remove_elements=false] When true, removes the partner elements from the DOM/SVG tree.
          */
@@ -7299,6 +7368,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Determines whether any partners are currently registered with the element.
+         *
+         * @function Snap.Element#hasPartner
          * @returns {boolean} True when at least one DOM or Snap partner exists.
          */
         elproto.hasPartner = function () {
@@ -7307,6 +7378,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns registered partners filtered by type.
+         *
+         * @function Snap.Element#getPartners
          * @param {"dom"|"element"|"both"} [el_type] Desired partner category.
          * @returns {Array|Object|undefined} Matching partners or `undefined` when none exist.
          */
@@ -7324,6 +7397,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Applies style updates to registered partners, mirroring key display-related properties.
+         *
+         * @function Snap.Element#setPartnerStyle
          * @param {Object} style_obj Style object whose `opacity` and `display` values are forwarded to partners.
          */
         elproto.setPartnerStyle = function (style_obj) {
@@ -7340,6 +7415,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns the element's parent element.
+         *
+         * @function Snap.Element#parent
          * @returns {Element} Parent element wrapper.
          */
         elproto.parent = function () {
@@ -7348,6 +7425,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Assigns a new paper instance to the element and all of its descendants.
+         *
+         * @function Snap.Element#setPaper
          * @param {Paper} paper Target paper instance.
          * @param {boolean} [force=false] When true, reassigns even if the paper is unchanged.
          * @returns {Element} Current element for chaining.
@@ -7363,6 +7442,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Appends the provided element (or set) to the current element.
+         *
+         * @function Snap.Element#append
+         * @function Snap.Element#add
          * @param {Element|Set|Array<Element>} el Element, set, or array to append.
          * @param {number} [index] Optional insertion index (0-based). If provided, inserts before current child at that index.
          * @returns {Element} Parent element for chaining
@@ -7415,6 +7497,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Appends the current element to the specified parent.
+         *
+         * @function Snap.Element#appendTo
          * @param {Element} el Parent element that will receive this node.
          * @returns {Element} Child element for chaining.
          */
@@ -7428,6 +7512,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Prepends the specified element (or set) to the current element.
+         *
+         * @function Snap.Element#prepend
          * @param {Element|Set} el Element to prepend.
          * @returns {Element} Parent element for chaining.
          */
@@ -7459,6 +7545,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Prepends this element to the specified parent.
+         *
+         * @function Snap.Element#prependTo
          * @param {Element} el Parent element to receive this node.
          * @returns {Element} Child element for chaining.
          */
@@ -7469,6 +7557,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the provided element before the current element.
+         *
+         * @function Snap.Element#before
          * @param {Element|Set} el Element to insert.
          * @returns {Element} Parent element for chaining.
          */
@@ -7494,6 +7584,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the provided element after the current element.
+         *
+         * @function Snap.Element#after
          * @param {Element} el Element to insert.
          * @returns {Element} Parent element for chaining.
          */
@@ -7518,6 +7610,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the current element before the provided sibling.
+         *
+         * @function Snap.Element#insertBefore
          * @param {Element} el Sibling element used as insertion point.
          * @returns {Element} Parent element for chaining.
          */
@@ -7533,6 +7627,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the current element after the provided sibling.
+         *
+         * @function Snap.Element#insertAfter
          * @param {Element} el Sibling element used as insertion reference.
          * @returns {Element} Parent element for chaining.
          */
@@ -7548,6 +7644,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Removes the element from the DOM and detaches partner associations.
+         *
+         * @function Snap.Element#remove
          * @returns {Array<Element>} Collection of child elements that were detached alongside this element.
          */
         elproto.remove = function () {
@@ -7569,8 +7667,13 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             // parent && parent.add();
             return this.getChildren();
         };
+
         /**
          * Removes all child elements from the DOM.
+         * Iterates over direct children and removes each child element.
+         *
+         * @function Snap.Element#removeChildren
+         * @returns {Element} The current element for chaining.
          */
         elproto.removeChildren = function () {
             this.getChildren().forEach(function (el) {
@@ -7581,12 +7684,22 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return this;
         };
 
+        /**
+         * Alias for {@link Element#removeChildren}.
+         *
+         * @function Snap.Element#clear
+         * @returns {Element} The current element for chaining.
+         */
+        elproto.clear = elproto.removeChildren;
+
         /*
          * Element.getChildren
          * @method
          *
          * Returns an array of the children of the element, filtering out non-geometric elements. It shoulc be called
          * for the groups or the topmost svg element.
+         *
+         * @function Snap.Element#getChildren
          * */
         elproto.getChildren = function (visible, include_text) {
             if (this.sub_children) return this.sub_children;
@@ -7633,6 +7746,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Determines whether the element contains any non-meta child nodes.
+         *
+         * @function Snap.Element#hasChildren
          * @returns {boolean} True when at least one meaningful child exists.
          */
         elproto.hasChildren = function () {
@@ -7655,6 +7770,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns the first descendant matching the provided CSS selector.
+         *
+         * @function Snap.Element#select
          * @param {string} query CSS selector compatible with SVG.
          * @returns {Element|null} Wrapped element or `null` when not found.
          */
@@ -7664,6 +7781,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Returns all descendants matching the provided CSS selector.
+         *
+         * @function Snap.Element#selectAll
          * @param {string} query CSS selector compatible with SVG.
          * @returns {Array<Element>|Set} Collection containing all matches.
          */
@@ -7694,6 +7813,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Resolves an attribute value into pixels.
+         *
+         * @function Snap.Element#asPX
          * @param {string} attr Attribute name.
          * @param {string|number} [value] Optional raw value; defaults to the current attribute.
          * @returns {number} Attribute value converted to pixels.
@@ -7707,6 +7828,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 // SIERRA Element.use(): I suggest adding a note about how to access the original element the returned <use> instantiates. It's a part of SVG with which ordinary web developers may be least familiar.
         /**
          * Creates a `<use>` element referencing this element or one matched by the provided selector and appends it.
+         *
+         * @function Snap.Element#addUse
+         * @function Snap.Element#use
          * @param {string} [css_ref] CSS reference resolving to an element to clone.
          * @param {number} [x] Optional x-offset applied to the generated `<use>`.
          * @param {number} [y] Optional y-offset applied to the generated `<use>`.
@@ -7828,6 +7952,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Clones the element, optionally hiding it, renaming IDs, or performing a deep `use` expansion.
+         *
+         * @function Snap.Element#clone
          * @param {boolean} [hidden] When true, skips inserting the clone into the DOM.
          * @param {Function} [id_rename_callback] Callback used to generate unique IDs for the clone and descendants.
          * @param {boolean} [deep_copy=false] When true, expands `<use>` references into actual nodes.
@@ -7891,6 +8017,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Determines whether the element behaves like a grouping container.
+         *
+         * @function Snap.Element#isGroupLike
          * @returns {boolean} True for group-like elements.
          */
         elproto.isGroupLike = function () {
@@ -7899,6 +8027,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Recursively expands `<use>` elements into standalone clones.
+         *
+         * @function Snap.Element#removeUses
          */
         elproto.removeUses = function () {
             if (this.isGroupLike()) {
@@ -7944,6 +8074,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Moves the element into the shared `<defs>` section.
+         *
+         * @function Snap.Element#toDefs
          * @returns {Element} Current element for chaining.
          */
         elproto.toDefs = function () {
@@ -7953,6 +8085,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Converts the current element into a reusable `<pattern>` definition.
+         *
+         * @function Snap.Element#pattern
+         * @function Snap.Element#toPattern
          * @param {number|Object} [x] X coordinate or bounding-box object.
          * @param {number} [y]
          * @param {number} [width]
@@ -7985,6 +8120,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Converts the current element into a `<marker>` definition.
+         *
+         * @function Snap.Element#marker
          * @param {number|Object} [x] X coordinate or bounding-box-like descriptor containing marker data.
          * @param {number} [y]
          * @param {number} [width]
@@ -8025,6 +8162,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * Adds or retrieves given value associated with given key. (Don’t confuse
          * with `data-` attributes)
          *
+         * @function Snap.Element#data
          * See also @Element.removeData
          * @param {string} key - key to store data
          * @param {any} value - #optional value to store
@@ -8066,6 +8204,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          *
          * Removes value associated with an element by given key.
          * If key is not provided, removes all the data of the element.
+         *
+         * @function Snap.Element#removeData
          * @param {string} key - #optional key
          * @returns {object} @Element
          */
@@ -8082,12 +8222,14 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          *
          * Returns SVG code for the element, equivalent to HTML's `outerHTML`.
          *
+         * @function Snap.Element#outerSVG
          * See also @Element.innerSVG
          * @returns {string} SVG code for the element
          */
         /**
          * Element.toString @method
          *
+         * @function Snap.Element#toString
          * See @Element.outerSVG
          */
         elproto.outerSVG = elproto.toString = toString(1);
@@ -8095,6 +8237,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * Element.innerSVG @method
          *
          * Returns SVG code for the element's contents, equivalent to HTML's `innerHTML`
+         *
+         * @function Snap.Element#innerSVG
          * @returns {string} SVG code for the element
          */
         elproto.innerSVG = toString();
@@ -8136,6 +8280,12 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             };
         }
 
+        /**
+         * Serialises the element into a standalone SVG data URI.
+         *
+         * @function Snap.Element#toDataURL
+         * @returns {string|undefined} Base64 data URI or `undefined` when `window.btoa` is unavailable.
+         */
         elproto.toDataURL = function () {
             if (window && window.btoa) {
                 const bb = this.getBBox(),
@@ -8148,10 +8298,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                             height: +bb.height.toFixed(3),
                             contents: this.outerSVG(),
                         });
-               return "data:image/svg+xml;base64," +
-               btoa(encodeURIComponent(svg).replace(/%([0-9A-F]{2})/g, function (match, p1) {
-                   return String.fromCharCode(parseInt(p1, 16));
-               }));
+                return "data:image/svg+xml;base64," +
+                    btoa(encodeURIComponent(svg).replace(/%([0-9A-F]{2})/g, function (match, p1) {
+                        return String.fromCharCode(parseInt(p1, 16));
+                    }));
             }
         };
 
@@ -8160,6 +8310,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          *
          * Gets or sets given attributes of the element.
          *
+         * @function Snap.Element#attr
          * @param {object} params - contains key-value pairs of attributes you want to set
          * or
          * @param {string} param - name of the attribute
@@ -8214,8 +8365,19 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return el;
         };
 
+        /**
+         * Alias for {@link Snap.Element#attr} that mirrors jQuery-style APIs.
+         *
+         * @function Snap.Element#css
+         */
         elproto.css = elproto.attr;
 
+        /**
+         * Registers a callback to be invoked when the element is removed from the DOM.
+         *
+         * @function Snap.Element#registerRemoveFunction
+         * @param {Function} fun Callback executed with the element as argument upon removal.
+         */
         elproto.registerRemoveFunction = function (fun) {
             if (this.id in hub_rem) {
                 hub_rem[this.id].push(fun);
@@ -8224,6 +8386,11 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         };
 
+        /**
+         * Invokes and clears all registered removal callbacks for the element.
+         *
+         * @function Snap.Element#cleanupAfterRemove
+         */
         elproto.cleanupAfterRemove = function () {
             let reg_fun = hub_rem[this.id];
             if (reg_fun) {
@@ -13207,9 +13374,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     function rectPath(x, y, w, h, rx, ry) {
+        let res;
         if (rx) {
             if (!ry) ry = rx;
-            return [
+            res = [
                 ["M", +x + +rx, y],
                 ["l", w - rx * 2, 0],
                 ["a", rx, ry, 0, 0, 1, rx, ry],
@@ -13221,8 +13389,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
                 ["a", rx, ry, 0, 0, 1, rx, -ry],
                 ["z"],
             ];
+        } else {
+            res = [["M", x, y], ["l", w, 0], ["l", 0, h], ["l", -w, 0], ["z"]];
         }
-        const res = [["M", x, y], ["l", w, 0], ["l", 0, h], ["l", -w, 0], ["z"]];
         res.toString = toString;
         return res;
     }
@@ -14173,6 +14342,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return points;
     }
 
+    /**
+     * Gets sampled points along a path
+     * @method Element.getPointSample
+     * @param {Number} [sample=10] - Number of sample points to generate along the path
+     * @returns {Array<{x:Number, y:Number}>} Array of sampled point coordinates, or null if not a path
+     */
     elproto.getPointSample = getPointSample;
 
     function mapPath(path, matrix) {
@@ -14340,16 +14515,30 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
      */
     elproto.isCompound = isCompound;
 
+    /**
+     * Gets control points and endpoints for a path element
+     * @method Element.getControlPoints
+     * @param {Boolean} [segment_points] - If true, only includes segment endpoints and control points
+     * @param {Boolean} [skip_same_last] - If true, removes duplicate points at path boundaries
+     * @returns {Array<Array<Number>>} Array of [x, y] coordinate pairs representing control and segment points
+     */
     elproto.getControlPoints = getControlPoints;
     /**
      * Gets control points for path segments
      * @method getControlPoints
      * @memberof Snap.path
      * @param {string|Array|Element} path - Path string, path array, or path element
-     * @returns {Array} Array of control point coordinates
+     * @param {Boolean} [segment_points] - If true, only includes segment endpoints and control points
+     * @param {Boolean} [skip_same_last] - If true, removes duplicate points at path boundaries
+     * @returns {Array<Array<Number>>} Array of [x, y] coordinate pairs representing control and segment points
      */
     Snap.path.getControlPoints = getControlPoints;
 
+    /**
+     * Checks if an element represents a closed polygon
+     * @method Element.isPolygon
+     * @returns {Boolean} True if element is a polygon, polyline, line, or path representing a closed polygon
+     */
     elproto.isPolygon = isPolygon;
     /**
      * Checks if a path represents a closed polygon
@@ -14394,13 +14583,18 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
 
     /**
      * Splits a compound path into individual path segments
+     * @method Element.getCompoundSegments
+     * @returns {Array<String|Array>} Array of individual path segments, or null if invalid input
+     */
+    elproto.getCompoundSegments = getPathCompoundSegments;
+    /**
+     * Splits a compound path into individual path segments
      * @method getCompoundSegments
      * @memberof Snap.path
      * @param {string|Array|Element} path - Path string, path array, or path element
      * @returns {Array} Array of individual path segments
      */
     Snap.path.getCompoundSegments = getPathCompoundSegments;
-    elproto.getCompoundSegments = getPathCompoundSegments;
 
     function polygonLength(el, close, matrix) {
 
@@ -14428,10 +14622,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     /**
-     * Element.getTotalLength @method
-     *
-     * Returns the length of the path in pixels (only works for `path` elements)
-     * @returns {number} length
+     * Gets the total length of the element in pixels
+     * @method Element.getTotalLength
+     * @returns {number} Total length in pixels for path, polyline, polygon, rect, line, ellipse, or circle elements
+     * @description Works for path, polyline, polygon, line, rect, ellipse, and circle elements.
+     * Uses getTotalLength() API for paths if available, or calculates based on element type.
      */
     elproto.getTotalLength = function () {
         if (this.type === "path" && this.node.getTotalLength) {
@@ -14577,9 +14772,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     /**
-     * Reverses the direction of a path, polygon, or polyline
+     * Reverses the direction of a path, polygon, or polyline element
      * @method Element.reverse
-     * @returns {Element} Element for chaining
+     * @returns {Element} Returns this element for method chaining
+     * @description For paths, reverses all path segments. For polylines and polygons, reverses the point order.
+     * Only applies to path, polygon, and polyline elements; returns this unchanged for other types.
      */
     elproto.reverse = function () {
         const type = this.type;
@@ -14917,10 +15114,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     /**
-     * Generates {@link PathPoint} descriptors for the element's path data.
-     *
-     * @returns {PathPoint[]}
-     *          Ordered points enriched with control handles and segment metadata.
+     * Analyzes path segments and generates detailed point descriptors
+     * @method Element.getSegmentAnalysis
+     * @returns {Array<PathPoint>} Array of PathPoint objects with control handles and segment metadata
      */
     elproto.getSegmentAnalysis = function () {
         const converter = getPath[this.type] || getPath.deflt;
@@ -15131,7 +15327,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return storage.length - 1;
     }
 
-    function buildGenTransformCache(path) {
+    function buildGenTransformCache(path, options) {
         const originalD = path.attr("d") || "";
         const poly = path.toPolyBezier();
         if (!poly || !poly.curves || !poly.curves.length) {
@@ -15146,6 +15342,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
             };
         }
 
+        options = options || {};
         const points = [];
         const segments = [];
         const subpaths = [];
@@ -15169,7 +15366,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
                 continue;
             }
             let reduced;
-            reduced = cubic.reduce(true);
+            let step2 = !!options.simplify;
+            let max_size = options.max_size || undefined;
+            reduced = cubic.reduce(step2, max_size);
             const parts = (reduced && reduced.length) ? reduced : [cubic];
             for (let j = 0; j < parts.length; ++j) {
                 const piece = parts[j];
@@ -15284,19 +15483,35 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return parts.join(" ");
     }
 
+    /**
+     * Applies a generative transformation function to path control points
+     * @method Element.genTransform
+    * @param {Function} transform - Function that accepts {x, y} and returns transformed {x, y} coordinates
+    * @param {Boolean|Object} [options] - If boolean, returns path string instead of modifying element.
+    *        If an object, can contain:
+    *        - `returnPath` {boolean}: Return the transformed `d` string without mutating the element.
+    *        - `filter` {function(Point):boolean}: Skip transformation for points where filter returns false.
+    *        - `simplify` {boolean}: Reduce/split curves to ensure each section bends less than ~60° before sampling.
+    *        - `max_size` {number}: Force curve sections to be subdivided until each span is below this length, even if `simplify` is false.
+     * @returns {Element|String} Returns element for chaining, or path string if returnPath is true
+     */
     elproto.genTransform = function (transform, options) {
         if (this.type !== "path") {
             return this;
         }
         let returnPathOnly = false;
+        let filter;
         if (typeof options === 'boolean') {
             returnPathOnly = options;
         } else if (options && typeof options === 'object') {
             returnPathOnly = !!options.returnPath;
+            if (options.filter && typeof options.filter === 'function') {
+                filter = options.filter;
+            }
         }
         let cache = this.data(GEN_TRANSFORM_DATA_KEY);
         if (!cache) {
-            cache = buildGenTransformCache(this);
+            cache = buildGenTransformCache(this, options);
             this.data(GEN_TRANSFORM_DATA_KEY, cache);
         }
 
@@ -15320,7 +15535,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
             const base = basePoints[i];
             inputPoint.x = base.x;
             inputPoint.y = base.y;
-            const mapped = transform(inputPoint) || inputPoint;
+            const transformed = (!filter || filter(inputPoint)) ? transform(inputPoint) : null;
+            const mapped = transformed || inputPoint;
             const target = transformedPoints[i];
             target.x = (mapped && isFinite(mapped.x)) ? mapped.x : base.x;
             target.y = (mapped && isFinite(mapped.y)) ? mapped.y : base.y;
@@ -15336,6 +15552,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return this;
     };
 
+    /**
+     * Clears the generative transform cache for this element
+     * @method Element.getTransformFix
+     * @returns {Element} Returns this element for method chaining
+     */
     elproto.getTransformFix = function () {
         this.removeData(GEN_TRANSFORM_DATA_KEY);
         return this;
@@ -17866,6 +18087,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 p = list;
             }
             this.computedirection();
+            // Invalidate cached length
+            this._cachedLength = undefined;
         },
 
     /**
@@ -17879,19 +18102,30 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Calculates the curve length using numeric approximation for non-linear curves.
+     * Caches the result to avoid recomputation until geometry is modified.
      * @returns {number} Curve length in coordinate units.
      */
     length: function () {
+            // Return cached length if available
+            if (this._cachedLength !== undefined) {
+                return this._cachedLength;
+            }
+
+            let len;
             if (this.order === 1) {
                 let sum = (this.points[0].x - this.points[1].x) ** 2
                     + (this.points[0].y - this.points[1].y) ** 2;
 
                 if (this._3d) sum += (this.points[0].z - this.points[1].z) ** 2;
 
-                return Math.sqrt(sum);
+                len = Math.sqrt(sum);
+            } else {
+                len = utils.length(this.derivative.bind(this));
             }
 
-            return utils.length(this.derivative.bind(this));
+            // Cache the computed length
+            this._cachedLength = len;
+            return len;
         },
         _lut: [],
     /**
@@ -18341,6 +18575,47 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
     /**
+     * Splits the bezier curve into segments where the Euclidean distance
+     * between the first and last point is at most maxSize.
+     * Tries to make segments as evenly sized as possible with minimal splits.
+     * @param {number} maxSize Maximum distance between first and last point
+     * @returns {Array<Bezier>} Array of Bezier segments
+     */
+    reduceToSize: function (maxSize) {
+        const p1 = this.points[0];
+        const p2 = this.points[this.points.length - 1];
+
+        // Calculate squared distance between first and last point
+        let distSq = (p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y);
+        if (this._3d) {
+            distSq += (p1.z - p2.z) * (p1.z - p2.z);
+        }
+
+        const maxSizeSq = maxSize * maxSize;
+
+        // If already within size, return as single element array
+        if (distSq <= maxSizeSq) {
+            return [this];
+        }
+
+        // Calculate how many segments we need
+        const dist = Math.sqrt(distSq);
+        const numSegments = Math.ceil(dist / maxSize);
+
+        // Split evenly into segments
+        const result = [];
+        const step = 1.0 / numSegments;
+
+        for (let i = 0; i < numSegments; i++) {
+            const t1 = i * step;
+            const t2 = (i + 1) * step;
+            result.push(this.split(t1, t2));
+        }
+
+        return result;
+    },
+
+    /**
     * Calculates the curve extrema in each dimension.
     * @returns {ExtremaCollection} Extrema parameter collections.
      */
@@ -18460,117 +18735,135 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Splits the curve into simple segments suitable for offsetting and intersections.
-     * @param {boolean} [useExtremaPass=true] When true, performs the extrema-based pre-pass used by
-     * other algorithms that rely on extrema boundaries. Set to false to run only the simplicity pass.
+     * @param {boolean} [useExtremaPass=false] When true, performs ONLY the extrema-based pre-pass and returns
+     * without the second simplicity pass. Set to false (default) to run both extrema and simplicity passes.
+     * @param {number} [max_size] Optional maximum size for segments. If provided, the result will be
+     * further split using reduceToSize to ensure no segment exceeds this size.
      * @returns {Array<Bezier>} Array of simple sub-curves covering the original curve.
      */
-    reduce: function (useExtremaPass) {
-            useExtremaPass = (typeof useExtremaPass === 'undefined') ? true : !!useExtremaPass;
+    reduce: function (useExtremaPass, max_size) {
+            useExtremaPass = (typeof useExtremaPass === 'undefined') ? false : !!useExtremaPass;
             let i, t1 = 0;
             const order = this.order || (this.points.length - 1);
             const minStep = 1e-4;
             const maxIterations = 50;
             let segment;
             const pass1 = [], pass2 = [];
+            let result;
+            let hasError = false;
 
-            if (useExtremaPass) {
-                // first pass: split on extrema
-                let extrema = this.extrema().values;
-                if (extrema.indexOf(0) === -1) {
-                    extrema = [0].concat(extrema);
-                }
-                if (extrema.indexOf(1) === -1) {
-                    extrema.push(1);
-                }
-
-                extrema = extrema.filter(function (value, idx, arr) {
-                    return idx === 0 || !utils.approximately(value, arr[idx - 1]);
-                });
-
-                for (t1 = extrema[0], i = 1; i < extrema.length; ++i) {
-                    const t2 = extrema[i];
-                    if (utils.approximately(t2, t1)) {
-                        t1 = t2;
-                        continue;
-                    }
-                    segment = this.split(t1, t2);
-                    segment._t1 = t1;
-                    segment._t2 = t2;
-                    pass1.push(segment);
-                    t1 = t2;
-                }
-            } else {
-                const base = this.clone();
-                base._t1 = this._t1;
-                base._t2 = this._t2;
-                pass1.push(base);
+            // first pass: split on extrema (always performed)
+            let extrema = this.extrema().values;
+            if (extrema.indexOf(0) === -1) {
+                extrema = [0].concat(extrema);
+            }
+            if (extrema.indexOf(1) === -1) {
+                extrema.push(1);
             }
 
-            // second pass: further reduce these segments to simple segments
-            for (let idx = 0; idx < pass1.length; ++idx) {
-                const p1 = pass1[idx];
-                if (p1.simple()) {
-                    pass2.push(p1);
+            extrema = extrema.filter(function (value, idx, arr) {
+                return idx === 0 || !utils.approximately(value, arr[idx - 1]);
+            });
+
+            for (t1 = extrema[0], i = 1; i < extrema.length; ++i) {
+                const t2 = extrema[i];
+                if (utils.approximately(t2, t1)) {
+                    t1 = t2;
                     continue;
                 }
+                segment = this.split(t1, t2);
+                segment._t1 = t1;
+                segment._t2 = t2;
+                pass1.push(segment);
+                t1 = t2;
+            }
 
-                let localStart = 0;
-                while (localStart < 1) {
-                    let currentSegment = p1.split(localStart, 1);
-                    let segmentEnd = 1;
-
-                    if (!currentSegment.simple()) {
-                        let low = localStart;
-                        let high = 1;
-                        let attempts = 0;
-                        let bestSegment = null;
-                        let bestEnd = localStart;
-
-                        while (high - low > minStep && attempts++ < maxIterations) {
-                            const mid = low + (high - low) / 2;
-                            const testSegment = p1.split(localStart, mid);
-                            if (testSegment.simple()) {
-                                bestSegment = testSegment;
-                                bestEnd = mid;
-                                low = mid;
-                            } else {
-                                high = mid;
-                            }
-                        }
-
-                        if (!bestSegment) {
-                            const minEnd = Math.min(1, localStart + minStep);
-                            bestSegment = p1.split(localStart, minEnd);
-                            if (!bestSegment.simple()) {
-                                return [];
-                            }
-                            segmentEnd = minEnd;
-                            currentSegment = bestSegment;
-                        } else {
-                            segmentEnd = bestEnd;
-                            currentSegment = bestSegment;
-                        }
+            // If useExtremaPass is true, use first pass only
+            if (useExtremaPass) {
+                result = pass1;
+            } else {
+                // second pass: further reduce these segments to simple segments
+                for (let idx = 0; idx < pass1.length; ++idx) {
+                    const p1 = pass1[idx];
+                    if (p1.simple()) {
+                        pass2.push(p1);
+                        continue;
                     }
 
-                    if (segmentEnd <= localStart || utils.approximately(segmentEnd, localStart)) {
-                        segmentEnd = Math.min(1, localStart + minStep);
-                        currentSegment = p1.split(localStart, segmentEnd);
+                    let localStart = 0;
+                    while (localStart < 1) {
+                        let currentSegment = p1.split(localStart, 1);
+                        let segmentEnd = 1;
+
                         if (!currentSegment.simple()) {
-                            return [];
+                            let low = localStart;
+                            let high = 1;
+                            let attempts = 0;
+                            let bestSegment = null;
+                            let bestEnd = localStart;
+
+                            while (high - low > minStep && attempts++ < maxIterations) {
+                                const mid = low + (high - low) / 2;
+                                const testSegment = p1.split(localStart, mid);
+                                if (testSegment.simple()) {
+                                    bestSegment = testSegment;
+                                    bestEnd = mid;
+                                    low = mid;
+                                } else {
+                                    high = mid;
+                                }
+                            }
+
+                            if (!bestSegment) {
+                                const minEnd = Math.min(1, localStart + minStep);
+                                bestSegment = p1.split(localStart, minEnd);
+                                if (!bestSegment.simple()) {
+                                    hasError = true;
+                                    break;
+                                }
+                                segmentEnd = minEnd;
+                                currentSegment = bestSegment;
+                            } else {
+                                segmentEnd = bestEnd;
+                                currentSegment = bestSegment;
+                            }
+                        }
+
+                        if (segmentEnd <= localStart || utils.approximately(segmentEnd, localStart)) {
+                            segmentEnd = Math.min(1, localStart + minStep);
+                            currentSegment = p1.split(localStart, segmentEnd);
+                            if (!currentSegment.simple()) {
+                                hasError = true;
+                                break;
+                            }
+                        }
+
+                        currentSegment._t1 = utils.map(localStart, 0, 1, p1._t1, p1._t2);
+                        currentSegment._t2 = utils.map(segmentEnd, 0, 1, p1._t1, p1._t2);
+                        pass2.push(currentSegment);
+
+                        localStart = segmentEnd;
+                        if (localStart >= 1 || utils.approximately(localStart, 1)) {
+                            localStart = 1;
                         }
                     }
 
-                    currentSegment._t1 = utils.map(localStart, 0, 1, p1._t1, p1._t2);
-                    currentSegment._t2 = utils.map(segmentEnd, 0, 1, p1._t1, p1._t2);
-                    pass2.push(currentSegment);
-
-                    localStart = segmentEnd;
-                    if (localStart >= 1 || utils.approximately(localStart, 1)) {
-                        localStart = 1;
+                    if (hasError) {
+                        break;
                     }
                 }
+
+                result = hasError ? [] : pass2;
             }
-            return pass2;
+
+            // Apply max_size reduction if specified (only once before return)
+            if (max_size && result.length > 0) {
+                result = result.reduce((acc, curve) => {
+                    return acc.concat(curve.reduceToSize(max_size));
+                }, []);
+            }
+
+            return result;
         },
 
     /**
@@ -18928,6 +19221,291 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             while (e < 1);
             return circles;
         },
+
+        /**
+         * Projects a 3D Bezier curve onto a 2D plane.
+         * @param {string} [plane='xy'] Plane to project onto: 'xy', 'xz', 'yz'
+         * @returns {Bezier} New 2D Bezier curve with projected control points.
+         * @throws {Error} If the curve is already 2D.
+         */
+        projectToPlane: function (plane) {
+            plane = plane || 'xy';
+
+            if (!this._3d) {
+                throw new Error('projectToPlane: curve is already 2D');
+            }
+
+            const validPlanes = ['xy', 'xz', 'yz'];
+            if (validPlanes.indexOf(plane) === -1) {
+                throw new Error('projectToPlane: plane must be one of: xy, xz, yz');
+            }
+
+            const points2d = this.points.map(function (p) {
+                switch (plane) {
+                    case 'xy':
+                        return {x: p.x, y: p.y};
+                    case 'xz':
+                        return {x: p.x, y: p.z};
+                    case 'yz':
+                        return {x: p.y, y: p.z};
+                }
+            });
+
+            return new Bezier(points2d);
+        },
+
+        /**
+         * Projects a 3D Bezier curve to 2D using orthographic projection.
+         * This is equivalent to projectToPlane('xy') - drops the z coordinate.
+         * @returns {Bezier} New 2D Bezier curve with projected control points.
+         * @throws {Error} If the curve is already 2D.
+         */
+        projectOrthographic: function () {
+            if (!this._3d) {
+                throw new Error('projectOrthographic: curve is already 2D');
+            }
+            return this.projectToPlane('xy');
+        },
+
+        /**
+         * Projects a 3D Bezier curve to 2D using a custom projection function.
+         * @param {Function} projectionFn Function that takes a 3D point {x, y, z} and returns a 2D point {x, y}
+         * @returns {Bezier} New 2D Bezier curve with projected control points.
+         * @throws {Error} If the curve is already 2D or projection function is invalid.
+         */
+        projectCustom: function (projectionFn) {
+            if (!this._3d) {
+                throw new Error('projectCustom: curve is already 2D');
+            }
+
+            if (typeof projectionFn !== 'function') {
+                throw new Error('projectCustom: projectionFn must be a function');
+            }
+
+            const points2d = this.points.map(function (p) {
+                const projected = projectionFn(p);
+                if (!projected || typeof projected.x === 'undefined' || typeof projected.y === 'undefined') {
+                    throw new Error('projectCustom: projection function must return {x, y}');
+                }
+                return {x: projected.x, y: projected.y};
+            });
+
+            return new Bezier(points2d);
+        },
+
+        /**
+         * Projects a 3D Bezier curve to 2D using perspective projection.
+         * @param {Object} options Projection options
+         * @param {number} [options.focalLength=500] Focal length (distance from camera to projection plane)
+         * @param {Object} [options.camera={x:0, y:0, z:0}] Camera position
+         * @param {Object} [options.target={x:0, y:0, z:1}] Point the camera is looking at
+         * @param {Object} [options.up={x:0, y:1, z:0}] Up vector
+         * @returns {Bezier} New 2D Bezier curve with perspective-projected control points.
+         * @throws {Error} If the curve is already 2D.
+         */
+        projectPerspective: function (options) {
+            if (!this._3d) {
+                throw new Error('projectPerspective: curve is already 2D');
+            }
+
+            options = options || {};
+            const focalLength = options.focalLength || 500;
+            const camera = options.camera || {x: 0, y: 0, z: 0};
+            const target = options.target || {x: 0, y: 0, z: 1};
+            const up = options.up || {x: 0, y: 1, z: 0};
+
+            // Build view matrix
+            // Forward vector (from camera to target)
+            const fwd = {
+                x: target.x - camera.x,
+                y: target.y - camera.y,
+                z: target.z - camera.z
+            };
+            const fwdLen = sqrt(fwd.x * fwd.x + fwd.y * fwd.y + fwd.z * fwd.z);
+            fwd.x /= fwdLen;
+            fwd.y /= fwdLen;
+            fwd.z /= fwdLen;
+
+            // Right vector (cross product of forward and up)
+            const right = {
+                x: fwd.y * up.z - fwd.z * up.y,
+                y: fwd.z * up.x - fwd.x * up.z,
+                z: fwd.x * up.y - fwd.y * up.x
+            };
+            const rightLen = sqrt(right.x * right.x + right.y * right.y + right.z * right.z);
+            right.x /= rightLen;
+            right.y /= rightLen;
+            right.z /= rightLen;
+
+            // Recalculate up vector (cross product of right and forward)
+            const upVec = {
+                x: right.y * fwd.z - right.z * fwd.y,
+                y: right.z * fwd.x - right.x * fwd.z,
+                z: right.x * fwd.y - right.y * fwd.x
+            };
+
+            const points2d = this.points.map(function (p) {
+                // Transform point to camera space
+                const translated = {
+                    x: p.x - camera.x,
+                    y: p.y - camera.y,
+                    z: p.z - camera.z
+                };
+
+                // Apply view matrix transformation
+                const viewX = translated.x * right.x + translated.y * right.y + translated.z * right.z;
+                const viewY = translated.x * upVec.x + translated.y * upVec.y + translated.z * upVec.z;
+                const viewZ = translated.x * fwd.x + translated.y * fwd.y + translated.z * fwd.z;
+
+                // Perspective divide
+                const depth = viewZ + focalLength;
+                if (abs(depth) < 0.0001) {
+                    // Point is at or behind the camera, project to a large distance
+                    return {x: viewX * 10000, y: viewY * 10000};
+                }
+
+                const scale = focalLength / depth;
+                return {
+                    x: viewX * scale,
+                    y: viewY * scale
+                };
+            });
+
+            return new Bezier(points2d);
+        },
+
+        /**
+         * Projects a 3D Bezier curve to 2D using an arbitrary projection matrix.
+         * Supports both 3x3 and 4x4 projection matrices.
+         * @param {Array<Array<number>>} matrix 3x3 or 4x4 projection matrix
+         * @returns {Bezier} New 2D Bezier curve with matrix-projected control points.
+         * @throws {Error} If the curve is already 2D or matrix is invalid.
+         */
+        projectMatrix: function (matrix) {
+            if (!this._3d) {
+                throw new Error('projectMatrix: curve is already 2D');
+            }
+
+            if (!Array.isArray(matrix) || (matrix.length !== 3 && matrix.length !== 4)) {
+                throw new Error('projectMatrix: matrix must be a 3x3 or 4x4 array');
+            }
+
+            const is4x4 = matrix.length === 4;
+
+            const points2d = this.points.map(function (p) {
+                let x, y, w = 1;
+
+                if (is4x4) {
+                    // 4x4 matrix multiplication with homogeneous coordinates
+                    const px = p.x, py = p.y, pz = p.z;
+                    x = matrix[0][0] * px + matrix[0][1] * py + matrix[0][2] * pz + matrix[0][3];
+                    y = matrix[1][0] * px + matrix[1][1] * py + matrix[1][2] * pz + matrix[1][3];
+                    w = matrix[3][0] * px + matrix[3][1] * py + matrix[3][2] * pz + matrix[3][3];
+
+                    // Perspective divide
+                    if (abs(w) > 0.0001) {
+                        x /= w;
+                        y /= w;
+                    }
+                } else {
+                    // 3x3 matrix multiplication
+                    const px = p.x, py = p.y, pz = p.z;
+                    x = matrix[0][0] * px + matrix[0][1] * py + matrix[0][2] * pz;
+                    y = matrix[1][0] * px + matrix[1][1] * py + matrix[1][2] * pz;
+                }
+
+                return {x: x, y: y};
+            });
+
+            return new Bezier(points2d);
+        },
+
+        /**
+         * Projects a 3D Bezier curve onto an arbitrary plane defined by a point and normal vector.
+         * @param {Object} options Projection options
+         * @param {Object} options.point A point on the plane {x, y, z}
+         * @param {Object} options.normal Normal vector of the plane {x, y, z}
+         * @param {Object} [options.right] Optional right vector for 2D coordinate system on the plane
+         * @returns {Bezier} New 2D Bezier curve with projected control points.
+         * @throws {Error} If the curve is already 2D or parameters are invalid.
+         */
+        projectToArbitraryPlane: function (options) {
+            if (!this._3d) {
+                throw new Error('projectToArbitraryPlane: curve is already 2D');
+            }
+
+            if (!options || !options.point || !options.normal) {
+                throw new Error('projectToArbitraryPlane: requires options.point and options.normal');
+            }
+
+            const planePoint = options.point;
+            const normal = options.normal;
+
+            // Normalize the normal vector
+            const nLen = sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+            const n = {x: normal.x / nLen, y: normal.y / nLen, z: normal.z / nLen};
+
+            // Create a coordinate system on the plane
+            // Choose an arbitrary vector not parallel to normal
+            let arbitrary = {x: 1, y: 0, z: 0};
+            if (abs(n.x) > 0.9) {
+                arbitrary = {x: 0, y: 1, z: 0};
+            }
+
+            // Right vector (first basis vector on the plane)
+            let right = options.right;
+            if (!right) {
+                right = {
+                    x: arbitrary.y * n.z - arbitrary.z * n.y,
+                    y: arbitrary.z * n.x - arbitrary.x * n.z,
+                    z: arbitrary.x * n.y - arbitrary.y * n.x
+                };
+                const rLen = sqrt(right.x * right.x + right.y * right.y + right.z * right.z);
+                right.x /= rLen;
+                right.y /= rLen;
+                right.z /= rLen;
+            }
+
+            // Up vector (second basis vector on the plane)
+            const up = {
+                x: n.y * right.z - n.z * right.y,
+                y: n.z * right.x - n.x * right.z,
+                z: n.x * right.y - n.y * right.x
+            };
+
+            const points2d = this.points.map(function (p) {
+                // Project point onto plane
+                const toPoint = {
+                    x: p.x - planePoint.x,
+                    y: p.y - planePoint.y,
+                    z: p.z - planePoint.z
+                };
+
+                // Distance from point to plane
+                const dist = toPoint.x * n.x + toPoint.y * n.y + toPoint.z * n.z;
+
+                // Projected point on plane
+                const projected = {
+                    x: p.x - dist * n.x,
+                    y: p.y - dist * n.y,
+                    z: p.z - dist * n.z
+                };
+
+                // Express projected point in 2D plane coordinates
+                const relativeToPlane = {
+                    x: projected.x - planePoint.x,
+                    y: projected.y - planePoint.y,
+                    z: projected.z - planePoint.z
+                };
+
+                const x2d = relativeToPlane.x * right.x + relativeToPlane.y * right.y + relativeToPlane.z * right.z;
+                const y2d = relativeToPlane.x * up.x + relativeToPlane.y * up.y + relativeToPlane.z * up.z;
+
+                return {x: x2d, y: y2d};
+            });
+
+            return new Bezier(points2d);
+        },
     };
 
     /**
@@ -19041,17 +19619,28 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         addCurve: function (curve) {
             this.curves.push(curve);
             this._3d = this._3d || curve._3d;
+            // Invalidate cached data
+            this._cachedLength = undefined;
+            this._curveLengths = undefined;
+            this._cumulativeLengths = undefined;
         },
         /**
          * Computes the combined length of all curve segments.
+         * Uses cached length to avoid recomputation.
          * @returns {number}
          */
         length: function () {
-            return this.curves.map(function (v) {
-                return v.length();
-            }).reduce(function (a, b) {
-                return a + b;
-            });
+            if (this._cachedLength !== undefined) {
+                return this._cachedLength;
+            }
+
+            let total = 0;
+            for (let i = 0; i < this.curves.length; i++) {
+                total += this.curves[i].length();
+            }
+
+            this._cachedLength = total;
+            return total;
         },
     /**
      * Samples a point along the poly-bezier at a specified arc length.
@@ -19074,6 +19663,72 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             length = Math.max(0, length);
             return this.curves[i].getPointAtLength(length, precision);
         },
+
+        /**
+         * Computes a point on the poly-bezier at parameter t in [0, 1].
+         * Maps the global parameter to the appropriate curve and local parameter.
+         * Uses cached cumulative lengths and border t values for efficiency.
+         * @param {number} t Global parameter in [0, 1], where 0 is start and 1 is end.
+         * @returns {Point3D} Point on the poly-bezier at parameter t.
+         */
+        compute: function (t) {
+            // Clamp t to [0, 1]
+            t = Math.max(0, Math.min(1, t));
+
+            // Handle edge cases
+            if (t === 0) {
+                return this.curves[0].compute(0);
+            }
+            if (t === 1) {
+                const lastCurve = this.curves[this.curves.length - 1];
+                return lastCurve.compute(1);
+            }
+
+            // Build cumulative length cache if needed
+            if (!this._cumulativeLengths) {
+                this._curveLengths = [];
+                this._cumulativeLengths = [];
+                let cumulative = 0;
+
+                for (let i = 0; i < this.curves.length; i++) {
+                    const len = this.curves[i].length();
+                    this._curveLengths.push(len);
+                    cumulative += len;
+                    this._cumulativeLengths.push(cumulative);
+                }
+            }
+
+            const totalLength = this._cumulativeLengths[this._cumulativeLengths.length - 1];
+            const targetLength = t * totalLength;
+
+            // Find which curve contains this t value
+            let curveIndex = 0;
+            for (let i = 0; i < this._cumulativeLengths.length; i++) {
+                if (targetLength <= this._cumulativeLengths[i]) {
+                    curveIndex = i;
+                    break;
+                }
+            }
+
+            // Calculate local t for the found curve
+            const startLength = curveIndex > 0 ? this._cumulativeLengths[curveIndex - 1] : 0;
+            const curveLength = this._curveLengths[curveIndex];
+
+            let localT;
+            if (curveLength < 1e-10) {
+                // Degenerate curve (zero length)
+                localT = 0;
+            } else {
+                const lengthInCurve = targetLength - startLength;
+                localT = lengthInCurve / curveLength;
+                // Clamp to [0, 1] to handle floating point errors
+                localT = Math.max(0, Math.min(1, localT));
+            }
+
+            // Compute point on the specific curve
+            return this.curves[curveIndex].compute(localT);
+        },
+
         /**
          * Retrieves the curve at the provided index.
          * @param {number} idx Segment index.
@@ -19153,6 +19808,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (p2 !== p2) {
                 console.log('Wrong', p1, p2);
             }
+            // Invalidate cached data since curve order changed
+            this._cachedLength = undefined;
+            this._curveLengths = undefined;
+            this._cumulativeLengths = undefined;
         },
         /**
          * Returns the instance itself for API symmetry.
@@ -19167,6 +19826,101 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         toBeziers: function () {
             return this.curves;
+        },
+
+        /**
+         * Projects a 3D poly-bezier to 2D using orthographic projection.
+         * Maps the projection to each constituent bezier curve.
+         * @returns {PolyBezier} New 2D poly-bezier with projected curves.
+         * @throws {Error} If the poly-bezier is already 2D.
+         */
+        projectOrthographic: function () {
+            if (!this._3d) {
+                throw new Error('projectOrthographic: poly-bezier is already 2D');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectOrthographic();
+            });
+            return new PolyBezier(projectedCurves);
+        },
+
+        /**
+         * Projects a 3D poly-bezier to 2D using a custom projection function.
+         * Maps the projection to each constituent bezier curve.
+         * @param {Function} projectionFn Function that takes a 3D point {x, y, z} and returns a 2D point {x, y}
+         * @returns {PolyBezier} New 2D poly-bezier with projected curves.
+         * @throws {Error} If the poly-bezier is already 2D or projection function is invalid.
+         */
+        projectCustom: function (projectionFn) {
+            if (!this._3d) {
+                throw new Error('projectCustom: poly-bezier is already 2D');
+            }
+            if (typeof projectionFn !== 'function') {
+                throw new Error('projectCustom: projectionFn must be a function');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectCustom(projectionFn);
+            });
+            return new PolyBezier(projectedCurves);
+        },
+
+        /**
+         * Projects a 3D poly-bezier to 2D using perspective projection.
+         * Maps the projection to each constituent bezier curve.
+         * @param {Object} options Projection options
+         * @param {number} [options.focalLength=500] Focal length (distance from camera to projection plane)
+         * @param {Object} [options.camera={x:0, y:0, z:0}] Camera position
+         * @param {Object} [options.target={x:0, y:0, z:1}] Point the camera is looking at
+         * @param {Object} [options.up={x:0, y:1, z:0}] Up vector
+         * @returns {PolyBezier} New 2D poly-bezier with perspective-projected curves.
+         * @throws {Error} If the poly-bezier is already 2D.
+         */
+        projectPerspective: function (options) {
+            if (!this._3d) {
+                throw new Error('projectPerspective: poly-bezier is already 2D');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectPerspective(options);
+            });
+            return new PolyBezier(projectedCurves);
+        },
+
+        /**
+         * Projects a 3D poly-bezier to 2D using an arbitrary projection matrix.
+         * Maps the projection to each constituent bezier curve.
+         * Supports both 3x3 and 4x4 projection matrices.
+         * @param {Array<Array<number>>} matrix 3x3 or 4x4 projection matrix
+         * @returns {PolyBezier} New 2D poly-bezier with matrix-projected curves.
+         * @throws {Error} If the poly-bezier is already 2D or matrix is invalid.
+         */
+        projectMatrix: function (matrix) {
+            if (!this._3d) {
+                throw new Error('projectMatrix: poly-bezier is already 2D');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectMatrix(matrix);
+            });
+            return new PolyBezier(projectedCurves);
+        },
+
+        /**
+         * Projects a 3D poly-bezier onto an arbitrary plane defined by a point and normal vector.
+         * Maps the projection to each constituent bezier curve.
+         * @param {Object} options Projection options
+         * @param {Object} options.point A point on the plane {x, y, z}
+         * @param {Object} options.normal Normal vector of the plane {x, y, z}
+         * @param {Object} [options.right] Optional right vector for 2D coordinate system on the plane
+         * @returns {PolyBezier} New 2D poly-bezier with projected curves.
+         * @throws {Error} If the poly-bezier is already 2D or parameters are invalid.
+         */
+        projectToArbitraryPlane: function (options) {
+            if (!this._3d) {
+                throw new Error('projectToArbitraryPlane: poly-bezier is already 2D');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectToArbitraryPlane(options);
+            });
+            return new PolyBezier(projectedCurves);
         },
     };
 
@@ -26064,465 +26818,6 @@ function voronoi(points) {
 }
 },{"circumcenter":2,"delaunay-triangulate":3,"uniq":26}]},{},[27]);
 
-/**
- * Created by Vakarelov on 4/27/17.
- */
-
-(function () {
-
-   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
-
-            /**
-             * Creates a circle given a center and a point on the circumference.
-             * Accepts plain coordinate pairs or Point-like objects with x/y keys.
-             *
-             * @param {number|{x:number,y:number}} x1 X coordinate of the center or the center point object.
-             * @param {number|{x:number,y:number}} y1 Y coordinate of the center or the point on the circle when passed as an object.
-             * @param {number} [x2] X coordinate of a point on the circle when primitive numbers are provided.
-             * @param {number} [y2] Y coordinate of a point on the circle when primitive numbers are provided.
-             * @return {Element} Circle element whose radius equals the distance between the supplied points.
-             */
-            Paper.prototype.circleCentPoint = function (x1, y1, x2, y2) {
-                if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
-                    x2 = y1.x;
-                    y2 = y1.y;
-                }
-
-                if (typeof x1 === "object" && y1.hasOwnProperty("x")) {
-                    y1 = x1.y;
-                    x1 = x1.x;
-                }
-
-
-                return this.circle(x1, y1, Snap.len(x1, y1, x2, y2));
-            };
-
-
-            /**
-             * Builds a circle defined by two points across its diameter.
-             * Both arguments may be number tuples or Point-like objects.
-             *
-             * @param {number|{x:number,y:number}} x1 X coordinate of the first point on the diameter or the full point object.
-             * @param {number|{x:number,y:number}} y1 Y coordinate of the first point or the second point object when passed directly.
-             * @param {number} [x2] X coordinate of the opposite point on the diameter.
-             * @param {number} [y2] Y coordinate of the opposite point on the diameter.
-             * @return {Element} Circle whose center is the midpoint between the supplied points.
-             */
-            Paper.prototype.circleTwoPoints = function (x1, y1, x2, y2) {
-                if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
-                    x2 = y1.x;
-                    y2 = y1.y;
-                }
-
-                if (typeof x1 === "object" && y1.hasOwnProperty("x")) {
-                    y1 = x1.y;
-                    x1 = x1.x;
-                }
-
-
-                return this.circle((x1 + x2) / 2, (y1 + y2) / 2, Snap.len(x1, y1, x2, y2) / 2);
-            };
-
-            /**
-             * Computes the circumcircle of three non-collinear points.
-             * Returns null when the points cannot define a finite circle.
-             *
-             * @param {number|{x:number,y:number}} x1 X coordinate of the first point or a Point-like object.
-             * @param {number|{x:number,y:number}} y1 Y coordinate of the first point or a Point-like object describing the second point.
-             * @param {number|{x:number,y:number}} x2 X coordinate of the second point or a Point-like object for the third point.
-             * @param {number} [y2] Y coordinate of the second point.
-             * @param {number} [x3] X coordinate of the third point.
-             * @param {number} [y3] Y coordinate of the third point.
-             * @return {Element|null} Circle element passing through the points, or null when a solution is not possible.
-             */
-            Paper.prototype.circleThreePoints = function (x1, y1, x2, y2, x3, y3) {
-
-                if (typeof x2 === "object" && x2.hasOwnProperty("x")) {
-                    x3 = x2.x;
-                    y3 = x2.y;
-                }
-
-                if (typeof y1 === "object" && y1.hasOwnProperty("x")) {
-                    x2 = y1.x;
-                    y2 = y1.y;
-                }
-
-                if (typeof x1 === "object" && y1.hasOwnProperty("x")) {
-                    y1 = x1.y;
-                    x1 = x1.x;
-                }
-
-                const yDelta_a = y2 - y1;
-                const xDelta_a = x2 - x1;
-                const yDelta_b = y3 - y2;
-                const xDelta_b = x3 - x2;
-
-                const aSlope = yDelta_a / xDelta_a;
-                const bSlope = yDelta_b / xDelta_b;
-
-                const c_x = (aSlope * bSlope * (y1 - y3) + bSlope * (x1 + x2) - aSlope * (x2 + x3)) / (2 * (bSlope - aSlope));
-                const c_y = -1 * (c_x - (x1 + x2) / 2) / aSlope + (y1 + y2) / 2;
-
-                if (c_x === Infinity || c_y === Infinity) return null;
-
-                const r = Snap.len(c_x, c_y, x1, y1);
-
-                if (r > 100000) return null;
-
-                return this.circle(c_x, c_y, r)
-            };
-
-            /**
-             * Derives an ellipse from the implicit quadratic form Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0.
-             * Coefficients may come from curve fitting routines; invalid sets return null.
-             *
-             * @param {number} A Quadratic coefficient for x^2.
-             * @param {number} B Mixed term coefficient for xy.
-             * @param {number} C Quadratic coefficient for y^2.
-             * @param {number} D Linear coefficient for x.
-             * @param {number} E Linear coefficient for y.
-             * @param {number} [F=-1] Constant term; defaults to -1 when omitted.
-             * @param {boolean} [properties_only=false] When true, returns the ellipse parameters instead of drawing it.
-             * @return {Element|{x:number,y:number,rx:number,ry:number,angle:number}|null} Either a rendered ellipse, its properties, or null if coefficients do not form a valid ellipse.
-             */
-            Paper.prototype.ellipseFromEquation = function (A, B, C, D, E, F, properties_only) {
-                if (typeof F === "boolean"){
-                    properties_only = F;
-                    F = -1
-                }
-
-                if (F === undefined) F = -1;
-
-                let den = 4 * A * C - B * B;
-                if (den == 0) {
-                    return null;
-                }
-                let cx = (B * E - 2 * C * D) / den;
-                let cy = (B * D - 2 * A * E) / den;
-
-                // evaluate the a coefficient of the ellipse equation in normal form
-                // E(x,y) = a*(x-cx)^2 + b*(x-cx)*(y-cy) + c*(y-cy)^2 = 1
-                // where b = a*B , c = a*C, (cx,cy) == centre
-                let num = A * cx * cx
-                    + B * cx * cy
-                    + C * cy * cy
-                    - F;
-
-
-                //evaluate ellipse rotation angle
-                let rot = Math.atan2(-B, -(A - C)) / 2;
-//      cerr << "rot = " << rot << endl;
-                let swap_axes = false;
-                if (Math.abs(rot - 0) < 1e-6) {
-                    rot = 0;
-                }
-                if (Math.abs(rot - Math.PI / 2) < 1e-12 || rot < 0) {
-                    swap_axes = true;
-                }
-
-                // evaluate the length of the ellipse rays
-                const cosrot = Math.cos(rot);
-                const sinrot = Math.sin(rot);
-                const cos2 = cosrot * cosrot;
-                const sin2 = sinrot * sinrot;
-                const cossin = cosrot * sinrot;
-
-                den = A * cos2 + B * cossin + C * sin2;
-
-//
-//        rx2 = num/roots[0];
-//        ry2 = num/roots[1];
-
-                if (den === 0) {
-                    return null
-                }
-                const rx2 = num / den;
-                if (rx2 < 0) {
-                    return null;
-                }
-                let rx = Math.sqrt(rx2);
-
-                den = C * cos2 - B * cossin + A * sin2;
-                if (den === 0) {
-                    return null;
-                }
-                const ry2 = num / den;
-                if (ry2 < 0) {
-                    return null;
-                }
-
-                let ry = Math.sqrt(ry2);
-
-                // the solution is not unique so we choose always the ellipse
-                // with a rotation angle between 0 and PI/2
-                if (swap_axes) {
-                    //swap(rx, ry);
-                    const temp = rx;
-                    rx = ry;
-                    ry = temp;
-                }
-                if (Math.abs(rot - Math.PI / 2) < 1e-6
-                    || Math.abs(rot - Math.PI / 2) < 1e-6
-                    || Math.abs(rx - ry) < 1e-12
-                ) {
-                    rot = 0;
-                } else {
-                    if (rot < 0) {
-                        rot += Math.PI / 2;
-                    }
-                }
-
-                if (properties_only) {
-                    return {
-                        x: cx,
-                        y: cy,
-                        rx: rx,
-                        ry: ry,
-                        angle: Snap.deg(rot)
-                    }
-                } else {
-                    return this.ellipse(cx, cy, rx, ry).rotate(Snap.deg(rot), cx, cy)
-                }
-            };
-
-            /**
-             * Generates wedge-shaped annular segments (like a donut chart) between two radii.
-             * Styles may be provided as an array, object, or callback for per-segment customization.
-             *
-             * @param {number} num_segments Total number of segments to create.
-             * @param {number} [angle] Angular size of each segment in radians; defaults to 2π divided by the number of segments.
-             * @param {number} [start_angle=0] Base angle in radians where the first segment begins.
-             * @param {number} inner_rad Inner radius of the ring.
-             * @param {number} outer_rad Outer radius of the ring.
-             * @param {Function|Object|Array<string>} [style] Style definition; callbacks receive (path, group, index, inner_rad, outer_rad, angle_step, angle, points).
-             * @param {string} [id] Optional id prefix applied to each generated path.
-             * @param {Element} [group] Existing group to append to; a new group is created when multiple segments are generated.
-             * @param {string} [class_name] Optional CSS class added to each segment.
-             * @return {Element} The provided group when present, otherwise the last created path segment.
-             */
-            Paper.prototype.diskSegments = function (num_segments, angle, start_angle, inner_rad, outer_rad, style, id, group, class_name) {
-                if (!group && num_segments > 1) {
-                    group = this.g()
-                }
-
-                if (!id && group) id = group.getId();
-
-                if (!angle) angle = 2 * Math.PI / num_segments;
-
-                let d, p1, p2, p3, p4, c, angle_step, insc_rad, path, place;
-                for (let i = 0; i < num_segments; ++i) {
-                    angle_step = angle * i + start_angle; //Adding Pi to reposition upwards.
-                    p1 = Snap.fromPolar(inner_rad, angle_step - angle / 2);
-                    p2 = Snap.fromPolar(outer_rad, angle_step - angle / 2);
-                    p3 = Snap.fromPolar(outer_rad, angle_step + angle / 2);
-                    p4 = Snap.fromPolar(inner_rad, angle_step + angle / 2);
-
-                    d = "M " + p1.x + "," + p1.y +
-                        " L " + p2.x + "," + p2.y +
-                        " A " + outer_rad + "," + outer_rad + ",0,0,1," + p3.x + "," + p3.y +
-                        " L " + p4.x + "," + p4.y +
-                        " A " + (inner_rad) + "," + (inner_rad) + ",0,0,0," + p1.x + "," + p1.y;
-
-                    path = this.paper.path(d);
-                    if (id) path.attr("id", id + "_" + i);
-                    if (style) {
-                        if (Array.isArray(style)) {
-                            path.attr("style", style[i]);
-                        } else if (typeof style === "function") {
-                            style(path, group, i, inner_rad, outer_rad, angle_step, angle, [p1, p2, p3, p4]);
-                        } else {
-                            path.setStyle(style);
-                        }
-                    }
-
-                    if (class_name){
-                        path.addClass(class_name);
-                    }
-
-                    if (group) group.add(path);
-                }
-
-                return (group) ? group : path;
-            };
-
-            /**
-             * Builds a hollow disk by combining two concentric circles with even-odd fill rules.
-             *
-             * @param {number} cx Center X coordinate.
-             * @param {number} cy Center Y coordinate.
-             * @param {number} our_rad Outer radius of the disk.
-             * @param {number} inner_rad Inner radius that defines the hole.
-             * @return {Element} Path element representing the donut shape.
-             */
-            Paper.prototype.disk = function (cx, cy, our_rad, inner_rad) {
-                const outer = this.circle(cx, cy, our_rad).toDefs();
-                const inner = this.circle(cx, cy, inner_rad).toDefs();
-
-                const d = Snap.path.toPath(outer, true) + " " + Snap.path.toPath(inner, true);
-
-                outer.remove();
-                inner.remove();
-
-                return this.path(d).attr({fillRule: "evenodd"});
-            };
-
-            /**
-             * Clones a symbol or primitive along an arc, producing a circular fan layout.
-             * Accepts full Snap elements or lightweight descriptors for lines and circles.
-             *
-             * @param {number} rad Radius at which the fan elements are positioned.
-             * @param {number} angle Angular spread in degrees across the fan.
-             * @param {number} step Number of elements to distribute along the arc.
-             * @param {Element|Object} symbol Source element or descriptor ({type:"line", l:Number} or {type:"circle", r:Number}).
-             * @param {Function|Object|Array<string>} [style] Style hook; callbacks receive (element, group, index, angle, point).
-             * @param {string} [id] Id prefix applied to generated elements.
-             * @param {Element} [group] Group container; created when missing.
-             * @return {Element|undefined} Group populated with fan elements, or undefined when the symbol type is unsupported.
-             */
-            Paper.prototype.arcFan = function (rad, angle, step, symbol, style, id, group) {
-                if (!group) {
-                    group = this.g()
-                }
-
-                if (!id) id = group.getId();
-
-                let processor;
-
-                const that = this;
-                if (symbol.paper) {
-                    const box = symbol.getBBox();
-                    processor = function (p, angle, id) {
-                        const copy = symbol.clone().attr("id", id);
-                        copy.translate(p.x, p.y, undefined, box.cx, box.y2);
-                        copy.rotate(angle, p.x, p.y);
-                        return copy;
-                    }
-                } else if (symbol.type === "line") {
-                    processor = function (p, angle, id) {
-                        const p2 = {
-                            x: p.x + symbol.l * Math.cos(angle * Math.PI * 2 / 360),
-                            y: p.y + symbol.l * Math.sin(angle * Math.PI * 2 / 360)
-                        };
-                        return that.line(p.x, p.y, p2.x, p2.y).attr("id", id);
-                    }
-                } else if (symbol.type === "circle") {
-                    processor = function (p, angle, id) {
-                        return that.circle(p.x, p.y, symbol.r).attr("id", id);
-                    }
-                } else {
-                    return undefined;
-                }
-
-                for (let a = -angle / 2, i = 0, inc = angle / (step - 1); i < step; ++i, a += inc) {
-                    const p = Snap.fromPolar(rad, Snap.rad(a));
-                    const el = processor(p, a, id + "_" + i);
-                    if (style) {
-                        if (Array.isArray(style)) {
-                            el.attr("style", style[i]);
-                        } else if (typeof style === "function") {
-                            style(el, group, i, a, p);
-                        } else {
-                            el.setStyle(style);
-                        }
-                    }
-                    group.add(el);
-                }
-
-                return group;
-            };
-
-            /**
-             * Creates a rectangular grid of Snap rectangles sized to fill the provided bounds.
-             * Style can be an object applied to every rect or a callback for per-cell styling.
-             *
-             * @param {number} width Total width of the grid area.
-             * @param {number} height Total height of the grid area.
-             * @param {number} rows Number of horizontal slices.
-             * @param {number} cols Number of vertical slices.
-             * @param {Function|Object} style Style object or callback receiving (rect, colIndex, rowIndex).
-             * @param {string} [id] Optional id prefix used for the generated rectangles.
-             * @param {Element} [group] Existing group container; a new one is created when omitted.
-             * @return {Element} Group containing every grid cell.
-             */
-            Paper.prototype.grid = function (width, height, rows, cols, style, id, group) {
-                if (!group) {
-                    group = this.g()
-                }
-
-                if (!id) id = group.getId();
-
-                let style_fun;
-                if (typeof style !== "function") {
-                    style_fun = function (rect) {
-                        rect.setStyle(style)
-                    }
-                } else {
-                    style_fun = style;
-                }
-
-                const rect_w = width / cols;
-                const rect_h = height / rows;
-
-                for (let i = 0, j, rect; i < cols; ++i) {
-                    for (j = 0; j < rows; j++) {
-                        rect = this.rect(i * rect_w, j * rect_h, rect_w, rect_h).attr({
-                            id: id + "_" + i + "_" + j,
-                            position: i + ", " + j
-                        });
-
-                        style_fun(rect, i, j);
-                        group.add(rect);
-                    }
-                }
-
-                return group;
-            };
-
-            /**
-             * Draws a zigzag polyline between two points or along a horizontal length.
-             * The path alternates above and below the base line using the provided amplitude.
-             *
-             * @param {{x:number,y:number}} p1 Starting point of the polyline.
-             * @param {number|{x:number,y:number}} p2_width Either the horizontal length of the zigzag or the explicit end point.
-             * @param {number} period Distance between consecutive peaks.
-             * @param {number} amplitude Offset applied perpendicular to the base line for each peak.
-             * @param {boolean} [reverice=false] When true the zigzag starts below the baseline.
-             * @return {Element} Polyline element that visually represents the zigzag.
-             */
-            Paper.prototype.zigzag = function (p1, p2_width, period, amplitude, reverice) {
-                const p2 = (typeof p2_width === "number") ? {x: p1.x + p2_width, y: p1.y} : p2_width;
-
-                const length = (typeof p2_width === "number") ? p2_width : Snap.len(p1.x, p1.y, p2.x, p2.y);
-
-                const num_periods = Snap.round(length / period);
-                period = length / num_periods;
-
-                amplitude = (reverice) ? -amplitude : amplitude;
-
-                const v = {x: period / 2 * (p2.x - p1.x) / length, y: period / 2 * (p2.y - p1.y) / length};
-                const norm = {x: -amplitude * (p2.y - p1.y) / length, y: amplitude * (p2.x - p1.x) / length};
-
-                const points = [p1.x, p1.y];
-                for (let i = 1, px, py, amp_dir; i < 2 * num_periods; ++i) {
-                    amp_dir = (-1) * (i % 2);
-                    px = (i * v.x + p1.x) + (norm.x) * amp_dir;
-                    py = (i * v.y + p1.y) + (norm.y) * amp_dir;
-                    points.push(px);
-                    points.push(py);
-                }
-                points.push(p2.x);
-                points.push(p2.y);
-
-                return this.polyline(points);
-            }
-        }
-    );
-
-})();
-
-
-
-
 Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     const mathMax = Math.max;
@@ -26548,6 +26843,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function lerpValue(from, to, t) {
         if (typeof from === "number" && typeof to === "number") {
             return lerp(from, to, t);
+        }
+        // Use Snap.v_lerp for vector-like objects (optimized for animations)
+        if (isPlainObject(from) && isPlainObject(to) &&
+            'x' in from && 'y' in from && 'x' in to && 'y' in to) {
+            return Snap.v_lerp(from, to, t);
         }
         if (Array.isArray(from) && Array.isArray(to) && from.length === to.length) {
             const out = [];
@@ -26637,6 +26937,409 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return ensurePoint(null, fallback);
         }
         return ensurePoint(value, fallback);
+    }
+
+    function pickFirstDefined(obj, keys) {
+        if (!obj) {
+            return undefined;
+        }
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            if (key != null && obj[key] != null) {
+                return obj[key];
+            }
+        }
+        return undefined;
+    }
+
+    function toCoeffArray(source) {
+        if (!source) {
+            return null;
+        }
+        if (Array.isArray(source)) {
+            return source;
+        }
+        const isTypedArray = typeof ArrayBuffer !== "undefined" && typeof ArrayBuffer.isView === "function" && ArrayBuffer.isView(source);
+        if (isTypedArray) {
+            return Array.prototype.slice.call(source, 0);
+        }
+        if (typeof source.length === "number" && source.length >= 4 && typeof source !== "function") {
+            const out = new Array(source.length);
+            for (let i = 0; i < source.length; i++) {
+                out[i] = source[i];
+            }
+            return out;
+        }
+        return null;
+    }
+
+    function hasMobiusCoeffDescriptorFields(value) {
+        if (!isPlainObject(value)) {
+            return false;
+        }
+        if (value.coefficients || value.values || value.params || value.abcd) {
+            return true;
+        }
+        const keys = ["a", "A", "b", "B", "c", "C", "d", "D"];
+        for (let i = 0; i < keys.length; i++) {
+            if (value[keys[i]] != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function resolveOptionalOriginPoint(value) {
+        if (value == null) {
+            return null;
+        }
+        return ensurePoint(value, {x: 0, y: 0});
+    }
+
+    /**
+     * Lightweight complex helper exposed as {@link Snap.Complex} for consistent math utilities.
+     * Methods accept plain numbers, `[re, im]`, `{x,y}`, `{re,im}` and similar shapes.
+     */
+    class SnapComplex {
+        /**
+         * Normalize any supported input into a `{re, im}` object.
+         * @param {*} value Number/string/array/object describing a complex value.
+         * @param {{re:number,im:number}} [fallback] Value returned when input cannot be parsed.
+         * @returns {{re:number,im:number}}
+         */
+        static from(value, fallback) {
+            const fb = fallback || SnapComplex.ZERO;
+            if (value == null) {
+                return {re: fb.re, im: fb.im};
+            }
+            if (typeof value === "number" && isFinite(value)) {
+                return {re: value, im: 0};
+            }
+            if (typeof value === "string") {
+                const parsed = parseFloat(value);
+                if (isFinite(parsed)) {
+                    return {re: parsed, im: 0};
+                }
+            }
+            if (Array.isArray(value)) {
+                return {
+                    re: SnapComplex._parseNumber(value[0], fb.re),
+                    im: SnapComplex._parseNumber(value[1], fb.im),
+                };
+            }
+            if (typeof value === "object") {
+                if (value.re != null || value.im != null) {
+                    return {
+                        re: SnapComplex._parseNumber(value.re, fb.re),
+                        im: SnapComplex._parseNumber(value.im, fb.im),
+                    };
+                }
+                if (value.real != null || value.imag != null) {
+                    return {
+                        re: SnapComplex._parseNumber(value.real, fb.re),
+                        im: SnapComplex._parseNumber(value.imag, fb.im),
+                    };
+                }
+                if (value.x != null || value.y != null) {
+                    return {
+                        re: SnapComplex._parseNumber(value.x, fb.re),
+                        im: SnapComplex._parseNumber(value.y, fb.im),
+                    };
+                }
+            }
+            return {re: fb.re, im: fb.im};
+        }
+
+        /**
+         * Convert a point-like structure into a complex number (x -> Re, y -> Im).
+         * @param {{x:number,y:number}|Array|*} value
+         * @returns {{re:number,im:number}}
+         */
+        static fromPoint(value) {
+            const point = ensurePoint(value, {x: 0, y: 0});
+            return {re: point.x, im: point.y};
+        }
+
+        /**
+         * Complex addition.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @returns {{re:number,im:number}}
+         */
+        static add(a, b) {
+            return {
+                re: a.re + b.re,
+                im: a.im + b.im,
+            };
+        }
+
+        /**
+         * Complex subtraction.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @returns {{re:number,im:number}}
+         */
+        static sub(a, b) {
+            return {
+                re: a.re - b.re,
+                im: a.im - b.im,
+            };
+        }
+
+        /**
+         * Complex negation.
+         * @param {{re:number,im:number}} z
+         * @returns {{re:number,im:number}}
+         */
+        static neg(z) {
+            return {
+                re: -z.re,
+                im: -z.im,
+            };
+        }
+
+        /**
+         * Complex multiplication.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @returns {{re:number,im:number}}
+         */
+        static mul(a, b) {
+            return {
+                re: a.re * b.re - a.im * b.im,
+                im: a.re * b.im + a.im * b.re,
+            };
+        }
+
+        /**
+         * Squared magnitude (|z|^2).
+         * @param {{re:number,im:number}} z
+         * @returns {number}
+         */
+        static absSq(z) {
+            return z.re * z.re + z.im * z.im;
+        }
+
+        /**
+         * Complex conjugate.
+         * @param {{re:number,im:number}} z
+         * @returns {{re:number,im:number}}
+         */
+        static conj(z) {
+            return {
+                re: z.re,
+                im: -z.im,
+            };
+        }
+
+        /**
+         * Complex division a / b.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @returns {{re:number,im:number}}
+         */
+        static div(a, b) {
+            const denom = SnapComplex.absSq(b);
+            if (denom <= 1e-18) {
+                throw new Error("Mobius transform undefined where denominator is zero");
+            }
+            return {
+                re: (a.re * b.re + a.im * b.im) / denom,
+                im: (a.im * b.re - a.re * b.im) / denom,
+            };
+        }
+
+        /**
+         * Checks whether |z| is below the provided epsilon.
+         * @param {{re:number,im:number}} z
+         * @param {number} [threshold=1e-12]
+         * @returns {boolean}
+         */
+        static isZero(z, threshold) {
+            const eps = threshold || 1e-12;
+            return SnapComplex.absSq(z) <= eps * eps;
+        }
+
+        /**
+         * Real scalar multiplication.
+         * @param {{re:number,im:number}} z
+         * @param {number} scalar
+         * @returns {{re:number,im:number}}
+         */
+        static scale(z, scalar) {
+            const num = +scalar || 0;
+            return {
+                re: z.re * num,
+                im: z.im * num,
+            };
+        }
+
+        /**
+         * Equality check within tolerance.
+         * @param {{re:number,im:number}} a
+         * @param {{re:number,im:number}} b
+         * @param {number} [eps=1e-9]
+         * @returns {boolean}
+         */
+        static equals(a, b, eps) {
+            const diff = SnapComplex.sub(a, b);
+            const tol = eps || 1e-9;
+            return SnapComplex.absSq(diff) <= tol * tol;
+        }
+
+        /**
+         * Parses various coefficient descriptors into `{a,b,c,d}` each being `{re,im}`.
+         * Supports positional args, arrays `[a,b,c,d]`, or objects `{a,b,c,d}` / `{coefficients: [...]}`.
+         * @returns {{a:{re:number,im:number},b:{re:number,im:number},c:{re:number,im:number},d:{re:number,im:number}}}
+         */
+        static normalizeCoefficients(aArg, bArg, cArg, dArg) {
+            let aVal = aArg;
+            let bVal = bArg;
+            let cVal = cArg;
+            let dVal = dArg;
+
+            const descriptorOnly = aArg != null && (
+                arguments.length <= 1 ||
+                (arguments.length > 1 && bArg === undefined && cArg === undefined && dArg === undefined)
+            );
+
+            if (descriptorOnly) {
+                const directArray = toCoeffArray(aArg);
+                if (directArray && directArray.length >= 4) {
+                    aVal = directArray[0];
+                    bVal = directArray[1];
+                    cVal = directArray[2];
+                    dVal = directArray[3];
+                } else if (isPlainObject(aArg)) {
+                    const arraySource = toCoeffArray(aArg.coefficients) ||
+                        toCoeffArray(aArg.values) || toCoeffArray(aArg.params) ||
+                        toCoeffArray(aArg.abcd);
+                    if (arraySource && arraySource.length >= 4) {
+                        aVal = arraySource[0];
+                        bVal = arraySource[1];
+                        cVal = arraySource[2];
+                        dVal = arraySource[3];
+                    } else if ("a" in aArg || "b" in aArg || "c" in aArg || "d" in aArg) {
+                        aVal = pickFirstDefined(aArg, ["a", "A"]);
+                        bVal = pickFirstDefined(aArg, ["b", "B"]);
+                        cVal = pickFirstDefined(aArg, ["c", "C"]);
+                        dVal = pickFirstDefined(aArg, ["d", "D"]);
+                    }
+                }
+            }
+
+            return {
+                a: SnapComplex.from(aVal != null ? aVal : 1, SnapComplex.ONE),
+                b: SnapComplex.from(bVal != null ? bVal : 0, SnapComplex.ZERO),
+                c: SnapComplex.from(cVal != null ? cVal : 0, SnapComplex.ZERO),
+                d: SnapComplex.from(dVal != null ? dVal : 1, SnapComplex.ONE),
+            };
+        }
+    }
+
+    SnapComplex.ZERO = Object.freeze({re: 0, im: 0});
+    SnapComplex.ONE = Object.freeze({re: 1, im: 0});
+    SnapComplex._parseNumber = function (value, fallback) {
+        const num = +value;
+        return isFinite(num) ? num : fallback;
+    };
+
+    Snap.Complex = SnapComplex;
+
+    function composeMobiusCoefficients(outer, inner) {
+        const a = SnapComplex.normalizeCoefficients(outer);
+        const b = SnapComplex.normalizeCoefficients(inner);
+        return {
+            a: SnapComplex.add(SnapComplex.mul(a.a, b.a), SnapComplex.mul(a.b, b.c)),
+            b: SnapComplex.add(SnapComplex.mul(a.a, b.b), SnapComplex.mul(a.b, b.d)),
+            c: SnapComplex.add(SnapComplex.mul(a.c, b.a), SnapComplex.mul(a.d, b.c)),
+            d: SnapComplex.add(SnapComplex.mul(a.c, b.b), SnapComplex.mul(a.d, b.d)),
+        };
+    }
+
+    function invertMobiusCoefficients(coeffs) {
+        const normalized = SnapComplex.normalizeCoefficients(coeffs);
+        const determinant = SnapComplex.sub(
+            SnapComplex.mul(normalized.a, normalized.d),
+            SnapComplex.mul(normalized.b, normalized.c)
+        );
+        if (SnapComplex.isZero(determinant, 1e-12)) {
+            throw new Error("Cannot invert degenerate Möbius transform");
+        }
+        return {
+            a: normalized.d,
+            b: SnapComplex.neg(normalized.b),
+            c: SnapComplex.neg(normalized.c),
+            d: normalized.a,
+        };
+    }
+
+    function buildCircleNormalization(circleSpec) {
+        if (!circleSpec) {
+            return null;
+        }
+        const centerPoint = ensurePoint(circleSpec.center, {x: 0, y: 0});
+        const radiusValue = Math.max(1e-9, isFinite(circleSpec.radius) ? Math.abs(circleSpec.radius) : 1);
+        const centerComplex = SnapComplex.fromPoint(centerPoint);
+        const invRadius = 1 / radiusValue;
+        const aNorm = SnapComplex.from(invRadius, SnapComplex.ZERO);
+        const normalize = {
+            a: aNorm,
+            b: SnapComplex.scale(SnapComplex.neg(centerComplex), invRadius),
+            c: SnapComplex.ZERO,
+            d: SnapComplex.ONE,
+        };
+        const denormalize = {
+            a: SnapComplex.from(radiusValue, SnapComplex.ZERO),
+            b: centerComplex,
+            c: SnapComplex.ZERO,
+            d: SnapComplex.ONE,
+        };
+        return {
+            toUnit: normalize,
+            fromUnit: denormalize,
+            center: centerComplex,
+            radius: radiusValue,
+        };
+    }
+
+    function ensureAnchorTriplet(list, label) {
+        if (!Array.isArray(list) || list.length < 3) {
+            throw new Error(label + " requires three anchor points");
+        }
+        const triplet = [];
+        for (let i = 0; i < 3; i++) {
+            triplet[i] = SnapComplex.from(list[i], SnapComplex.ZERO);
+        }
+        for (let i = 0; i < 3; i++) {
+            for (let j = i + 1; j < 3; j++) {
+                if (SnapComplex.equals(triplet[i], triplet[j], 1e-9)) {
+                    throw new Error(label + " anchors must be distinct");
+                }
+            }
+        }
+        return triplet;
+    }
+
+    function mobiusFromTripleToCanonical(z1, z2, z3) {
+        const z2MinusZ3 = SnapComplex.sub(z2, z3);
+        const z2MinusZ1 = SnapComplex.sub(z2, z1);
+        return {
+            a: z2MinusZ3,
+            b: SnapComplex.mul(SnapComplex.neg(z2MinusZ3), z1),
+            c: z2MinusZ1,
+            d: SnapComplex.mul(SnapComplex.neg(z2MinusZ1), z3),
+        };
+    }
+
+    function clampToUnitDisk(alpha) {
+        const magSq = SnapComplex.absSq(alpha);
+        if (magSq < 1) {
+            return alpha;
+        }
+        const mag = Math.sqrt(magSq) || 1;
+        const scale = 0.999 / mag;
+        return SnapComplex.scale(alpha, scale);
     }
 
     function resolveAxisEndpoints2D(axisSpec) {
@@ -26899,15 +27602,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function normalizeVector3(vec, fallback) {
         const fb = fallback || {x: 0, y: 0, z: 1};
         const source = ensurePoint3D(vec, fb);
-        const mag = Math.sqrt(source.x * source.x + source.y * source.y + source.z * source.z);
-        if (!mag || !isFinite(mag)) {
-            return normalizeVector3(fb, {x: 0, y: 0, z: 1});
+        const normalized = Snap.normalize(source);
+
+        // Handle zero vector case with fallback
+        if (!normalized || (normalized.x === 0 && normalized.y === 0 && (!normalized.z || normalized.z === 0))) {
+            return Snap.normalize(fb) || fb;
         }
-        return {
-            x: source.x / mag,
-            y: source.y / mag,
-            z: source.z / mag,
-        };
+        return normalized;
     }
 
     function rotationAxisMatrix(axis, angle) {
@@ -26936,29 +27637,22 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     function vectorSubtract(a, b) {
         const pa = ensurePoint3D(a, {x: 0, y: 0, z: 0});
         const pb = ensurePoint3D(b, {x: 0, y: 0, z: 0});
-        const diff = Snap.v_subtract(pa, pb);
-        return {
-            x: diff.x,
-            y: diff.y,
-            z: pa.z - pb.z,
-        };
+        // Snap.v_subtract now supports 3D natively
+        return Snap.v_subtract(pa, pb);
     }
 
     function vectorCross(a, b) {
         const pa = ensurePoint3D(a, {x: 0, y: 0, z: 0});
         const pb = ensurePoint3D(b, {x: 0, y: 0, z: 0});
-        return {
-            x: pa.y * pb.z - pa.z * pb.y,
-            y: pa.z * pb.x - pa.x * pb.z,
-            z: Snap.cross(pa, pb),
-        };
+        // Snap.cross now returns a 3D vector {x, y, z} for 3D inputs
+        return Snap.cross(pa, pb);
     }
 
     function vectorDot(a, b) {
         const pa = ensurePoint3D(a, {x: 0, y: 0, z: 0});
         const pb = ensurePoint3D(b, {x: 0, y: 0, z: 0});
-        const xy = Snap.dot(pa, pb);
-        return xy + (pa.z * pb.z);
+        // Snap.dot now includes z component automatically for 3D vectors
+        return Snap.dot(pa, pb);
     }
 
     function lookAtMatrix(eye, target, up) {
@@ -27391,6 +28085,163 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     y: c.y + dy * delta,
                 };
             });
+        }
+
+        /**
+         * Builds a Möbius (fractional linear) transform: z -> (a z + b) / (c z + d).
+         * Coefficients may be provided as numbers, [real, imag] arrays, {x,y}, {re,im}, or
+         * via an object `{a,b,c,d}` / `{coefficients: [a,b,c,d]}` / positional arguments.
+         * An optional `origin` pivot may be supplied either on the descriptor object or as
+         * a trailing options argument `{origin: {x, y}}` to shift the transform center.
+         *
+         * @param {(number|Array|Object)} aArg Coefficient a or descriptor containing all coefficients.
+         * @param {(number|Array|Object)} [bArg] Coefficient b when using positional form.
+         * @param {(number|Array|Object)} [cArg] Coefficient c when using positional form.
+         * @param {(number|Array|Object)} [dArg] Coefficient d when using positional form.
+         * @param {Object} [options] Optional settings (only used when provided as the final argument).
+         * @param {PointLike} [options.origin] Pivot point honored when the trailing argument supplies options.
+         * @returns {function({x:number,y:number}):{x:number,y:number}}
+         */
+        mobius(aArg, bArg, cArg, dArg) {
+            const rawArgs = Array.prototype.slice.call(arguments);
+            let originPoint = null;
+            if (rawArgs.length) {
+                const tail = rawArgs[rawArgs.length - 1];
+                if (isPlainObject(tail) && ("origin" in tail) && !hasMobiusCoeffDescriptorFields(tail)) {
+                    if (tail.origin != null) {
+                        originPoint = resolveOptionalOriginPoint(tail.origin);
+                    }
+                    rawArgs.pop();
+                }
+            }
+            if (!originPoint && rawArgs.length && isPlainObject(rawArgs[0]) && ("origin" in rawArgs[0]) && rawArgs[0].origin != null) {
+                originPoint = resolveOptionalOriginPoint(rawArgs[0].origin);
+            }
+            const coeffs = SnapComplex.normalizeCoefficients.apply(SnapComplex, rawArgs);
+            const determinant = SnapComplex.sub(SnapComplex.mul(coeffs.a, coeffs.d), SnapComplex.mul(coeffs.b, coeffs.c));
+            if (SnapComplex.isZero(determinant, 1e-9)) {
+                throw new Error("Mobius transform requires ad - bc != 0");
+            }
+            const hasOrigin = !!originPoint;
+            return this._markTransform(function mobiusTransform(pt) {
+                const point = ensurePoint(pt, {x: 0, y: 0});
+                const local = hasOrigin ? {x: point.x - originPoint.x, y: point.y - originPoint.y} : point;
+                const z = SnapComplex.fromPoint(local);
+                const numerator = SnapComplex.add(SnapComplex.mul(coeffs.a, z), coeffs.b);
+                const denominator = SnapComplex.add(SnapComplex.mul(coeffs.c, z), coeffs.d);
+                const mapped = SnapComplex.div(numerator, denominator);
+                if (!hasOrigin) {
+                    return {
+                        x: mapped.re,
+                        y: mapped.im,
+                    };
+                }
+                return {
+                    x: mapped.re + originPoint.x,
+                    y: mapped.im + originPoint.y,
+                };
+            });
+        }
+
+        /**
+         * Disk automorphism with angle+center controls optionally constrained to an arbitrary circle.
+         * Implements z -> e^{iθ} (z - α) / (1 - conjugate(α) z) in normalized unit-disk coordinates.
+         * @param {*} center Point/complex describing the attractor α.
+         * @param {number} angle Rotation in degrees applied after the automorphism.
+         * @param {Object} [options] Optional reference circle/origin overrides.
+         * @param {{center:PointLike,radius:number}} [options.referenceCircle] Normalization circle used to remap coordinates.
+         * @param {PointLike} [options.origin] Pivot shift applied after the automorphism.
+         * @returns {function({x:number,y:number}):{x:number,y:number}}
+         */
+        mobiusDisk(center, angle, options) {
+            const circleNorm = options && options.referenceCircle ? buildCircleNormalization(options.referenceCircle) : null;
+            const rawCenter = SnapComplex.from(center != null ? center : {x: 0, y: 0}, SnapComplex.ZERO);
+            let alpha = rawCenter;
+            if (circleNorm) {
+                alpha = SnapComplex.div(
+                    SnapComplex.sub(alpha, circleNorm.center),
+                    SnapComplex.from(circleNorm.radius, SnapComplex.ZERO)
+                );
+            }
+            alpha = clampToUnitDisk(alpha);
+            const theta = Snap.rad(angle || 0);
+            const rotation = {re: Math.cos(theta), im: Math.sin(theta)};
+            const baseCoeffs = {
+                a: rotation,
+                b: SnapComplex.mul(rotation, SnapComplex.neg(alpha)),
+                c: SnapComplex.neg(SnapComplex.conj(alpha)),
+                d: SnapComplex.ONE,
+            };
+            let coeffs = baseCoeffs;
+            if (circleNorm) {
+                coeffs = composeMobiusCoefficients(circleNorm.fromUnit, composeMobiusCoefficients(baseCoeffs, circleNorm.toUnit));
+            }
+            if (options && options.origin != null) {
+                coeffs.origin = options.origin;
+            }
+            return this.mobius(coeffs);
+        }
+
+        /**
+         * Upper half-plane automorphism with intuitive real parameters (shift, scale, tilt).
+         * Uses real PSL(2,R) matrices to preserve the upper half-plane boundary (real axis).
+         * @param {number} shift Translation along the real axis.
+         * @param {number} scale Positive scale factor about the real axis.
+         * @param {number} tilt Projective tilt controlling curvature of vertical geodesics.
+         * @param {Object} [options] Optional origin override.
+         * @param {PointLike} [options.origin] Pivot applied before composing the transform.
+         * @returns {function({x:number,y:number}):{x:number,y:number}}
+         */
+        mobiusUpperHalfPlane(shift, scale, tilt, options) {
+            const tx = isFinite(shift) ? +shift : 0;
+            const scl = mathMax(1e-9, isFinite(scale) ? +scale : 1);
+            const tl = isFinite(tilt) ? +tilt : 0;
+            const root = Math.sqrt(scl);
+            const translation = {
+                a: SnapComplex.ONE,
+                b: SnapComplex.from(tx, SnapComplex.ZERO),
+                c: SnapComplex.ZERO,
+                d: SnapComplex.ONE,
+            };
+            const dilation = {
+                a: SnapComplex.from(root, SnapComplex.ZERO),
+                b: SnapComplex.ZERO,
+                c: SnapComplex.ZERO,
+                d: SnapComplex.from(1 / root, SnapComplex.ZERO),
+            };
+            const tiltMatrix = {
+                a: SnapComplex.ONE,
+                b: SnapComplex.ZERO,
+                c: SnapComplex.from(tl, SnapComplex.ZERO),
+                d: SnapComplex.ONE,
+            };
+            const coeffs = composeMobiusCoefficients(translation, composeMobiusCoefficients(dilation, tiltMatrix));
+            if (options && options.origin != null) {
+                coeffs.origin = options.origin;
+            }
+            return this.mobius(coeffs);
+        }
+
+        /**
+         * Builds the unique Möbius transformation mapping three boundary anchors to new positions.
+         * Anchors should lie on a common circle/line for predictable geometry.
+         * @param {Array<*>} sourceAnchors Three source anchor points.
+         * @param {Array<*>} targetAnchors Three target anchor points.
+         * @param {Object} [options] Optional origin override.
+         * @param {PointLike} [options.origin] Pivot applied before composing the transform.
+         * @returns {function({x:number,y:number}):{x:number,y:number}}
+         */
+        mobiusAnchors(sourceAnchors, targetAnchors, options) {
+            const source = ensureAnchorTriplet(sourceAnchors, "mobiusAnchors source");
+            const target = ensureAnchorTriplet(targetAnchors, "mobiusAnchors target");
+            const toCanonical = mobiusFromTripleToCanonical(source[0], source[1], source[2]);
+            const targetToCanonical = mobiusFromTripleToCanonical(target[0], target[1], target[2]);
+            const fromCanonical = invertMobiusCoefficients(targetToCanonical);
+            const coeffs = composeMobiusCoefficients(fromCanonical, toCanonical);
+            if (options && options.origin != null) {
+                coeffs.origin = options.origin;
+            }
+            return this.mobius(coeffs);
         }
 
         /**
@@ -27950,6 +28801,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     tagTransform(NonlinTransforms.prototype.twistPinch, "twistPinch");
     tagTransform(NonlinTransforms.prototype.radialRipple, "radialRipple");
     tagTransform(NonlinTransforms.prototype.bulge, "bulge");
+    tagTransform(NonlinTransforms.prototype.mobius, "mobius");
+    tagTransform(NonlinTransforms.prototype.mobiusDisk, "mobiusDisk");
+    tagTransform(NonlinTransforms.prototype.mobiusUpperHalfPlane, "mobiusUpperHalfPlane");
+    tagTransform(NonlinTransforms.prototype.mobiusAnchors, "mobiusAnchors");
     tagTransform(NonlinTransforms.prototype.sineWave, "sineWave");
     tagTransform(NonlinTransforms.prototype.cantilever, "cantilever");
     tagTransform(NonlinTransforms.prototype.springBend, "springBend");
@@ -28125,7 +28980,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     let Snap_ia = root.Snap_ia || root.Snap;
 
     //Global Snap Plugin
-   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
         const STRICT_MODE = true;
         //Snap Constants
@@ -28245,137 +29100,370 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
 
         /**
-         * Normalizes the supplied vector.
-         * @param {number|{x:number,y:number}} x Either the X component or a vector object.
-         * @param {number} [y] Optional Y component when {@link x} is numeric.
-         * @returns {{x:number,y:number}} Unit vector pointing in the same direction; zero vector if magnitude is zero.
+         * Converts spherical coordinates (3D) to Cartesian representation.
+         * Uses physics convention: r (radius), theta (polar/zenith angle from z-axis), phi (azimuthal angle in xy-plane from x-axis).
+         * @param {number} r Radius of the vector.
+         * @param {number} theta Polar angle from z-axis in radians (0 to π).
+         * @param {number} phi Azimuthal angle in xy-plane in radians (0 to 2π).
+         * @returns {{x:number,y:number,z:number}} Cartesian coordinates.
          */
-        Snap.normalize = function (x, y) {
-            if (typeof x === 'object' && x.hasOwnProperty('x')) {
-                y = x.y;
-                x = x.x;
+        Snap.fromSpherical = function (r, theta, phi) {
+            const sinTheta = Math.sin(theta);
+            return {
+                x: r * sinTheta * Math.cos(phi),
+                y: r * sinTheta * Math.sin(phi),
+                z: r * Math.cos(theta)
+            };
+        };
+
+        /**
+         * Converts Cartesian coordinates to spherical form.
+         * Uses physics convention: r (radius), theta (polar/zenith angle from z-axis), phi (azimuthal angle in xy-plane from x-axis).
+         * @param {number} x X component of the vector.
+         * @param {number} y Y component of the vector.
+         * @param {number} z Z component of the vector.
+         * @returns {{r:number,theta:number,phi:number}} Spherical representation where angles are in radians.
+         */
+        Snap.toSpherical = function (x, y, z) {
+            const r = Math.sqrt(x * x + y * y + z * z);
+            return {
+                r: r,
+                theta: r === 0 ? 0 : Math.acos(z / r),  // Polar angle from z-axis
+                phi: Math.atan2(y, x)  // Azimuthal angle in xy-plane
+            };
+        };
+
+        /**
+         * Converts spherical coordinates expressed in degrees to Cartesian representation.
+         * @param {number} r Radius of the vector.
+         * @param {number} theta Polar angle from z-axis in degrees (0 to 180).
+         * @param {number} phi Azimuthal angle in xy-plane in degrees (0 to 360).
+         * @returns {{x:number,y:number,z:number}} Cartesian coordinates.
+         */
+        Snap.fromSpherical_deg = function (r, theta, phi) {
+            const thetaRad = Snap.rad(theta);
+            const phiRad = Snap.rad(phi);
+            return Snap.fromSpherical(r, thetaRad, phiRad);
+        };
+
+        /**
+         * Converts Cartesian coordinates to spherical form expressed in degrees.
+         * @param {number} x X component of the vector.
+         * @param {number} y Y component of the vector.
+         * @param {number} z Z component of the vector.
+         * @returns {{r:number,theta:number,phi:number}} Spherical representation where angles are in degrees.
+         */
+        Snap.toSpherical_deg = function (x, y, z) {
+            const spherical = Snap.toSpherical(x, y, z);
+            return {
+                r: spherical.r,
+                theta: Snap.deg(spherical.theta),
+                phi: Snap.deg(spherical.phi)
+            };
+        };
+
+        /**
+         * Helper function to normalize vector input to components.
+         * Handles 2D and 3D vectors in object, array, or component form.
+         * @private
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} v1 Vector or first component.
+         * @param {number} [v2] Second component.
+         * @param {number} [v3] Third component (for 3D).
+         * @returns {{x:number,y:number,z:number}} Normalized components with z=0 for 2D.
+         */
+        Snap._normalizeVectorInput = function (v1, v2, v3) {
+            let x, y, z = 0;
+
+            if (typeof v1 === 'object') {
+                x = v1.x ?? v1[0] ?? 0;
+                y = v1.y ?? v1[1] ?? 0;
+                z = v1.z ?? v1[2] ?? 0;
+            } else {
+                x = v1 ?? 0;
+                y = v2 ?? 0;
+                z = v3 ?? 0;
             }
 
-            const l = Snap.len(x, y, 0, 0);
-            if (l === 0) return Snap.zero();
+            return {x, y, z};
+        };
 
-            return {x: x / l, y: y / l};
+        /**
+         * Normalizes the supplied vector (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x Either the X component or a vector object.
+         * @param {number} [y] Optional Y component when {@link x} is numeric.
+         * @param {number} [z] Optional Z component for 3D vectors.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Unit vector pointing in the same direction; zero vector if magnitude is zero.
+         */
+        Snap.normalize = function (x, y, z) {
+            const v = Snap._normalizeVectorInput(x, y, z);
+            const is3D = v.z !== 0 || (typeof z !== 'undefined' && z !== null);
 
+            // Fast path for 2D using native Snap.len
+            if (!is3D) {
+                const l = Snap.len(v.x, v.y, 0, 0);
+                if (l === 0) return Snap.zero();
+                return {x: v.x / l, y: v.y / l};
+            }
+
+            // 3D magnitude calculation
+            const l = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+            if (l === 0) return Snap.zero(true);
+
+            return {x: v.x / l, y: v.y / l, z: v.z / l};
         };
 
         /**
          * Returns an orthogonal vector for a given input vector.
-         * @param {number|{x:number,y:number}} x Either the X component or a vector object.
+         * For 2D: rotates 90 degrees.
+         * For 3D: computes cross product with reference vector (default: z-axis if possible, else x-axis).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x Either the X component or a vector object.
          * @param {number} [y] Optional Y component when {@link x} is numeric.
-         * @param {boolean} [lefthand=false] Whether to compute the left-hand normal.
-         * @returns {{x:number,y:number}} Orthogonal vector.
+         * @param {number|boolean} [z_or_lefthand] For 2D: lefthand boolean. For 3D: Z component.
+         * @param {boolean} [lefthand] For 3D: whether to use left-hand rule.
+         * @param {{x:number,y:number,z:number}} [refVector] Reference vector for 3D (default: smart selection).
+         * @returns {{x:number,y:number,z:(number|undefined)}} Orthogonal vector.
          */
-        Snap.orthogonal = function (x, y, lefthand) {
-            if (typeof x === 'object' && x.hasOwnProperty('x')) {
-                y = x.y;
-                x = x.x;
+        Snap.orthogonal = function (x, y, z_or_lefthand, lefthand, refVector) {
+            const v = Snap._normalizeVectorInput(x, y, typeof z_or_lefthand === 'number' ? z_or_lefthand : undefined);
+            const is3D = v.z !== 0 || (typeof z_or_lefthand === 'number');
+
+            if (!is3D) {
+                // 2D orthogonal (rotate 90 degrees)
+                const lh = typeof z_or_lefthand === 'boolean' ? z_or_lefthand : false;
+                return lh ? {x: v.y, y: -v.x} : {x: -v.y, y: v.x};
             }
-            if (lefthand) {
-                return {x: y, y: -x};
-            } else {
-                return {x: -y, y: x};
+
+            // 3D orthogonal using cross product
+            // Choose reference vector smartly to avoid parallel vectors
+            let ref = refVector;
+            if (!ref) {
+                const absX = Math.abs(v.x);
+                const absY = Math.abs(v.y);
+                const absZ = Math.abs(v.z);
+
+                // Use axis that's least aligned with input vector
+                if (absZ < absX && absZ < absY) {
+                    ref = {x: 0, y: 0, z: 1};
+                } else if (absX < absY) {
+                    ref = {x: 1, y: 0, z: 0};
+                } else {
+                    ref = {x: 0, y: 1, z: 0};
+                }
             }
+
+            const result = Snap.cross(lefthand ? ref : v, lefthand ? v : ref);
+            return result;
         };
 
         /**
-         * Multiplies a vector by a scalar.
+         * Multiplies a vector by a scalar (2D or 3D).
          * @param {number} c Scalar value to multiply.
-         * @param {number|{x:number,y:number}|number[]} x X component or vector object/array.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x X component or vector object/array.
          * @param {number} [y] Optional Y component if x is a number.
-         * @returns {{x:number,y:number}} Scaled vector.
+         * @param {number} [z] Optional Z component for 3D vectors.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Scaled vector.
          */
-        Snap.v_c_mult = function (c, x, y) {
-            if (typeof x == 'object') {
-                y = x.y || x[1] || 0;
-                x = x.x || x[0] || 0;
-            }
-            return {x: c * x, y: c * y};
+        Snap.v_c_mult = function (c, x, y, z) {
+            const v = Snap._normalizeVectorInput(x, y, z);
+            const is3D = v.z !== 0 || (typeof z !== 'undefined' && z !== null);
+
+            return is3D
+                ? {x: c * v.x, y: c * v.y, z: c * v.z}
+                : {x: c * v.x, y: c * v.y};
         }
 
         /**
-         * Adds two vectors together.
-         * @param {number|{x:number,y:number}} x1 X component or first vector.
-         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * Adds two vectors together (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the second vector.
          * @param {number} [y2] Optional Y component of the second vector.
-         * @returns {{x:number,y:number}} Vector sum of the inputs.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Vector sum of the inputs.
          */
-        Snap.v_add = function (x1, y1, x2, y2) {
+        Snap.v_add = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // v_add(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // v_add(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // v_add(x1, y1, x2, y2) or v_add(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            return {x: x1 + x2, y: y1 + y2};
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+            return is3D
+                ? {x: v1.x + v2.x, y: v1.y + v2.y, z: v1.z + v2.z}
+                : {x: v1.x + v2.x, y: v1.y + v2.y};
         }
 
         /**
-         * Subtracts one vector from another.
-         * @param {number|{x:number,y:number}} x1 X component or minuend vector.
-         * @param {number|{x:number,y:number}} y1 Y component or subtrahend vector when {@link x1} is an object.
+         * Subtracts one vector from another (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or minuend vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or subtrahend vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the subtrahend.
          * @param {number} [y2] Optional Y component of the subtrahend.
-         * @returns {{x:number,y:number}} Difference of the vectors (x1 - x2, y1 - y2).
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Difference of the vectors (v1 - v2).
          */
-        Snap.v_subtract = function (x1, y1, x2, y2) {
+        Snap.v_subtract = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // v_subtract(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // v_subtract(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // v_subtract(x1, y1, x2, y2) or v_subtract(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            return {x: x1 - x2, y: y1 - y2};
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+            return is3D
+                ? {x: v1.x - v2.x, y: v1.y - v2.y, z: v1.z - v2.z}
+                : {x: v1.x - v2.x, y: v1.y - v2.y};
         }
 
         /**
-         * Calculates the midpoint between two vectors.
-         * @param {number|{x:number,y:number}} x1 X component or first vector.
-         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * Calculates the midpoint between two vectors (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the second vector.
          * @param {number} [y2] Optional Y component of the second vector.
-         * @returns {{x:number,y:number}} Midpoint vector.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Midpoint vector.
          */
-        Snap.v_mid = function (x1, y1, x2, y2) {
+        Snap.v_mid = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // v_mid(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // v_mid(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // v_mid(x1, y1, x2, y2) or v_mid(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            return {x: (x1 + x2) / 2, y: (y1 + y2) / 2};
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+            return is3D
+                ? {x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2, z: (v1.z + v2.z) / 2}
+                : {x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2};
         }
 
         /**
-         * Computes the dot product between two vectors.
-         * @param {number|{x:number,y:number}} x1 X component or first vector.
-         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * Linear interpolation between two vectors (2D or 3D).
+         * Highly optimized for animation frames.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object, or t value.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} [x2_or_t] X component of second vector or interpolation value t.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @param {number} [z1_or_t] Optional Z component of first vector or t value.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @param {number} [t] Interpolation value (0 to 1, where 0 returns v1 and 1 returns v2).
+         * @returns {{x:number,y:number,z:(number|undefined)}} Interpolated vector.
+         */
+        Snap.v_lerp = function (x1, y1, x2_or_t, y2, z1_or_t, z2, t) {
+            let v1, v2, t_val;
+
+            if (typeof y1 === 'object') {
+                // v_lerp(vec1, vec2, t)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+                t_val = x2_or_t;
+            } else if (typeof x1 === 'object' && typeof x2_or_t === 'object') {
+                // v_lerp(vec1, vec2, t)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(x2_or_t);
+                t_val = y1;
+            } else if (typeof x1 === 'object') {
+                // v_lerp(vec1, x2, y2, z2, t)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2_or_t, y2);
+                t_val = z1_or_t;
+            } else {
+                // v_lerp(x1, y1, z1, x2, y2, z2, t) or v_lerp(x1, y1, x2, y2, t)
+                if (typeof t !== 'undefined') {
+                    v1 = Snap._normalizeVectorInput(x1, y1, x2_or_t);
+                    v2 = Snap._normalizeVectorInput(y2, z1_or_t, z2);
+                    t_val = t;
+                } else {
+                    v1 = Snap._normalizeVectorInput(x1, y1, 0);
+                    v2 = Snap._normalizeVectorInput(x2_or_t, y2, 0);
+                    t_val = z1_or_t;
+                }
+            }
+
+            // Clamp t to [0, 1] for safety
+            t_val = Math.max(0, Math.min(1, t_val));
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+
+            // Optimized calculation: v1 + t * (v2 - v1) = v1 * (1 - t) + v2 * t
+            const oneMinusT = 1 - t_val;
+
+            return is3D
+                ? {
+                    x: v1.x * oneMinusT + v2.x * t_val,
+                    y: v1.y * oneMinusT + v2.y * t_val,
+                    z: v1.z * oneMinusT + v2.z * t_val
+                }
+                : {
+                    x: v1.x * oneMinusT + v2.x * t_val,
+                    y: v1.y * oneMinusT + v2.y * t_val
+                };
+        }
+
+        /**
+         * Computes the dot product between two vectors (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the second vector.
          * @param {number} [y2] Optional Y component of the second vector.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
          * @returns {number} Dot product result.
          */
-        Snap.dot = function (x1, y1, x2, y2) {
+        Snap.dot = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // dot(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // dot(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // dot(x1, y1, x2, y2) or dot(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            return x1 * x2 + y1 * y2;
+
+            return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
         }
+
 
         /**
          * Round a number to a given number of decimal places.
@@ -28452,53 +29540,280 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
 
         /**
-         * Computes the 2D scalar cross product between two vectors.
-         * @param {number|{x:number,y:number}} x1 X component or first vector.
-         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * Computes the cross product between two vectors.
+         * For 2D vectors: returns scalar (z-component of 3D cross product).
+         * For 3D vectors: returns the perpendicular vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the second vector.
          * @param {number} [y2] Optional Y component of the second vector.
-         * @returns {number} Signed magnitude of the cross product.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {number|{x:number,y:number,z:number}} Scalar for 2D, vector for 3D.
          */
-        Snap.cross = function (x1, y1, x2, y2) {
+        Snap.cross = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // cross(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // cross(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // cross(x1, y1, x2, y2) or cross(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+
+            if (!is3D) {
+                // 2D cross product returns scalar (z-component)
+                return v1.x * v2.y - v2.x * v1.y;
             }
-            return x1 * y2 - x2 * y1;
+
+            // 3D cross product returns vector
+            return {
+                x: v1.y * v2.z - v1.z * v2.y,
+                y: v1.z * v2.x - v1.x * v2.z,
+                z: v1.x * v2.y - v1.y * v2.x
+            };
         }
 
         /**
-         * Projects one vector onto another.
-         * @param {number|{x:number,y:number}} x1 X component or source vector.
-         * @param {number|{x:number,y:number}} y1 Y component or target vector when {@link x1} is an object.
+         * Projects one vector onto another (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or source vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or target vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the target vector.
          * @param {number} [y2] Optional Y component of the target vector.
-         * @returns {{x:number,y:number}} Projection of the first vector onto the second.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Projection of the first vector onto the second.
          */
-        Snap.project = function (x1, y1, x2, y2) {
+        Snap.project = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // project(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // project(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // project(x1, y1, x2, y2) or project(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+            const dotProduct = Snap.dot(v1, v2);
+
+            // Calculate length squared efficiently
+            let lengthSquared;
+            if (!is3D && typeof Snap.len2 === 'function') {
+                lengthSquared = Snap.len2(v2.x, v2.y);
+            } else {
+                lengthSquared = v2.x * v2.x + v2.y * v2.y + v2.z * v2.z;
             }
-            let dotProduct = Snap.dot(x1, y1, x2, y2);
-            let lengthSquared = Snap.len2(x2, y2);
-            let scalar = dotProduct ? dotProduct / lengthSquared : 0;
-            return {x: scalar * x2, y: scalar * y2};
+
+            const scalar = lengthSquared ? dotProduct / lengthSquared : 0;
+
+            return is3D
+                ? {x: scalar * v2.x, y: scalar * v2.y, z: scalar * v2.z}
+                : {x: scalar * v2.x, y: scalar * v2.y};
         }
+
         /**
-         * Returns the 2D zero vector.
-         * @returns {{x:number,y:number}} A vector with both coordinates equal to zero.
+         * Reflects a vector across a surface defined by its normal vector (2D or 3D).
+         * Useful for physics simulations and bounce effects.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or incident vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or normal vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the normal vector.
+         * @param {number} [y2] Optional Y component of the normal vector.
+         * @param {number} [z1] Optional Z component of the incident vector.
+         * @param {number} [z2] Optional Z component of the normal vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Reflected vector.
          */
-        Snap.zero = function () {
-            return {x: 0, y: 0};
+        Snap.v_reflect = function (x1, y1, x2, y2, z1, z2) {
+            let incident, normal;
+
+            if (typeof y1 === 'object') {
+                // v_reflect(incident, normal)
+                incident = Snap._normalizeVectorInput(x1);
+                normal = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // v_reflect(incident, nx, ny, nz)
+                incident = Snap._normalizeVectorInput(x1);
+                normal = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // v_reflect(ix, iy, iz, nx, ny, nz) or v_reflect(ix, iy, nx, ny)
+                incident = Snap._normalizeVectorInput(x1, y1, z1);
+                normal = Snap._normalizeVectorInput(x2, y2, z2);
+            }
+
+            const is3D = incident.z !== 0 || normal.z !== 0;
+
+            // Reflection formula: v - 2 * (v · n) * n
+            const dotProduct = Snap.dot(incident, normal);
+            const factor = 2 * dotProduct;
+
+            return is3D
+                ? {
+                    x: incident.x - factor * normal.x,
+                    y: incident.y - factor * normal.y,
+                    z: incident.z - factor * normal.z
+                }
+                : {
+                    x: incident.x - factor * normal.x,
+                    y: incident.y - factor * normal.y
+                };
+        }
+
+        /**
+         * Rotates a 3D vector around an arbitrary axis by a given angle.
+         * Uses Rodrigues' rotation formula for efficiency.
+         * @param {{x:number,y:number,z:number}|number[]} vector Vector to rotate.
+         * @param {{x:number,y:number,z:number}|number[]} axis Rotation axis (will be normalized).
+         * @param {number} angle Rotation angle in radians.
+         * @returns {{x:number,y:number,z:number}} Rotated vector.
+         */
+        Snap.v_rotate3D = function (vector, axis, angle) {
+            const v = Snap._normalizeVectorInput(vector);
+            const k = Snap.normalize(axis);
+
+            const cosTheta = Math.cos(angle);
+            const sinTheta = Math.sin(angle);
+            const oneMinusCos = 1 - cosTheta;
+
+            // Rodrigues' rotation formula: v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+            const kDotV = k.x * v.x + k.y * v.y + k.z * v.z;
+
+            // k × v
+            const kCrossV = {
+                x: k.y * v.z - k.z * v.y,
+                y: k.z * v.x - k.x * v.z,
+                z: k.x * v.y - k.y * v.x
+            };
+
+            return {
+                x: v.x * cosTheta + kCrossV.x * sinTheta + k.x * kDotV * oneMinusCos,
+                y: v.y * cosTheta + kCrossV.y * sinTheta + k.y * kDotV * oneMinusCos,
+                z: v.z * cosTheta + kCrossV.z * sinTheta + k.z * kDotV * oneMinusCos
+            };
+        }
+
+        /**
+         * Returns a zero vector (2D or 3D).
+         * @param {boolean} [is3D=false] Whether to return a 3D zero vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} A vector with all coordinates equal to zero.
+         */
+        Snap.zero = function (is3D) {
+            return is3D ? {x: 0, y: 0, z: 0} : {x: 0, y: 0};
+        }
+
+        /**
+         * Clamps the magnitude of a vector to a maximum length (2D or 3D).
+         * Useful for limiting velocities in animations.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x X component or vector object.
+         * @param {number} [y] Y component or max length when x is a vector.
+         * @param {number} [z_or_max] Z component or max length.
+         * @param {number} [max] Maximum length when all components provided.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Clamped vector.
+         */
+        Snap.v_clamp = function (x, y, z_or_max, max) {
+            let v, maxLength;
+
+            if (typeof x === 'object') {
+                v = Snap._normalizeVectorInput(x);
+                maxLength = y;
+            } else if (typeof max !== 'undefined') {
+                v = Snap._normalizeVectorInput(x, y, z_or_max);
+                maxLength = max;
+            } else {
+                v = Snap._normalizeVectorInput(x, y, 0);
+                maxLength = z_or_max;
+            }
+
+            const is3D = v.z !== 0;
+            const magSq = v.x * v.x + v.y * v.y + v.z * v.z;
+            const maxSq = maxLength * maxLength;
+
+            if (magSq <= maxSq) {
+                return is3D ? {x: v.x, y: v.y, z: v.z} : {x: v.x, y: v.y};
+            }
+
+            const scale = maxLength / Math.sqrt(magSq);
+
+            return is3D
+                ? {x: v.x * scale, y: v.y * scale, z: v.z * scale}
+                : {x: v.x * scale, y: v.y * scale};
+        }
+
+        /**
+         * Calculates the angle between two vectors in radians (2D or 3D).
+         * Returns value in range [0, π].
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the second vector.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {number} Angle in radians.
+         */
+        Snap.v_angle = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
+            if (typeof y1 === 'object') {
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
+            }
+
+            const dot = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+            const mag1Sq = v1.x * v1.x + v1.y * v1.y + v1.z * v1.z;
+            const mag2Sq = v2.x * v2.x + v2.y * v2.y + v2.z * v2.z;
+
+            if (mag1Sq === 0 || mag2Sq === 0) return 0;
+
+            const cosAngle = dot / Math.sqrt(mag1Sq * mag2Sq);
+            // Clamp to [-1, 1] to avoid numerical errors with acos
+            return Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+        }
+
+        /**
+         * Calculates the signed angle between two 2D vectors in radians.
+         * Returns value in range [-π, π]. Positive for counter-clockwise, negative for clockwise.
+         * @param {number|{x:number,y:number}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number}|number[]} y1 Y component or second vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the second vector.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @returns {number} Signed angle in radians.
+         */
+        Snap.v_angle_signed = function (x1, y1, x2, y2) {
+            let v1, v2;
+
+            if (typeof y1 === 'object') {
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2);
+            } else {
+                v1 = Snap._normalizeVectorInput(x1, y1);
+                v2 = Snap._normalizeVectorInput(x2, y2);
+            }
+
+            return Math.atan2(v2.y, v2.x) - Math.atan2(v1.y, v1.x);
         }
 
         /**
@@ -29228,7 +30543,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
 
     //Matrix functions
-   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
         //Matrix Extentions
 
         /**
@@ -29388,7 +30703,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     let Snap_ia = root.Snap_ia || root.Snap;
 //Element Extansions
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
         //ELEMENT Functions
 
@@ -30187,8 +31502,6 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Snap.Element} The converted path element or the original element when no conversion is needed.
          */
         Element.prototype.makePath = function (recursive) {
-           
-
             if (this.isGroupLike()) {
                 if (recursive) {
                     const children = this.getChildren(true);
@@ -30201,16 +31514,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             if (this.type === 'path') return this;
-        
+
             const pathData = Snap.path.toPath(this, true);
             if (!pathData || !this.paper) return this;
-        
+
             const doc = this.paper.node.ownerDocument;
             const newNode = doc.createElementNS(Snap.xmlns.svg, 'path');
-        
+
             const attributes = this.getAttributes();
             const geometryAttrs = new Set(this.getGeometryAttr(true));
-        
+
             Object.keys(attributes).forEach((name) => {
                 if (geometryAttrs.has(name)) return;
                 let value = attributes[name];
@@ -30221,9 +31534,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     newNode.setAttribute(name, value);
                 }
             });
-        
+
             newNode.setAttribute('d', pathData);
-        
+
             const oldNode = this.node;
             const parent = oldNode.parentNode;
             if (parent) parent.replaceChild(newNode, oldNode);
@@ -30235,7 +31548,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (oldNode && oldNode.snap === this.id) {
                 delete oldNode.snap;
             }
-        
+
             return this;
         };
 
@@ -30571,7 +31884,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Snap.Element} The element for chaining.
          */
         Element.prototype.move = function (el, mcontext, scontext, econtext, select) {
-            if (typeof el === "object" && !Snap.is(el, "Element")){
+            if (typeof el === "object" && !Snap.is(el, "Element")) {
                 [mcontext, scontext, econtext, el] = [el, mcontext, scontext, this]
             }
 
@@ -30835,7 +32148,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 // el.rotate(.2*(Date.now() - el.data("t")), localPt.x + el.data('op').x, localPt.y + el.data('op').y)
             }
 
-            eve(['drag', 'move', 'ongoing', el.id], el);
+            eve(['drag', 'move', 'ongoing', el.id], el, el);
+            if (this.event) eve(this.event, el, el);
         };
 
         _.startMove = function (x, y, ev, el, select, coordTarget) {
@@ -30851,8 +32165,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.data('ot', localMatrix);
             if (select) {
                 eve(['drag', 'move', 'select', 'start'], el, [localMatrix]);
+                if (this.event) eve(this.event, el, [localMatrix]);
             } else {
-                eve(['drag', 'move', 'start', el.id], el);
+                eve(['drag', 'move', 'start', el.id], el, el);
+                if (this.event) eve(this.event, el, el);
             }
 
             const limits = this.limits;
@@ -30937,8 +32253,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     // el.updateBBoxCache(old_matrix.invert().multLeft(cur_matrix), true);
                     eve(['drag', 'move', 'select', 'end'], el,
                         [cur_matrix, old_matrix]);
+                    if (this.event) eve(this.event, el, [cur_matrix, old_matrix]);
+
                 } else {
-                    eve(['drag', 'move', 'end', el.id], el);
+                    eve(['drag', 'move', 'end', el.id], el, el);
+                    if (this.event) eve(this.event, el, el);
                 }
                 el.data('active', false);
             }
@@ -31017,6 +32336,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             el.data('last_angle', [abs_angle_new, adjusted_new]);
             eve(['drag', 'revolve', 'ongoing', el.id], el, abs_angle_new, adjusted_new, newPoint);
+            if (this.event) eve(this.event, el, abs_angle_new, adjusted_new, newPoint);
+
         };
 
         _.startRevolve = function (x, y, ev, el, center, coordTarget) {
@@ -31044,8 +32365,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             el.data('s', false);
 
-            eve(['drag', 'revolve', 'start', el.id], el);
-
+            eve(['drag', 'revolve', 'start', el.id], el, el);
+            if (this.event) eve(this.event, el, el);
         };
 
         _.endRevolve = function (ev, el, center) {
@@ -31055,6 +32376,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
                 el.data('active', false);
                 eve(['drag', 'revolve', 'end', el.id], el, el.data('last_angle')[0],
+                    el.data('last_angle')[1]);
+                if (this.event) eve(this.event, el, el.data('last_angle')[0],
                     el.data('last_angle')[1]);
             }
         };
@@ -32627,7 +33950,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 f: matrix.f - loc.f,
             };
 
-
+          
             const transformEasingSpec = (!easing_direct_matrix && isTransformEasingSpecObject(easing)) ? easing : null;
             const transformInterpolator = transformEasingSpec
                 ? buildTransformEasingInterpolator(loc, matrix, transformEasingSpec)
@@ -32952,9 +34275,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     root.requestIdleCallback(runner);
                 } else {
                     setTimeout(function () {
-                        runner({timeRemaining: function () {
+                        runner({
+                            timeRemaining: function () {
                                 return PRODUCER_BUDGET_MS;
-                            }});
+                            }
+                        });
                     }, 0);
                 }
             };
@@ -33457,16 +34782,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {number} error - Error tolerance
          * @returns {boolean|Object} False if not elliptical, ellipse parameters if elliptical and save=true
          */
-        Element.prototype.isElliptical = function(path, save, num_tests, error) {
+        Element.prototype.isElliptical = function (path, save, num_tests, error) {
 
-            if (typeof path === "boolean"){
+            if (typeof path === "boolean") {
                 error = num_tests;
                 num_tests = save;
                 save = path;
                 path = undefined;
             }
 
-            if (!isNaN(path)){
+            if (!isNaN(path)) {
                 error = save;
                 num_tests = path;
                 save = false;
@@ -33574,7 +34899,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         Element.prototype.isRectangular = function (path, save) {
-            if (typeof path === "boolean"){
+            if (typeof path === "boolean") {
                 save = path;
                 path = undefined;
             }
@@ -34129,6 +35454,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     });
 }(window || this))
 ;
+
 (function (root) {
         let Snap_ia = root.Snap_ia || root.Snap;
 
@@ -35404,6 +36730,1028 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }(typeof window !== "undefined" ? window : (global))
 )
 ;
+Snap.plugin(function (Snap, Element) {
+
+    const WARP_DATA_KEY = "_ia_active_warps";
+    const WARP_MONITOR_KEY = "_ia_warp_monitor";
+
+    function collectPathTargets(root, bucket) {
+        bucket = bucket || [];
+        if (!root) {
+            return bucket;
+        }
+        if (root.type === "path") {
+            bucket.push(root);
+            return bucket;
+        }
+        if (typeof root.isGroupLike === "function" && root.isGroupLike()) {
+            const children = root.getChildren && root.getChildren(true);
+            if (children && children.length) {
+                for (let i = 0; i < children.length; ++i) {
+                    collectPathTargets(children[i], bucket);
+                }
+            }
+        }
+        return bucket;
+    }
+
+    function normalizePoint(point) {
+        if (!point) {
+            return null;
+        }
+        if (typeof point.x === "number" && typeof point.y === "number") {
+            const x = +point.x;
+            const y = +point.y;
+            return (isFinite(x) && isFinite(y)) ? {x, y} : null;
+        }
+        if (Array.isArray(point) && point.length >= 2) {
+            const x = +point[0];
+            const y = +point[1];
+            return (isFinite(x) && isFinite(y)) ? {x, y} : null;
+        }
+        return null;
+    }
+
+    function parsePointArray(value) {
+        if (!Array.isArray(value)) {
+            return [];
+        }
+        const points = [];
+        for (let i = 0; i < value.length; ++i) {
+            const normalized = normalizePoint(value[i]);
+            if (normalized) {
+                points.push(normalized);
+            }
+        }
+        return points;
+    }
+
+    function parsePointsString(str) {
+        if (typeof str !== "string") {
+            return [];
+        }
+        const tokens = str.trim().split(/[\s,]+/);
+        const points = [];
+        for (let i = 0; i + 1 < tokens.length; i += 2) {
+            const x = parseFloat(tokens[i]);
+            const y = parseFloat(tokens[i + 1]);
+            if (isFinite(x) && isFinite(y)) {
+                points.push({x, y});
+            }
+        }
+        return points;
+    }
+
+    function parseBorderDistance(value) {
+        if (value == null) {
+            return 0;
+        }
+        const numeric = parseFloat(value);
+        return (isFinite(numeric) && numeric > 0) ? numeric : 0;
+    }
+
+    function parseBorderMode(value) {
+        if (value == null) {
+            return null;
+        }
+        const text = String(value).trim().toLowerCase();
+        if (!text) {
+            return null;
+        }
+        if (text === "inside" || text === "inner" || text === "inward") {
+            return "inside";
+        }
+        if (text === "outside" || text === "outer" || text === "outward") {
+            return "outside";
+        }
+        return null;
+    }
+
+    function normalizeBorderSpec(value) {
+        if (value == null) {
+            return null;
+        }
+        if (typeof value === "number" || typeof value === "string") {
+            return {distance: parseBorderDistance(value)};
+        }
+        if (typeof value === "object") {
+            const hasDistance = Object.prototype.hasOwnProperty.call(value, "distance");
+            const hasMode = Object.prototype.hasOwnProperty.call(value, "mode");
+            if (!hasDistance && !hasMode) {
+                return null;
+            }
+            const spec = {};
+            if (hasDistance) {
+                spec.distance = parseBorderDistance(value.distance);
+            }
+            if (hasMode) {
+                spec.mode = parseBorderMode(value.mode);
+            }
+            return spec;
+        }
+        return null;
+    }
+
+    function parseCircleGeometry(element) {
+        if (!element || typeof element.attr !== "function") {
+            return null;
+        }
+        const cxRaw = element.attr("cx");
+        const cyRaw = element.attr("cy");
+        const cx = isFinite(+cxRaw) ? +cxRaw : 0;
+        const cy = isFinite(+cyRaw) ? +cyRaw : 0;
+        if (element.type === "circle") {
+            const rRaw = element.attr("r");
+            const r = Math.abs(isFinite(+rRaw) ? +rRaw : NaN);
+            return (r > 0) ? {kind: "circle", cx, cy, rx: r, ry: r} : null;
+        }
+        if (element.type === "ellipse") {
+            const rxRaw = element.attr("rx");
+            const ryRaw = element.attr("ry");
+            const rx = Math.abs(isFinite(+rxRaw) ? +rxRaw : NaN);
+            const ry = Math.abs(isFinite(+ryRaw) ? +ryRaw : NaN);
+            return (rx > 0 && ry > 0) ? {kind: "circle", cx, cy, rx, ry} : null;
+        }
+        return null;
+    }
+
+    function normalizeRectObject(rect) {
+        if (!rect) {
+            return null;
+        }
+        const x = (rect.x == null || rect.x === "") ? 0 : +rect.x;
+        const y = (rect.y == null || rect.y === "") ? 0 : +rect.y;
+        const width = +rect.width;
+        const height = +rect.height;
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height)) {
+            return null;
+        }
+        if (!(width > 0) || !(height > 0)) {
+            return null;
+        }
+        return {x, y, width, height};
+    }
+
+    function parseRectElement(element) {
+        if (!element || typeof element.attr !== "function") {
+            return null;
+        }
+        return normalizeRectObject({
+            x: element.attr("x"),
+            y: element.attr("y"),
+            width: element.attr("width"),
+            height: element.attr("height")
+        });
+    }
+
+    function distanceToSegment(point, start, end) {
+        if (!point || !start || !end) {
+            return Infinity;
+        }
+        if (!isFinite(point.x) || !isFinite(point.y) || !isFinite(start.x) || !isFinite(start.y) || !isFinite(end.x) || !isFinite(end.y)) {
+            return Infinity;
+        }
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const lengthSq = (dx * dx) + (dy * dy);
+        if (!lengthSq) {
+            const px = point.x - start.x;
+            const py = point.y - start.y;
+            return Math.sqrt((px * px) + (py * py));
+        }
+        let t = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq;
+        t = Math.max(0, Math.min(1, t));
+        const projX = start.x + (t * dx);
+        const projY = start.y + (t * dy);
+        const rx = point.x - projX;
+        const ry = point.y - projY;
+        return Math.sqrt((rx * rx) + (ry * ry));
+    }
+
+    function polygonEdgeDistance(point, polygon) {
+        if (!point || !polygon || polygon.length < 2) {
+            return Infinity;
+        }
+        let minDistance = Infinity;
+        for (let i = 0; i < polygon.length; ++i) {
+            const start = polygon[i];
+            const end = polygon[(i + 1) % polygon.length];
+            const dist = distanceToSegment(point, start, end);
+            if (dist < minDistance) {
+                minDistance = dist;
+            }
+        }
+        return minDistance;
+    }
+
+    function buildPathSampler(geometry) {
+        if (!geometry || !geometry.path) {
+            return null;
+        }
+        let totalLength = 0;
+        try {
+            if (geometry.element && typeof geometry.element.getTotalLength === "function") {
+                totalLength = geometry.element.getTotalLength();
+            } else if (typeof Snap.path.getTotalLength === "function") {
+                totalLength = Snap.path.getTotalLength(geometry.path);
+            }
+        } catch (e) {
+            totalLength = 0;
+        }
+        const effectiveLength = (isFinite(totalLength) && totalLength > 0) ? totalLength : 0;
+        const sampleCount = effectiveLength
+            ? Math.max(16, Math.min(200, Math.round(effectiveLength / 4)))
+            : 64;
+        let samples = extractPathSamples(geometry, sampleCount);
+        if (!Array.isArray(samples) || !samples.length) {
+            return null;
+        }
+        samples = samples
+            .filter((pt) => pt && isFinite(pt.x) && isFinite(pt.y))
+            .map((pt, idx) => ({x: +pt.x, y: +pt.y, index: idx}));
+        if (!samples.length) {
+            return null;
+        }
+        const kdIndex = (typeof Snap.kdTree === "function" && samples.length >= 4)
+            ? Snap.kdTree(samples)
+            : null;
+
+        function nearestWithKD(query) {
+            if (!kdIndex || typeof kdIndex.nearest_dist !== "function") {
+                return null;
+            }
+            const hit = kdIndex.nearest_dist(query, 1, true);
+            if (!hit || !hit[0]) {
+                return null;
+            }
+            return {sample: hit[0], distSq: hit[1] || 0};
+        }
+
+        function nearestWithPairs(query) {
+            if (typeof Snap.nearPairs !== "function") {
+                return null;
+            }
+            const result = Snap.nearPairs([query], samples);
+            if (!result || !result.pair || result.pair.length < 2) {
+                return null;
+            }
+            return {sample: result.pair[1], distSq: Math.pow(result.d || 0, 2)};
+        }
+
+        function nearestFallback(query) {
+            let closest = null;
+            let minDistSq = Infinity;
+            for (let i = 0; i < samples.length; ++i) {
+                const dx = query.x - samples[i].x;
+                const dy = query.y - samples[i].y;
+                const distSq = (dx * dx) + (dy * dy);
+                if (distSq < minDistSq) {
+                    minDistSq = distSq;
+                    closest = samples[i];
+                }
+            }
+            return closest ? {sample: closest, distSq: minDistSq} : null;
+        }
+
+        function findNearestDescriptor(query) {
+            return nearestWithKD(query) || nearestWithPairs(query) || nearestFallback(query);
+        }
+
+        return {
+            distance(point) {
+                if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                    return Infinity;
+                }
+                const query = {x: +point.x, y: +point.y};
+                const nearest = findNearestDescriptor(query);
+                if (!nearest || !nearest.sample) {
+                    return Infinity;
+                }
+                const baseDistance = Math.sqrt(Math.max(0, nearest.distSq || 0));
+                let best = baseDistance;
+                const idx = typeof nearest.sample.index === "number"
+                    ? nearest.sample.index
+                    : samples.indexOf(nearest.sample);
+                if (idx > 0) {
+                    best = Math.min(best, distanceToSegment(query, samples[idx - 1], nearest.sample));
+                }
+                if (idx >= 0 && idx + 1 < samples.length) {
+                    best = Math.min(best, distanceToSegment(query, nearest.sample, samples[idx + 1]));
+                }
+                return best;
+            }
+        };
+    }
+
+    function extractPathSamples(geometry, sampleCount) {
+        if (geometry.element && typeof geometry.element.getPointSample === "function") {
+            return geometry.element.getPointSample(sampleCount);
+        }
+        if (geometry.path && typeof Snap.path.getPointSample === "function" && typeof Snap.path.toBeziers === "function") {
+            const stub = {
+                type: "path",
+                toBeziers() {
+                    return Snap.path.toBeziers(geometry.path);
+                }
+            };
+            return Snap.path.getPointSample.call(stub, sampleCount);
+        }
+        return null;
+    }
+
+    function createRegionDescriptor(region, borderOverride) {
+        if (!region) {
+            return null;
+        }
+        const isElement = Snap.is(region, "Element");
+        const isPlainObject = region && typeof region === "object" && !Array.isArray(region) && !isElement;
+        const borderOverrideSpec = normalizeBorderSpec(borderOverride);
+        const overrideBorderDistance = borderOverrideSpec ? borderOverrideSpec.distance : null;
+        const overrideBorderMode = borderOverrideSpec ? borderOverrideSpec.mode : null;
+        const defaultBorderSpec = isPlainObject ? normalizeBorderSpec(region.border) : null;
+        const defaultBorder = defaultBorderSpec && defaultBorderSpec.distance ? defaultBorderSpec.distance : 0;
+        const defaultBorderMode = defaultBorderSpec && defaultBorderSpec.mode ? defaultBorderSpec.mode : null;
+        let descriptor = null;
+
+        if (Array.isArray(region)) {
+            const points = parsePointArray(region);
+            if (points.length >= 3) {
+                descriptor = {type: "polygon", points};
+            }
+        } else if (typeof region === "string") {
+            const path = region.trim();
+            if (path) {
+                descriptor = {type: "path", path};
+            }
+        } else if (isElement) {
+            let elementBorderSpec = null;
+            if (typeof region.data === "function") {
+                elementBorderSpec = normalizeBorderSpec(region.data("border") || region.data("borderSpec"));
+            }
+            if (!elementBorderSpec && typeof region.attr === "function") {
+                elementBorderSpec = normalizeBorderSpec(region.attr("data-border"));
+            }
+            if (region.type === "path") {
+                descriptor = {type: "path-element", element: region};
+            } else if (region.type === "polygon" || region.type === "polyline") {
+                descriptor = {type: "polygon-element", element: region};
+            } else if (region.type === "circle" || region.type === "ellipse") {
+                descriptor = {type: "circle-element", element: region};
+            } else if (region.type === "rect") {
+                descriptor = {type: "rect-element", element: region};
+            }
+            if (descriptor && elementBorderSpec) {
+                if (elementBorderSpec.distance > 0) {
+                    descriptor.borderDistance = elementBorderSpec.distance;
+                }
+                if (elementBorderSpec.mode) {
+                    descriptor.borderMode = elementBorderSpec.mode;
+                }
+            }
+        } else if (isPlainObject) {
+            if (Array.isArray(region.points)) {
+                const pts = parsePointArray(region.points);
+                if (pts.length >= 3) {
+                    descriptor = {type: "polygon", points: pts};
+                }
+            } else if (typeof region.path === "string" && region.path) {
+                descriptor = {type: "path", path: region.path};
+            } else {
+                const rectObject = normalizeRectObject(region);
+                if (rectObject) {
+                    descriptor = {type: "rect", rect: rectObject};
+                }
+            }
+            if (descriptor && defaultBorderSpec && defaultBorderSpec.mode) {
+                descriptor.borderMode = defaultBorderSpec.mode;
+            }
+        }
+        if (descriptor) {
+            const finalDistance = (overrideBorderDistance != null)
+                ? overrideBorderDistance
+                : (descriptor.borderDistance != null ? descriptor.borderDistance : defaultBorder);
+            if (finalDistance > 0) {
+                descriptor.borderDistance = finalDistance;
+            } else {
+                delete descriptor.borderDistance;
+            }
+            const finalMode = overrideBorderMode || descriptor.borderMode || defaultBorderMode || "outside";
+            descriptor.borderMode = finalMode;
+        }
+        return descriptor;
+    }
+
+    function resolveRegionGeometry(descriptor) {
+        if (!descriptor) {
+            return null;
+        }
+        if (descriptor.type === "polygon") {
+            return descriptor.points && descriptor.points.length >= 3
+                ? {kind: "polygon", points: descriptor.points.map(normalizePoint).filter(Boolean)}
+                : null;
+        }
+        if (descriptor.type === "polygon-element" && descriptor.element) {
+            const pts = parsePointsString(descriptor.element.attr("points") || "");
+            return pts.length >= 3 ? {kind: "polygon", points: pts} : null;
+        }
+        if (descriptor.type === "path") {
+            return descriptor.path ? {kind: "path", path: descriptor.path} : null;
+        }
+        if (descriptor.type === "path-element" && descriptor.element) {
+            const path = descriptor.element.attr("d") || "";
+            return path ? {kind: "path", path, element: descriptor.element} : null;
+        }
+        if (descriptor.type === "rect" && descriptor.rect) {
+            const rect = normalizeRectObject(descriptor.rect);
+            return rect ? {kind: "rect", x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null;
+        }
+        if (descriptor.type === "rect-element" && descriptor.element) {
+            const rect = parseRectElement(descriptor.element);
+            return rect ? {kind: "rect", x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null;
+        }
+        if (descriptor.type === "circle-element" && descriptor.element) {
+            return parseCircleGeometry(descriptor.element);
+        }
+        return null;
+    }
+
+    function buildPolygonRegion(points) {
+        const polygon = points.map(normalizePoint).filter(Boolean);
+        if (polygon.length < 3) {
+            return null;
+        }
+        return {
+            contains(point) {
+                return Snap.polygons.pointInPolygon(point, polygon, true);
+            },
+            intersects(otherPolygon) {
+                if (!otherPolygon || otherPolygon.length < 3) {
+                    return false;
+                }
+                if (Snap.polygons.intersect(polygon, otherPolygon)) {
+                    return true;
+                }
+                if (otherPolygon.some((pt) => Snap.polygons.pointInPolygon(pt, polygon, true))) {
+                    return true;
+                }
+                return polygon.some((pt) => Snap.polygons.pointInPolygon(pt, otherPolygon, true));
+            },
+            distance(point) {
+                return polygonEdgeDistance(point, polygon);
+            }
+        };
+    }
+
+    function buildPathRegion(geometry) {
+        if (!geometry || !geometry.path) {
+            return null;
+        }
+        const path = geometry.path;
+        let bbox = null;
+        try {
+            bbox = Snap.path.getBBox(path);
+        } catch (e) {
+            bbox = null;
+        }
+        const sampler = buildPathSampler(geometry);
+        return {
+            contains(point) {
+                return Snap.path.isPointInside(path, point.x, point.y);
+            },
+            intersects(otherPolygon) {
+                if (!otherPolygon || !otherPolygon.length) {
+                    return true;
+                }
+                if (bbox) {
+                    const hullBox = Snap.bBoxFromPoints(otherPolygon);
+                    if (hullBox && !Snap.path.isBBoxIntersect(bbox, hullBox)) {
+                        return false;
+                    }
+                }
+                for (let i = 0; i < otherPolygon.length; ++i) {
+                    if (Snap.path.isPointInside(path, otherPolygon[i].x, otherPolygon[i].y)) {
+                        return true;
+                    }
+                }
+                return true;
+            },
+            distance(point) {
+                if (!sampler) {
+                    return Infinity;
+                }
+                return sampler.distance(point);
+            }
+        };
+    }
+
+    function buildEllipseApproximationPoints(cx, cy, rx, ry, steps) {
+        const count = steps && steps > 8 ? steps : 24;
+        const pts = [];
+        for (let i = 0; i < count; ++i) {
+            const angle = (i / count) * Math.PI * 2;
+            pts.push({
+                x: cx + (Math.cos(angle) * rx),
+                y: cy + (Math.sin(angle) * ry)
+            });
+        }
+        return pts;
+    }
+
+    function buildCircleRegion(geometry) {
+        if (!geometry) {
+            return null;
+        }
+        const cx = +geometry.cx;
+        const cy = +geometry.cy;
+        const rx = +geometry.rx;
+        const ry = +geometry.ry;
+        if (!isFinite(cx) || !isFinite(cy) || !(rx > 0) || !(ry > 0)) {
+            return null;
+        }
+        const invRxSq = 1 / (rx * rx);
+        const invRySq = 1 / (ry * ry);
+        const ellipseBBox = {x: cx - rx, y: cy - ry, x2: cx + rx, y2: cy + ry};
+        const ellipsePolygon = buildEllipseApproximationPoints(cx, cy, rx, ry, 20);
+        const contains = function (point) {
+            if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                return false;
+            }
+            const dx = point.x - cx;
+            const dy = point.y - cy;
+            const norm = (dx * dx * invRxSq) + (dy * dy * invRySq);
+            return norm <= 1.00001;
+        };
+        const edgeDistance = function (point) {
+            if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                return Infinity;
+            }
+            const dx = point.x - cx;
+            const dy = point.y - cy;
+            if (dx === 0 && dy === 0) {
+                return Math.min(rx, ry);
+            }
+            const nx = dx / rx;
+            const ny = dy / ry;
+            const norm = Math.sqrt((nx * nx) + (ny * ny));
+            if (!norm) {
+                return Math.min(rx, ry);
+            }
+            const scale = 1 / norm;
+            const bx = cx + (dx * scale);
+            const by = cy + (dy * scale);
+            const ex = point.x - bx;
+            const ey = point.y - by;
+            return Math.sqrt((ex * ex) + (ey * ey));
+        };
+        return {
+            contains,
+            intersects(otherPolygon) {
+                if (!otherPolygon || otherPolygon.length < 3) {
+                    return false;
+                }
+                const hullBox = Snap.bBoxFromPoints(otherPolygon);
+                if (hullBox && !Snap.path.isBBoxIntersect(ellipseBBox, hullBox)) {
+                    return false;
+                }
+                for (let i = 0; i < otherPolygon.length; ++i) {
+                    if (contains(otherPolygon[i])) {
+                        return true;
+                    }
+                }
+                if (Snap.polygons.pointInPolygon({x: cx, y: cy}, otherPolygon, true)) {
+                    return true;
+                }
+                if (ellipsePolygon.length >= 3) {
+                    for (let i = 0; i < ellipsePolygon.length; ++i) {
+                        if (Snap.polygons.pointInPolygon(ellipsePolygon[i], otherPolygon, true)) {
+                            return true;
+                        }
+                    }
+                    return Snap.polygons.intersect(ellipsePolygon, otherPolygon);
+                }
+                return false;
+            },
+            distance(point) {
+                return edgeDistance(point);
+            }
+        };
+    }
+
+    function buildRectRegion(geometry) {
+        if (!geometry) {
+            return null;
+        }
+        const x = +geometry.x;
+        const y = +geometry.y;
+        const width = +geometry.width;
+        const height = +geometry.height;
+        if (!isFinite(x) || !isFinite(y) || !(width > 0) || !(height > 0)) {
+            return null;
+        }
+        const x2 = x + width;
+        const y2 = y + height;
+        const polygon = [
+            {x, y},
+            {x: x2, y},
+            {x: x2, y: y2},
+            {x, y: y2}
+        ];
+        function contains(point) {
+            if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                return false;
+            }
+            return point.x >= x && point.x <= x2 && point.y >= y && point.y <= y2;
+        }
+        function intersects(otherPolygon) {
+            if (!otherPolygon || otherPolygon.length < 3) {
+                return false;
+            }
+            if (Snap.polygons.intersect(polygon, otherPolygon)) {
+                return true;
+            }
+            if (otherPolygon.some((pt) => contains(pt))) {
+                return true;
+            }
+            return polygon.some((pt) => Snap.polygons.pointInPolygon(pt, otherPolygon, true));
+        }
+        function edgeDistance(point) {
+            if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                return Infinity;
+            }
+            const dx = (point.x < x) ? (x - point.x) : (point.x > x2 ? point.x - x2 : 0);
+            const dy = (point.y < y) ? (y - point.y) : (point.y > y2 ? point.y - y2 : 0);
+            if (dx && dy) {
+                return Math.sqrt((dx * dx) + (dy * dy));
+            }
+            return dx || dy;
+        }
+        return {
+            contains,
+            intersects,
+            distance(point) {
+                if (contains(point)) {
+                    return Math.min(point.x - x, x2 - point.x, point.y - y, y2 - point.y);
+                }
+                return edgeDistance(point);
+            }
+        };
+    }
+
+    function buildPartialRegionState(handler, borderDistance, borderMode) {
+        if (!handler || typeof handler.contains !== "function") {
+            return {mode: "full"};
+        }
+        const hasBorder = borderDistance > 0 && typeof handler.distance === "function";
+        return {
+            mode: "partial",
+            contains: handler.contains,
+            intersects: typeof handler.intersects === "function" ? handler.intersects : null,
+            distance: hasBorder ? handler.distance : null,
+            borderDistance: hasBorder ? borderDistance : 0,
+            borderMode: borderMode === "inside" ? "inside" : "outside"
+        };
+    }
+
+    function resolveRegionState(descriptor, hull) {
+        if (!descriptor) {
+            return {mode: "full"};
+        }
+        const geometry = resolveRegionGeometry(descriptor);
+        if (!geometry) {
+            return {mode: "full"};
+        }
+        let handler;
+        if (geometry.kind === "polygon") {
+            handler = buildPolygonRegion(geometry.points);
+        } else if (geometry.kind === "circle") {
+            handler = buildCircleRegion(geometry);
+        } else if (geometry.kind === "rect") {
+            handler = buildRectRegion(geometry);
+        } else {
+            handler = buildPathRegion(geometry);
+        }
+        if (!handler || typeof handler.contains !== "function") {
+            return {mode: "full"};
+        }
+        const borderDistance = parseBorderDistance(descriptor && descriptor.borderDistance);
+        const borderMode = descriptor && descriptor.borderMode;
+        const hullPoints = hull || [];// Array.isArray(hull) ? hull.map(normalizePoint).filter(Boolean) : [];
+        if (!hullPoints.length) {
+            return buildPartialRegionState(handler, borderDistance, borderMode);
+        }
+        let insideCount = 0;
+        for (let i = 0; i < hullPoints.length; ++i) {
+            if (handler.contains(hullPoints[i])) {
+                insideCount++;
+            }
+        }
+        if (insideCount === hullPoints.length) {
+            return {mode: "full"};
+        }
+        let intersects = true;
+        if (typeof handler.intersects === "function") {
+            intersects = handler.intersects(hullPoints);
+        }
+        if (!intersects && insideCount === 0) {
+            if (borderDistance > 0) {
+                return buildPartialRegionState(handler, borderDistance, borderMode);
+            }
+            return {mode: "none"};
+        }
+        return buildPartialRegionState(handler, borderDistance, borderMode);
+    }
+
+    function computeRegionWeight(region, point) {
+        if (!region || region.mode !== "partial") {
+            return 1;
+        }
+        if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+            return 0;
+        }
+        const mode = region.borderMode === "inside" ? "inside" : "outside";
+        const border = region.borderDistance || 0;
+        if (mode === "inside") {
+            if (!region.contains(point)) {
+                return 0;
+            }
+            if (!border || typeof region.distance !== "function") {
+                return 1;
+            }
+            const dist = region.distance(point);
+            if (!isFinite(dist)) {
+                return 1;
+            }
+            const ratio = border > 0 ? Math.min(1, Math.max(0, dist / border)) : 1;
+            return ratio;
+        }
+        if (region.contains(point)) {
+            return 1;
+        }
+        if (border > 0 && typeof region.distance === "function") {
+            const dist = region.distance(point);
+            if (isFinite(dist) && dist <= border) {
+                if (dist <= 0) {
+                    return 1;
+                }
+                const ratio = Math.min(1, dist / border);
+                return 1 - ratio;
+            }
+        }
+        return 0;
+    }
+
+    function regionAllows(region, point) {
+        return computeRegionWeight(region, point) > 0;
+    }
+
+    function blendPoints(source, target, weight) {
+        if (weight >= 1) {
+            return target;
+        }
+        if (weight <= 0) {
+            return source;
+        }
+        const inverse = 1 - weight;
+        return {
+            x: (target.x * weight) + (source.x * inverse),
+            y: (target.y * weight) + (source.y * inverse)
+        };
+    }
+
+    function normalizeWarpOptions(options) {
+        if (!options || typeof options !== "object") {
+            return null;
+        }
+        const normalized = {};
+        let populated = false;
+        for (const key in options) {
+            if (Object.prototype.hasOwnProperty.call(options, key)) {
+                normalized[key] = options[key];
+                populated = true;
+            }
+        }
+        return populated ? normalized : null;
+    }
+
+    function getWarpList(el, create) {
+        let warps = el.data(WARP_DATA_KEY);
+        if (!Array.isArray(warps) && create) {
+            warps = [];
+            el.data(WARP_DATA_KEY, warps);
+        }
+        return Array.isArray(warps) ? warps : [];
+    }
+
+    function ensureMonitor(el) {
+        if (el.data(WARP_MONITOR_KEY)) {
+            return;
+        }
+        el.data(WARP_MONITOR_KEY, true);
+        el.attrMonitor("transform", function () {
+            applyWarps(this);
+        });
+    }
+
+    function buildWarpFilter(activeWarps, matrix) {
+        if (!activeWarps.length || !matrix) {
+            return null;
+        }
+        if (activeWarps.some((warp) => !warp.region || warp.region.mode === "full")) {
+            return null;
+        }
+        const partialWarps = activeWarps.filter((warp) => warp.region && warp.region.mode === "partial");
+        if (!partialWarps.length) {
+            return null;
+        }
+        return function (point) {
+            const world = matrix.apply(point);
+            for (let i = 0; i < partialWarps.length; ++i) {
+                if (regionAllows(partialWarps[i].region, world)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+    }
+
+    function buildWarpTransform(activeWarps, matrix, inverse) {
+        if (!activeWarps.length || !matrix || !inverse) {
+            return null;
+        }
+        return function (point) {
+            const world = matrix.apply(point);
+            let current = {x: world.x, y: world.y};
+            let changed = false;
+            for (let i = 0; i < activeWarps.length; ++i) {
+                const warp = activeWarps[i];
+                const region = warp.region;
+                let weight = 1;
+                if (region && region.mode === "partial") {
+                    weight = computeRegionWeight(region, current);
+                    if (weight <= 0) {
+                        continue;
+                    }
+                }
+                const mapped = warp.transform({x: current.x, y: current.y});
+                if (mapped && isFinite(mapped.x) && isFinite(mapped.y)) {
+                    const mappedPoint = {x: +mapped.x, y: +mapped.y};
+                    current = blendPoints(current, mappedPoint, weight);
+                    changed = true;
+                }
+            }
+            if (!changed) {
+                return point;
+            }
+            const local = inverse.apply(current);
+            if (!isFinite(local.x) || !isFinite(local.y)) {
+                return point;
+            }
+            return local;
+        };
+    }
+
+    function applyWarps(el) {
+        const warps = getWarpList(el, false);
+        const targets = collectPathTargets(el, []);
+        if (!targets.length) {
+            return;
+        }
+        if (!warps.length) {
+            for (let i = 0; i < targets.length; ++i) {
+                targets[i].genTransform();
+            }
+            return;
+        }
+        const baseMatrix = (typeof el.getLocalMatrix === "function")
+            ? el.getLocalMatrix(true)
+            : new Snap.Matrix();
+        const localMatrix = baseMatrix && typeof baseMatrix.clone === "function"
+            ? baseMatrix.clone()
+            : new Snap.Matrix(baseMatrix);
+        let inverseMatrix;
+        try {
+            inverseMatrix = localMatrix.clone().invert();
+        } catch (e) {
+            inverseMatrix = null;
+        }
+        const hull = el.getCHull(true) || [];
+        const activeWarps = [];
+        let mergedOptions = null;
+        for (let i = 0; i < warps.length; ++i) {
+            const entry = warps[i];
+            if (!entry || typeof entry.transform !== "function") {
+                continue;
+            }
+            const regionState = resolveRegionState(entry.region, hull);
+            if (regionState.mode === "none") {
+                continue;
+            }
+            activeWarps.push({
+                id: entry.id,
+                transform: entry.transform,
+                region: regionState.mode === "full" ? null : regionState,
+            });
+            if (entry.options) {
+                mergedOptions = mergedOptions || {};
+                Object.assign(mergedOptions, entry.options);
+            }
+        }
+        if (!activeWarps.length) {
+            for (let i = 0; i < targets.length; ++i) {
+                targets[i].genTransform();
+            }
+            return;
+        }
+        const filter = buildWarpFilter(activeWarps, localMatrix);
+        const warpTransform = buildWarpTransform(activeWarps, localMatrix, inverseMatrix);
+        if (!warpTransform) {
+            return;
+        }
+        let finalOptions;
+        if (filter && mergedOptions) {
+            finalOptions = Object.assign({filter}, mergedOptions);
+        } else if (mergedOptions) {
+            finalOptions = Object.assign({}, mergedOptions);
+        } else if (filter) {
+            finalOptions = {filter};
+        }
+        for (let i = 0; i < targets.length; ++i) {
+            targets[i].genTransform(warpTransform, finalOptions);
+        }
+    }
+
+    /**
+     * Registers a non-linear warp to automatically apply via {@link Element#genTransform} whenever
+     * the element's affine transform changes.
+     *
+     * @param {Function} gen_transform Point-mapping function compatible with `genTransform`.
+     * @param {*} [region] Region descriptor limiting the warp influence.
+     * @param {number|string} [id] Stable identifier; if omitted a unique id is generated.
+    * @param {(number|Object)} [border] Optional border specification controlling falloff. Supply a number for
+    *        distance, or an object like `{distance: 20, mode: "inside"}`. When `mode` is `inside`, the warp begins
+    *        transitioning only after entering the region by `distance`; otherwise it ramps in while approaching from
+    *        outside. Plain region descriptors can also expose a `border` object with the same shape.
+     * @param {Object} [options] Optional `genTransform` options. Supports the same fields as
+     *        {@link Element#genTransform}: `returnPath`, `filter`, `simplify`, `max_size`, etc.
+     *        When multiple warps are active, options from newer warps override earlier ones for overlapping keys,
+     *        and the region filter (if any) is merged last so it always takes effect.
+     * @returns {number|string} The warp id assigned to this registration.
+     */
+    Element.prototype.addWarp = function (gen_transform, region, id, border, options) {
+        if (typeof gen_transform !== "function") {
+            return null;
+        }
+        if (!this || typeof this.makePath !== "function") {
+            return;
+        }
+        this.makePath(true);
+        let warpId = id;
+        let borderParam = border;
+        const warpIdLooksLikeBorder = warpId && typeof warpId === "object" && !Array.isArray(warpId) && (
+            Object.prototype.hasOwnProperty.call(warpId, "distance") ||
+            Object.prototype.hasOwnProperty.call(warpId, "mode")
+        );
+        if (borderParam == null && (warpId == null || typeof warpId === "number" || warpIdLooksLikeBorder)) {
+            borderParam = warpId;
+            warpId = null;
+        }
+        const effectiveId = warpId || Snap._.id({type: "warp"});
+        const descriptor = createRegionDescriptor(region, borderParam);
+        const warps = getWarpList(this, true);
+        const existingIndex = warps.findIndex((entry) => entry && entry.id === effectiveId);
+        const normalizedOptions = normalizeWarpOptions(options);
+        const payload = {id: effectiveId, transform: gen_transform, region: descriptor, options: normalizedOptions};
+        if (existingIndex >= 0) {
+            warps[existingIndex] = payload;
+        } else {
+            warps.push(payload);
+        }
+        ensureMonitor(this);
+        applyWarps(this);
+        return effectiveId;
+    };
+
+    Element.prototype.removeWarp = function (id) {
+        const warps = getWarpList(this, false);
+        if (!warps.length) {
+            return this;
+        }
+        if (id == null) {
+            this.removeData(WARP_DATA_KEY);
+        } else {
+            const filtered = warps.filter((entry) => entry && entry.id !== id);
+            if (filtered.length) {
+                this.data(WARP_DATA_KEY, filtered);
+            } else {
+                this.removeData(WARP_DATA_KEY);
+            }
+        }
+        applyWarps(this);
+        return this;
+    };
+
+});
+
 return Snap;
 }));
 ;

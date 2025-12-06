@@ -2,7 +2,7 @@
     let Snap_ia = root.Snap_ia || root.Snap;
 
     //Global Snap Plugin
-   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
 
         const STRICT_MODE = true;
         //Snap Constants
@@ -122,137 +122,370 @@
         };
 
         /**
-         * Normalizes the supplied vector.
-         * @param {number|{x:number,y:number}} x Either the X component or a vector object.
-         * @param {number} [y] Optional Y component when {@link x} is numeric.
-         * @returns {{x:number,y:number}} Unit vector pointing in the same direction; zero vector if magnitude is zero.
+         * Converts spherical coordinates (3D) to Cartesian representation.
+         * Uses physics convention: r (radius), theta (polar/zenith angle from z-axis), phi (azimuthal angle in xy-plane from x-axis).
+         * @param {number} r Radius of the vector.
+         * @param {number} theta Polar angle from z-axis in radians (0 to π).
+         * @param {number} phi Azimuthal angle in xy-plane in radians (0 to 2π).
+         * @returns {{x:number,y:number,z:number}} Cartesian coordinates.
          */
-        Snap.normalize = function (x, y) {
-            if (typeof x === 'object' && x.hasOwnProperty('x')) {
-                y = x.y;
-                x = x.x;
+        Snap.fromSpherical = function (r, theta, phi) {
+            const sinTheta = Math.sin(theta);
+            return {
+                x: r * sinTheta * Math.cos(phi),
+                y: r * sinTheta * Math.sin(phi),
+                z: r * Math.cos(theta)
+            };
+        };
+
+        /**
+         * Converts Cartesian coordinates to spherical form.
+         * Uses physics convention: r (radius), theta (polar/zenith angle from z-axis), phi (azimuthal angle in xy-plane from x-axis).
+         * @param {number} x X component of the vector.
+         * @param {number} y Y component of the vector.
+         * @param {number} z Z component of the vector.
+         * @returns {{r:number,theta:number,phi:number}} Spherical representation where angles are in radians.
+         */
+        Snap.toSpherical = function (x, y, z) {
+            const r = Math.sqrt(x * x + y * y + z * z);
+            return {
+                r: r,
+                theta: r === 0 ? 0 : Math.acos(z / r),  // Polar angle from z-axis
+                phi: Math.atan2(y, x)  // Azimuthal angle in xy-plane
+            };
+        };
+
+        /**
+         * Converts spherical coordinates expressed in degrees to Cartesian representation.
+         * @param {number} r Radius of the vector.
+         * @param {number} theta Polar angle from z-axis in degrees (0 to 180).
+         * @param {number} phi Azimuthal angle in xy-plane in degrees (0 to 360).
+         * @returns {{x:number,y:number,z:number}} Cartesian coordinates.
+         */
+        Snap.fromSpherical_deg = function (r, theta, phi) {
+            const thetaRad = Snap.rad(theta);
+            const phiRad = Snap.rad(phi);
+            return Snap.fromSpherical(r, thetaRad, phiRad);
+        };
+
+        /**
+         * Converts Cartesian coordinates to spherical form expressed in degrees.
+         * @param {number} x X component of the vector.
+         * @param {number} y Y component of the vector.
+         * @param {number} z Z component of the vector.
+         * @returns {{r:number,theta:number,phi:number}} Spherical representation where angles are in degrees.
+         */
+        Snap.toSpherical_deg = function (x, y, z) {
+            const spherical = Snap.toSpherical(x, y, z);
+            return {
+                r: spherical.r,
+                theta: Snap.deg(spherical.theta),
+                phi: Snap.deg(spherical.phi)
+            };
+        };
+
+        /**
+         * Helper function to normalize vector input to components.
+         * Handles 2D and 3D vectors in object, array, or component form.
+         * @private
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} v1 Vector or first component.
+         * @param {number} [v2] Second component.
+         * @param {number} [v3] Third component (for 3D).
+         * @returns {{x:number,y:number,z:number}} Normalized components with z=0 for 2D.
+         */
+        Snap._normalizeVectorInput = function (v1, v2, v3) {
+            let x, y, z = 0;
+
+            if (typeof v1 === 'object') {
+                x = v1.x ?? v1[0] ?? 0;
+                y = v1.y ?? v1[1] ?? 0;
+                z = v1.z ?? v1[2] ?? 0;
+            } else {
+                x = v1 ?? 0;
+                y = v2 ?? 0;
+                z = v3 ?? 0;
             }
 
-            const l = Snap.len(x, y, 0, 0);
-            if (l === 0) return Snap.zero();
+            return {x, y, z};
+        };
 
-            return {x: x / l, y: y / l};
+        /**
+         * Normalizes the supplied vector (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x Either the X component or a vector object.
+         * @param {number} [y] Optional Y component when {@link x} is numeric.
+         * @param {number} [z] Optional Z component for 3D vectors.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Unit vector pointing in the same direction; zero vector if magnitude is zero.
+         */
+        Snap.normalize = function (x, y, z) {
+            const v = Snap._normalizeVectorInput(x, y, z);
+            const is3D = v.z !== 0 || (typeof z !== 'undefined' && z !== null);
 
+            // Fast path for 2D using native Snap.len
+            if (!is3D) {
+                const l = Snap.len(v.x, v.y, 0, 0);
+                if (l === 0) return Snap.zero();
+                return {x: v.x / l, y: v.y / l};
+            }
+
+            // 3D magnitude calculation
+            const l = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+            if (l === 0) return Snap.zero(true);
+
+            return {x: v.x / l, y: v.y / l, z: v.z / l};
         };
 
         /**
          * Returns an orthogonal vector for a given input vector.
-         * @param {number|{x:number,y:number}} x Either the X component or a vector object.
+         * For 2D: rotates 90 degrees.
+         * For 3D: computes cross product with reference vector (default: z-axis if possible, else x-axis).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x Either the X component or a vector object.
          * @param {number} [y] Optional Y component when {@link x} is numeric.
-         * @param {boolean} [lefthand=false] Whether to compute the left-hand normal.
-         * @returns {{x:number,y:number}} Orthogonal vector.
+         * @param {number|boolean} [z_or_lefthand] For 2D: lefthand boolean. For 3D: Z component.
+         * @param {boolean} [lefthand] For 3D: whether to use left-hand rule.
+         * @param {{x:number,y:number,z:number}} [refVector] Reference vector for 3D (default: smart selection).
+         * @returns {{x:number,y:number,z:(number|undefined)}} Orthogonal vector.
          */
-        Snap.orthogonal = function (x, y, lefthand) {
-            if (typeof x === 'object' && x.hasOwnProperty('x')) {
-                y = x.y;
-                x = x.x;
+        Snap.orthogonal = function (x, y, z_or_lefthand, lefthand, refVector) {
+            const v = Snap._normalizeVectorInput(x, y, typeof z_or_lefthand === 'number' ? z_or_lefthand : undefined);
+            const is3D = v.z !== 0 || (typeof z_or_lefthand === 'number');
+
+            if (!is3D) {
+                // 2D orthogonal (rotate 90 degrees)
+                const lh = typeof z_or_lefthand === 'boolean' ? z_or_lefthand : false;
+                return lh ? {x: v.y, y: -v.x} : {x: -v.y, y: v.x};
             }
-            if (lefthand) {
-                return {x: y, y: -x};
-            } else {
-                return {x: -y, y: x};
+
+            // 3D orthogonal using cross product
+            // Choose reference vector smartly to avoid parallel vectors
+            let ref = refVector;
+            if (!ref) {
+                const absX = Math.abs(v.x);
+                const absY = Math.abs(v.y);
+                const absZ = Math.abs(v.z);
+
+                // Use axis that's least aligned with input vector
+                if (absZ < absX && absZ < absY) {
+                    ref = {x: 0, y: 0, z: 1};
+                } else if (absX < absY) {
+                    ref = {x: 1, y: 0, z: 0};
+                } else {
+                    ref = {x: 0, y: 1, z: 0};
+                }
             }
+
+            const result = Snap.cross(lefthand ? ref : v, lefthand ? v : ref);
+            return result;
         };
 
         /**
-         * Multiplies a vector by a scalar.
+         * Multiplies a vector by a scalar (2D or 3D).
          * @param {number} c Scalar value to multiply.
-         * @param {number|{x:number,y:number}|number[]} x X component or vector object/array.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x X component or vector object/array.
          * @param {number} [y] Optional Y component if x is a number.
-         * @returns {{x:number,y:number}} Scaled vector.
+         * @param {number} [z] Optional Z component for 3D vectors.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Scaled vector.
          */
-        Snap.v_c_mult = function (c, x, y) {
-            if (typeof x == 'object') {
-                y = x.y || x[1] || 0;
-                x = x.x || x[0] || 0;
-            }
-            return {x: c * x, y: c * y};
+        Snap.v_c_mult = function (c, x, y, z) {
+            const v = Snap._normalizeVectorInput(x, y, z);
+            const is3D = v.z !== 0 || (typeof z !== 'undefined' && z !== null);
+
+            return is3D
+                ? {x: c * v.x, y: c * v.y, z: c * v.z}
+                : {x: c * v.x, y: c * v.y};
         }
 
         /**
-         * Adds two vectors together.
-         * @param {number|{x:number,y:number}} x1 X component or first vector.
-         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * Adds two vectors together (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the second vector.
          * @param {number} [y2] Optional Y component of the second vector.
-         * @returns {{x:number,y:number}} Vector sum of the inputs.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Vector sum of the inputs.
          */
-        Snap.v_add = function (x1, y1, x2, y2) {
+        Snap.v_add = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // v_add(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // v_add(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // v_add(x1, y1, x2, y2) or v_add(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            return {x: x1 + x2, y: y1 + y2};
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+            return is3D
+                ? {x: v1.x + v2.x, y: v1.y + v2.y, z: v1.z + v2.z}
+                : {x: v1.x + v2.x, y: v1.y + v2.y};
         }
 
         /**
-         * Subtracts one vector from another.
-         * @param {number|{x:number,y:number}} x1 X component or minuend vector.
-         * @param {number|{x:number,y:number}} y1 Y component or subtrahend vector when {@link x1} is an object.
+         * Subtracts one vector from another (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or minuend vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or subtrahend vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the subtrahend.
          * @param {number} [y2] Optional Y component of the subtrahend.
-         * @returns {{x:number,y:number}} Difference of the vectors (x1 - x2, y1 - y2).
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Difference of the vectors (v1 - v2).
          */
-        Snap.v_subtract = function (x1, y1, x2, y2) {
+        Snap.v_subtract = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // v_subtract(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // v_subtract(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // v_subtract(x1, y1, x2, y2) or v_subtract(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            return {x: x1 - x2, y: y1 - y2};
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+            return is3D
+                ? {x: v1.x - v2.x, y: v1.y - v2.y, z: v1.z - v2.z}
+                : {x: v1.x - v2.x, y: v1.y - v2.y};
         }
 
         /**
-         * Calculates the midpoint between two vectors.
-         * @param {number|{x:number,y:number}} x1 X component or first vector.
-         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * Calculates the midpoint between two vectors (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the second vector.
          * @param {number} [y2] Optional Y component of the second vector.
-         * @returns {{x:number,y:number}} Midpoint vector.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Midpoint vector.
          */
-        Snap.v_mid = function (x1, y1, x2, y2) {
+        Snap.v_mid = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // v_mid(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // v_mid(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // v_mid(x1, y1, x2, y2) or v_mid(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            return {x: (x1 + x2) / 2, y: (y1 + y2) / 2};
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+            return is3D
+                ? {x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2, z: (v1.z + v2.z) / 2}
+                : {x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2};
         }
 
         /**
-         * Computes the dot product between two vectors.
-         * @param {number|{x:number,y:number}} x1 X component or first vector.
-         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * Linear interpolation between two vectors (2D or 3D).
+         * Highly optimized for animation frames.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object, or t value.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} [x2_or_t] X component of second vector or interpolation value t.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @param {number} [z1_or_t] Optional Z component of first vector or t value.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @param {number} [t] Interpolation value (0 to 1, where 0 returns v1 and 1 returns v2).
+         * @returns {{x:number,y:number,z:(number|undefined)}} Interpolated vector.
+         */
+        Snap.v_lerp = function (x1, y1, x2_or_t, y2, z1_or_t, z2, t) {
+            let v1, v2, t_val;
+
+            if (typeof y1 === 'object') {
+                // v_lerp(vec1, vec2, t)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+                t_val = x2_or_t;
+            } else if (typeof x1 === 'object' && typeof x2_or_t === 'object') {
+                // v_lerp(vec1, vec2, t)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(x2_or_t);
+                t_val = y1;
+            } else if (typeof x1 === 'object') {
+                // v_lerp(vec1, x2, y2, z2, t)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2_or_t, y2);
+                t_val = z1_or_t;
+            } else {
+                // v_lerp(x1, y1, z1, x2, y2, z2, t) or v_lerp(x1, y1, x2, y2, t)
+                if (typeof t !== 'undefined') {
+                    v1 = Snap._normalizeVectorInput(x1, y1, x2_or_t);
+                    v2 = Snap._normalizeVectorInput(y2, z1_or_t, z2);
+                    t_val = t;
+                } else {
+                    v1 = Snap._normalizeVectorInput(x1, y1, 0);
+                    v2 = Snap._normalizeVectorInput(x2_or_t, y2, 0);
+                    t_val = z1_or_t;
+                }
+            }
+
+            // Clamp t to [0, 1] for safety
+            t_val = Math.max(0, Math.min(1, t_val));
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+
+            // Optimized calculation: v1 + t * (v2 - v1) = v1 * (1 - t) + v2 * t
+            const oneMinusT = 1 - t_val;
+
+            return is3D
+                ? {
+                    x: v1.x * oneMinusT + v2.x * t_val,
+                    y: v1.y * oneMinusT + v2.y * t_val,
+                    z: v1.z * oneMinusT + v2.z * t_val
+                }
+                : {
+                    x: v1.x * oneMinusT + v2.x * t_val,
+                    y: v1.y * oneMinusT + v2.y * t_val
+                };
+        }
+
+        /**
+         * Computes the dot product between two vectors (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the second vector.
          * @param {number} [y2] Optional Y component of the second vector.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
          * @returns {number} Dot product result.
          */
-        Snap.dot = function (x1, y1, x2, y2) {
+        Snap.dot = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // dot(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // dot(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // dot(x1, y1, x2, y2) or dot(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            return x1 * x2 + y1 * y2;
+
+            return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
         }
+
 
         /**
          * Round a number to a given number of decimal places.
@@ -329,53 +562,280 @@
         };
 
         /**
-         * Computes the 2D scalar cross product between two vectors.
-         * @param {number|{x:number,y:number}} x1 X component or first vector.
-         * @param {number|{x:number,y:number}} y1 Y component or second vector when {@link x1} is an object.
+         * Computes the cross product between two vectors.
+         * For 2D vectors: returns scalar (z-component of 3D cross product).
+         * For 3D vectors: returns the perpendicular vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the second vector.
          * @param {number} [y2] Optional Y component of the second vector.
-         * @returns {number} Signed magnitude of the cross product.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {number|{x:number,y:number,z:number}} Scalar for 2D, vector for 3D.
          */
-        Snap.cross = function (x1, y1, x2, y2) {
+        Snap.cross = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // cross(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // cross(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // cross(x1, y1, x2, y2) or cross(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+
+            if (!is3D) {
+                // 2D cross product returns scalar (z-component)
+                return v1.x * v2.y - v2.x * v1.y;
             }
-            return x1 * y2 - x2 * y1;
+
+            // 3D cross product returns vector
+            return {
+                x: v1.y * v2.z - v1.z * v2.y,
+                y: v1.z * v2.x - v1.x * v2.z,
+                z: v1.x * v2.y - v1.y * v2.x
+            };
         }
 
         /**
-         * Projects one vector onto another.
-         * @param {number|{x:number,y:number}} x1 X component or source vector.
-         * @param {number|{x:number,y:number}} y1 Y component or target vector when {@link x1} is an object.
+         * Projects one vector onto another (2D or 3D).
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or source vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or target vector when {@link x1} is an object.
          * @param {number} [x2] Optional X component of the target vector.
          * @param {number} [y2] Optional Y component of the target vector.
-         * @returns {{x:number,y:number}} Projection of the first vector onto the second.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Projection of the first vector onto the second.
          */
-        Snap.project = function (x1, y1, x2, y2) {
+        Snap.project = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
             if (typeof y1 === 'object') {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+                // project(vec1, vec2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // project(vec1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // project(x1, y1, x2, y2) or project(x1, y1, z1, x2, y2, z2)
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
             }
-            if (typeof x1 == 'object') {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
+
+            const is3D = v1.z !== 0 || v2.z !== 0;
+            const dotProduct = Snap.dot(v1, v2);
+
+            // Calculate length squared efficiently
+            let lengthSquared;
+            if (!is3D && typeof Snap.len2 === 'function') {
+                lengthSquared = Snap.len2(v2.x, v2.y);
+            } else {
+                lengthSquared = v2.x * v2.x + v2.y * v2.y + v2.z * v2.z;
             }
-            let dotProduct = Snap.dot(x1, y1, x2, y2);
-            let lengthSquared = Snap.len2(x2, y2);
-            let scalar = dotProduct ? dotProduct / lengthSquared : 0;
-            return {x: scalar * x2, y: scalar * y2};
+
+            const scalar = lengthSquared ? dotProduct / lengthSquared : 0;
+
+            return is3D
+                ? {x: scalar * v2.x, y: scalar * v2.y, z: scalar * v2.z}
+                : {x: scalar * v2.x, y: scalar * v2.y};
         }
+
         /**
-         * Returns the 2D zero vector.
-         * @returns {{x:number,y:number}} A vector with both coordinates equal to zero.
+         * Reflects a vector across a surface defined by its normal vector (2D or 3D).
+         * Useful for physics simulations and bounce effects.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or incident vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or normal vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the normal vector.
+         * @param {number} [y2] Optional Y component of the normal vector.
+         * @param {number} [z1] Optional Z component of the incident vector.
+         * @param {number} [z2] Optional Z component of the normal vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Reflected vector.
          */
-        Snap.zero = function () {
-            return {x: 0, y: 0};
+        Snap.v_reflect = function (x1, y1, x2, y2, z1, z2) {
+            let incident, normal;
+
+            if (typeof y1 === 'object') {
+                // v_reflect(incident, normal)
+                incident = Snap._normalizeVectorInput(x1);
+                normal = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                // v_reflect(incident, nx, ny, nz)
+                incident = Snap._normalizeVectorInput(x1);
+                normal = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                // v_reflect(ix, iy, iz, nx, ny, nz) or v_reflect(ix, iy, nx, ny)
+                incident = Snap._normalizeVectorInput(x1, y1, z1);
+                normal = Snap._normalizeVectorInput(x2, y2, z2);
+            }
+
+            const is3D = incident.z !== 0 || normal.z !== 0;
+
+            // Reflection formula: v - 2 * (v · n) * n
+            const dotProduct = Snap.dot(incident, normal);
+            const factor = 2 * dotProduct;
+
+            return is3D
+                ? {
+                    x: incident.x - factor * normal.x,
+                    y: incident.y - factor * normal.y,
+                    z: incident.z - factor * normal.z
+                }
+                : {
+                    x: incident.x - factor * normal.x,
+                    y: incident.y - factor * normal.y
+                };
+        }
+
+        /**
+         * Rotates a 3D vector around an arbitrary axis by a given angle.
+         * Uses Rodrigues' rotation formula for efficiency.
+         * @param {{x:number,y:number,z:number}|number[]} vector Vector to rotate.
+         * @param {{x:number,y:number,z:number}|number[]} axis Rotation axis (will be normalized).
+         * @param {number} angle Rotation angle in radians.
+         * @returns {{x:number,y:number,z:number}} Rotated vector.
+         */
+        Snap.v_rotate3D = function (vector, axis, angle) {
+            const v = Snap._normalizeVectorInput(vector);
+            const k = Snap.normalize(axis);
+
+            const cosTheta = Math.cos(angle);
+            const sinTheta = Math.sin(angle);
+            const oneMinusCos = 1 - cosTheta;
+
+            // Rodrigues' rotation formula: v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+            const kDotV = k.x * v.x + k.y * v.y + k.z * v.z;
+
+            // k × v
+            const kCrossV = {
+                x: k.y * v.z - k.z * v.y,
+                y: k.z * v.x - k.x * v.z,
+                z: k.x * v.y - k.y * v.x
+            };
+
+            return {
+                x: v.x * cosTheta + kCrossV.x * sinTheta + k.x * kDotV * oneMinusCos,
+                y: v.y * cosTheta + kCrossV.y * sinTheta + k.y * kDotV * oneMinusCos,
+                z: v.z * cosTheta + kCrossV.z * sinTheta + k.z * kDotV * oneMinusCos
+            };
+        }
+
+        /**
+         * Returns a zero vector (2D or 3D).
+         * @param {boolean} [is3D=false] Whether to return a 3D zero vector.
+         * @returns {{x:number,y:number,z:(number|undefined)}} A vector with all coordinates equal to zero.
+         */
+        Snap.zero = function (is3D) {
+            return is3D ? {x: 0, y: 0, z: 0} : {x: 0, y: 0};
+        }
+
+        /**
+         * Clamps the magnitude of a vector to a maximum length (2D or 3D).
+         * Useful for limiting velocities in animations.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x X component or vector object.
+         * @param {number} [y] Y component or max length when x is a vector.
+         * @param {number} [z_or_max] Z component or max length.
+         * @param {number} [max] Maximum length when all components provided.
+         * @returns {{x:number,y:number,z:(number|undefined)}} Clamped vector.
+         */
+        Snap.v_clamp = function (x, y, z_or_max, max) {
+            let v, maxLength;
+
+            if (typeof x === 'object') {
+                v = Snap._normalizeVectorInput(x);
+                maxLength = y;
+            } else if (typeof max !== 'undefined') {
+                v = Snap._normalizeVectorInput(x, y, z_or_max);
+                maxLength = max;
+            } else {
+                v = Snap._normalizeVectorInput(x, y, 0);
+                maxLength = z_or_max;
+            }
+
+            const is3D = v.z !== 0;
+            const magSq = v.x * v.x + v.y * v.y + v.z * v.z;
+            const maxSq = maxLength * maxLength;
+
+            if (magSq <= maxSq) {
+                return is3D ? {x: v.x, y: v.y, z: v.z} : {x: v.x, y: v.y};
+            }
+
+            const scale = maxLength / Math.sqrt(magSq);
+
+            return is3D
+                ? {x: v.x * scale, y: v.y * scale, z: v.z * scale}
+                : {x: v.x * scale, y: v.y * scale};
+        }
+
+        /**
+         * Calculates the angle between two vectors in radians (2D or 3D).
+         * Returns value in range [0, π].
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number,z:(number|undefined)}|number[]} y1 Y component or second vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the second vector.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @param {number} [z1] Optional Z component of the first vector.
+         * @param {number} [z2] Optional Z component of the second vector.
+         * @returns {number} Angle in radians.
+         */
+        Snap.v_angle = function (x1, y1, x2, y2, z1, z2) {
+            let v1, v2;
+
+            if (typeof y1 === 'object') {
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2, y2);
+            } else {
+                v1 = Snap._normalizeVectorInput(x1, y1, z1);
+                v2 = Snap._normalizeVectorInput(x2, y2, z2);
+            }
+
+            const dot = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+            const mag1Sq = v1.x * v1.x + v1.y * v1.y + v1.z * v1.z;
+            const mag2Sq = v2.x * v2.x + v2.y * v2.y + v2.z * v2.z;
+
+            if (mag1Sq === 0 || mag2Sq === 0) return 0;
+
+            const cosAngle = dot / Math.sqrt(mag1Sq * mag2Sq);
+            // Clamp to [-1, 1] to avoid numerical errors with acos
+            return Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+        }
+
+        /**
+         * Calculates the signed angle between two 2D vectors in radians.
+         * Returns value in range [-π, π]. Positive for counter-clockwise, negative for clockwise.
+         * @param {number|{x:number,y:number}|number[]} x1 X component or first vector.
+         * @param {number|{x:number,y:number}|number[]} y1 Y component or second vector when {@link x1} is an object.
+         * @param {number} [x2] Optional X component of the second vector.
+         * @param {number} [y2] Optional Y component of the second vector.
+         * @returns {number} Signed angle in radians.
+         */
+        Snap.v_angle_signed = function (x1, y1, x2, y2) {
+            let v1, v2;
+
+            if (typeof y1 === 'object') {
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1);
+            } else if (typeof x1 === 'object') {
+                v1 = Snap._normalizeVectorInput(x1);
+                v2 = Snap._normalizeVectorInput(y1, x2);
+            } else {
+                v1 = Snap._normalizeVectorInput(x1, y1);
+                v2 = Snap._normalizeVectorInput(x2, y2);
+            }
+
+            return Math.atan2(v2.y, v2.x) - Math.atan2(v1.y, v1.x);
         }
 
         /**
@@ -1105,7 +1565,7 @@
 
 
     //Matrix functions
-   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
         //Matrix Extentions
 
         /**

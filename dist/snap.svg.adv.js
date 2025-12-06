@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-12-01
+// build: 2025-12-05
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -4342,41 +4342,68 @@
          * @returns {number} angle in degrees
          */
         Snap.angle = angle;
-        /**
+       /**
          * Snap.len @method
          *
          * Returns distance between two points
-         * @param {number} x1 - x coord of first point
-         * @param {number} y1 - y coord of first point
-         * @param {number} x2 - x coord of second point
-         * @param {number} y2 - y coord of second point
+         * @param {number|Object|Array} x1 - x coord of first point or first point object/array
+         * @param {number|Object|Array} y1 - y coord of first point or second point object/array
+         * @param {number} [x2] - x coord of second point
+         * @param {number} [y2] - y coord of second point
+         * @param {number} [z1] - z coord of first point (for 3D)
+         * @param {number} [z2] - z coord of second point (for 3D)
          * @returns {number} distance
          */
-        Snap.len = function (x1, y1, x2, y2) {
-            return Math.sqrt(Snap.len2(x1, y1, x2, y2));
+        Snap.len = function (x1, y1, x2, y2, z1, z2) {
+            return Math.sqrt(Snap.len2(...arguments));
         };
         /**
          * Snap.len2 @method
          *
-         * Returns squared distance between two points
-         * @param {number} x1 - x coord of first point
-         * @param {number} y1 - y coord of first point
-         * @param {number} x2 - x coord of second point
-         * @param {number} y2 - y coord of second point
-         * @returns {number} distance
+         * Returns squared distance between two points (supports 2D and 3D)
+         * Signatures supported:
+         *  - (x1, y1, x2, y2)             -> 2D
+         *  - (x1, y1, z1, x2, y2, z2)     -> 3D (positional 6 args)
+         *  - (point1, point2)             -> objects/arrays, may include z
+         *  - (point1, x2, y2 [, z2])      -> mixed
+         *
+         * @returns {number} squared distance
          */
-        Snap.len2 = function (x1, y1, x2, y2) {
-            if (typeof y1 === "object") {
-                x2 = y1.x || y1[0] || 0;
-                y2 = y1.y || y1[1] || 0;
+        Snap.len2 = function (x1, y1, x2, y2, z1, z2) {
+            // Positional 6-arg: (x1, y1, z1, x2, y2, z2)
+            if (arguments.length >= 6 && typeof arguments[2] !== "object") {
+                z1 = arguments[2];
+                x2 = arguments[3];
+                y2 = arguments[4];
+                z2 = arguments[5];
+            } else {
+                // If second param is an object/array -> it's the second point: (pt1, pt2)
+                if (typeof y1 === "object") {
+                    x2 = y1.x || y1[0] || 0;
+                    y2 = y1.y || y1[1] || 0;
+                    z2 = y1.z || y1[2] || 0;
+                }
+                // If first param is an object/array -> unpack first point
+                if (typeof x1 === "object") {
+                    z1 = x1.z || x1[2] || 0;
+                    y1 = x1.y || x1[1] || 0;
+                    x1 = x1.x || x1[0] || 0;
+                }
+                // If third param is an object/array -> unpack second point given as third arg
+                if (typeof x2 === "object") {
+                    z2 = x2.z || x2[2] || 0;
+                    y2 = x2.y || x2[1] || 0;
+                    x2 = x2.x || x2[0] || 0;
+                }
             }
-            if (typeof x1 == "object") {
-                y1 = x1.y || x1[1] || 0;
-                x1 = x1.x || x1[0] || 0;
-            }
-            x2 = x2 || 0;
-            y2 = y2 || 0;
-            return (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
+            x1 = +x1 || 0;
+            y1 = +y1 || 0;
+            z1 = +z1 || 0;
+            x2 = +x2 || 0;
+            y2 = +y2 || 0;
+            z2 = +z2 || 0;
+            const dx = x1 - x2, dy = y1 - y2, dz = z1 - z2;
+            return dx * dx + dy * dy + dz * dz;
         };
         /**
          * Snap.closestPoint @method
@@ -5944,19 +5971,17 @@ Snap.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
  * Copyright (c) 2018.  Orlin Vakarelov
  */
 Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
-        const hub = Snap._.hub;
-        const ID = Snap._.id;
-        const $ = Snap._.$;
-        const has = "hasOwnProperty";
-
-
-        /**
-         * Element class
-         * Wraps an SVG element with Snap methods
-         *
-         * @class Snap.Element
-         * @param {SVGElement} el Underlying DOM node.
-         */
+    const hub = Snap._.hub;
+    const ID = Snap._.id;
+    const $ = Snap._.$;
+    const has = "hasOwnProperty";
+    /**
+     * Element class
+     * Wraps an SVG element with Snap methods
+     *
+     * @class Snap.Element
+     * @param {SVGElement} el Underlying DOM node.
+     */
         class Element {
             constructor(el) {
                 if (el.snap in hub) {
@@ -6082,6 +6107,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Collects representative points for the element's geometry.
+         *
+         * @function Snap.Element#getPoints
          * @param {boolean} [use_local_transform=false] When true, applies the element's local matrix to the returned points.
          * @param {boolean} [skip_hidden=false] When true, ignores children with `display: none`.
          * @returns {Point2DList} Array of points that describe the element footprint.
@@ -6193,6 +6220,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Builds the convex hull for an element, optionally applying its current transform.
+         *
+         * @function Snap.Element#getCHull
          * @param {boolean} [with_transform=false] When true, returns the hull in global coordinates.
          * @param {boolean} [skip_hidden=false] When true, excludes hidden descendants while computing the hull.
          * @returns {(Point2DList|null)} Array of hull vertices ordered clockwise, or `null` for unresolved targets.
@@ -6238,6 +6267,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Resolves the underlying element referenced by a `<use>` node.
+         *
+         * @function Snap.Element#getUseTarget
          * @returns {Element|null} Resolved target element or `null` when no referenced node is available.
          */
         elproto.getUseTarget = function () {
@@ -6258,6 +6289,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Persists the provided matrix on the element instance for subsequent lookups.
+         *
+         * @function Snap.Element#saveMatrix
          * @param {Snap.Matrix} m Matrix to assign as the element's current transform cache.
          */
         elproto.saveMatrix = function (m) {
@@ -6294,6 +6327,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * clip-path intersection.
          * The returned descriptor exposes the canonical {@link Snap.BBox} API enriched with helper fields such as `cx`,
          * `cy`, `path`, `vb`, and circle radii (`r0`, `r1`, `r2`).
+         *
+         * @function Snap.Element#getBBox
          * @param {boolean|Element|Snap.Matrix|Object} [settings] When `true`, omits the local transform from the answer. A
          * {@link Element} scopes the result relative to an ancestor. A {@link Snap.Matrix} explicitly defines the applied
          * transform. An options object may contain `without_transform`, `cache_bbox`, `include_clip_path`, `approx`,
@@ -6559,6 +6594,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Convenience wrapper around {@link Element#getBBox} that enforces approximate convex-hull evaluation.
+         *
+         * @function Snap.Element#getBBoxApprox
          * @param {Object} [setting={}] Optional settings forwarded to {@link Element#getBBox}.
          * @returns {Snap.BBox|null} Approximate bounding box or `null` on failure.
          */
@@ -6569,6 +6606,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Forces precise bounding-box computation for the element, ignoring cached approximations.
+         *
+         * @function Snap.Element#getBBoxExact
          * @param {boolean|Object|Snap.Matrix} [settigns] Options forwarded to {@link Element#getBBox}.
          * @returns {Snap.BBox|null} Exact bounding box or `null` on failure.
          */
@@ -6584,6 +6623,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Registers or triggers attribute change monitors on the element.
+         *
+         * @function Snap.Element#attrMonitor
          * @param {string|string[]} attr Attribute name or list of names to monitor.
          * @param {Function} [callback_val] Callback invoked with the attribute's current value when changes occur. When
          * omitted, previously registered callbacks for `attr` are executed immediately.
@@ -6717,6 +6758,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Clears cached convex hull data for the element and optionally its ancestors.
+         *
+         * @function Snap.Element#clearCHull
          * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
          */
         elproto.clearCHull = function (force_top) {
@@ -6746,6 +6789,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          */
         /**
          * Gets or sets the element transform.
+         *
+         * @function Snap.Element#transform
          * @param {string|Snap.Matrix} [tstr] Transform string or matrix to apply. When omitted, returns a descriptor with
          * the current transform matrices.
          * @param {boolean} [do_update=false] When true, refreshes cached bounding boxes after applying the transform.
@@ -6897,6 +6942,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Normalises the element's current transform attribute and saves it as a matrix.
+         *
+         * @function Snap.Element#transToMatrix
          */
         elproto.transToMatrix = function () {
             let tstr = "";
@@ -6933,6 +6980,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Updates the cached bounding box after a transformation or clears it when the new transform is incompatible.
+         *
+         * @function Snap.Element#updateBBoxCache
          * @param {Snap.Matrix} [matrix] Matrix describing the current transformation.
          * @param {boolean|number} [apply] When `-1`, clears the cache entirely. Otherwise controls whether child caches are
          * updated.
@@ -7011,6 +7060,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Expands cached bounding boxes up the parent chain when the current element grows in size.
+         *
+         * @function Snap.Element#expandParenBBoxCatch
          * @param {Snap.BBox|{x:number,y:number,r:number}} bbox_circ Bounding region describing the new extent.
          * @param {boolean} [is_circle=false] Indicates that `bbox_circ` represents a circle definition.
          */
@@ -7049,6 +7100,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          */
         /**
          * Invalidates cached bounding boxes stored on parent elements.
+         *
+         * @function Snap.Element#eraseParentBBoxCache
          * @param {Snap.BBox|{x:number,y:number,r:number}} [bbox_circle] Bounding region used to decide whether the parent
          * caches still contain the element.
          */
@@ -7092,6 +7145,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Removes the cached bounding box from the element and, recursively, its children.
+         *
+         * @function Snap.Element#eraseBBoxCache
          */
         elproto.eraseBBoxCache = function () {
             this.attr({bbox: ""});
@@ -7105,6 +7160,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Retrieves the element's local matrix, parsing it from the DOM when not cached.
+         *
+         * @function Snap.Element#getLocalMatrix
          * @param {boolean} [strict=false] Enforces strict parsing semantics for the transform attribute.
          * @returns {Snap.Matrix} Local transformation matrix.
          */
@@ -7119,6 +7176,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns the element's current global transformation matrix using the DOM CTM API.
+         *
+         * @function Snap.Element#getGlobalMatrix
          * @returns {Snap.Matrix} Global matrix representing the element's absolute transform.
          */
         elproto.getGlobalMatrix = function () {
@@ -7129,6 +7188,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Registers a DOM or Snap partner that should mirror this element's transformations and style updates.
+         *
+         * @function Snap.Element#setPartner
          * @param {Element|HTMLElement|Object} el_dom Partner reference (Snap element, DOM node, or jQuery-like wrapper).
          * @param {boolean} [strict] Reserved flag for stricter partner synchronisation.
          */
@@ -7165,6 +7226,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Updates the registry of partner children when elements are added or removed.
+         *
+         * @function Snap.Element#_updatePartnerChild
          * @param {Element} el Child element that was added or removed.
          * @param {boolean} [remove=false] Indicates whether the child should be removed from the registry.
          * @returns {Element} Current element for chaining.
@@ -7200,6 +7263,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Propagates transformation updates to partner children.
+         *
+         * @function Snap.Element#_propagateTransToPartnersChild
          * @param {Element} el Partner child receiving the propagated transform.
          * @param {Snap.Matrix} [trans] Matrix to apply; defaults to the current element's global matrix.
          */
@@ -7215,6 +7280,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Applies the provided matrix to each registered partner, keeping their transforms aligned.
+         *
+         * @function Snap.Element#_applyToPartner
          * @param {Snap.Matrix} matrix Matrix to propagate.
          */
         elproto._applyToPartner = function (matrix) {
@@ -7242,6 +7309,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Removes partner associations or optionally deletes the partner nodes themselves.
+         *
+         * @function Snap.Element#removePartner
          * @param {"dom"|"element"|Element|HTMLElement|Snap|boolean} [el_type] Partner type or specific partner reference.
          * @param {boolean} [remove_elements=false] When true, removes the partner elements from the DOM/SVG tree.
          */
@@ -7299,6 +7368,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Determines whether any partners are currently registered with the element.
+         *
+         * @function Snap.Element#hasPartner
          * @returns {boolean} True when at least one DOM or Snap partner exists.
          */
         elproto.hasPartner = function () {
@@ -7307,6 +7378,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns registered partners filtered by type.
+         *
+         * @function Snap.Element#getPartners
          * @param {"dom"|"element"|"both"} [el_type] Desired partner category.
          * @returns {Array|Object|undefined} Matching partners or `undefined` when none exist.
          */
@@ -7324,6 +7397,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Applies style updates to registered partners, mirroring key display-related properties.
+         *
+         * @function Snap.Element#setPartnerStyle
          * @param {Object} style_obj Style object whose `opacity` and `display` values are forwarded to partners.
          */
         elproto.setPartnerStyle = function (style_obj) {
@@ -7340,6 +7415,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns the element's parent element.
+         *
+         * @function Snap.Element#parent
          * @returns {Element} Parent element wrapper.
          */
         elproto.parent = function () {
@@ -7348,6 +7425,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Assigns a new paper instance to the element and all of its descendants.
+         *
+         * @function Snap.Element#setPaper
          * @param {Paper} paper Target paper instance.
          * @param {boolean} [force=false] When true, reassigns even if the paper is unchanged.
          * @returns {Element} Current element for chaining.
@@ -7363,6 +7442,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Appends the provided element (or set) to the current element.
+         *
+         * @function Snap.Element#append
+         * @function Snap.Element#add
          * @param {Element|Set|Array<Element>} el Element, set, or array to append.
          * @param {number} [index] Optional insertion index (0-based). If provided, inserts before current child at that index.
          * @returns {Element} Parent element for chaining
@@ -7415,6 +7497,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Appends the current element to the specified parent.
+         *
+         * @function Snap.Element#appendTo
          * @param {Element} el Parent element that will receive this node.
          * @returns {Element} Child element for chaining.
          */
@@ -7428,6 +7512,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Prepends the specified element (or set) to the current element.
+         *
+         * @function Snap.Element#prepend
          * @param {Element|Set} el Element to prepend.
          * @returns {Element} Parent element for chaining.
          */
@@ -7459,6 +7545,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Prepends this element to the specified parent.
+         *
+         * @function Snap.Element#prependTo
          * @param {Element} el Parent element to receive this node.
          * @returns {Element} Child element for chaining.
          */
@@ -7469,6 +7557,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the provided element before the current element.
+         *
+         * @function Snap.Element#before
          * @param {Element|Set} el Element to insert.
          * @returns {Element} Parent element for chaining.
          */
@@ -7494,6 +7584,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the provided element after the current element.
+         *
+         * @function Snap.Element#after
          * @param {Element} el Element to insert.
          * @returns {Element} Parent element for chaining.
          */
@@ -7518,6 +7610,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the current element before the provided sibling.
+         *
+         * @function Snap.Element#insertBefore
          * @param {Element} el Sibling element used as insertion point.
          * @returns {Element} Parent element for chaining.
          */
@@ -7533,6 +7627,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Inserts the current element after the provided sibling.
+         *
+         * @function Snap.Element#insertAfter
          * @param {Element} el Sibling element used as insertion reference.
          * @returns {Element} Parent element for chaining.
          */
@@ -7548,6 +7644,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Removes the element from the DOM and detaches partner associations.
+         *
+         * @function Snap.Element#remove
          * @returns {Array<Element>} Collection of child elements that were detached alongside this element.
          */
         elproto.remove = function () {
@@ -7569,8 +7667,13 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             // parent && parent.add();
             return this.getChildren();
         };
+
         /**
          * Removes all child elements from the DOM.
+         * Iterates over direct children and removes each child element.
+         *
+         * @function Snap.Element#removeChildren
+         * @returns {Element} The current element for chaining.
          */
         elproto.removeChildren = function () {
             this.getChildren().forEach(function (el) {
@@ -7581,12 +7684,22 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return this;
         };
 
+        /**
+         * Alias for {@link Element#removeChildren}.
+         *
+         * @function Snap.Element#clear
+         * @returns {Element} The current element for chaining.
+         */
+        elproto.clear = elproto.removeChildren;
+
         /*
          * Element.getChildren
          * @method
          *
          * Returns an array of the children of the element, filtering out non-geometric elements. It shoulc be called
          * for the groups or the topmost svg element.
+         *
+         * @function Snap.Element#getChildren
          * */
         elproto.getChildren = function (visible, include_text) {
             if (this.sub_children) return this.sub_children;
@@ -7633,6 +7746,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Determines whether the element contains any non-meta child nodes.
+         *
+         * @function Snap.Element#hasChildren
          * @returns {boolean} True when at least one meaningful child exists.
          */
         elproto.hasChildren = function () {
@@ -7655,6 +7770,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Returns the first descendant matching the provided CSS selector.
+         *
+         * @function Snap.Element#select
          * @param {string} query CSS selector compatible with SVG.
          * @returns {Element|null} Wrapped element or `null` when not found.
          */
@@ -7664,6 +7781,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Returns all descendants matching the provided CSS selector.
+         *
+         * @function Snap.Element#selectAll
          * @param {string} query CSS selector compatible with SVG.
          * @returns {Array<Element>|Set} Collection containing all matches.
          */
@@ -7694,6 +7813,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Resolves an attribute value into pixels.
+         *
+         * @function Snap.Element#asPX
          * @param {string} attr Attribute name.
          * @param {string|number} [value] Optional raw value; defaults to the current attribute.
          * @returns {number} Attribute value converted to pixels.
@@ -7707,6 +7828,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 // SIERRA Element.use(): I suggest adding a note about how to access the original element the returned <use> instantiates. It's a part of SVG with which ordinary web developers may be least familiar.
         /**
          * Creates a `<use>` element referencing this element or one matched by the provided selector and appends it.
+         *
+         * @function Snap.Element#addUse
+         * @function Snap.Element#use
          * @param {string} [css_ref] CSS reference resolving to an element to clone.
          * @param {number} [x] Optional x-offset applied to the generated `<use>`.
          * @param {number} [y] Optional y-offset applied to the generated `<use>`.
@@ -7828,6 +7952,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Clones the element, optionally hiding it, renaming IDs, or performing a deep `use` expansion.
+         *
+         * @function Snap.Element#clone
          * @param {boolean} [hidden] When true, skips inserting the clone into the DOM.
          * @param {Function} [id_rename_callback] Callback used to generate unique IDs for the clone and descendants.
          * @param {boolean} [deep_copy=false] When true, expands `<use>` references into actual nodes.
@@ -7891,6 +8017,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Determines whether the element behaves like a grouping container.
+         *
+         * @function Snap.Element#isGroupLike
          * @returns {boolean} True for group-like elements.
          */
         elproto.isGroupLike = function () {
@@ -7899,6 +8027,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Recursively expands `<use>` elements into standalone clones.
+         *
+         * @function Snap.Element#removeUses
          */
         elproto.removeUses = function () {
             if (this.isGroupLike()) {
@@ -7944,6 +8074,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Moves the element into the shared `<defs>` section.
+         *
+         * @function Snap.Element#toDefs
          * @returns {Element} Current element for chaining.
          */
         elproto.toDefs = function () {
@@ -7953,6 +8085,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         };
         /**
          * Converts the current element into a reusable `<pattern>` definition.
+         *
+         * @function Snap.Element#pattern
+         * @function Snap.Element#toPattern
          * @param {number|Object} [x] X coordinate or bounding-box object.
          * @param {number} [y]
          * @param {number} [width]
@@ -7985,6 +8120,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
         /**
          * Converts the current element into a `<marker>` definition.
+         *
+         * @function Snap.Element#marker
          * @param {number|Object} [x] X coordinate or bounding-box-like descriptor containing marker data.
          * @param {number} [y]
          * @param {number} [width]
@@ -8025,6 +8162,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * Adds or retrieves given value associated with given key. (Don’t confuse
          * with `data-` attributes)
          *
+         * @function Snap.Element#data
          * See also @Element.removeData
          * @param {string} key - key to store data
          * @param {any} value - #optional value to store
@@ -8066,6 +8204,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          *
          * Removes value associated with an element by given key.
          * If key is not provided, removes all the data of the element.
+         *
+         * @function Snap.Element#removeData
          * @param {string} key - #optional key
          * @returns {object} @Element
          */
@@ -8082,12 +8222,14 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          *
          * Returns SVG code for the element, equivalent to HTML's `outerHTML`.
          *
+         * @function Snap.Element#outerSVG
          * See also @Element.innerSVG
          * @returns {string} SVG code for the element
          */
         /**
          * Element.toString @method
          *
+         * @function Snap.Element#toString
          * See @Element.outerSVG
          */
         elproto.outerSVG = elproto.toString = toString(1);
@@ -8095,6 +8237,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * Element.innerSVG @method
          *
          * Returns SVG code for the element's contents, equivalent to HTML's `innerHTML`
+         *
+         * @function Snap.Element#innerSVG
          * @returns {string} SVG code for the element
          */
         elproto.innerSVG = toString();
@@ -8136,6 +8280,12 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             };
         }
 
+        /**
+         * Serialises the element into a standalone SVG data URI.
+         *
+         * @function Snap.Element#toDataURL
+         * @returns {string|undefined} Base64 data URI or `undefined` when `window.btoa` is unavailable.
+         */
         elproto.toDataURL = function () {
             if (window && window.btoa) {
                 const bb = this.getBBox(),
@@ -8148,10 +8298,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                             height: +bb.height.toFixed(3),
                             contents: this.outerSVG(),
                         });
-               return "data:image/svg+xml;base64," +
-               btoa(encodeURIComponent(svg).replace(/%([0-9A-F]{2})/g, function (match, p1) {
-                   return String.fromCharCode(parseInt(p1, 16));
-               }));
+                return "data:image/svg+xml;base64," +
+                    btoa(encodeURIComponent(svg).replace(/%([0-9A-F]{2})/g, function (match, p1) {
+                        return String.fromCharCode(parseInt(p1, 16));
+                    }));
             }
         };
 
@@ -8160,6 +8310,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          *
          * Gets or sets given attributes of the element.
          *
+         * @function Snap.Element#attr
          * @param {object} params - contains key-value pairs of attributes you want to set
          * or
          * @param {string} param - name of the attribute
@@ -8214,8 +8365,19 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             return el;
         };
 
+        /**
+         * Alias for {@link Snap.Element#attr} that mirrors jQuery-style APIs.
+         *
+         * @function Snap.Element#css
+         */
         elproto.css = elproto.attr;
 
+        /**
+         * Registers a callback to be invoked when the element is removed from the DOM.
+         *
+         * @function Snap.Element#registerRemoveFunction
+         * @param {Function} fun Callback executed with the element as argument upon removal.
+         */
         elproto.registerRemoveFunction = function (fun) {
             if (this.id in hub_rem) {
                 hub_rem[this.id].push(fun);
@@ -8224,6 +8386,11 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
         };
 
+        /**
+         * Invokes and clears all registered removal callbacks for the element.
+         *
+         * @function Snap.Element#cleanupAfterRemove
+         */
         elproto.cleanupAfterRemove = function () {
             let reg_fun = hub_rem[this.id];
             if (reg_fun) {
@@ -13207,9 +13374,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     function rectPath(x, y, w, h, rx, ry) {
+        let res;
         if (rx) {
             if (!ry) ry = rx;
-            return [
+            res = [
                 ["M", +x + +rx, y],
                 ["l", w - rx * 2, 0],
                 ["a", rx, ry, 0, 0, 1, rx, ry],
@@ -13221,8 +13389,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
                 ["a", rx, ry, 0, 0, 1, rx, -ry],
                 ["z"],
             ];
+        } else {
+            res = [["M", x, y], ["l", w, 0], ["l", 0, h], ["l", -w, 0], ["z"]];
         }
-        const res = [["M", x, y], ["l", w, 0], ["l", 0, h], ["l", -w, 0], ["z"]];
         res.toString = toString;
         return res;
     }
@@ -14173,6 +14342,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return points;
     }
 
+    /**
+     * Gets sampled points along a path
+     * @method Element.getPointSample
+     * @param {Number} [sample=10] - Number of sample points to generate along the path
+     * @returns {Array<{x:Number, y:Number}>} Array of sampled point coordinates, or null if not a path
+     */
     elproto.getPointSample = getPointSample;
 
     function mapPath(path, matrix) {
@@ -14340,16 +14515,30 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
      */
     elproto.isCompound = isCompound;
 
+    /**
+     * Gets control points and endpoints for a path element
+     * @method Element.getControlPoints
+     * @param {Boolean} [segment_points] - If true, only includes segment endpoints and control points
+     * @param {Boolean} [skip_same_last] - If true, removes duplicate points at path boundaries
+     * @returns {Array<Array<Number>>} Array of [x, y] coordinate pairs representing control and segment points
+     */
     elproto.getControlPoints = getControlPoints;
     /**
      * Gets control points for path segments
      * @method getControlPoints
      * @memberof Snap.path
      * @param {string|Array|Element} path - Path string, path array, or path element
-     * @returns {Array} Array of control point coordinates
+     * @param {Boolean} [segment_points] - If true, only includes segment endpoints and control points
+     * @param {Boolean} [skip_same_last] - If true, removes duplicate points at path boundaries
+     * @returns {Array<Array<Number>>} Array of [x, y] coordinate pairs representing control and segment points
      */
     Snap.path.getControlPoints = getControlPoints;
 
+    /**
+     * Checks if an element represents a closed polygon
+     * @method Element.isPolygon
+     * @returns {Boolean} True if element is a polygon, polyline, line, or path representing a closed polygon
+     */
     elproto.isPolygon = isPolygon;
     /**
      * Checks if a path represents a closed polygon
@@ -14394,13 +14583,18 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
 
     /**
      * Splits a compound path into individual path segments
+     * @method Element.getCompoundSegments
+     * @returns {Array<String|Array>} Array of individual path segments, or null if invalid input
+     */
+    elproto.getCompoundSegments = getPathCompoundSegments;
+    /**
+     * Splits a compound path into individual path segments
      * @method getCompoundSegments
      * @memberof Snap.path
      * @param {string|Array|Element} path - Path string, path array, or path element
      * @returns {Array} Array of individual path segments
      */
     Snap.path.getCompoundSegments = getPathCompoundSegments;
-    elproto.getCompoundSegments = getPathCompoundSegments;
 
     function polygonLength(el, close, matrix) {
 
@@ -14428,10 +14622,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     /**
-     * Element.getTotalLength @method
-     *
-     * Returns the length of the path in pixels (only works for `path` elements)
-     * @returns {number} length
+     * Gets the total length of the element in pixels
+     * @method Element.getTotalLength
+     * @returns {number} Total length in pixels for path, polyline, polygon, rect, line, ellipse, or circle elements
+     * @description Works for path, polyline, polygon, line, rect, ellipse, and circle elements.
+     * Uses getTotalLength() API for paths if available, or calculates based on element type.
      */
     elproto.getTotalLength = function () {
         if (this.type === "path" && this.node.getTotalLength) {
@@ -14577,9 +14772,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     /**
-     * Reverses the direction of a path, polygon, or polyline
+     * Reverses the direction of a path, polygon, or polyline element
      * @method Element.reverse
-     * @returns {Element} Element for chaining
+     * @returns {Element} Returns this element for method chaining
+     * @description For paths, reverses all path segments. For polylines and polygons, reverses the point order.
+     * Only applies to path, polygon, and polyline elements; returns this unchanged for other types.
      */
     elproto.reverse = function () {
         const type = this.type;
@@ -14917,10 +15114,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
     }
 
     /**
-     * Generates {@link PathPoint} descriptors for the element's path data.
-     *
-     * @returns {PathPoint[]}
-     *          Ordered points enriched with control handles and segment metadata.
+     * Analyzes path segments and generates detailed point descriptors
+     * @method Element.getSegmentAnalysis
+     * @returns {Array<PathPoint>} Array of PathPoint objects with control handles and segment metadata
      */
     elproto.getSegmentAnalysis = function () {
         const converter = getPath[this.type] || getPath.deflt;
@@ -15131,7 +15327,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return storage.length - 1;
     }
 
-    function buildGenTransformCache(path) {
+    function buildGenTransformCache(path, options) {
         const originalD = path.attr("d") || "";
         const poly = path.toPolyBezier();
         if (!poly || !poly.curves || !poly.curves.length) {
@@ -15146,6 +15342,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
             };
         }
 
+        options = options || {};
         const points = [];
         const segments = [];
         const subpaths = [];
@@ -15169,7 +15366,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
                 continue;
             }
             let reduced;
-            reduced = cubic.reduce(true);
+            let step2 = !!options.simplify;
+            let max_size = options.max_size || undefined;
+            reduced = cubic.reduce(step2, max_size);
             const parts = (reduced && reduced.length) ? reduced : [cubic];
             for (let j = 0; j < parts.length; ++j) {
                 const piece = parts[j];
@@ -15284,19 +15483,35 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return parts.join(" ");
     }
 
+    /**
+     * Applies a generative transformation function to path control points
+     * @method Element.genTransform
+    * @param {Function} transform - Function that accepts {x, y} and returns transformed {x, y} coordinates
+    * @param {Boolean|Object} [options] - If boolean, returns path string instead of modifying element.
+    *        If an object, can contain:
+    *        - `returnPath` {boolean}: Return the transformed `d` string without mutating the element.
+    *        - `filter` {function(Point):boolean}: Skip transformation for points where filter returns false.
+    *        - `simplify` {boolean}: Reduce/split curves to ensure each section bends less than ~60° before sampling.
+    *        - `max_size` {number}: Force curve sections to be subdivided until each span is below this length, even if `simplify` is false.
+     * @returns {Element|String} Returns element for chaining, or path string if returnPath is true
+     */
     elproto.genTransform = function (transform, options) {
         if (this.type !== "path") {
             return this;
         }
         let returnPathOnly = false;
+        let filter;
         if (typeof options === 'boolean') {
             returnPathOnly = options;
         } else if (options && typeof options === 'object') {
             returnPathOnly = !!options.returnPath;
+            if (options.filter && typeof options.filter === 'function') {
+                filter = options.filter;
+            }
         }
         let cache = this.data(GEN_TRANSFORM_DATA_KEY);
         if (!cache) {
-            cache = buildGenTransformCache(this);
+            cache = buildGenTransformCache(this, options);
             this.data(GEN_TRANSFORM_DATA_KEY, cache);
         }
 
@@ -15320,7 +15535,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
             const base = basePoints[i];
             inputPoint.x = base.x;
             inputPoint.y = base.y;
-            const mapped = transform(inputPoint) || inputPoint;
+            const transformed = (!filter || filter(inputPoint)) ? transform(inputPoint) : null;
+            const mapped = transformed || inputPoint;
             const target = transformedPoints[i];
             target.x = (mapped && isFinite(mapped.x)) ? mapped.x : base.x;
             target.y = (mapped && isFinite(mapped.y)) ? mapped.y : base.y;
@@ -15336,6 +15552,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve, mina) {
         return this;
     };
 
+    /**
+     * Clears the generative transform cache for this element
+     * @method Element.getTransformFix
+     * @returns {Element} Returns this element for method chaining
+     */
     elproto.getTransformFix = function () {
         this.removeData(GEN_TRANSFORM_DATA_KEY);
         return this;
@@ -17866,6 +18087,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 p = list;
             }
             this.computedirection();
+            // Invalidate cached length
+            this._cachedLength = undefined;
         },
 
     /**
@@ -17879,19 +18102,30 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Calculates the curve length using numeric approximation for non-linear curves.
+     * Caches the result to avoid recomputation until geometry is modified.
      * @returns {number} Curve length in coordinate units.
      */
     length: function () {
+            // Return cached length if available
+            if (this._cachedLength !== undefined) {
+                return this._cachedLength;
+            }
+
+            let len;
             if (this.order === 1) {
                 let sum = (this.points[0].x - this.points[1].x) ** 2
                     + (this.points[0].y - this.points[1].y) ** 2;
 
                 if (this._3d) sum += (this.points[0].z - this.points[1].z) ** 2;
 
-                return Math.sqrt(sum);
+                len = Math.sqrt(sum);
+            } else {
+                len = utils.length(this.derivative.bind(this));
             }
 
-            return utils.length(this.derivative.bind(this));
+            // Cache the computed length
+            this._cachedLength = len;
+            return len;
         },
         _lut: [],
     /**
@@ -18341,6 +18575,47 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         },
 
     /**
+     * Splits the bezier curve into segments where the Euclidean distance
+     * between the first and last point is at most maxSize.
+     * Tries to make segments as evenly sized as possible with minimal splits.
+     * @param {number} maxSize Maximum distance between first and last point
+     * @returns {Array<Bezier>} Array of Bezier segments
+     */
+    reduceToSize: function (maxSize) {
+        const p1 = this.points[0];
+        const p2 = this.points[this.points.length - 1];
+
+        // Calculate squared distance between first and last point
+        let distSq = (p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y);
+        if (this._3d) {
+            distSq += (p1.z - p2.z) * (p1.z - p2.z);
+        }
+
+        const maxSizeSq = maxSize * maxSize;
+
+        // If already within size, return as single element array
+        if (distSq <= maxSizeSq) {
+            return [this];
+        }
+
+        // Calculate how many segments we need
+        const dist = Math.sqrt(distSq);
+        const numSegments = Math.ceil(dist / maxSize);
+
+        // Split evenly into segments
+        const result = [];
+        const step = 1.0 / numSegments;
+
+        for (let i = 0; i < numSegments; i++) {
+            const t1 = i * step;
+            const t2 = (i + 1) * step;
+            result.push(this.split(t1, t2));
+        }
+
+        return result;
+    },
+
+    /**
     * Calculates the curve extrema in each dimension.
     * @returns {ExtremaCollection} Extrema parameter collections.
      */
@@ -18460,117 +18735,135 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     /**
      * Splits the curve into simple segments suitable for offsetting and intersections.
-     * @param {boolean} [useExtremaPass=true] When true, performs the extrema-based pre-pass used by
-     * other algorithms that rely on extrema boundaries. Set to false to run only the simplicity pass.
+     * @param {boolean} [useExtremaPass=false] When true, performs ONLY the extrema-based pre-pass and returns
+     * without the second simplicity pass. Set to false (default) to run both extrema and simplicity passes.
+     * @param {number} [max_size] Optional maximum size for segments. If provided, the result will be
+     * further split using reduceToSize to ensure no segment exceeds this size.
      * @returns {Array<Bezier>} Array of simple sub-curves covering the original curve.
      */
-    reduce: function (useExtremaPass) {
-            useExtremaPass = (typeof useExtremaPass === 'undefined') ? true : !!useExtremaPass;
+    reduce: function (useExtremaPass, max_size) {
+            useExtremaPass = (typeof useExtremaPass === 'undefined') ? false : !!useExtremaPass;
             let i, t1 = 0;
             const order = this.order || (this.points.length - 1);
             const minStep = 1e-4;
             const maxIterations = 50;
             let segment;
             const pass1 = [], pass2 = [];
+            let result;
+            let hasError = false;
 
-            if (useExtremaPass) {
-                // first pass: split on extrema
-                let extrema = this.extrema().values;
-                if (extrema.indexOf(0) === -1) {
-                    extrema = [0].concat(extrema);
-                }
-                if (extrema.indexOf(1) === -1) {
-                    extrema.push(1);
-                }
-
-                extrema = extrema.filter(function (value, idx, arr) {
-                    return idx === 0 || !utils.approximately(value, arr[idx - 1]);
-                });
-
-                for (t1 = extrema[0], i = 1; i < extrema.length; ++i) {
-                    const t2 = extrema[i];
-                    if (utils.approximately(t2, t1)) {
-                        t1 = t2;
-                        continue;
-                    }
-                    segment = this.split(t1, t2);
-                    segment._t1 = t1;
-                    segment._t2 = t2;
-                    pass1.push(segment);
-                    t1 = t2;
-                }
-            } else {
-                const base = this.clone();
-                base._t1 = this._t1;
-                base._t2 = this._t2;
-                pass1.push(base);
+            // first pass: split on extrema (always performed)
+            let extrema = this.extrema().values;
+            if (extrema.indexOf(0) === -1) {
+                extrema = [0].concat(extrema);
+            }
+            if (extrema.indexOf(1) === -1) {
+                extrema.push(1);
             }
 
-            // second pass: further reduce these segments to simple segments
-            for (let idx = 0; idx < pass1.length; ++idx) {
-                const p1 = pass1[idx];
-                if (p1.simple()) {
-                    pass2.push(p1);
+            extrema = extrema.filter(function (value, idx, arr) {
+                return idx === 0 || !utils.approximately(value, arr[idx - 1]);
+            });
+
+            for (t1 = extrema[0], i = 1; i < extrema.length; ++i) {
+                const t2 = extrema[i];
+                if (utils.approximately(t2, t1)) {
+                    t1 = t2;
                     continue;
                 }
+                segment = this.split(t1, t2);
+                segment._t1 = t1;
+                segment._t2 = t2;
+                pass1.push(segment);
+                t1 = t2;
+            }
 
-                let localStart = 0;
-                while (localStart < 1) {
-                    let currentSegment = p1.split(localStart, 1);
-                    let segmentEnd = 1;
-
-                    if (!currentSegment.simple()) {
-                        let low = localStart;
-                        let high = 1;
-                        let attempts = 0;
-                        let bestSegment = null;
-                        let bestEnd = localStart;
-
-                        while (high - low > minStep && attempts++ < maxIterations) {
-                            const mid = low + (high - low) / 2;
-                            const testSegment = p1.split(localStart, mid);
-                            if (testSegment.simple()) {
-                                bestSegment = testSegment;
-                                bestEnd = mid;
-                                low = mid;
-                            } else {
-                                high = mid;
-                            }
-                        }
-
-                        if (!bestSegment) {
-                            const minEnd = Math.min(1, localStart + minStep);
-                            bestSegment = p1.split(localStart, minEnd);
-                            if (!bestSegment.simple()) {
-                                return [];
-                            }
-                            segmentEnd = minEnd;
-                            currentSegment = bestSegment;
-                        } else {
-                            segmentEnd = bestEnd;
-                            currentSegment = bestSegment;
-                        }
+            // If useExtremaPass is true, use first pass only
+            if (useExtremaPass) {
+                result = pass1;
+            } else {
+                // second pass: further reduce these segments to simple segments
+                for (let idx = 0; idx < pass1.length; ++idx) {
+                    const p1 = pass1[idx];
+                    if (p1.simple()) {
+                        pass2.push(p1);
+                        continue;
                     }
 
-                    if (segmentEnd <= localStart || utils.approximately(segmentEnd, localStart)) {
-                        segmentEnd = Math.min(1, localStart + minStep);
-                        currentSegment = p1.split(localStart, segmentEnd);
+                    let localStart = 0;
+                    while (localStart < 1) {
+                        let currentSegment = p1.split(localStart, 1);
+                        let segmentEnd = 1;
+
                         if (!currentSegment.simple()) {
-                            return [];
+                            let low = localStart;
+                            let high = 1;
+                            let attempts = 0;
+                            let bestSegment = null;
+                            let bestEnd = localStart;
+
+                            while (high - low > minStep && attempts++ < maxIterations) {
+                                const mid = low + (high - low) / 2;
+                                const testSegment = p1.split(localStart, mid);
+                                if (testSegment.simple()) {
+                                    bestSegment = testSegment;
+                                    bestEnd = mid;
+                                    low = mid;
+                                } else {
+                                    high = mid;
+                                }
+                            }
+
+                            if (!bestSegment) {
+                                const minEnd = Math.min(1, localStart + minStep);
+                                bestSegment = p1.split(localStart, minEnd);
+                                if (!bestSegment.simple()) {
+                                    hasError = true;
+                                    break;
+                                }
+                                segmentEnd = minEnd;
+                                currentSegment = bestSegment;
+                            } else {
+                                segmentEnd = bestEnd;
+                                currentSegment = bestSegment;
+                            }
+                        }
+
+                        if (segmentEnd <= localStart || utils.approximately(segmentEnd, localStart)) {
+                            segmentEnd = Math.min(1, localStart + minStep);
+                            currentSegment = p1.split(localStart, segmentEnd);
+                            if (!currentSegment.simple()) {
+                                hasError = true;
+                                break;
+                            }
+                        }
+
+                        currentSegment._t1 = utils.map(localStart, 0, 1, p1._t1, p1._t2);
+                        currentSegment._t2 = utils.map(segmentEnd, 0, 1, p1._t1, p1._t2);
+                        pass2.push(currentSegment);
+
+                        localStart = segmentEnd;
+                        if (localStart >= 1 || utils.approximately(localStart, 1)) {
+                            localStart = 1;
                         }
                     }
 
-                    currentSegment._t1 = utils.map(localStart, 0, 1, p1._t1, p1._t2);
-                    currentSegment._t2 = utils.map(segmentEnd, 0, 1, p1._t1, p1._t2);
-                    pass2.push(currentSegment);
-
-                    localStart = segmentEnd;
-                    if (localStart >= 1 || utils.approximately(localStart, 1)) {
-                        localStart = 1;
+                    if (hasError) {
+                        break;
                     }
                 }
+
+                result = hasError ? [] : pass2;
             }
-            return pass2;
+
+            // Apply max_size reduction if specified (only once before return)
+            if (max_size && result.length > 0) {
+                result = result.reduce((acc, curve) => {
+                    return acc.concat(curve.reduceToSize(max_size));
+                }, []);
+            }
+
+            return result;
         },
 
     /**
@@ -18928,6 +19221,291 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             while (e < 1);
             return circles;
         },
+
+        /**
+         * Projects a 3D Bezier curve onto a 2D plane.
+         * @param {string} [plane='xy'] Plane to project onto: 'xy', 'xz', 'yz'
+         * @returns {Bezier} New 2D Bezier curve with projected control points.
+         * @throws {Error} If the curve is already 2D.
+         */
+        projectToPlane: function (plane) {
+            plane = plane || 'xy';
+
+            if (!this._3d) {
+                throw new Error('projectToPlane: curve is already 2D');
+            }
+
+            const validPlanes = ['xy', 'xz', 'yz'];
+            if (validPlanes.indexOf(plane) === -1) {
+                throw new Error('projectToPlane: plane must be one of: xy, xz, yz');
+            }
+
+            const points2d = this.points.map(function (p) {
+                switch (plane) {
+                    case 'xy':
+                        return {x: p.x, y: p.y};
+                    case 'xz':
+                        return {x: p.x, y: p.z};
+                    case 'yz':
+                        return {x: p.y, y: p.z};
+                }
+            });
+
+            return new Bezier(points2d);
+        },
+
+        /**
+         * Projects a 3D Bezier curve to 2D using orthographic projection.
+         * This is equivalent to projectToPlane('xy') - drops the z coordinate.
+         * @returns {Bezier} New 2D Bezier curve with projected control points.
+         * @throws {Error} If the curve is already 2D.
+         */
+        projectOrthographic: function () {
+            if (!this._3d) {
+                throw new Error('projectOrthographic: curve is already 2D');
+            }
+            return this.projectToPlane('xy');
+        },
+
+        /**
+         * Projects a 3D Bezier curve to 2D using a custom projection function.
+         * @param {Function} projectionFn Function that takes a 3D point {x, y, z} and returns a 2D point {x, y}
+         * @returns {Bezier} New 2D Bezier curve with projected control points.
+         * @throws {Error} If the curve is already 2D or projection function is invalid.
+         */
+        projectCustom: function (projectionFn) {
+            if (!this._3d) {
+                throw new Error('projectCustom: curve is already 2D');
+            }
+
+            if (typeof projectionFn !== 'function') {
+                throw new Error('projectCustom: projectionFn must be a function');
+            }
+
+            const points2d = this.points.map(function (p) {
+                const projected = projectionFn(p);
+                if (!projected || typeof projected.x === 'undefined' || typeof projected.y === 'undefined') {
+                    throw new Error('projectCustom: projection function must return {x, y}');
+                }
+                return {x: projected.x, y: projected.y};
+            });
+
+            return new Bezier(points2d);
+        },
+
+        /**
+         * Projects a 3D Bezier curve to 2D using perspective projection.
+         * @param {Object} options Projection options
+         * @param {number} [options.focalLength=500] Focal length (distance from camera to projection plane)
+         * @param {Object} [options.camera={x:0, y:0, z:0}] Camera position
+         * @param {Object} [options.target={x:0, y:0, z:1}] Point the camera is looking at
+         * @param {Object} [options.up={x:0, y:1, z:0}] Up vector
+         * @returns {Bezier} New 2D Bezier curve with perspective-projected control points.
+         * @throws {Error} If the curve is already 2D.
+         */
+        projectPerspective: function (options) {
+            if (!this._3d) {
+                throw new Error('projectPerspective: curve is already 2D');
+            }
+
+            options = options || {};
+            const focalLength = options.focalLength || 500;
+            const camera = options.camera || {x: 0, y: 0, z: 0};
+            const target = options.target || {x: 0, y: 0, z: 1};
+            const up = options.up || {x: 0, y: 1, z: 0};
+
+            // Build view matrix
+            // Forward vector (from camera to target)
+            const fwd = {
+                x: target.x - camera.x,
+                y: target.y - camera.y,
+                z: target.z - camera.z
+            };
+            const fwdLen = sqrt(fwd.x * fwd.x + fwd.y * fwd.y + fwd.z * fwd.z);
+            fwd.x /= fwdLen;
+            fwd.y /= fwdLen;
+            fwd.z /= fwdLen;
+
+            // Right vector (cross product of forward and up)
+            const right = {
+                x: fwd.y * up.z - fwd.z * up.y,
+                y: fwd.z * up.x - fwd.x * up.z,
+                z: fwd.x * up.y - fwd.y * up.x
+            };
+            const rightLen = sqrt(right.x * right.x + right.y * right.y + right.z * right.z);
+            right.x /= rightLen;
+            right.y /= rightLen;
+            right.z /= rightLen;
+
+            // Recalculate up vector (cross product of right and forward)
+            const upVec = {
+                x: right.y * fwd.z - right.z * fwd.y,
+                y: right.z * fwd.x - right.x * fwd.z,
+                z: right.x * fwd.y - right.y * fwd.x
+            };
+
+            const points2d = this.points.map(function (p) {
+                // Transform point to camera space
+                const translated = {
+                    x: p.x - camera.x,
+                    y: p.y - camera.y,
+                    z: p.z - camera.z
+                };
+
+                // Apply view matrix transformation
+                const viewX = translated.x * right.x + translated.y * right.y + translated.z * right.z;
+                const viewY = translated.x * upVec.x + translated.y * upVec.y + translated.z * upVec.z;
+                const viewZ = translated.x * fwd.x + translated.y * fwd.y + translated.z * fwd.z;
+
+                // Perspective divide
+                const depth = viewZ + focalLength;
+                if (abs(depth) < 0.0001) {
+                    // Point is at or behind the camera, project to a large distance
+                    return {x: viewX * 10000, y: viewY * 10000};
+                }
+
+                const scale = focalLength / depth;
+                return {
+                    x: viewX * scale,
+                    y: viewY * scale
+                };
+            });
+
+            return new Bezier(points2d);
+        },
+
+        /**
+         * Projects a 3D Bezier curve to 2D using an arbitrary projection matrix.
+         * Supports both 3x3 and 4x4 projection matrices.
+         * @param {Array<Array<number>>} matrix 3x3 or 4x4 projection matrix
+         * @returns {Bezier} New 2D Bezier curve with matrix-projected control points.
+         * @throws {Error} If the curve is already 2D or matrix is invalid.
+         */
+        projectMatrix: function (matrix) {
+            if (!this._3d) {
+                throw new Error('projectMatrix: curve is already 2D');
+            }
+
+            if (!Array.isArray(matrix) || (matrix.length !== 3 && matrix.length !== 4)) {
+                throw new Error('projectMatrix: matrix must be a 3x3 or 4x4 array');
+            }
+
+            const is4x4 = matrix.length === 4;
+
+            const points2d = this.points.map(function (p) {
+                let x, y, w = 1;
+
+                if (is4x4) {
+                    // 4x4 matrix multiplication with homogeneous coordinates
+                    const px = p.x, py = p.y, pz = p.z;
+                    x = matrix[0][0] * px + matrix[0][1] * py + matrix[0][2] * pz + matrix[0][3];
+                    y = matrix[1][0] * px + matrix[1][1] * py + matrix[1][2] * pz + matrix[1][3];
+                    w = matrix[3][0] * px + matrix[3][1] * py + matrix[3][2] * pz + matrix[3][3];
+
+                    // Perspective divide
+                    if (abs(w) > 0.0001) {
+                        x /= w;
+                        y /= w;
+                    }
+                } else {
+                    // 3x3 matrix multiplication
+                    const px = p.x, py = p.y, pz = p.z;
+                    x = matrix[0][0] * px + matrix[0][1] * py + matrix[0][2] * pz;
+                    y = matrix[1][0] * px + matrix[1][1] * py + matrix[1][2] * pz;
+                }
+
+                return {x: x, y: y};
+            });
+
+            return new Bezier(points2d);
+        },
+
+        /**
+         * Projects a 3D Bezier curve onto an arbitrary plane defined by a point and normal vector.
+         * @param {Object} options Projection options
+         * @param {Object} options.point A point on the plane {x, y, z}
+         * @param {Object} options.normal Normal vector of the plane {x, y, z}
+         * @param {Object} [options.right] Optional right vector for 2D coordinate system on the plane
+         * @returns {Bezier} New 2D Bezier curve with projected control points.
+         * @throws {Error} If the curve is already 2D or parameters are invalid.
+         */
+        projectToArbitraryPlane: function (options) {
+            if (!this._3d) {
+                throw new Error('projectToArbitraryPlane: curve is already 2D');
+            }
+
+            if (!options || !options.point || !options.normal) {
+                throw new Error('projectToArbitraryPlane: requires options.point and options.normal');
+            }
+
+            const planePoint = options.point;
+            const normal = options.normal;
+
+            // Normalize the normal vector
+            const nLen = sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+            const n = {x: normal.x / nLen, y: normal.y / nLen, z: normal.z / nLen};
+
+            // Create a coordinate system on the plane
+            // Choose an arbitrary vector not parallel to normal
+            let arbitrary = {x: 1, y: 0, z: 0};
+            if (abs(n.x) > 0.9) {
+                arbitrary = {x: 0, y: 1, z: 0};
+            }
+
+            // Right vector (first basis vector on the plane)
+            let right = options.right;
+            if (!right) {
+                right = {
+                    x: arbitrary.y * n.z - arbitrary.z * n.y,
+                    y: arbitrary.z * n.x - arbitrary.x * n.z,
+                    z: arbitrary.x * n.y - arbitrary.y * n.x
+                };
+                const rLen = sqrt(right.x * right.x + right.y * right.y + right.z * right.z);
+                right.x /= rLen;
+                right.y /= rLen;
+                right.z /= rLen;
+            }
+
+            // Up vector (second basis vector on the plane)
+            const up = {
+                x: n.y * right.z - n.z * right.y,
+                y: n.z * right.x - n.x * right.z,
+                z: n.x * right.y - n.y * right.x
+            };
+
+            const points2d = this.points.map(function (p) {
+                // Project point onto plane
+                const toPoint = {
+                    x: p.x - planePoint.x,
+                    y: p.y - planePoint.y,
+                    z: p.z - planePoint.z
+                };
+
+                // Distance from point to plane
+                const dist = toPoint.x * n.x + toPoint.y * n.y + toPoint.z * n.z;
+
+                // Projected point on plane
+                const projected = {
+                    x: p.x - dist * n.x,
+                    y: p.y - dist * n.y,
+                    z: p.z - dist * n.z
+                };
+
+                // Express projected point in 2D plane coordinates
+                const relativeToPlane = {
+                    x: projected.x - planePoint.x,
+                    y: projected.y - planePoint.y,
+                    z: projected.z - planePoint.z
+                };
+
+                const x2d = relativeToPlane.x * right.x + relativeToPlane.y * right.y + relativeToPlane.z * right.z;
+                const y2d = relativeToPlane.x * up.x + relativeToPlane.y * up.y + relativeToPlane.z * up.z;
+
+                return {x: x2d, y: y2d};
+            });
+
+            return new Bezier(points2d);
+        },
     };
 
     /**
@@ -19041,17 +19619,28 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         addCurve: function (curve) {
             this.curves.push(curve);
             this._3d = this._3d || curve._3d;
+            // Invalidate cached data
+            this._cachedLength = undefined;
+            this._curveLengths = undefined;
+            this._cumulativeLengths = undefined;
         },
         /**
          * Computes the combined length of all curve segments.
+         * Uses cached length to avoid recomputation.
          * @returns {number}
          */
         length: function () {
-            return this.curves.map(function (v) {
-                return v.length();
-            }).reduce(function (a, b) {
-                return a + b;
-            });
+            if (this._cachedLength !== undefined) {
+                return this._cachedLength;
+            }
+
+            let total = 0;
+            for (let i = 0; i < this.curves.length; i++) {
+                total += this.curves[i].length();
+            }
+
+            this._cachedLength = total;
+            return total;
         },
     /**
      * Samples a point along the poly-bezier at a specified arc length.
@@ -19074,6 +19663,72 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             length = Math.max(0, length);
             return this.curves[i].getPointAtLength(length, precision);
         },
+
+        /**
+         * Computes a point on the poly-bezier at parameter t in [0, 1].
+         * Maps the global parameter to the appropriate curve and local parameter.
+         * Uses cached cumulative lengths and border t values for efficiency.
+         * @param {number} t Global parameter in [0, 1], where 0 is start and 1 is end.
+         * @returns {Point3D} Point on the poly-bezier at parameter t.
+         */
+        compute: function (t) {
+            // Clamp t to [0, 1]
+            t = Math.max(0, Math.min(1, t));
+
+            // Handle edge cases
+            if (t === 0) {
+                return this.curves[0].compute(0);
+            }
+            if (t === 1) {
+                const lastCurve = this.curves[this.curves.length - 1];
+                return lastCurve.compute(1);
+            }
+
+            // Build cumulative length cache if needed
+            if (!this._cumulativeLengths) {
+                this._curveLengths = [];
+                this._cumulativeLengths = [];
+                let cumulative = 0;
+
+                for (let i = 0; i < this.curves.length; i++) {
+                    const len = this.curves[i].length();
+                    this._curveLengths.push(len);
+                    cumulative += len;
+                    this._cumulativeLengths.push(cumulative);
+                }
+            }
+
+            const totalLength = this._cumulativeLengths[this._cumulativeLengths.length - 1];
+            const targetLength = t * totalLength;
+
+            // Find which curve contains this t value
+            let curveIndex = 0;
+            for (let i = 0; i < this._cumulativeLengths.length; i++) {
+                if (targetLength <= this._cumulativeLengths[i]) {
+                    curveIndex = i;
+                    break;
+                }
+            }
+
+            // Calculate local t for the found curve
+            const startLength = curveIndex > 0 ? this._cumulativeLengths[curveIndex - 1] : 0;
+            const curveLength = this._curveLengths[curveIndex];
+
+            let localT;
+            if (curveLength < 1e-10) {
+                // Degenerate curve (zero length)
+                localT = 0;
+            } else {
+                const lengthInCurve = targetLength - startLength;
+                localT = lengthInCurve / curveLength;
+                // Clamp to [0, 1] to handle floating point errors
+                localT = Math.max(0, Math.min(1, localT));
+            }
+
+            // Compute point on the specific curve
+            return this.curves[curveIndex].compute(localT);
+        },
+
         /**
          * Retrieves the curve at the provided index.
          * @param {number} idx Segment index.
@@ -19153,6 +19808,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (p2 !== p2) {
                 console.log('Wrong', p1, p2);
             }
+            // Invalidate cached data since curve order changed
+            this._cachedLength = undefined;
+            this._curveLengths = undefined;
+            this._cumulativeLengths = undefined;
         },
         /**
          * Returns the instance itself for API symmetry.
@@ -19167,6 +19826,101 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         toBeziers: function () {
             return this.curves;
+        },
+
+        /**
+         * Projects a 3D poly-bezier to 2D using orthographic projection.
+         * Maps the projection to each constituent bezier curve.
+         * @returns {PolyBezier} New 2D poly-bezier with projected curves.
+         * @throws {Error} If the poly-bezier is already 2D.
+         */
+        projectOrthographic: function () {
+            if (!this._3d) {
+                throw new Error('projectOrthographic: poly-bezier is already 2D');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectOrthographic();
+            });
+            return new PolyBezier(projectedCurves);
+        },
+
+        /**
+         * Projects a 3D poly-bezier to 2D using a custom projection function.
+         * Maps the projection to each constituent bezier curve.
+         * @param {Function} projectionFn Function that takes a 3D point {x, y, z} and returns a 2D point {x, y}
+         * @returns {PolyBezier} New 2D poly-bezier with projected curves.
+         * @throws {Error} If the poly-bezier is already 2D or projection function is invalid.
+         */
+        projectCustom: function (projectionFn) {
+            if (!this._3d) {
+                throw new Error('projectCustom: poly-bezier is already 2D');
+            }
+            if (typeof projectionFn !== 'function') {
+                throw new Error('projectCustom: projectionFn must be a function');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectCustom(projectionFn);
+            });
+            return new PolyBezier(projectedCurves);
+        },
+
+        /**
+         * Projects a 3D poly-bezier to 2D using perspective projection.
+         * Maps the projection to each constituent bezier curve.
+         * @param {Object} options Projection options
+         * @param {number} [options.focalLength=500] Focal length (distance from camera to projection plane)
+         * @param {Object} [options.camera={x:0, y:0, z:0}] Camera position
+         * @param {Object} [options.target={x:0, y:0, z:1}] Point the camera is looking at
+         * @param {Object} [options.up={x:0, y:1, z:0}] Up vector
+         * @returns {PolyBezier} New 2D poly-bezier with perspective-projected curves.
+         * @throws {Error} If the poly-bezier is already 2D.
+         */
+        projectPerspective: function (options) {
+            if (!this._3d) {
+                throw new Error('projectPerspective: poly-bezier is already 2D');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectPerspective(options);
+            });
+            return new PolyBezier(projectedCurves);
+        },
+
+        /**
+         * Projects a 3D poly-bezier to 2D using an arbitrary projection matrix.
+         * Maps the projection to each constituent bezier curve.
+         * Supports both 3x3 and 4x4 projection matrices.
+         * @param {Array<Array<number>>} matrix 3x3 or 4x4 projection matrix
+         * @returns {PolyBezier} New 2D poly-bezier with matrix-projected curves.
+         * @throws {Error} If the poly-bezier is already 2D or matrix is invalid.
+         */
+        projectMatrix: function (matrix) {
+            if (!this._3d) {
+                throw new Error('projectMatrix: poly-bezier is already 2D');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectMatrix(matrix);
+            });
+            return new PolyBezier(projectedCurves);
+        },
+
+        /**
+         * Projects a 3D poly-bezier onto an arbitrary plane defined by a point and normal vector.
+         * Maps the projection to each constituent bezier curve.
+         * @param {Object} options Projection options
+         * @param {Object} options.point A point on the plane {x, y, z}
+         * @param {Object} options.normal Normal vector of the plane {x, y, z}
+         * @param {Object} [options.right] Optional right vector for 2D coordinate system on the plane
+         * @returns {PolyBezier} New 2D poly-bezier with projected curves.
+         * @throws {Error} If the poly-bezier is already 2D or parameters are invalid.
+         */
+        projectToArbitraryPlane: function (options) {
+            if (!this._3d) {
+                throw new Error('projectToArbitraryPlane: poly-bezier is already 2D');
+            }
+            const projectedCurves = this.curves.map(function (curve) {
+                return curve.projectToArbitraryPlane(options);
+            });
+            return new PolyBezier(projectedCurves);
         },
     };
 

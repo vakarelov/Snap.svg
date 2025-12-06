@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Snap Möbius Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            color-scheme: light dark;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: radial-gradient(circle at top, #fff9f4 0%, #ffe2cc 45%, #ffd3b3 100%);
+            color: #311b0b;
+        }
+
+        header {
+            padding: 1.5rem clamp(1rem, 4vw, 4rem) 0.5rem;
+        }
+
+        h1 {
+            margin: 0 0 0.35rem;
+            font-size: clamp(1.4rem, 2.8vw, 2.4rem);
+        }
+
+        p {
+            margin: 0.25rem 0;
+            max-width: 760px;
+            line-height: 1.5;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 clamp(1rem, 4vw, 4rem) 2rem;
+        }
+
+        .stage-wrapper {
+            width: min(92vw, 860px);
+            background: #fff8f1dd;
+            border-radius: 18px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 16px 40px -18px rgba(96, 35, 5, 0.4);
+            padding: clamp(0.75rem, 1.5vw, 1.75rem);
+        }
+
+        #mobius-stage {
+            width: 100%;
+            height: min(60vh, 520px);
+            display: block;
+            border-radius: 12px;
+            background: #2f0f1f;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.8rem;
+            align-items: center;
+            margin-bottom: 0.9rem;
+        }
+
+        .controls.sliders {
+            margin-bottom: 1.2rem;
+            gap: 1.2rem;
+        }
+
+        .slider-control {
+            display: flex;
+            flex-direction: column;
+            min-width: 180px;
+            flex: 1 1 180px;
+        }
+
+        .slider-control label {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .slider-control input[type="range"] {
+            width: 100%;
+        }
+
+        .slider-control span {
+            font-size: 0.85rem;
+            opacity: 0.75;
+            margin-top: 0.15rem;
+        }
+
+        button {
+            cursor: pointer;
+            padding: 0.45rem 0.9rem;
+            border-radius: 999px;
+            border: 1px solid #c05621;
+            background: #fed7aa;
+            color: #7c2d12;
+            font-weight: 600;
+            margin-right: 0.25rem;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        select, label {
+            font-size: 0.95rem;
+        }
+
+        #mobius-status {
+            font-size: 0.95rem;
+        }
+
+        footer {
+            text-align: center;
+            font-size: 0.85rem;
+            opacity: 0.75;
+            padding-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Möbius Warp Playground</h1>
+    <p>Use the sliders or drag the coral shape to explore how Möbius parameters remap the complex plane. Changing the
+        focus position, radial strength, and rotation updates the coefficients fed into <code>Snap.NonlinTransforms.mobiusDisk</code>.
+    </p>
+</header>
+<main>
+    <div class="stage-wrapper">
+        <div class="controls">
+            <button type="button" id="reset-shape">Reset shape</button>
+            <button type="button" id="toggle-warp">Disable transform</button>
+            <span id="mobius-status">Warp active</span>
+        </div>
+        <div class="controls sliders">
+            <div class="slider-control">
+                <label for="focus-radius">Focus radius</label>
+                <input type="range" id="focus-radius" min="20" max="190" value="110" step="5">
+                <span data-field="focus-radius">110 px</span>
+            </div>
+            <div class="slider-control">
+                <label for="focus-angle">Focus angle</label>
+                <input type="range" id="focus-angle" min="0" max="360" value="35" step="5">
+                <span data-field="focus-angle">35°</span>
+            </div>
+            <div class="slider-control">
+                <label for="focus-rotation">Spin</label>
+                <input type="range" id="focus-rotation" min="-180" max="180" value="80" step="5">
+                <span data-field="focus-rotation">80°</span>
+            </div>
+        </div>
+        <svg id="mobius-stage" viewBox="0 0 720 520"></svg>
+    </div>
+</main>
+<footer>
+</footer>
+
+<script src="../../dist/snap.svg-min.js"></script>
+<script src="mobius_demo.js"></script>
+</body>
+</html>

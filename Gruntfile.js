@@ -45,7 +45,7 @@ module.exports = function (grunt) {
         './src/snap_extensions.js',
         './src/element_extensions.js',
         './src/paper_extensions.js',
-
+        './src/warp.js'
     ]
 
     const wrap = [
