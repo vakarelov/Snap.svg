@@ -8480,7 +8480,6 @@ Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
     const $ = Snap._.$;
     const make = Snap._.make;
     const getSomeDefs = Snap._.getSomeDefs;
-    const has = "hasOwnProperty";
     const xmlns = "http://www.w3.org/2000/svg";
 
     /**
@@ -8493,36 +8492,43 @@ Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
      */
     class Paper {
         constructor(w, h) {
-            let res,
-                defs;
-            const proto = Paper.prototype;
+            let defs, node;
+
             if (w && w.tagName && w.tagName.toLowerCase() === "svg") {
+                // Wrapping an existing SVG element
                 if (w.snap in hub) {
                     return hub[w.snap];
                 }
-                const doc = w.ownerDocument;
-                const ElementClass = Snap.getClass("Element");
-                res = new ElementClass(w);
+                node = w;
                 defs = w.getElementsByTagName("defs")[0];
                 if (!defs) {
                     defs = $("defs");
-                    res.node.appendChild(defs);
+                    node.appendChild(defs);
                 }
-                res.defs = defs;
-                for (let key in proto) if (proto[has](key)) {
-                    res[key] = proto[key];
-                }
-                res.paper = res.root = res;
             } else {
-                res = Snap._.make("svg", glob.doc.body);
-                $(res.node, {
+                // Creating a new SVG element
+                node = make("svg", glob.doc.body);
+                $(node, {
                     height: h,
                     version: 1.1,
                     width: w,
                     xmlns: xmlns,
                 });
+                defs = $("defs");
+                node.appendChild(defs);
             }
-            return res;
+
+            // Initialize this Paper instance with the SVG node
+            this.node = node;
+            this.defs = defs;
+            this.type = "svg";
+            this.paper = this.root = this;
+
+            // Set up snap reference in hub for caching
+            if (node) {
+                const id = (node.snap = Snap._.id(node));
+                hub[id] = this;
+            }
         }
     }
 
@@ -9112,6 +9118,13 @@ Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
         }
         return el;
     };
+
+    /**
+     * An Alias for animate tag to be able to copy to Element. Needed because Element has an animate method
+     * with a different function.
+     * @type {(function(): *)|(function(): Snap.Element)|*}
+     */
+    proto.animate_el = proto.animate
 
     /**
      * Creates an `<animateMotion>` element, optionally wiring it to an existing motion path via `<mpath>`.

@@ -2123,6 +2123,7 @@
         /**
          * Collects every non-group child within the element's subtree.
          *
+         * @function Snap.Element#getLeafs
          * @param {boolean} [invisible=false] Whether hidden elements should be included.
          * @param {Snap.Element[]} [_arr] Accumulator used by the recursive implementation.
          * @returns {Snap.Element[]} List of leaf elements.
@@ -2142,6 +2143,7 @@
         /**
          * Builds an array with the element and its ancestors (excluding the root SVG by default).
          *
+         * @function Snap.Element#getParentChain
          * @param {Function|boolean} [callback] Mapper invoked as `(element, index)`; providing a boolean is treated as `skip_current`.
          * @param {boolean} [skip_current=false] When `true`, start from the parent instead of the current element.
          * @param {boolean} [toCoord] Stops when a coordinate root is reached.
@@ -2314,6 +2316,7 @@
          *    - Applie the new transformation matrix to the `foreignObject`.
          *    - Compute and update the new attributes (`x`, `y`, `width`, `height`) of the `foreignObject`.
          *
+         * @function Snap.Element#foreignObjectNormalize
          * @returns {void}
          */
         Element.prototype.foreignObjectNormalize = function () {
@@ -2463,6 +2466,7 @@
         /**
          * Scales the element so it completely covers the supplied bounding box.
          *
+         * @function Snap.Element#fillInBox
          * @param {Snap.Element|{width:number,height:number,cx:number,cy:number}} external_bBox Bounding box or element supplying `getBBox()` data.
          * @param {boolean} [scale_up=false] When `true`, avoids shrinking elements that are already larger than the box.
          * @returns {Snap.Element} The transformed element.
@@ -2496,6 +2500,7 @@
         /**
          * Emulates filling an element with an image by creating a surrogate group and clipping the image to the shape.
          *
+         * @function Snap.Element#fillImage
          * @param {Snap.Element|string} image Image element or its id. Each image instance can serve a single fill unless cloned.
          * @param {boolean} [fit_element=false] When `true`, scales the image to fit the element's bounding box.
          * @param {boolean} [preserve_proportons=false] Controls whether aspect ratio is preserved when fitting.
@@ -2550,6 +2555,13 @@
 
         };
 
+        /**
+         * Determines whether the element's control points are ordered clockwise.
+         *
+         * @function Snap.Element#isClockwise
+         * @param {Array<Array<number>|{x:number,y:number}>} [other_points] Optional point array; defaults to the element's control points.
+         * @returns {boolean} True if the winding order is clockwise.
+         */
         Element.prototype.isClockwise = function (other_points) {
             const points = other_points || this.getControlPoints();
             let sum = 0, nx, ny, px, py;
@@ -2565,6 +2577,15 @@
             return sum >= 0;
         };
 
+        /**
+         * Computes the shortest distance from a point to the element.
+         * Currently only supports line elements; returns null for other types.
+         *
+         * @function Snap.Element#distanceTo
+         * @param {number|{x:number,y:number}} x X-coordinate or point object.
+         * @param {number} [y] Y-coordinate (required if x is a number).
+         * @returns {number|null} Distance in user units or null if unsupported.
+         */
         Element.prototype.distanceTo = function (x, y) {
             if (typeof x === "object" && x.x !== undefined && x.y !== undefined) {
                 y = x.y;
@@ -2623,6 +2644,7 @@
         /**
          * Applies CSS styles to the element, accepting either a declaration string or an object map.
          *
+         * @function Snap.Element#setStyle
          * @param {string|Object} style CSS text or a property map. When a property name is provided, `value` supplies the value.
          * @param {string} [value] Value used when `style` is a single property name.
          * @returns {Snap.Element} The element with updated style.
@@ -2686,6 +2708,7 @@
         /**
          * Retrieves the element's style declarations as an object map or a subset of properties.
          *
+         * @function Snap.Element#getStyle
          * @param {string[]|Object} [properties] Optional list (or object keys) specifying which properties to read from computed styles.
          * @returns {Object<string,string>} Map of style property names to values.
          */
@@ -2787,6 +2810,7 @@
         /**
          * Converts style-related attributes into inline CSS declarations stored in the `style` attribute.
          *
+         * @function Snap.Element#moveAttrToStyle
          * @param {boolean|Function} [recursive=false] When `true`, processes descendants; if a function is passed it is treated as `f`.
          * @param {Function} [f] Optional callback triggered when a style change is recorded.
          * @returns {Snap.Element} The current element.
@@ -2828,6 +2852,7 @@
         /**
          * Copies computed styles from another element onto this element for display purposes.
          *
+         * @function Snap.Element#copyComStyle
          * @param {Snap.Element} source Element whose computed style should be cloned.
          * @returns {Snap.Element} The current element.
          */
@@ -3270,15 +3295,14 @@
                 let step_matrix;
                 let t = res[0];
                 const done = t >= .99999;
-                if (!done) {
-                    if (matrixEasingFn) {
-                        const easedMatrix = matrixEasingFn(t);
-                        step_matrix = (easedMatrix && typeof easedMatrix.toString === "function")
-                            ? easedMatrix.toString()
-                            : matrix.toString();
-                    } else if (transformInterpolator) {
-                        step_matrix = transformInterpolator(t).toString();
-                    } else {
+
+                if (matrixEasingFn) {
+                    const easedMatrix = matrixEasingFn(t);
+                    step_matrix = easedMatrix || matrix;
+                } else if (transformInterpolator) {
+                    step_matrix = transformInterpolator(t);
+                } else {
+                    if (!done) {
                         step_matrix = "matrix("
                             + (loc.a + dif.a * t) + ","
                             + (loc.b + dif.b * t) + ","
@@ -3286,10 +3310,11 @@
                             + (loc.d + dif.d * t) + ","
                             + (loc.e + dif.e * t) + ","
                             + (loc.f + dif.f * t) + ")";
+                    } else {
+                        step_matrix = matrix;
                     }
-                } else {
-                    step_matrix = matrix.toString();
                 }
+
 
                 if (processor) {
                     let processed_matrix = processor(step_matrix);
@@ -3299,10 +3324,18 @@
                 }
 
                 if (!done) {
+                    if (typeof step_matrix !== "string") step_matrix = step_matrix.toString();
                     el.transform(step_matrix);
                     el.saveMatrix(undefined);
                 } else {
-                    el.transform(matrix)
+                    if ((matrixEasingFn || transformInterpolator) &&
+                        !step_matrix.equals(matrix, 1e-3)
+                    ){
+                        //end matrix is sufficiently different from target, suggesting special easing function or interpolator overwrites target
+                        el.transform(step_matrix);
+                    } else {
+                        el.transform(matrix)
+                    }
                 }
 
                 if (dom_partner) dom_partner.forEach(
@@ -3354,8 +3387,6 @@
                 after_callback && (typeof after_callback === "function") && after_callback.call(el);
             });
             eve.once("snap.mina.stop." + anim.id, function () {
-                frameBuffer.completed = true;
-                frameBuffer.stats.end = frameBuffer.stats.end || performance.now();
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
@@ -3385,6 +3416,17 @@
             return bucket;
         }
 
+        /**
+         * Animates a generative transformation on the element using a buffered frame approach.
+         * Pre-computes animation frames in a worker-like pattern for smoother playback.
+         *
+         * @function Snap.Element#animateGenTransformBuffered
+         * @param {Function} transform_t Function receiving progress (0-1) and returning a transformer function.
+         * @param {number} duration Animation duration in milliseconds.
+         * @param {Function} [easing=mina.linear] Easing function for interpolation.
+         * @param {Function} [after_callback] Callback invoked when animation completes.
+         * @returns {Object|null} Animation object or null if the element cannot be animated.
+         */
         Element.prototype.animateGenTransformBuffered = function (transform_t, duration, easing, after_callback) {
             this.makePath(true);
             if (typeof transform_t !== "function") {
@@ -3666,6 +3708,17 @@
             return anim;
         };
 
+        /**
+         * Animates a generative transformation on the element without buffering.
+         * Computes each frame on-demand during animation playback.
+         *
+         * @function Snap.Element#animateGenTransform
+         * @param {Function} transform_t Function receiving progress (0-1) and returning a transformer function.
+         * @param {number} duration Animation duration in milliseconds.
+         * @param {Function} [easing=mina.linear] Easing function for interpolation.
+         * @param {Function} [after_callback] Callback invoked when animation completes.
+         * @returns {Object|null} Animation object or null if the element cannot be animated.
+         */
         Element.prototype.animateGenTransform = function (transform_t, duration, easing, after_callback) {
             this.makePath(true);
             if (typeof transform_t !== "function") {
@@ -4003,6 +4056,19 @@
             return anim;
         };
 
+        /**
+         * Animates the element along a path using relative positioning.
+         *
+         * @function Snap.Element#animateOnPath
+         * @param {Snap.Element|string} path The path to follow during animation.
+         * @param {number} duration Animation duration in milliseconds.
+         * @param {boolean} [scale_path] Whether to scale the element based on path curvature.
+         * @param {boolean} [rot_path] Whether to rotate the element to follow path tangent.
+         * @param {Function} [easing] Easing function for interpolation.
+         * @param {Function} [after_callback] Callback invoked when animation completes.
+         * @param {Function} [during_callback] Callback invoked during each frame.
+         * @returns {Object} Animation object.
+         */
         Element.prototype.animateOnPath = function (path, duration, scale_path,
                                                     rot_path,
                                                     easing, after_callback, during_callback) {
@@ -4011,6 +4077,19 @@
                 easing, after_callback, during_callback);
         };
 
+        /**
+         * Animates the element along a path using absolute positioning.
+         *
+         * @function Snap.Element#animateOnPathAbsolute
+         * @param {Snap.Element|string} path The path to follow during animation.
+         * @param {number} duration Animation duration in milliseconds.
+         * @param {boolean} [scale_path] Whether to scale the element based on path curvature.
+         * @param {boolean} [rot_path] Whether to rotate the element to follow path tangent.
+         * @param {Function} [easing] Easing function for interpolation.
+         * @param {Function} [after_callback] Callback invoked when animation completes.
+         * @param {Function} [during_callback] Callback invoked during each frame.
+         * @returns {Object} Animation object.
+         */
         Element.prototype.animateOnPathAbsolute = function (path, duration,
                                                             scale_path,
                                                             rot_path,
@@ -4021,6 +4100,14 @@
                 easing, after_callback, during_callback);
         };
 
+        /**
+         * Creates a brief jiggle animation effect on the element.
+         * Currently disabled (returns immediately).
+         *
+         * @function Snap.Element#jiggle
+         * @param {number} [zoom_factor=1] Zoom factor to adjust displacement amount.
+         * @returns {void}
+         */
         Element.prototype.jiggle = function (zoom_factor) {
             return;
 
@@ -4049,6 +4136,14 @@
 
         };
 
+        /**
+         * Recursively iterates over the element and its descendants, invoking a callback for each.
+         *
+         * @function Snap.Element#forEach
+         * @param {Function} callback Function invoked for each element in the tree.
+         * @param {boolean} [apply_to_root=false] Whether to apply the callback to the root element.
+         * @returns {void}
+         */
         Element.prototype.forEach = function (callback, apply_to_root) {
             if (apply_to_root) callback(this);
             const children = this.getChildren();
@@ -4057,12 +4152,26 @@
             }
         };
 
+        /**
+         * Creates a group element that will be inserted after the current element.
+         * Convenience wrapper around the `g()` method with FORCE_AFTER flag.
+         *
+         * @function Snap.Element#g_a
+         * @returns {Snap.Element} The newly created group element.
+         */
         Element.prototype.g_a = function () {
             let args = Array.from(arguments);
             args.unshift(Snap.FORCE_AFTER);
             return this.g.apply(this, args);
         };
 
+        /**
+         * Wraps the element in a newly created group element.
+         *
+         * @function Snap.Element#group
+         * @param {Object} [attr] Optional attributes to apply to the group.
+         * @returns {Snap.Element} The group element containing this element.
+         */
         Element.prototype.group = function (attr) {
             let g = this.g_a();
             g.add(this);
@@ -4074,10 +4183,12 @@
 
         /**
          * Checks if a path is elliptical
-         * @param {Snap.Element} path - The path to check (or path string)
-         * @param {boolean} save - Whether to save the result
-         * @param {number} num_tests - Number of tests to perform
-         * @param {number} error - Error tolerance
+         *
+         * @function Snap.Element#isElliptical
+         * @param {Snap.Element|string|boolean} path The path to check (or path string), or boolean for save parameter
+         * @param {boolean} [save] Whether to save the result
+         * @param {number} [num_tests] Number of tests to perform
+         * @param {number} [error] Error tolerance
          * @returns {boolean|Object} False if not elliptical, ellipse parameters if elliptical and save=true
          */
         Element.prototype.isElliptical = function (path, save, num_tests, error) {
@@ -4196,6 +4307,15 @@
 
         }
 
+        /**
+         * Determines whether a path is rectangular by analyzing its control points.
+         * Supports compound paths representing outlined rectangles.
+         *
+         * @function Snap.Element#isRectangular
+         * @param {Snap.Element|string|boolean} [path] Path to check; defaults to this element. Can also be boolean for save parameter.
+         * @param {boolean} [save] When true, caches the result on the path element.
+         * @returns {boolean|Array<Array<number>>} False if not rectangular, or array of corner points if rectangular.
+         */
         Element.prototype.isRectangular = function (path, save) {
             if (typeof path === "boolean") {
                 save = path;
@@ -4559,6 +4679,21 @@
             }
         }
 
+        /**
+         * Wraps an element in a standalone SVG string with specified dimensions and viewBox.
+         *
+         * @function Snap.Element#svgEncapsulate
+         * @param {Snap.Element} element The element to encapsulate.
+         * @param {number} width SVG width attribute.
+         * @param {number} height SVG height attribute.
+         * @param {boolean} [inner=false] Whether to use innerSVG (true) or outerSVG (false).
+         * @param {number} [x=0] ViewBox x offset.
+         * @param {number} [y=0] ViewBox y offset.
+         * @param {number} [view_width=width] ViewBox width.
+         * @param {number} [view_height=height] ViewBox height.
+         * @param {Snap.Element} [defs] Optional defs element to include.
+         * @returns {string} Complete SVG markup string.
+         */
         Element.prototype.svgEncapsulate = function (element, width, height, inner, x, y, view_width, view_height, defs) {
             view_width = view_width || width;
             view_height = view_height || height;
@@ -4581,6 +4716,18 @@
             return svg_data;
         };
 
+        /**
+         * Wraps an element in an SVG string with dimensions based on its bounding box plus optional border.
+         *
+         * @function Snap.Element#svgEncapsulateBox
+         * @param {Snap.Element} element The element to encapsulate.
+         * @param {number} [border=0] Border size to add around the element.
+         * @param {number} [width] Override width; defaults to bbox width + border.
+         * @param {number} [height] Override height; defaults to bbox height + border.
+         * @param {Object} [bbox] Bounding box object; computed if not provided.
+         * @param {Snap.Element} [defs] Optional defs element to include.
+         * @returns {string} Complete SVG markup string.
+         */
         Element.prototype.svgEncapsulateBox = function (element, border, width, height, bbox, defs) {
             border = border || 0;
             bbox = bbox || element.getBBoxApprox();

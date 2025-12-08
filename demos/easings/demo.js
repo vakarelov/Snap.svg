@@ -35,6 +35,7 @@
                 svgEl.setAttribute("viewBox", `0 0 ${baseWidth} ${baseHeight}`);
                 svgEl.style.aspectRatio = `${baseWidth} / ${baseHeight}`;
                 const paper = Snap(svgEl);
+                window.main_paper = paper;
 
                 const startAllBtn = Snap(document.getElementById("start-all"));
                 const stopAllBtn = Snap(document.getElementById("stop-all"));
