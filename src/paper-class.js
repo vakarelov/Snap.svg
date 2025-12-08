@@ -652,7 +652,7 @@ Snap.plugin(function (Snap, _Element_, _future_me_, glob, _Fragment_, eve) {
     /**
      * An Alias for animate tag to be able to copy to Element. Needed because Element has an animate method
      * with a different function.
-     * @type {(function(): *)|(function(): Snap.Element)|*}
+    * @type {Function}
      */
     proto.animate_el = proto.animate
 
