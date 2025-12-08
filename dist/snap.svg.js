@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-12-05
+// build: 2025-12-08
 
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
 //
@@ -30703,7 +30703,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     let Snap_ia = root.Snap_ia || root.Snap;
 //Element Extansions
-    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve) {
+    Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
 
         //ELEMENT Functions
 
@@ -30723,10 +30723,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * Ensures the DOM node now has an id attribute you can query with document.getElementById(id)
          */
         Element.prototype.getId = function () {
-            let id = this.attr('id');
+            let id = this.attr("id");
             if (!id) {
                 id = this.id;
-                this.attr('id', id);
+                this.attr("id", id);
             }
             return id;
         };
@@ -30759,81 +30759,81 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     };
                 }();
 
-                id = orig + '_' + rand(4);
-                while (this.paper.selectAll('#' + id).length) {
-                    id = orig + '_' + rand(4);
+                id = orig + "_" + rand(4);
+                while (this.paper.selectAll("#" + id).length) {
+                    id = orig + "_" + rand(4);
                 }
             }
 
             const references = this.getReferringToMe(from_group);
-            this.attr('id', id);
+            this.attr("id", id);
             const type = this.type;
             references.forEach((ref) => {
                 switch (type) {
-                    case 'clipPath': {
-                        const attr = 'url("#' + orig + '")';
-                        const new_attr = 'url("#' + id + '")';
-                        const cp = ref.attr('clip-path');
+                    case "clipPath": {
+                        const attr = "url(\"#" + orig + "\")";
+                        const new_attr = "url(\"#" + id + "\")";
+                        const cp = ref.attr("clip-path");
                         if (cp === attr) {
-                            ref.attr('clip-path', new_attr);
+                            ref.attr("clip-path", new_attr);
                         }
                         if (ref.node.style.clipPath === attr) {
                             ref.node.style.clipPath = new_attr;
                         }
                         break;
                     }
-                    case 'mask': {
-                        const attr = 'url("#' + orig + '")';
-                        const new_attr = 'url("#' + id + '")';
-                        if (ref.attr('mask') === attr) {
-                            ref.attr('mask', new_attr);
+                    case "mask": {
+                        const attr = "url(\"#" + orig + "\")";
+                        const new_attr = "url(\"#" + id + "\")";
+                        if (ref.attr("mask") === attr) {
+                            ref.attr("mask", new_attr);
                         }
                         if (ref.node.style.mask === attr) {
                             ref.node.style.mask = new_attr;
                         }
                         break;
                     }
-                    case 'pattern':
-                    case 'linearGradient':
-                    case 'lineargradient':
-                    case 'radialGradient':
-                    case 'radialgradient': {
-                        const attr = 'url("#' + orig + '")';
-                        const new_attr = 'url("#' + id + '")';
-                        let attr1 = ref.attr('fill');
+                    case "pattern":
+                    case "linearGradient":
+                    case "lineargradient":
+                    case "radialGradient":
+                    case "radialgradient": {
+                        const attr = "url(\"#" + orig + "\")";
+                        const new_attr = "url(\"#" + id + "\")";
+                        let attr1 = ref.attr("fill");
                         if (Snap.is(attr1, "Element")) {
-                            attr1 = 'url("#' + attr1.attr("id") + '")';
+                            attr1 = "url(\"#" + attr1.attr("id") + "\")";
                         }
                         if (attr1 === attr) {
-                            ref.attr('fill', new_attr);
+                            ref.attr("fill", new_attr);
                         }
                         if (ref.node.style.fill === attr) {
                             ref.node.style.fill = new_attr;
                         }
-                        let stroke = ref.attr('stroke');
+                        let stroke = ref.attr("stroke");
                         if (stroke && Snap.is(stroke, "Element")) {
-                            stroke = 'url("#' + stroke.attr("id") + '")';
+                            stroke = "url(\"#" + stroke.attr("id") + "\")";
                         }
                         if (stroke === attr) {
-                            ref.attr('stroke', new_attr);
+                            ref.attr("stroke", new_attr);
                         }
                         if (ref.node.style.stroke === attr) {
                             ref.node.style.stroke = new_attr;
                         }
-                        if (ref.attr('href') === "#" + orig) {
-                            ref.attr('href', '#' + id);
+                        if (ref.attr("href") === "#" + orig) {
+                            ref.attr("href", "#" + id);
                         }
                         break;
                     }
-                    case 'symbol':
+                    case "symbol":
                     default: {
-                        const attr = '#' + orig;
-                        const new_attr = '#' + id;
-                        if (ref.attr('href') === attr) {
-                            ref.attr('href', new_attr);
+                        const attr = "#" + orig;
+                        const new_attr = "#" + id;
+                        if (ref.attr("href") === attr) {
+                            ref.attr("href", new_attr);
                         }
-                        if (ref.attr('xlink:href') === attr) {
-                            ref.attr('xlink:href', new_attr);
+                        if (ref.attr("xlink:href") === attr) {
+                            ref.attr("xlink:href", new_attr);
                         }
                     }
                 }
@@ -30865,57 +30865,57 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             in_group = in_group || this.paper;
             const id = this.getId();
             switch (this.type) {
-                case 'clippath': {
-                    const css = '[clip-path="url(#' + id + ')"]';
+                case "clippath": {
+                    const css = "[clip-path=\"url(#" + id + ")\"]";
                     // + ','+ '[style*="clip-path: url(#' + id + ')"]'
                     // + ','+ '[style*="clip-path:url(#' + id + ')"]';
                     let found = in_group.selectAll(css);
                     if (found.length === 0) {
-                        found = in_group.selectAll('[style*="clip-path:"]');
+                        found = in_group.selectAll("[style*=\"clip-path:\"]");
                         found = found.filter((el) => {
                             let cp_val = el.node.style.clipPath;
-                            if (cp_val) cp_val = cp_val.replace('url("#', '').replace('")', '');
+                            if (cp_val) cp_val = cp_val.replace("url(\"#", "").replace("\")", "");
                             return cp_val === id;
                         });
                     }
                     return found;
                 }
-                case 'mask': {
+                case "mask": {
                     let found = in_group.selectAll(
-                        '[mask="url(#' + id + ')"]',
+                        "[mask=\"url(#" + id + ")\"]",
                         // + ',' + '[style*="mask: url(#' + id + ')"]' + ',',
                         // + '[style*="mask:url(#' + id + ')"]',
                     );
                     if (found.length === 0) {
-                        found = in_group.selectAll('[style*="mask:"]');
+                        found = in_group.selectAll("[style*=\"mask:\"]");
                         found = found.filter((el) => {
                             let cp_val = el.node.style.mask;
-                            if (cp_val) cp_val = cp_val.replace('url("#', '').replace('")', '');
+                            if (cp_val) cp_val = cp_val.replace("url(\"#", "").replace("\")", "");
                             return cp_val === id;
                         });
                     }
                     return found;
                 }
-                case 'pattern':
-                case 'linearGradient':
-                case 'lineargradient':
-                case 'radialGradient':
-                case 'radialgradient': {
+                case "pattern":
+                case "linearGradient":
+                case "lineargradient":
+                case "radialGradient":
+                case "radialgradient": {
                     let found = in_group.selectAll(
-                        '[fill="url(#' + id + ')"]'
-                        + ',' + '[href="url(#' + id + ')"]'
-                        + ',' + '[href="#' + id + '"]'
-                        + ',' + '[style*="fill: url(#' + id + ')"]'
-                        + ',' + '[style*="fill:url(#' + id + ')"]'
-                        + ',' + '[stroke="url(#' + id + ')"]'
-                        + ',' + '[style*="stroke: url(#' + id + ')"]'
-                        + ',' + '[style*="stroke:url(#' + id + ')"]',
+                        "[fill=\"url(#" + id + ")\"]"
+                        + "," + "[href=\"url(#" + id + ")\"]"
+                        + "," + "[href=\"#" + id + "\"]"
+                        + "," + "[style*=\"fill: url(#" + id + ")\"]"
+                        + "," + "[style*=\"fill:url(#" + id + ")\"]"
+                        + "," + "[stroke=\"url(#" + id + ")\"]"
+                        + "," + "[style*=\"stroke: url(#" + id + ")\"]"
+                        + "," + "[style*=\"stroke:url(#" + id + ")\"]",
                     );
                     return found;
                 }
-                case 'symbol':
+                case "symbol":
                 default: {
-                    const css = 'use[*|href="#' + id + '"]';
+                    const css = "use[*|href=\"#" + id + "\"]";
                     let found = in_group.selectAll(css);
                     return found;
                 }
@@ -30934,7 +30934,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * rect.repositionInGroup(layer); // rect visually remains in place but becomes a child of `layer`
          */
         Element.prototype.repositionInGroup = function (group) {
-            if (!group.isGroupLike() && group.type !== 'svg') return;
+            if (!group.isGroupLike() && group.type !== "svg") return;
             if (this.parent() === group) return;
             const diffMatrix = this.transform().diffMatrix;
             const gr_Matrix = group.transform().totalMatrix;
@@ -31019,7 +31019,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {number} Equivalent SVG units for the current element.
          */
         function fromScreenDistance(d) {
-            if (this.type !== 'svg' && this.type !== 'g') return this.parent().getFromScreenDistance(d);
+            if (this.type !== "svg" && this.type !== "g") return this.parent().getFromScreenDistance(d);
             let pt = this.paper.node.createSVGPoint();
 
             pt.x = d;
@@ -31053,11 +31053,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (this.node.clientWidth) return this.node.clientWidth;
             if (!skip_style) {
                 let width = Snap.window().getComputedStyle(this.node).width;
-                if (width.endsWith('px')) {
+                if (width.endsWith("px")) {
                     width = parseInt(width);
-                } else if (width.endsWith('%')) {
+                } else if (width.endsWith("%")) {
                     width = parseInt(width) / 100 * this.parent().getClientWidth();
-                } else if (width === 'auto' || width === 'inherit') {
+                } else if (width === "auto" || width === "inherit") {
                     width = this.parent().getClientWidth();
                 }
                 return +width;
@@ -31080,11 +31080,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (this.node.clientHeight) return this.node.clientHeight;
             if (!skip_style) {
                 let height = Snap.window().getComputedStyle(this.node).height;
-                if (height.endsWith('px')) {
+                if (height.endsWith("px")) {
                     height = parseInt(height);
-                } else if (height.endsWith('%')) {
+                } else if (height.endsWith("%")) {
                     height = parseInt(height) / 100 * this.parent().getClientHeight();
-                } else if (height === 'auto' || height === 'inherit') {
+                } else if (height === "auto" || height === "inherit") {
                     height = this.parent().getClientHeight();
                 }
                 return +height;
@@ -31105,7 +31105,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.isInRect = function (rect) {
             // var box = rect.node.getBBox(); //get a proper SVGRect element
-            if (this.type === 'g') {
+            if (this.type === "g") {
                 const children = this.getChildren();
                 let i = 0;
                 const max = children.length;
@@ -31131,10 +31131,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.centerOfMass = function () {
             const cm = this.paper.node.createSVGPoint();
-            if (this.attr('center_mass_x') !== null &&
-                this.attr('center_mass_y') !== null) {
-                cm.x = Number(this.attr('center_mass_x'));
-                cm.y = Number(this.attr('center_mass_y'));
+            if (this.attr("center_mass_x") !== null &&
+                this.attr("center_mass_y") !== null) {
+                cm.x = Number(this.attr("center_mass_x"));
+                cm.y = Number(this.attr("center_mass_y"));
                 // return cm;
                 return this.getLocalMatrix(STRICT_MODE).apply(cm);
                 // return this.data("center_mass");
@@ -31180,7 +31180,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     recourse_class)) recourse_class = [recourse_class];
 
                 if (this.isGroupLike()) {
-                    this.selectAll('.' + IA_Designer.class_defs.HAS_LINKED_RESOURCE).forEach(
+                    this.selectAll("." + IA_Designer.class_defs.HAS_LINKED_RESOURCE).forEach(
                         (el) => recourse_class.push(
                             el.data(IA_Designer.class_defs.LINKED_RESOURCE)),
                     );
@@ -31189,7 +31189,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     recourse_class.forEach(
                         (class_name) => {
                             if (class_name) {
-                                let linked = this.paper.selectAll('.' + recourse_class);
+                                let linked = this.paper.selectAll("." + recourse_class);
                                 if (linked.length) {
                                     linked.forEach((el) => el.remove());
                                 }
@@ -31346,7 +31346,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             // if (this.isLocal()) return;
 
-            if (typeof to_leafs === 'boolean' && to_leafs && this.type === 'g' &&
+            if (typeof to_leafs === "boolean" && to_leafs && this.type === "g" &&
                 !(exclude_attribute && this.attr(exclude_attribute))) {
                 const args = arguments;
                 this.getChildren(true).forEach(function (el) {
@@ -31354,46 +31354,46 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 });
             }
 
-            const arg_start = (typeof to_leafs === 'boolean') ? 2 :
-                (typeof exclude_attribute === 'boolean') ? 1 : 0;
-            let changes = +this.attr('changes') || 0;
+            const arg_start = (typeof to_leafs === "boolean") ? 2 :
+                (typeof exclude_attribute === "boolean") ? 1 : 0;
+            let changes = +this.attr("changes") || 0;
             for (let i = arg_start, l = arguments.length; i < l; ++i) {
-                if (typeof arguments[i] === 'function') {
+                if (typeof arguments[i] === "function") {
                     f = arguments[i];
                 }
                 switch (arguments[i]) {
-                    case 'transform':
+                    case "transform":
                         changes |= 1;
                         break;
-                    case 'points':
+                    case "points":
                         changes |= 2;
                         break;
-                    case 'style':
+                    case "style":
                         changes |= 4;
                         break;
-                    case 'new':
+                    case "new":
                         changes |= 8;
                         break;
-                    case 'reorder':
+                    case "reorder":
                         changes |= 16;
                         break;
-                    case 'attribute':
+                    case "attribute":
                         changes |= 32;
                         break;
-                    case 'effect':
+                    case "effect":
                         changes |= 64;
                         break;
-                    case 'delete':
+                    case "delete":
                         changes |= 128;
                         break;
-                    case 'clip':
+                    case "clip":
                         changes |= 256;
                 }
             }
 
-            this.data('changes', changes || '');
+            this.data("changes", changes || "");
             // _eve(['gui', 'change'], undefined, this);
-            if (f && typeof f === 'function') f(this);
+            if (f && typeof f === "function") f(this);
         };
 
         /**
@@ -31405,16 +31405,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.readChanges = function () {
             let changes = [], cur_changes;
-            if (cur_changes = +this.data('changes')) {
-                if (cur_changes & 128) changes.push('delete');
-                if (cur_changes & 8) changes.push('new');
-                if (cur_changes & 2) changes.push('points');
-                if (cur_changes & 1) changes.push('transform');
-                if (cur_changes & 16) changes.push('reorder');
-                if (cur_changes & 4) changes.push('style');
-                if (cur_changes & 32) changes.push('attribute');
-                if (cur_changes & 64) changes.push('effect');
-                if (cur_changes & 256) changes.push('clip');
+            if (cur_changes = +this.data("changes")) {
+                if (cur_changes & 128) changes.push("delete");
+                if (cur_changes & 8) changes.push("new");
+                if (cur_changes & 2) changes.push("points");
+                if (cur_changes & 1) changes.push("transform");
+                if (cur_changes & 16) changes.push("reorder");
+                if (cur_changes & 4) changes.push("style");
+                if (cur_changes & 32) changes.push("attribute");
+                if (cur_changes & 64) changes.push("effect");
+                if (cur_changes & 256) changes.push("clip");
 
             }
             return changes;
@@ -31428,7 +31428,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Snap.Element} The element for method chaining.
          */
         Element.prototype.localOnly = function (reverse) {
-            this.attr({local: (reverse) ? '' : 1});
+            this.attr({local: (reverse) ? "" : 1});
             return this;
         };
 
@@ -31441,12 +31441,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.isLocal = function (node) {
             if (node) {
-                if (node.tagName.toLowerCase() === 'svg') return false;
-                return node.hasAttribute('local') ||
+                if (node.tagName.toLowerCase() === "svg") return false;
+                return node.hasAttribute("local") ||
                     (node.parentElement && this.isLocal(node.parentElement));
             }
 
-            return this.node.hasAttribute('local') ||
+            return this.node.hasAttribute("local") ||
                 this.isLocal(this.node.parentElement);
         };
 
@@ -31461,12 +31461,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         Element.prototype.pathFirstPoint = function (x, y) { //Avoid setting the first point of a poly object
             const type = this.type;
 
-            if (type !== 'path' && type !== 'polycurve' && type !==
-                'polyline') return this;
+            if (type !== "path" && type !== "polycurve" && type !==
+                "polyline") return this;
             let points, regex, isPath, m, path;
             regex = /(M?\s*(-?\d*\.?\d+)[,|\s]+(-?\d*\.?\d+))(.+)/;
-            isPath = (type == 'path');
-            points = (isPath) ? this.attr('path') : this.attr('points');
+            isPath = (type == "path");
+            points = (isPath) ? this.attr("path") : this.attr("points");
             if ((m = regex.exec(points)) !== null) {
                 if (x == undefined && y == undefined) { // A getter method.
                     return {
@@ -31474,17 +31474,17 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         y: Number(m[3]),
                     };
                 } else { //set the first point
-                    if (typeof x == 'object') {
+                    if (typeof x == "object") {
                         y = x.y || x[1] || undefined;
                         x = x.x || x[0] || undefined;
                     }
 
                     if (isPath) {
-                        path = 'M ' + x + ' ' + y + ' ' + m[4];
-                        this.attr('path', path);
+                        path = "M " + x + " " + y + " " + m[4];
+                        this.attr("path", path);
                     } else {
-                        path = x + ', ' + y + ' ' + m[4];
-                        this.attr('points', path);
+                        path = x + ", " + y + " " + m[4];
+                        this.attr("points", path);
                     }
                 }
             }
@@ -31513,13 +31513,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return this;
             }
 
-            if (this.type === 'path') return this;
+            if (this.type === "path") return this;
 
             const pathData = Snap.path.toPath(this, true);
             if (!pathData || !this.paper) return this;
 
             const doc = this.paper.node.ownerDocument;
-            const newNode = doc.createElementNS(Snap.xmlns.svg, 'path');
+            const newNode = doc.createElementNS(Snap.xmlns.svg, "path");
 
             const attributes = this.getAttributes();
             const geometryAttrs = new Set(this.getGeometryAttr(true));
@@ -31527,7 +31527,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             Object.keys(attributes).forEach((name) => {
                 if (geometryAttrs.has(name)) return;
                 let value = attributes[name];
-                if (name === 'style' && typeof value === 'object') {
+                if (name === "style" && typeof value === "object") {
                     value = Snap.convertStyleFormat(value, true);
                 }
                 if (value !== undefined && value !== null) {
@@ -31535,7 +31535,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             });
 
-            newNode.setAttribute('d', pathData);
+            newNode.setAttribute("d", pathData);
 
             const oldNode = this.node;
             const parent = oldNode.parentNode;
@@ -31543,7 +31543,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             newNode.snap = this.id;
             this.node = newNode;
-            this.type = 'path';
+            this.type = "path";
 
             if (oldNode && oldNode.snap === this.id) {
                 delete oldNode.snap;
@@ -31569,7 +31569,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             this.before(clipPath);
             clipPath.add(path);
-            this.attr('clip-path', 'url(#' + id + ')');
+            this.attr("clip-path", "url(#" + id + ")");
             return clipPath;
         };
 
@@ -31590,7 +31590,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
             this.before(mask);
             mask.add(path);
-            this.attr('mask', 'url(#' + id + ')');
+            this.attr("mask", "url(#" + id + ")");
             return mask;
         };
 
@@ -31605,16 +31605,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             let old_id = this.getId();
             let new_id = old_id + "_" + this.paper.id;
             let attr = (this.type === "mask") ? "mask" : "clip-path";
-            let url = 'url("#' + old_id + '")';
+            let url = "url(\"#" + old_id + "\")";
             let selector = `[${attr}*=\'${url}\'], [style*=\'${url}\']`;
             let linked = this.paper.selectAll(selector);
 
             linked.forEach((el) => {
                 let attr_obj = {};
-                attr_obj[attr] = 'url("#' + new_id + '")';
+                attr_obj[attr] = "url(\"#" + new_id + "\")";
                 linked.attr(attr_obj);
             })
-            this.attr('id', new_id);
+            this.attr("id", new_id);
         }
 
         /**
@@ -31637,18 +31637,18 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         Element.prototype.getFirstPoint = function (use_local_transform) {
             const type = this.type;
             let point;
-            if (type === 'path' || type === 'polycurve' || type === 'polyline') {
+            if (type === "path" || type === "polycurve" || type === "polyline") {
                 point = _.svgPoint(this.pathFirstPoint(), this);
-            } else if (this.node.attributes.hasOwnProperty('x') &&
-                this.node.attributes.hasOwnProperty('y')) {
-                point = _.svgPoint(Number(this.attr('x')), Number(this.attr('y')),
+            } else if (this.node.attributes.hasOwnProperty("x") &&
+                this.node.attributes.hasOwnProperty("y")) {
+                point = _.svgPoint(Number(this.attr("x")), Number(this.attr("y")),
                     this);
-            } else if (type === 'g') {
+            } else if (type === "g") {
                 const children = this.getChildren;
                 const first = children()[0];
                 let second;
                 if (first.node.covpoly && children.length > 1 &&
-                    (second = children[1]).type === 'polygon') {
+                    (second = children[1]).type === "polygon") {
                     point = second.getFirstPoint();
                 } else {
                     point = (first).getFirstPoint();
@@ -31675,22 +31675,22 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Snap.Element} The element itself for chaining.
          */
         Element.prototype.setFirstPoint = function (x, y) {
-            if (typeof x == 'object') {
+            if (typeof x == "object") {
                 y = x.y || x[1] || undefined;
                 x = x.x || x[0] || undefined;
             }
 
-            if (this.type == 'path') { //If the path is not defined in relative coordinates the operation will modify the geometry
+            if (this.type == "path") { //If the path is not defined in relative coordinates the operation will modify the geometry
                 this.pathFirstPoint(x, y);
             }
 
-            if (this.node.attributes.hasOwnProperty('x') &&
-                this.node.attributes.hasOwnProperty('y')) {
+            if (this.node.attributes.hasOwnProperty("x") &&
+                this.node.attributes.hasOwnProperty("y")) {
                 this.attr({x: x, y: y});
             }
 
-            if (this.node.attributes.hasOwnProperty('cx') &&
-                this.node.attributes.hasOwnProperty('cy')) {
+            if (this.node.attributes.hasOwnProperty("cx") &&
+                this.node.attributes.hasOwnProperty("cy")) {
                 this.attr({cx: x, cy: y});
             }
 
@@ -31762,32 +31762,32 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             let attributes;
             switch (this.type) {
-                case 'rect':
-                    attributes = ['x', 'y', 'width', 'height', 'rx', 'ry'];
+                case "rect":
+                    attributes = ["x", "y", "width", "height", "rx", "ry"];
                     return names_only ? attributes : this.attrs(attributes);
-                case 'ellipse':
-                    attributes = ['cx', 'cy', 'rx', 'ry'];
+                case "ellipse":
+                    attributes = ["cx", "cy", "rx", "ry"];
                     return names_only ? attributes : this.attrs(attributes);
-                case 'circle':
-                    attributes = ['cx', 'cy', 'r'];
+                case "circle":
+                    attributes = ["cx", "cy", "r"];
                     return names_only ? attributes : this.attrs(attributes);
-                case 'line':
-                    attributes = ['x1', 'y1', 'x2', 'y2'];
+                case "line":
+                    attributes = ["x1", "y1", "x2", "y2"];
                     return names_only ? attributes : this.attrs(attributes);
-                case 'path':
-                    attributes = ['d'];
+                case "path":
+                    attributes = ["d"];
                     return names_only ? attributes : this.attrs(attributes);
-                case 'polygon':
-                case 'polyline':
-                    attributes = ['points'];
+                case "polygon":
+                case "polyline":
+                    attributes = ["points"];
                     return names_only ? attributes : this.attrs(attributes);
-                case 'image':
-                case 'use':
-                    attributes = ['x', 'y', 'width', 'height'];
+                case "image":
+                case "use":
+                    attributes = ["x", "y", "width", "height"];
                     return names_only ? attributes : this.attrs(attributes);
-                case 'text':
-                case 'tspan':
-                    attributes = ['x', 'y', 'dx', 'dy'];
+                case "text":
+                case "tspan":
+                    attributes = ["x", "y", "dx", "dy"];
                     return names_only ? attributes : this.attrs(attributes);
             }
             return [];
@@ -31805,7 +31805,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             const attrMap = this.node.attributes;
             for (let i = 0, l = attrMap.length, name; i < l; ++i) {
                 name = attrMap[i].name;
-                ret[name] = (name !== 'style') ?
+                ret[name] = (name !== "style") ?
                     attrMap[i].nodeValue :
                     Snap.convertStyleFormat(attrMap[i].nodeValue);
             }
@@ -31823,9 +31823,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.transparentToMouse = function (remove = false, type) {
             if (remove) {
-                this.attr('pointer-events', type || '');
+                this.attr("pointer-events", type || "");
             } else {
-                this.attr('pointer-events', 'none');
+                this.attr("pointer-events", "none");
             }
             return this;
         };
@@ -32018,7 +32018,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 original_trans = params.clone.getLocalMatrix(STRICT_MODE);
                 start_point = params.clone.getCursorPoint(x, y, params.clone.paper)
                 // console.log("start", x, y, original_trans, start_point)
-                local_eve(['drag', 'make_draggable', 'start', this.id], this, drop_target);
+                local_eve(["drag", "make_draggable", "start", this.id], this, drop_target);
             };
 
             //move
@@ -32036,7 +32036,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 if (move_event) {
                     local_eve(move_event, this, params)
                 } else {
-                    local_eve(['drag', 'make_draggable', 'ongoing', this.id], this, params);
+                    local_eve(["drag", "make_draggable", "ongoing", this.id], this, params);
                 }
 
             };
@@ -32052,7 +32052,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 if (end_event) {
                     local_eve(end_event, this, params);
                 } else {
-                    local_eve(['drag', 'make_draggable', 'end', this.id], this, params);
+                    local_eve(["drag", "make_draggable", "end", this.id], this, params);
                 }
                 // console.log("end", localPt.x, localPt.y)
                 if (animate) {
@@ -32088,17 +32088,17 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             const cursorPoint = el.getCursorPoint(ax, ay, coordTarget);
             const pt = el.paper.node.createSVGPoint();
 
-            pt.x = cursorPoint.x - el.data('op').x;
-            pt.y = cursorPoint.y - el.data('op').y;
+            pt.x = cursorPoint.x - el.data("op").x;
+            pt.y = cursorPoint.y - el.data("op").y;
 
             const localPt = el.globalToLocal(pt, coordTarget),
-                lim = el.data('relative_limit');
+                lim = el.data("relative_limit");
 
             if (lim) {
                 if (lim.dim) {
-                    if (lim.dim == 'x') {
+                    if (lim.dim == "x") {
                         localPt.y = 0;
-                    } else if (lim.dim == 'y') {
+                    } else if (lim.dim == "y") {
                         localPt.x = 0;
                     }
                 }
@@ -32137,37 +32137,37 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             }
 
             // el.transform(el.data('ot').toTransformString() + "t" + [localPt.x, localPt.y]);
-            if (el.data('change_xy_attributes')) {
-                const ox = el.data('ox');
+            if (el.data("change_xy_attributes")) {
+                const ox = el.data("ox");
                 el.attr({
                     x: localPt.x + ox,
-                    y: localPt.y + el.data('oy'),
+                    y: localPt.y + el.data("oy"),
                 });
             } else {
-                el.translate_glob(localPt.x, localPt.y, el.data('ot'));
+                el.translate_glob(localPt.x, localPt.y, el.data("ot"));
                 // el.rotate(.2*(Date.now() - el.data("t")), localPt.x + el.data('op').x, localPt.y + el.data('op').y)
             }
 
-            eve(['drag', 'move', 'ongoing', el.id], el, el);
+            eve(["drag", "move", "ongoing", el.id], el, el);
             if (this.event) eve(this.event, el, el);
         };
 
         _.startMove = function (x, y, ev, el, select, coordTarget) {
-            if (el.data('active')) return;
+            if (el.data("active")) return;
             // console.log("StartRotDrag in");
-            el.data('active', true);
-            el.data('s', true);
-            el.data('t', Date.now());
+            el.data("active", true);
+            el.data("s", true);
+            el.data("t", Date.now());
 
             // el.data('ibb', el.getBBox());
-            el.data('op', el.getCursorPoint(x, y, coordTarget));
+            el.data("op", el.getCursorPoint(x, y, coordTarget));
             const localMatrix = el.getLocalMatrix(STRICT_MODE);
-            el.data('ot', localMatrix);
+            el.data("ot", localMatrix);
             if (select) {
-                eve(['drag', 'move', 'select', 'start'], el, [localMatrix]);
+                eve(["drag", "move", "select", "start"], el, [localMatrix]);
                 if (this.event) eve(this.event, el, [localMatrix]);
             } else {
-                eve(['drag', 'move', 'start', el.id], el, el);
+                eve(["drag", "move", "start", el.id], el, el);
                 if (this.event) eve(this.event, el, el);
             }
 
@@ -32185,25 +32185,25 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
                 if (limits.min_x !== undefined) {
                     let x_offset = (limits.center) ? bbox.cx : bbox.x;
-                    relative_limit.min_x = (typeof limits.min_x === 'function') ?
+                    relative_limit.min_x = (typeof limits.min_x === "function") ?
                         limits.min_x() - x_offset : limits.min_x - x_offset;
                 }
 
                 if (limits.max_x !== undefined) {
                     let x2_offset = (limits.center) ? bbox.cx : bbox.x2;
-                    relative_limit.max_x = (typeof limits.max_x === 'function') ?
+                    relative_limit.max_x = (typeof limits.max_x === "function") ?
                         limits.max_x() - x2_offset : limits.max_x - x2_offset;
                 }
 
                 if (limits.min_y !== undefined) {
                     let y_offset = (limits.center) ? bbox.cy : bbox.y;
-                    relative_limit.min_y = (typeof limits.min_y === 'function') ?
+                    relative_limit.min_y = (typeof limits.min_y === "function") ?
                         limits.min_y() - y_offset : limits.min_y - y_offset;
                 }
 
                 if (limits.max_y !== undefined) {
                     let y2_offset = (limits.center) ? bbox.cy : bbox.y2;
-                    relative_limit.max_y = (typeof limits.max_y === 'function') ?
+                    relative_limit.max_y = (typeof limits.max_y === "function") ?
                         limits.max_y() - y2_offset : limits.max_y - y2_offset;
                 }
 
@@ -32218,7 +32218,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         relative_limit.snap_y = relative_limit.snap_y = function (val) {
                             return Snap.snapTo(limits.snap, val);
                         };
-                    } else if (typeof limits.snap === 'object') {
+                    } else if (typeof limits.snap === "object") {
                         if (Array.isArray(limits.snap.x)) {
                             relative_limit.snap_x = function (val) {
                                 return Snap.snapTo(limits.snap.x, val);
@@ -32232,34 +32232,34 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     }
                 }
 
-                el.data('relative_limit', relative_limit);
+                el.data("relative_limit", relative_limit);
             }
 
-            if (el.data('change_xy_attributes')) {
-                el.data('ox', Number(el.attr('x')));
-                el.data('oy', Number(el.attr('y')));
+            if (el.data("change_xy_attributes")) {
+                el.data("ox", Number(el.attr("x")));
+                el.data("oy", Number(el.attr("y")));
             }
-            el.data('s', false);
+            el.data("s", false);
         };
 
         _.endMove = function (ev, el, select) {
-            if (el.data('active')) {
-                while (el.data('s') || (Date.now() - el.data('t') < 200)) {
+            if (el.data("active")) {
+                while (el.data("s") || (Date.now() - el.data("t") < 200)) {
                 }
                 if (this.use_cache) el.updateBBoxCache(undefined, true);
                 if (select) {
                     const cur_matrix = el.getLocalMatrix(STRICT_MODE);
-                    const old_matrix = el.data('ot');
+                    const old_matrix = el.data("ot");
                     // el.updateBBoxCache(old_matrix.invert().multLeft(cur_matrix), true);
-                    eve(['drag', 'move', 'select', 'end'], el,
+                    eve(["drag", "move", "select", "end"], el,
                         [cur_matrix, old_matrix]);
                     if (this.event) eve(this.event, el, [cur_matrix, old_matrix]);
 
                 } else {
-                    eve(['drag', 'move', 'end', el.id], el, el);
+                    eve(["drag", "move", "end", el.id], el, el);
                     if (this.event) eve(this.event, el, el);
                 }
-                el.data('active', false);
+                el.data("active", false);
             }
         };
 
@@ -32267,10 +32267,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             const limits = this.limits;
             const newPoint = el.getCursorPoint(ax, ay, coordTarget);
-            const tcr = el.data('tcr');
+            const tcr = el.data("tcr");
             let d_angle = (Snap.angle(tcr.x, tcr.y, newPoint.x, newPoint.y) -
-                90) - el.data('pointer_angle');
-            const abs_angle = el.data('angle');
+                90) - el.data("pointer_angle");
+            const abs_angle = el.data("angle");
             let abs_angle_new = (abs_angle + d_angle === 360) ?
                 360 :
                 (abs_angle + d_angle + 360) % 360;
@@ -32304,10 +32304,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     }
                     adjusted_new = rel_angle;
                 } else if (barrier) {
-                    const last_rel = (el.data('last_angle')[0] - angle_lim_min ===
+                    const last_rel = (el.data("last_angle")[0] - angle_lim_min ===
                         360) ?
                         360 :
-                        (el.data('last_angle')[0] - angle_lim_min + 360) % 360;
+                        (el.data("last_angle")[0] - angle_lim_min + 360) % 360;
                     // let diff = abs_angle_new - last;
                     // if (diff > 180) {
                     //     diff -= 360
@@ -32332,66 +32332,66 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             }
 
-            el.rotate(d_angle, tcr.x, tcr.y, el.data('tot'));
+            el.rotate(d_angle, tcr.x, tcr.y, el.data("tot"));
 
-            el.data('last_angle', [abs_angle_new, adjusted_new]);
-            eve(['drag', 'revolve', 'ongoing', el.id], el, abs_angle_new, adjusted_new, newPoint);
+            el.data("last_angle", [abs_angle_new, adjusted_new]);
+            eve(["drag", "revolve", "ongoing", el.id], el, abs_angle_new, adjusted_new, newPoint);
             if (this.event) eve(this.event, el, abs_angle_new, adjusted_new, newPoint);
 
         };
 
         _.startRevolve = function (x, y, ev, el, center, coordTarget) {
 
-            if (el.data('active')) return;
+            if (el.data("active")) return;
             // console.log("StartRotDrag in");
-            el.data('active', true);
-            el.data('s', true);
-            el.data('t', Date.now());
+            el.data("active", true);
+            el.data("s", true);
+            el.data("t", Date.now());
 
-            el.data('tcr', center);
+            el.data("tcr", center);
             const op = el.getCursorPoint(x, y, coordTarget);
 
-            el.data('op', op);
+            el.data("op", op);
             const localMatrix = el.getLocalMatrix(STRICT_MODE);
-            el.data('tot', localMatrix);
+            el.data("tot", localMatrix);
             const initial_angle = this.initial || 0;
             const angle_measure = round(
                 localMatrix.split().rotate + initial_angle, 2); //Rounding to avoid numerical instability
-            el.data('angle', (angle_measure + 360) % 360);
-            el.data('last_angle', [(angle_measure + 360) % 360, undefined]);
+            el.data("angle", (angle_measure + 360) % 360);
+            el.data("last_angle", [(angle_measure + 360) % 360, undefined]);
             // const el_fp = el.getFirstPoint();
             const angle = Snap.angle(center.x, center.y, op.x, op.y) - 90;
-            el.data('pointer_angle', angle);
+            el.data("pointer_angle", angle);
 
-            el.data('s', false);
+            el.data("s", false);
 
-            eve(['drag', 'revolve', 'start', el.id], el, el);
+            eve(["drag", "revolve", "start", el.id], el, el);
             if (this.event) eve(this.event, el, el);
         };
 
         _.endRevolve = function (ev, el, center) {
 
-            if (el.data('active')) {
-                while (el.data('s') || (Date.now() - el.data('t') < 200)) {
+            if (el.data("active")) {
+                while (el.data("s") || (Date.now() - el.data("t") < 200)) {
                 }
-                el.data('active', false);
-                eve(['drag', 'revolve', 'end', el.id], el, el.data('last_angle')[0],
-                    el.data('last_angle')[1]);
-                if (this.event) eve(this.event, el, el.data('last_angle')[0],
-                    el.data('last_angle')[1]);
+                el.data("active", false);
+                eve(["drag", "revolve", "end", el.id], el, el.data("last_angle")[0],
+                    el.data("last_angle")[1]);
+                if (this.event) eve(this.event, el, el.data("last_angle")[0],
+                    el.data("last_angle")[1]);
             }
         };
 
         _.svgPoint = function (x, y, node) {
-            if (arguments.length === 1 && typeof x === 'object' &&
-                x.hasOwnProperty('paper')) {
+            if (arguments.length === 1 && typeof x === "object" &&
+                x.hasOwnProperty("paper")) {
                 node = x;
                 x = undefined;
             }
             if (x === undefined && y === undefined) {
                 x = y = 0;
             }
-            if (typeof x == 'object') {
+            if (typeof x == "object") {
                 y = x.y;
                 x = x.x;
             }
@@ -32432,14 +32432,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.scale = function (
             x, y, cx, cy, prev_trans, use_cache) {
-            if (typeof prev_trans === 'boolean') {
+            if (typeof prev_trans === "boolean") {
                 use_cache = prev_trans;
                 prev_trans = undefined;
             }
             if (prev_trans === undefined) {
                 prev_trans = this.getLocalMatrix(STRICT_MODE);
             }
-            if (prev_trans === 'id' || prev_trans === true) {
+            if (prev_trans === "id" || prev_trans === true) {
                 prev_trans = Snap.matrix();
             }
             //TODO processes input.
@@ -32468,7 +32468,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         Element.prototype.translate = function (
             x, y, prev_trans, cx, cy, use_bbox_cache) {
 
-            if (typeof cx === 'boolean') {
+            if (typeof cx === "boolean") {
                 use_bbox_cache = cx;
                 cx = 0;
                 cy = 0;
@@ -32485,7 +32485,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (prev_trans === undefined) {
                 prev_trans = this.getLocalMatrix(STRICT_MODE);
             }
-            if (prev_trans === 'id' || prev_trans === true) {
+            if (prev_trans === "id" || prev_trans === true) {
                 prev_trans = Snap.matrix();
             }
             let trans_matrix;
@@ -32518,16 +32518,15 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                                                        x, y,
                                                        prev_trans, cx, cy,
                                                        use_bbox_cache,
-                                                       easing)
-        {
+                                                       easing) {
 
-             easing = easing || mina.easeinout;
+            easing = easing || mina.easeinout;
             if (Array.isArray(duration)) {
                 easing = duration[1];
                 duration = duration[0];
             }
 
-            if (typeof cx === 'boolean') {
+            if (typeof cx === "boolean") {
                 use_bbox_cache = cx;
                 cx = 0;
                 cy = 0;
@@ -32539,7 +32538,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (prev_trans === undefined) {
                 prev_trans = this.getLocalMatrix(STRICT_MODE);
             }
-            if (prev_trans === 'id' || prev_trans === true) {
+            if (prev_trans === "id" || prev_trans === true) {
                 prev_trans = Snap.matrix();
             }
             let trans_matrix;
@@ -32573,7 +32572,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         Element.prototype.translate_glob = function (
             x, y, prev_trans, cx, cy, use_cache) {
 
-            if (typeof cx === 'boolean') {
+            if (typeof cx === "boolean") {
                 use_cache = cx;
                 cx = 0;
                 cy = 0;
@@ -32590,7 +32589,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (prev_trans === undefined) {
                 prev_trans = this.getLocalMatrix(STRICT_MODE);
             }
-            if (prev_trans === 'id' || prev_trans === true) {
+            if (prev_trans === "id" || prev_trans === true) {
                 prev_trans = Snap.matrix();
             }
             let trans_matrix;
@@ -32618,7 +32617,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.rotate = function (
             ang, cx, cy, prev_trans, use_cache) {
-            if (typeof prev_trans === 'boolean') {
+            if (typeof prev_trans === "boolean") {
                 use_cache = prev_trans;
                 prev_trans = undefined;
             }
@@ -32626,7 +32625,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 prev_trans = this.getLocalMatrix(STRICT_MODE);
             }
 
-            if (prev_trans === 'id' || prev_trans === true) {
+            if (prev_trans === "id" || prev_trans === true) {
                 prev_trans = Snap.matrix();
             }
             // console.log("Mathrix 2: " + prev_trans.toString());
@@ -32644,7 +32643,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * Mirrors the element along the specified direction or axis.
          *
          * @function Snap.Element#reflect
-         * @param {('x'|'y'|'vertical'|'horizontal'|number|Snap.Element)} direction Axis keyword, angle in degrees, or line element.
+         * @param {("x"|"y"|"vertical"|"horizontal"|number|Snap.Element)} direction Axis keyword, angle in degrees, or line element.
          * @param {number} [cx] X coordinate of the reflection centre.
          * @param {number} [cy] Y coordinate of the reflection centre.
          * @param {Snap.Matrix|string|boolean} [prev_trans] Optional base matrix or configuration flag.
@@ -32653,7 +32652,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.reflect = function (
             direction, cx, cy, prev_trans, use_cache) {
-            if (typeof prev_trans === 'boolean') {
+            if (typeof prev_trans === "boolean") {
                 use_cache = prev_trans;
                 prev_trans = undefined;
             }
@@ -32668,21 +32667,21 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 cy = bbox.cy;
             }
 
-            if (direction === 'x' || direction === 'vertical') {
+            if (direction === "x" || direction === "vertical") {
                 return this.scale(1, -1, cx, cy, prev_trans, use_cache);
             }
-            if (direction === 'y' || direction === 'horizontal') {
+            if (direction === "y" || direction === "horizontal") {
                 return this.scale(-1, 1, cx, cy, prev_trans, use_cache);
             }
-            if (typeof direction === 'number') { //angle
-                return this.rotate(-direction, cx, cy, prev_trans, use_cache).reflect('x', cx, cy, use_cache).rotate(direction, cx, cy, use_cache);
+            if (typeof direction === "number") { //angle
+                return this.rotate(-direction, cx, cy, prev_trans, use_cache).reflect("x", cx, cy, use_cache).rotate(direction, cx, cy, use_cache);
             }
-            if (typeof direction === 'object' && direction.type === 'line') {
+            if (typeof direction === "object" && direction.type === "line") {
                 const line = direction;
-                const x1 = Number(line.attr('x1'));
-                const y1 = Number(line.attr('y1'));
-                const x2 = Number(line.attr('x2'));
-                const y2 = Number(line.attr('y2'));
+                const x1 = Number(line.attr("x1"));
+                const y1 = Number(line.attr("y1"));
+                const x2 = Number(line.attr("x2"));
+                const y2 = Number(line.attr("y2"));
                 return this.reflect(Snap.angle(x1, y1, x2, y2), x1, x2, prev_trans,
                     use_cache);
             }
@@ -32738,8 +32737,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 cosrot = Math.cos(this.angle);
                 sinrot = Math.sin(this.angle);
 
-                rx = +this.attr('rx');
-                ry = +this.attr('ry');
+                rx = +this.attr("rx");
+                ry = +this.attr("ry");
 
                 A = Snap.matrix( //moves the coord-system to match the ellipse dimensions and angle.
 
@@ -32831,7 +32830,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.getLeafs = function (invisible, _arr) {
             _arr = _arr || [];
-            if (this.type !== 'g') {
+            if (this.type !== "g") {
                 _arr.push(this);
                 return _arr;
             }
@@ -32852,13 +32851,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.getParentChain = function (
             callback, skip_current, toCoord, include_top_svg) {
-            if (typeof callback !== 'function') {
+            if (typeof callback !== "function") {
                 include_top_svg = toCoord;
                 toCoord = skip_current;
                 skip_current = callback;
                 callback = undefined;
             }
-            let parent = (skip_current && this.type !== 'svg') ?
+            let parent = (skip_current && this.type !== "svg") ?
                 this.parent() :
                 this;
             let i = 0;
@@ -32866,7 +32865,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             while (parent) {
                 if (toCoord && parent.coordRoot) break;
 
-                if (parent.type === 'svg' && !include_top_svg) break;
+                if (parent.type === "svg" && !include_top_svg) break;
 
                 if (callback) {
                     ret.push(callback(parent, i));
@@ -32874,7 +32873,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     ret.push(parent);
                 }
 
-                if (parent.type === 'svg') break;
+                if (parent.type === "svg") break;
 
                 parent = parent.parent();
                 ++i;
@@ -32930,16 +32929,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.propagateTransform = function (
             exclude_attribute, _transform, full) {
-            if (typeof exclude_attribute === 'boolean') {
+            if (typeof exclude_attribute === "boolean") {
                 full = exclude_attribute;
                 exclude_attribute = undefined;
             }
             if (_transform) this.addTransform(_transform);
             //The transform should not be propagated if a clip or a mask is defined.
             // Otherwise, it will not be applied correctly.
-            if (this.attr('clip-path') !== 'none' || this.attr('mask') !==
-                'none') {
-                let cp = this.attr('clip-path'), mk = this.attr('mask');
+            if (this.attr("clip-path") !== "none" || this.attr("mask") !==
+                "none") {
+                let cp = this.attr("clip-path"), mk = this.attr("mask");
                 return;
             }
             if (exclude_attribute && this.attr(exclude_attribute)) return;
@@ -32947,7 +32946,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             const is_identity = local_transform.isIdentity();
             if (this.isGroupLike()) {
                 if (!is_identity) {
-                    const units = this.data('units') ||
+                    const units = this.data("units") ||
                         {x: {x: 1, y: 0}, y: {x: 0, y: 1}};
                     const u_x = local_transform.apply(units.x);
                     const u_y = local_transform.apply(units.y);
@@ -32955,22 +32954,22 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
                     units.x = {x: u_x.x - origin.x, y: u_x.y - origin.y};
                     units.y = {x: u_y.x - origin.x, y: u_y.y - origin.y};
-                    this.data('units', units);
+                    this.data("units", units);
                 }
                 if (!is_identity || full) {
                     this.getChildren(/*true*/).forEach(function (el) {
                         el.propagateTransform(exclude_attribute, local_transform, full);
                     });
                 }
-                this.attr('transform', '');
+                this.attr("transform", "");
             } else if (full && !is_identity) {
-                if (this.type === 'path') {
-                    const original = this.attr('d');
+                if (this.type === "path") {
+                    const original = this.attr("d");
                     const d = Snap.path.map(original, local_transform);
-                    this.attr({'d': d, 'transform': ''});
+                    this.attr({"d": d, "transform": ""});
                     // console.log("Fixing", original, d, local_transform.toString());
-                } else if (this.type === 'polygone' || this.type === 'polyline') {
-                    let points = this.attr('points');
+                } else if (this.type === "polygone" || this.type === "polyline") {
+                    let points = this.attr("points");
                     for (let i = 0, l = points.length(); i < l; ++i) {
                         if (i % 2) {
                             points[i / 2] = [+points[i]];
@@ -32983,13 +32982,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     this.attr({points: points});
                     this.transform(Snap.matrix());
 
-                } else if (this.type === 'line') {
+                } else if (this.type === "line") {
                     let p1 = local_transform.apply(
-                            {x: +this.attr('x1'), y: +this.attr('y1')}),
+                            {x: +this.attr("x1"), y: +this.attr("y1")}),
                         p2 = local_transform.apply(
-                            {x: +this.attr('x2'), y: +this.attr('y2')});
+                            {x: +this.attr("x2"), y: +this.attr("y2")});
                     this.attr(
-                        {x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, transform: ''});
+                        {x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, transform: ""});
                     this.transform(Snap.matrix());
                 }
             }
@@ -33020,7 +33019,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.foreignObjectNormalize = function () {
             if (!this.isGroupLike) return;
-            let fos = this.selectAll('foreignObject');
+            let fos = this.selectAll("foreignObject");
             const transform_info = this.transform();
             const trans_above_inv = transform_info.diffMatrix.invert();
             fos.forEach((fo) => {
@@ -33075,7 +33074,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             if (al) {
                 al = al.charAt(0).toLowerCase();
-                if (!['t', 'b', 'l', 'r'].includes(al)) al = undefined;
+                if (!["t", "b", "l", "r"].includes(al)) al = undefined;
             }
 
             if (external_bBox.paper) {
@@ -33113,25 +33112,25 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
                 let p_x, p_y;
                 switch (al) {
-                    case 'l':
-                        p_x = 'x';
-                        p_y = 'cy';
+                    case "l":
+                        p_x = "x";
+                        p_y = "cy";
                         break;
-                    case 't':
-                        p_x = 'cx';
-                        p_y = 'y';
+                    case "t":
+                        p_x = "cx";
+                        p_y = "y";
                         break;
-                    case 'r':
-                        p_x = 'x2';
-                        p_y = 'cy';
+                    case "r":
+                        p_x = "x2";
+                        p_y = "cy";
                         break;
-                    case 'b':
-                        p_x = 'cx';
-                        p_y = 'y2';
+                    case "b":
+                        p_x = "cx";
+                        p_y = "y2";
                         break;
                     default:
-                        p_x = 'cx';
-                        p_y = 'cy';
+                        p_x = "cx";
+                        p_y = "cy";
                         break;
                 }
 
@@ -33205,12 +33204,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.fillImage = function (
             image, fit_element, preserve_proportons) {
-            if (this.type === 'g') return this;
+            if (this.type === "g") return this;
 
             //process image
-            if (typeof image === 'string') {
+            if (typeof image === "string") {
                 let topSVG = this.getTopSVG();
-                const temp_im = topSVG.select('#' + image);
+                const temp_im = topSVG.select("#" + image);
                 if (!temp_im) return this;
 
                 image = temp_im;
@@ -33221,14 +33220,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             let id = this.getId();
             const group_placement = this.paper.g().attr({
                 id: id,
-                target_id: '_' + id,
+                target_id: "_" + id,
                 surrogate: 1,
                 transform: this.getLocalMatrix(),
             });
-            this.attr({id: '_' + id, transform: '', fill: 'none'});
+            this.attr({id: "_" + id, transform: "", fill: "none"});
             this.after(group_placement);
 
-            const clip = this.paper.clipPath().attr({id: id + '_clip'});
+            const clip = this.paper.clipPath().attr({id: id + "_clip"});
             clip.add(this.clone());
 
             group_placement.add(clip);
@@ -33236,7 +33235,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             const clip_group = group_placement.g();
             clip_group.add(image);
 
-            clip_group.attr({clipPath: 'url(#' + clip.getId() + ')'});
+            clip_group.attr({clipPath: "url(#" + clip.getId() + ")"});
 
             if (fit_element) {
                 if (preserve_proportons) {
@@ -33268,17 +33267,17 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
 
         Element.prototype.distanceTo = function (x, y) {
-            if (typeof x === 'object' && x.x !== undefined && x.y !== undefined) {
+            if (typeof x === "object" && x.x !== undefined && x.y !== undefined) {
                 y = x.y;
                 x = x.x;
             }
 
             switch (this.type) {
-                case 'line':
-                    const x1 = this.attr('x1');
-                    const y1 = this.attr('y1');
-                    const x2 = this.attr('x2');
-                    const y2 = this.attr('y2');
+                case "line":
+                    const x1 = this.attr("x1");
+                    const y1 = this.attr("y1");
+                    const x2 = this.attr("x2");
+                    const y2 = this.attr("y2");
 
                     if ((x1 - x1) === 0 && (y1 - y2) === 0) {
                         return Snap.len(x, y, x1, y1);
@@ -33312,9 +33311,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         const style_reforamt = function (style, val) {
             switch (style) {
-                case 'opacity':
+                case "opacity":
                     val = String(val);
-                    if (val.charAt(val.length - 1) === '%') {
+                    if (val.charAt(val.length - 1) === "%") {
                         val = Number(val.substring(0, val.length - 1)) / 100;
                     }
                     break;
@@ -33332,8 +33331,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         Element.prototype.setStyle = function (style, value) {
             if (!style) return this;
             let that = this; //we may need change the object to a surrogate;
-            if (typeof style === 'string') {
-                const isStyleAttribute = style.indexOf(':') === -1;
+            if (typeof style === "string") {
+                const isStyleAttribute = style.indexOf(":") === -1;
                 if (isStyleAttribute) {
                     const obj = {};
                     obj[style] = value;
@@ -33345,16 +33344,16 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
             }
 
-            if (typeof style === 'object') {
+            if (typeof style === "object") {
                 for (let style_name in style) {
                     if (style.hasOwnProperty(style_name)) {
-                        if (style_name === 'imageFill') {
-                            if (typeof style[style_name] === 'string') {
+                        if (style_name === "imageFill") {
+                            if (typeof style[style_name] === "string") {
                                 that = that.fillImage(style[style_name], true, true);
                             } else {
-                                const im_id = style[style_name]['id'];
-                                const fit = style[style_name]['fit'];
-                                const aspect = style[style_name]['preserveAspectRatio'];
+                                const im_id = style[style_name]["id"];
+                                const fit = style[style_name]["fit"];
+                                const aspect = style[style_name]["preserveAspectRatio"];
                                 that = that.fillImage(im_id, fit, aspect);
                             }
                             continue;
@@ -33363,7 +33362,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         //     delete that.node.style[style];
                         // } else
                         {
-                            if (style_name === 'class') {
+                            if (style_name === "class") {
                                 const class_name = style[style_name];
                                 if (/-?[_a-zA-Z]+[_a-zA-Z0-9-]*/gm.test(class_name)) {
                                     //is string is passed that does not generate a style, we assume that this is a class name instead
@@ -33371,7 +33370,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                                 }
                             } else {
                                 const stl = style_reforamt(style_name, style[style_name]) ||
-                                    '';
+                                    "";
                                 that.node.style[style_name] = stl;
 
                             }
@@ -33394,7 +33393,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         Element.prototype.getStyle = function (properties) {
             /*Explicit list of properties we get from computed style*/
             if (properties) {
-                if (typeof properties === 'object' && !Array.isArray(properties)) {
+                if (typeof properties === "object" && !Array.isArray(properties)) {
                     properties = Object.keys(properties);
                 }
                 let ret = {};
@@ -33410,15 +33409,15 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 return ret;
             }
 
-            let style = this.attr('style');
+            let style = this.attr("style");
             let ret = {};
 
             if (style) {
-                style = style.split(';');
+                style = style.split(";");
                 style.forEach((st) => {
                     if (st) {
-                        let pair = st.split(':', 2);
-                        ret[[pair[0].trim()]] = (pair[1]) ? pair[1].trim() : '';
+                        let pair = st.split(":", 2);
+                        ret[[pair[0].trim()]] = (pair[1]) ? pair[1].trim() : "";
                     }
                 });
             }
@@ -33428,63 +33427,63 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
 
         const STYLES = {
-            'alignment-baseline': true,
-            'baseline-shift': true,
-            'clip-path': true,
-            'clip-rule': true,
-            'color': true,
-            'color-interpolation': true,
-            'color-interpolation-filters': true,
-            'color-rendering': true,
-            'cursor': true,
-            'direction': true,
-            'display': true,
-            'dominant-baseline': true,
-            'fill': true,
-            'fill-opacity': true,
-            'fill-rule': true,
-            'filter': true,
-            'flood-color': true,
-            'flood-opacity': true,
-            'font-family': true,
-            'font-size': true,
-            'font-size-adjust': true,
-            'font-stretch': true,
-            'font-style': true,
-            'font-variant': true,
-            'font-weight': true,
-            'glyph-orientation-horizontal': true,
-            'glyph-orientation-vertical': true,
-            'image-rendering': true,
-            'letter-spacing': true,
-            'lighting-color': true,
-            'marker-end': true,
-            'marker-mid': true,
-            'marker-start': true,
-            'mask': true,
-            'opacity': true,
-            'overflow': true,
-            'paint-order': true,
-            'pointer-events': true,
-            'shape-rendering': true,
-            'stop-color': true,
-            'stop-opacity': true,
-            'stroke': true,
-            'stroke-dasharray': true,
-            'stroke-dashoffset': true,
-            'stroke-linecap': true,
-            'stroke-linejoin': true,
-            'stroke-miterlimit': true,
-            'stroke-opacity': true,
-            'stroke-width': true,
-            'text-anchor': true,
-            'text-decoration': true,
-            'text-rendering': true,
-            'unicode-bidi': true,
-            'vector-effect': true,
-            'visibility': true,
-            'word-spacing': true,
-            'writing-mode': true,
+            "alignment-baseline": true,
+            "baseline-shift": true,
+            "clip-path": true,
+            "clip-rule": true,
+            "color": true,
+            "color-interpolation": true,
+            "color-interpolation-filters": true,
+            "color-rendering": true,
+            "cursor": true,
+            "direction": true,
+            "display": true,
+            "dominant-baseline": true,
+            "fill": true,
+            "fill-opacity": true,
+            "fill-rule": true,
+            "filter": true,
+            "flood-color": true,
+            "flood-opacity": true,
+            "font-family": true,
+            "font-size": true,
+            "font-size-adjust": true,
+            "font-stretch": true,
+            "font-style": true,
+            "font-variant": true,
+            "font-weight": true,
+            "glyph-orientation-horizontal": true,
+            "glyph-orientation-vertical": true,
+            "image-rendering": true,
+            "letter-spacing": true,
+            "lighting-color": true,
+            "marker-end": true,
+            "marker-mid": true,
+            "marker-start": true,
+            "mask": true,
+            "opacity": true,
+            "overflow": true,
+            "paint-order": true,
+            "pointer-events": true,
+            "shape-rendering": true,
+            "stop-color": true,
+            "stop-opacity": true,
+            "stroke": true,
+            "stroke-dasharray": true,
+            "stroke-dashoffset": true,
+            "stroke-linecap": true,
+            "stroke-linejoin": true,
+            "stroke-miterlimit": true,
+            "stroke-opacity": true,
+            "stroke-width": true,
+            "text-anchor": true,
+            "text-decoration": true,
+            "text-rendering": true,
+            "unicode-bidi": true,
+            "vector-effect": true,
+            "visibility": true,
+            "word-spacing": true,
+            "writing-mode": true,
         };
         /**
          * Converts style-related attributes into inline CSS declarations stored in the `style` attribute.
@@ -33494,7 +33493,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Snap.Element} The current element.
          */
         Element.prototype.moveAttrToStyle = function (recursive, f) {
-            if (typeof recursive === 'function') {
+            if (typeof recursive === "function") {
                 f = recursive;
                 recursive = false;
             }
@@ -33508,7 +33507,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     }
                     attrs.style[attr] = attrs[attr];
 
-                    attrs[attr] = '';
+                    attrs[attr] = "";
                 }
             }
             if (found) {
@@ -33517,7 +33516,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 this.attr(attrs);
                 this.setStyle(style);
                 // const st = this.attr('style');
-                this.recordChange('style', 'attributes', f);
+                this.recordChange("style", "attributes", f);
             }
 
             if (recursive && this.isGroupLike()) {
@@ -33535,7 +33534,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         Element.prototype.copyComStyle = function (source) {
             const styles = root.getComputedStyle(source.node);
-            if (styles.cssText !== '') {
+            if (styles.cssText !== "") {
                 this.node.style.cssText = styles.cssText;
             } else {
                 const cssText = Array.from(styles).reduce(
@@ -33603,9 +33602,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Snap.Element|null} Matching parent element or null if none found.
          */
         Element.prototype.selectParent = function (css_select, outside_svg) {
-            if ((!outside_svg && this.type === 'svg') || this.node === Snap.window().document) return null;
+            if ((!outside_svg && this.type === "svg") || this.node === Snap.window().document) return null;
 
-            if (typeof css_select === 'function') {
+            if (typeof css_select === "function") {
                 if (css_select(this)) return this;
             } else {
                 if (this.node.matches(css_select)) return this;
@@ -33640,7 +33639,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Object} Bounding box after rotation with x, y, width, height properties.
          */
         Element.prototype.getBBoxRot = function (angle, cx, cy, aprox, settings) {
-            if (typeof cx === 'boolean') {
+            if (typeof cx === "boolean") {
                 aprox = cx;
                 cx = undefined;
                 settings = cy;
@@ -33657,7 +33656,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 cx = bbox.cx;
                 cy = bbox.cy;
             }
-            if (typeof cx === 'object' && cx.x != undefined && cx.y !=
+            if (typeof cx === "object" && cx.x != undefined && cx.y !=
                 undefined) {
                 cy = cx.y;
                 cx = cx.y;
@@ -33931,7 +33930,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             matrix, duration, easing, after_callback, easing_direct_matrix, processor) {
 
 
-            if (typeof after_callback === 'boolean') {
+            if (typeof after_callback === "boolean") {
                 processor = easing_direct_matrix;
                 easing_direct_matrix = after_callback;
                 after_callback = undefined;
@@ -33950,18 +33949,18 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 f: matrix.f - loc.f,
             };
 
-          
+
             const transformEasingSpec = (!easing_direct_matrix && isTransformEasingSpecObject(easing)) ? easing : null;
             const transformInterpolator = transformEasingSpec
                 ? buildTransformEasingInterpolator(loc, matrix, transformEasingSpec)
                 : null;
 
-            const matrixEasingFn = (easing_direct_matrix && typeof easing === 'function')
+            const matrixEasingFn = (easing_direct_matrix && typeof easing === "function")
                 ? easing(loc, matrix)
                 : null;
 
             if (!duration) {
-                console.log('Zero duration');
+                console.log("Zero duration");
             }
 
             const el = this;
@@ -33975,19 +33974,19 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 if (!done) {
                     if (matrixEasingFn) {
                         const easedMatrix = matrixEasingFn(t);
-                        step_matrix = (easedMatrix && typeof easedMatrix.toString === 'function')
+                        step_matrix = (easedMatrix && typeof easedMatrix.toString === "function")
                             ? easedMatrix.toString()
                             : matrix.toString();
                     } else if (transformInterpolator) {
                         step_matrix = transformInterpolator(t).toString();
                     } else {
-                        step_matrix = 'matrix('
-                            + (loc.a + dif.a * t) + ','
-                            + (loc.b + dif.b * t) + ','
-                            + (loc.c + dif.c * t) + ','
-                            + (loc.d + dif.d * t) + ','
-                            + (loc.e + dif.e * t) + ','
-                            + (loc.f + dif.f * t) + ')';
+                        step_matrix = "matrix("
+                            + (loc.a + dif.a * t) + ","
+                            + (loc.b + dif.b * t) + ","
+                            + (loc.c + dif.c * t) + ","
+                            + (loc.d + dif.d * t) + ","
+                            + (loc.e + dif.e * t) + ","
+                            + (loc.f + dif.f * t) + ")";
                     }
                 } else {
                     step_matrix = matrix.toString();
@@ -34008,7 +34007,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
 
                 if (dom_partner) dom_partner.forEach(
-                    (dom) => dom.css('transform', step_matrix));
+                    (dom) => dom.css("transform", step_matrix));
                 if (element_partner) element_partner.forEach((el) => {
                     // el.node.setAttribute("transform", step_matrix);
                     // el.node.style.transform = step_matrix;
@@ -34020,7 +34019,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             // el.node.setAttribute('transform', step_matrix);
                             el.transform(step_matrix)
                         } else {
-                            el.node.style['transform'] = step_matrix;
+                            el.node.style["transform"] = step_matrix;
                             // el.transform(step_matrix)
                         }
                         el.saveMatrix(undefined);
@@ -34044,7 +34043,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 set,
                 (easing_direct_matrix || usesTransformSpec)
                     ? mina.linear
-                    : (typeof easing === 'function' ? easing : mina.linear)
+                    : (typeof easing === "function" ? easing : mina.linear)
             );
 
             el.anims[anim.id] = anim;
@@ -34053,7 +34052,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             eve.once("snap.mina.finish." + anim.id, function () {
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
-                after_callback && (typeof after_callback === 'function') && after_callback.call(el);
+                after_callback && (typeof after_callback === "function") && after_callback.call(el);
             });
             eve.once("snap.mina.stop." + anim.id, function () {
                 frameBuffer.completed = true;
@@ -34069,14 +34068,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         function collectPathTargets(rootNode, bucket) {
             bucket = bucket || [];
             const visit = function (node) {
-                if (!node || typeof node !== 'object') {
+                if (!node || typeof node !== "object") {
                     return;
                 }
-                if (node.type === 'path') {
+                if (node.type === "path") {
                     bucket.push(node);
                     return;
                 }
-                if (typeof node.isGroupLike === 'function' && node.isGroupLike()) {
+                if (typeof node.isGroupLike === "function" && node.isGroupLike()) {
                     const children = node.getChildren && node.getChildren(true);
                     if (children && children.length) {
                         children.forEach(visit);
@@ -34089,7 +34088,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         Element.prototype.animateGenTransformBuffered = function (transform_t, duration, easing, after_callback) {
             this.makePath(true);
-            if (typeof transform_t !== 'function') {
+            if (typeof transform_t !== "function") {
                 return null;
             }
 
@@ -34103,7 +34102,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             const resolveTransform = function (progress) {
                 const clamped = Math.max(0, Math.min(1, progress || 0));
                 const resolver = transform_t.call(el, clamped);
-                return (typeof resolver === 'function') ? resolver : null;
+                return (typeof resolver === "function") ? resolver : null;
             };
 
             const initialTransform = resolveTransform(0);
@@ -34124,7 +34123,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 for (let i = 0; i < frame.paths.length; ++i) {
                     const target = targets[i];
                     const pathData = frame.paths[i];
-                    if (target && typeof pathData === 'string') {
+                    if (target && typeof pathData === "string") {
                         target.attr({d: pathData});
                     }
                 }
@@ -34132,7 +34131,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             const computeFrameAt = function (timeMs, progressOverride) {
                 let progress;
-                if (typeof progressOverride === 'number') {
+                if (typeof progressOverride === "number") {
                     progress = Math.max(0, Math.min(1, progressOverride));
                 } else if (duration > 0) {
                     progress = Math.max(0, Math.min(1, timeMs / duration));
@@ -34146,7 +34145,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 const paths = [];
                 for (let i = 0; i < targets.length; ++i) {
                     const val = targets[i].genTransform(resolver, true);
-                    paths.push((typeof val === 'string') ? val : targets[i].attr('d'));
+                    paths.push((typeof val === "string") ? val : targets[i].attr("d"));
                 }
                 return {
                     time: timeMs,
@@ -34182,9 +34181,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 frameBuffer.completed = true;
                 frameBuffer.stats.end = performance.now();
                 applyFramePaths(finalFrame);
-                after_callback && typeof after_callback === 'function' && after_callback.call(el);
-                console.info('anim perf', {
-                    phase: 'dynamic-buffer-single-frame',
+                after_callback && typeof after_callback === "function" && after_callback.call(el);
+                console.info("anim perf", {
+                    phase: "dynamic-buffer-single-frame",
                     frames: frameBuffer.frames.length,
                     buffer_ms: 0,
                     skipped_frames: 0,
@@ -34214,7 +34213,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 options = options || {};
                 const blocking = !!options.blocking;
                 const budget = blocking ? Infinity : Math.max(options.budget || PRODUCER_BUDGET_MS, 2);
-                const targetTime = (typeof options.until === 'number') ? options.until : null;
+                const targetTime = (typeof options.until === "number") ? options.until : null;
                 blocking ? frameBuffer.stats.blockingBatches++ : frameBuffer.stats.asyncBatches++;
                 const startMark = performance.now();
                 let produced = 0;
@@ -34265,13 +34264,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 frameBuffer.producerScheduled = true;
                 const runner = function (deadline) {
                     frameBuffer.producerScheduled = false;
-                    const remaining = (deadline && typeof deadline.timeRemaining === 'function') ? deadline.timeRemaining() : PRODUCER_BUDGET_MS;
+                    const remaining = (deadline && typeof deadline.timeRemaining === "function") ? deadline.timeRemaining() : PRODUCER_BUDGET_MS;
                     produceChunk({budget: Math.max(remaining, PRODUCER_BUDGET_MS)});
                     if (!frameBuffer.completed) {
                         scheduleProducer();
                     }
                 };
-                if (typeof root !== 'undefined' && typeof root.requestIdleCallback === 'function') {
+                if (typeof root !== "undefined" && typeof root.requestIdleCallback === "function") {
                     root.requestIdleCallback(runner);
                 } else {
                     setTimeout(function () {
@@ -34346,8 +34345,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 finishBuffer();
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
-                console.info('anim perf', {
-                    phase: 'dynamic-buffer',
+                console.info("anim perf", {
+                    phase: "dynamic-buffer",
                     frames: frameBuffer.frames.length,
                     buffer_completed: frameBuffer.completed,
                     buffer_ms: frameBuffer.stats.end ? +(frameBuffer.stats.end - frameBuffer.stats.start).toFixed(2) : null,
@@ -34357,7 +34356,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     skipped_frames: playbackState.skippedFrames,
                     skipped_time_ms: +playbackState.skippedTime.toFixed(2)
                 });
-                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+                after_callback && typeof after_callback === "function" && after_callback.call(el);
             });
             eve.once("snap.mina.stop." + anim.id, function () {
                 eve.off("snap.mina.*." + anim.id);
@@ -34370,7 +34369,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         Element.prototype.animateGenTransform = function (transform_t, duration, easing, after_callback) {
             this.makePath(true);
-            if (typeof transform_t !== 'function') {
+            if (typeof transform_t !== "function") {
                 return null;
             }
 
@@ -34383,7 +34382,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             const resolveTransform = function (progress) {
                 const clamped = Math.max(0, Math.min(1, progress || 0));
                 const resolver = transform_t.call(el, clamped);
-                return (typeof resolver === 'function') ? resolver : null;
+                return (typeof resolver === "function") ? resolver : null;
             };
 
             const initialTransform = resolveTransform(0);
@@ -34406,7 +34405,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (duration <= 0) {
                 applyTransform(initialTransform);
                 applyTransform(resolveTransform(1));
-                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+                after_callback && typeof after_callback === "function" && after_callback.call(el);
                 return null;
             }
 
@@ -34443,11 +34442,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             eve.once("snap.mina.finish." + anim.id, function () {
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
-                console.info('anim perf', {
-                    phase: 'direct',
+                console.info("anim perf", {
+                    phase: "direct",
                     frames: perfStats.frames
                 });
-                after_callback && typeof after_callback === 'function' && after_callback.call(el);
+                after_callback && typeof after_callback === "function" && after_callback.call(el);
             });
             eve.once("snap.mina.stop." + anim.id, function () {
                 eve.off("snap.mina.*." + anim.id);
@@ -34511,7 +34510,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                                        scale_path,
                                        rot_path,
                                        easing, after_callback, during_callback) {
-            if (typeof scale_path === 'function') {
+            if (typeof scale_path === "function") {
                 after_callback = easing;
                 easing = scale_path;
                 scale_path = undefined;
@@ -34539,7 +34538,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
                     initial_matrix.multLeft(Snap.matrix().scale(1 / split.scalex, 1 / split.scaley, bbox.cx, bbox.cy));
                 }
-                scale_fun = (typeof scale_path === 'function') ?
+                scale_fun = (typeof scale_path === "function") ?
                     scale_path :
                     val_generator(scale_path, 1);
             }
@@ -34556,19 +34555,19 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 if (rot_path === true || !isNaN(rot_path)) {
                     const angle_inc = (rot_path === true) ? 0 : rot_path;
                     rot_fun = function (t, p, length) {
-                        if (p && Snap.is(p, 'Element')) {
+                        if (p && Snap.is(p, "Element")) {
                             p = p.getPointAtLength(t * length);
                         }
-                        if (p && p.hasOwnProperty('alpha')) {
+                        if (p && p.hasOwnProperty("alpha")) {
                             return p.alpha + 180 + angle_inc;
                         }
-                        if (p && Snap.is(p, 'PolyBezier')) {
+                        if (p && Snap.is(p, "PolyBezier")) {
 
                         }
 
                     };
                 } else {
-                    rot_fun = (typeof rot_path === 'function') ?
+                    rot_fun = (typeof rot_path === "function") ?
                         rot_path :
                         val_generator(rot_path, 0);
                 }
@@ -34663,7 +34662,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
 
                 if (dom_partner) dom_partner.forEach(
-                    (dom) => dom.css('transform', step_matrix));
+                    (dom) => dom.css("transform", step_matrix));
                 if (element_partner) element_partner.forEach((el) => {
                     if (done) {
                         el.transform(step_matrix)
@@ -34694,7 +34693,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             eve.once("snap.mina.finish." + anim.id, function () {
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
-                after_callback && (typeof after_callback === 'function') && after_callback.call(el);
+                after_callback && (typeof after_callback === "function") && after_callback.call(el);
             });
             eve.once("snap.mina.stop." + anim.id, function () {
                 eve.off("snap.mina.*." + anim.id);
@@ -34729,8 +34728,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             zoom_factor = zoom_factor || 1;
             // var save_tras = this.attr("transform") || "";
             const el = this;
-            if (this.data('jig')) return;
-            this.data('jig', true);
+            if (this.data("jig")) return;
+            this.data("jig", true);
             const old_trans = el.getLocalMatrix(STRICT_MODE);
             const jig = old_trans.clone();
 
@@ -34744,7 +34743,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 function () {
                     el.animate({transform: old_trans}, 50, mina.linear
                         , function () {
-                            el.data('jig', '');
+                            el.data("jig", "");
                         },
                     );
                 });
@@ -34807,7 +34806,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             error = error || .02;
 
             path = path || this;
-            if (save && path.data('is_ellipse') !== undefined) return path.data('is_ellipse');
+            if (save && path.data("is_ellipse") !== undefined) return path.data("is_ellipse");
 
             let remove_temp_path = false;
 
@@ -34885,14 +34884,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 //Get the ellipse parameters from the equation, since we have it.
                 //The function takes parameters as AX**2, BX*Y, CY**2 so we must interchange 1 and 2
                 const paper = path.paper;
-                if (paper && typeof paper.ellipseFromEquation === 'function') {
+                if (paper && typeof paper.ellipseFromEquation === "function") {
                     const ellipse_params = paper.ellipseFromEquation(par[0], par[2], par[1], par[3], par[4], true);
                     if (ellipse_params) {
                         is_ellips = ellipse_params;
                     }
                 }
             }
-            save && path.data('is_ellipse', is_ellips);
+            save && path.data("is_ellipse", is_ellips);
             remove_temp_path && path.remove();
             return is_ellips;
 
@@ -34906,7 +34905,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
             path = path || this;
 
-            if (save && path.data && path.data('is_rect') !== undefined) return path.data('is_rect');
+            if (save && path.data && path.data("is_rect") !== undefined) return path.data("is_rect");
 
             let matrix;
             if (path.getLocalMatrix) matrix = path.getLocalMatrix();
@@ -34919,7 +34918,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         //we assume that this is a outlined path
 
                         //rearrange the points to match the same corners
-                        let tmp = ['a', 'a', 'a', 'a'];
+                        let tmp = ["a", "a", "a", "a"];
                         for (let i = 0; i < 3; ++i) {
                             let min = Infinity;
                             let found_j;
@@ -34932,7 +34931,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             }
                             tmp[found_j] = rect1[i];
                         }
-                        const ind = tmp.indexOf('a');
+                        const ind = tmp.indexOf("a");
                         tmp[ind] = rect1[3];
 
                         rect1 = tmp;
@@ -34945,11 +34944,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                                 return [p_2.x, p_2.y];
                             });
                         }
-                        save && path.data('is_rect', result);
+                        save && path.data("is_rect", result);
                         return result;
                     }
                 }
-                save && path.data('is_rect', false);
+                save && path.data("is_rect", false);
                 return false;
             }
 
@@ -34966,12 +34965,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
                 if (isRect) {
                     const result = [p1, p2, p3, p4];
-                    path.data && path.data('is_rect', result);
+                    path.data && path.data("is_rect", result);
                     return result;
                 }
 
             }
-            path.data && path.data('is_rect', false);
+            path.data && path.data("is_rect", false);
             return false;
         }
 
