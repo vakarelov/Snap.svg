@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snap.svg Introspection - Custom Rendering Example</title>
+    <script src="../../dist/snap.svg.js"></script>
+    <script src="../../utils/introspection/snap-introspection.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        .badge-easing {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .badge-paper {
+            background-color: #2196F3;
+            color: white;
+        }
+        .badge-special {
+            background-color: #FF9800;
+            color: white;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .filter-section {
+            margin-bottom: 15px;
+        }
+        .filter-section label {
+            margin-right: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Snap.svg Introspection - Custom Rendering</h1>
+
+    <div class="section">
+        <h2>Choose Output Format</h2>
+        <p>This example demonstrates custom rendering of introspection data in different formats.</p>
+
+        <div class="controls">
+            <button onclick="renderTable()">Table View</button>
+            <button onclick="renderMarkdown()">Markdown</button>
+            <button onclick="renderCSV()">CSV</button>
+            <button onclick="renderMethodList()">Simple List</button>
+        </div>
+
+        <div class="filter-section">
+            <label><input type="checkbox" id="includeSnap" checked> Snap</label>
+            <label><input type="checkbox" id="includeEve" checked> eve</label>
+            <label><input type="checkbox" id="includeMina" checked> mina</label>
+            <label><input type="checkbox" id="includeClasses" checked> Classes</label>
+        </div>
+    </div>
+
+    <div class="section" id="output-section" style="display: none;">
+        <h2 id="output-title">Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        let data = null;
+
+        // Extract data on load
+        window.onload = function() {
+            try {
+                data = SnapIntrospection.extractAll({
+                    Snap: Snap,
+                    eve: typeof eve !== 'undefined' ? eve : undefined,
+                    mina: typeof mina !== 'undefined' ? mina : undefined
+                });
+                console.log('Data extracted:', data);
+            } catch (error) {
+                alert('Error extracting data: ' + error.message);
+                console.error(error);
+            }
+        };
+
+        function getFilters() {
+            return {
+                snap: document.getElementById('includeSnap').checked,
+                eve: document.getElementById('includeEve').checked,
+                mina: document.getElementById('includeMina').checked,
+                classes: document.getElementById('includeClasses').checked
+            };
+        }
+
+        function renderTable() {
+            if (!data) return;
+
+            const filters = getFilters();
+            let html = '<table><thead><tr><th>Type</th><th>Class/Object</th><th>Method</th><th>Details</th></tr></thead><tbody>';
+
+            // Snap methods
+            if (filters.snap && data.snap) {
+                data.snap.methods.forEach(method => {
+                    html += `<tr><td>Object</td><td>Snap</td><td>${method}()</td><td>-</td></tr>`;
+                });
+            }
+
+            // Eve methods
+            if (filters.eve && data.eve && data.eve.count > 0) {
+                data.eve.methods.forEach(method => {
+                    html += `<tr><td>Global</td><td>eve</td><td>${method}()</td><td>-</td></tr>`;
+                });
+            }
+
+            // Mina methods
+            if (filters.mina && data.mina && data.mina.count > 0) {
+                data.mina.methodDetails.forEach(detail => {
+                    let badges = '';
+                    if (detail.isEasing) {
+                        badges += '<span class="badge badge-easing">Easing</span>';
+                    }
+                    if (detail.hasWithParams) {
+                        badges += '<span class="badge badge-special">withParams</span>';
+                    }
+                    html += `<tr><td>Global</td><td>mina</td><td>${detail.name}()</td><td>${badges || '-'}</td></tr>`;
+                });
+            }
+
+            // Classes
+            if (filters.classes && data.classes) {
+                data.classes.classNames.forEach(className => {
+                    const classData = data.classes.classes[className];
+                    classData.methodDetails.forEach(detail => {
+                        let badges = '';
+                        if (detail.isFromPaper) {
+                            badges += '<span class="badge badge-paper">from Paper</span>';
+                        }
+                        if (detail.isElementSpecific) {
+                            badges += '<span class="badge badge-special">Element Specific</span>';
+                        }
+                        html += `<tr><td>Class</td><td>${classData.displayName}</td><td>${detail.name}()</td><td>${badges || '-'}</td></tr>`;
+                    });
+                });
+            }
+
+            html += '</tbody></table>';
+
+            document.getElementById('output-title').textContent = 'Table View';
+            document.getElementById('output').innerHTML = html;
+            document.getElementById('output-section').style.display = 'block';
+        }
+
+        function renderMarkdown() {
+            if (!data) return;
+
+            const filters = getFilters();
+            let md = '# Snap.svg API Reference\n\n';
+
+            // Snap methods
+            if (filters.snap && data.snap) {
+                md += `## Snap Object Methods (${data.snap.count})\n\n`;
+                data.snap.methods.forEach(method => {
+                    md += `- \`Snap.${method}()\`\n`;
+                });
+                md += '\n';
+            }
+
+            // Eve methods
+            if (filters.eve && data.eve && data.eve.count > 0) {
+                md += `## eve - Event Library (${data.eve.count})\n\n`;
+                data.eve.methods.forEach(method => {
+                    md += `- \`eve.${method}()\`\n`;
+                });
+                md += '\n';
+            }
+
+            // Mina methods
+            if (filters.mina && data.mina && data.mina.count > 0) {
+                md += `## mina - Animation Library (${data.mina.count})\n\n`;
+                md += `Easing functions: ${data.mina.easingCount}\n\n`;
+                data.mina.methodDetails.forEach(detail => {
+                    let badges = [];
+                    if (detail.isEasing) badges.push('Easing');
+                    if (detail.hasWithParams) badges.push('withParams');
+                    const badgeStr = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
+                    md += `- \`mina.${detail.name}()\`${badgeStr}\n`;
+                });
+                md += '\n';
+            }
+
+            // Classes
+            if (filters.classes && data.classes) {
+                md += `## Classes (${data.classes.classNames.length})\n\n`;
+                data.classes.classNames.forEach(className => {
+                    const classData = data.classes.classes[className];
+                    md += `### ${classData.displayName} (${classData.count} methods)\n\n`;
+                    classData.methodDetails.forEach(detail => {
+                        let badges = [];
+                        if (detail.isFromPaper) badges.push('from Paper');
+                        if (detail.isElementSpecific) badges.push(detail.note);
+                        const badgeStr = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
+                        md += `- \`${classData.displayName}.prototype.${detail.name}()\`${badgeStr}\n`;
+                    });
+                    md += '\n';
+                });
+            }
+
+            document.getElementById('output-title').textContent = 'Markdown';
+            document.getElementById('output').innerHTML = '<pre>' + escapeHtml(md) + '</pre>';
+            document.getElementById('output-section').style.display = 'block';
+        }
+
+        function renderCSV() {
+            if (!data) return;
+
+            const filters = getFilters();
+            let csv = 'Type,Object/Class,Method,IsEasing,IsFromPaper,Note\n';
+
+            // Snap methods
+            if (filters.snap && data.snap) {
+                data.snap.methods.forEach(method => {
+                    csv += `Object,Snap,${method},,,\n`;
+                });
+            }
+
+            // Eve methods
+            if (filters.eve && data.eve && data.eve.count > 0) {
+                data.eve.methods.forEach(method => {
+                    csv += `Global,eve,${method},,,\n`;
+                });
+            }
+
+            // Mina methods
+            if (filters.mina && data.mina && data.mina.count > 0) {
+                data.mina.methodDetails.forEach(detail => {
+                    const note = detail.hasWithParams ? 'has withParams' : '';
+                    csv += `Global,mina,${detail.name},${detail.isEasing},,${note}\n`;
+                });
+            }
+
+            // Classes
+            if (filters.classes && data.classes) {
+                data.classes.classNames.forEach(className => {
+                    const classData = data.classes.classes[className];
+                    classData.methodDetails.forEach(detail => {
+                        const note = detail.note || '';
+                        csv += `Class,${classData.displayName},${detail.name},,${detail.isFromPaper || ''},"${note}"\n`;
+                    });
+                });
+            }
+
+            document.getElementById('output-title').textContent = 'CSV';
+            document.getElementById('output').innerHTML = '<pre>' + escapeHtml(csv) + '</pre>';
+            document.getElementById('output-section').style.display = 'block';
+        }
+
+        function renderMethodList() {
+            if (!data) return;
+
+            const filters = getFilters();
+            let list = '';
+
+            // Snap methods
+            if (filters.snap && data.snap) {
+                list += '=== Snap ===\n';
+                data.snap.methods.forEach(method => {
+                    list += `Snap.${method}()\n`;
+                });
+                list += '\n';
+            }
+
+            // Eve methods
+            if (filters.eve && data.eve && data.eve.count > 0) {
+                list += '=== eve ===\n';
+                data.eve.methods.forEach(method => {
+                    list += `eve.${method}()\n`;
+                });
+                list += '\n';
+            }
+
+            // Mina methods
+            if (filters.mina && data.mina && data.mina.count > 0) {
+                list += '=== mina ===\n';
+                data.mina.methods.forEach(method => {
+                    list += `mina.${method}()\n`;
+                });
+                list += '\n';
+            }
+
+            // Classes
+            if (filters.classes && data.classes) {
+                data.classes.classNames.forEach(className => {
+                    const classData = data.classes.classes[className];
+                    list += `=== ${classData.displayName} ===\n`;
+                    classData.methods.forEach(method => {
+                        list += `${classData.displayName}.prototype.${method}()\n`;
+                    });
+                    list += '\n';
+                });
+            }
+
+            document.getElementById('output-title').textContent = 'Simple List';
+            document.getElementById('output').innerHTML = '<pre>' + escapeHtml(list) + '</pre>';
+            document.getElementById('output-section').style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+

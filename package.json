@@ -3,6 +3,24 @@
     "version": "1.0,1",
     "description": "JavaScript Vector Library",
     "main": "./dist/snap.svg.js",
+    "module": "./dist/snap.esm.js",
+    "exports": {
+        ".": {
+            "require": "./dist/snap.svg.js",
+            "import": "./dist/snap.esm.mjs",
+            "default": "./dist/snap.svg.js"
+        },
+        "./eve": {
+            "require": "./dist/eve.cjs.js",
+            "import": "./dist/eve.esm.mjs",
+            "default": "./dist/eve.cjs.js"
+        },
+        "./mina": {
+            "require": "./dist/mina.cjs.js",
+            "import": "./dist/mina.esm.mjs",
+            "default": "./dist/mina.cjs.js"
+        }
+    },
     "repository": {
         "type": "git",
         "url": "git@github.com:adobe-webplatform/Snap.svg.git"

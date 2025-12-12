@@ -1,9 +1,12 @@
 module.exports = function (grunt) {
 
     const pkg = grunt.file.readJSON('package.json');
-    const core = [
-        './src/mina.js',
+    const coreRuntime = [
         './src/snap.js',           // Renamed from svg.js - contains core utilities without constructors
+        './src/snap-core-ready.js',
+    ];
+
+    const coreExtensions = [
         './src/fragment-class.js', // Fragment constructor + registration
         './src/element-class.js',  // Element constructor + prototype methods + registration
         './src/paper-class.js',    // Paper constructor + prototype methods + registration
@@ -32,6 +35,8 @@ module.exports = function (grunt) {
         // './src/paper_extensions.js',
     ];
 
+    const core = [...coreRuntime, ...coreExtensions];
+
     const adv = [
         './src/bezier.js',
         './src/polygons.js',
@@ -50,13 +55,40 @@ module.exports = function (grunt) {
 
     const wrap = [
         './src/eve.js',
+        './src/mina.js',
         './src/amd-banner.js',
         './src/amd-footer.js',
     ];
 
-    const src_bsk = [...wrap.slice(0, 2), ...core, ...wrap.slice(2)];
-    const src_adv = [...wrap.slice(0, 2), ...core, ...adv, ...wrap.slice(2)];
-    const src = [...wrap.slice(0, 2), ...core, ...adv, ...ia_ext, ...wrap.slice(2)];
+    const snapEsm = [
+        './src/esm-snap-preamble.js',
+        './src/eve.js',
+        './src/mina.js',
+        './src/esm-snap-banner.js',
+        ...core,
+        ...adv,
+        ...ia_ext,
+        './src/esm-snap-footer.js',
+    ];
+
+    const eveEsm = [
+        './src/esm-eve-preamble.js',
+        './src/eve.js',
+        './src/esm-eve-footer.js',
+    ];
+
+    const minaEsm = [
+        './src/esm-mina-preamble.js',
+        './src/mina.js',
+        './src/esm-mina-footer.js',
+    ];
+
+    const eveCjs = ['./src/eve.js'];
+    const minaCjs = ['./src/mina.js'];
+
+    const src_bsk = [...wrap.slice(0, 3), ...core, ...wrap.slice(3)];
+    const src_adv = [...wrap.slice(0, 3), ...core, ...adv, ...wrap.slice(3)];
+    const src = [...wrap.slice(0, 3), ...core, ...adv, ...ia_ext, ...wrap.slice(3)];
 
     grunt.initConfig({
         pkg: pkg,
@@ -76,6 +108,70 @@ module.exports = function (grunt) {
             adv: {
                 dest: './dist/snap.svg.adv.js',
                 src: src_adv,
+            },
+            snap_esm_js: {
+                options: {
+                    sourceMap: true,
+                    sourceMapName: './dist/snap.esm.js.map',
+                },
+                dest: './dist/snap.esm.js',
+                src: snapEsm,
+            },
+            snap_esm_mjs: {
+                options: {
+                    sourceMap: true,
+                    sourceMapName: './dist/snap.esm.mjs.map',
+                },
+                dest: './dist/snap.esm.mjs',
+                src: snapEsm,
+            },
+            eve_esm_js: {
+                options: {
+                    sourceMap: true,
+                    sourceMapName: './dist/eve.esm.js.map',
+                },
+                dest: './dist/eve.esm.js',
+                src: eveEsm,
+            },
+            eve_esm_mjs: {
+                options: {
+                    sourceMap: true,
+                    sourceMapName: './dist/eve.esm.mjs.map',
+                },
+                dest: './dist/eve.esm.mjs',
+                src: eveEsm,
+            },
+            mina_esm_js: {
+                options: {
+                    sourceMap: true,
+                    sourceMapName: './dist/mina.esm.js.map',
+                },
+                dest: './dist/mina.esm.js',
+                src: minaEsm,
+            },
+            mina_esm_mjs: {
+                options: {
+                    sourceMap: true,
+                    sourceMapName: './dist/mina.esm.mjs.map',
+                },
+                dest: './dist/mina.esm.mjs',
+                src: minaEsm,
+            },
+            eve_cjs: {
+                options: {
+                    sourceMap: true,
+                    sourceMapName: './dist/eve.cjs.js.map',
+                },
+                dest: './dist/eve.cjs.js',
+                src: eveCjs,
+            },
+            mina_cjs: {
+                options: {
+                    sourceMap: true,
+                    sourceMapName: './dist/mina.cjs.js.map',
+                },
+                dest: './dist/mina.cjs.js',
+                src: minaCjs,
             },
         },
         terser: {
@@ -97,6 +193,86 @@ module.exports = function (grunt) {
                 src: '<%= concat.adv.dest %>',
                 dest: './dist/snap.svg.adv-min.js',
             },
+            snap_esm_js: {
+                options: {
+                    sourceMap: {
+                        filename: './dist/snap.esm.min.js.map',
+                        url: 'snap.esm.min.js.map',
+                    },
+                },
+                src: '<%= concat.snap_esm_js.dest %>',
+                dest: './dist/snap.esm.min.js',
+            },
+            snap_esm_mjs: {
+                options: {
+                    sourceMap: {
+                        filename: './dist/snap.esm.min.mjs.map',
+                        url: 'snap.esm.min.mjs.map',
+                    },
+                },
+                src: '<%= concat.snap_esm_mjs.dest %>',
+                dest: './dist/snap.esm.min.mjs',
+            },
+            eve_esm_js: {
+                options: {
+                    sourceMap: {
+                        filename: './dist/eve.esm.min.js.map',
+                        url: 'eve.esm.min.js.map',
+                    },
+                },
+                src: '<%= concat.eve_esm_js.dest %>',
+                dest: './dist/eve.esm.min.js',
+            },
+            eve_esm_mjs: {
+                options: {
+                    sourceMap: {
+                        filename: './dist/eve.esm.min.mjs.map',
+                        url: 'eve.esm.min.mjs.map',
+                    },
+                },
+                src: '<%= concat.eve_esm_mjs.dest %>',
+                dest: './dist/eve.esm.min.mjs',
+            },
+            mina_esm_js: {
+                options: {
+                    sourceMap: {
+                        filename: './dist/mina.esm.min.js.map',
+                        url: 'mina.esm.min.js.map',
+                    },
+                },
+                src: '<%= concat.mina_esm_js.dest %>',
+                dest: './dist/mina.esm.min.js',
+            },
+            mina_esm_mjs: {
+                options: {
+                    sourceMap: {
+                        filename: './dist/mina.esm.min.mjs.map',
+                        url: 'mina.esm.min.mjs.map',
+                    },
+                },
+                src: '<%= concat.mina_esm_mjs.dest %>',
+                dest: './dist/mina.esm.min.mjs',
+            },
+            eve_cjs: {
+                options: {
+                    sourceMap: {
+                        filename: './dist/eve.cjs.min.js.map',
+                        url: 'eve.cjs.min.js.map',
+                    },
+                },
+                src: '<%= concat.eve_cjs.dest %>',
+                dest: './dist/eve.cjs.min.js',
+            },
+            mina_cjs: {
+                options: {
+                    sourceMap: {
+                        filename: './dist/mina.cjs.min.js.map',
+                        url: 'mina.cjs.min.js.map',
+                    },
+                },
+                src: '<%= concat.mina_cjs.dest %>',
+                dest: './dist/mina.cjs.min.js',
+            },
         },
         exec: {
             test: {
@@ -105,13 +281,20 @@ module.exports = function (grunt) {
             eslint: {
                 command: './node_modules/eslint/bin/eslint.js ' + core.join(' '),
             },
+            jsdoc_json: {
+                command: 'if not exist doc\\json mkdir doc\\json && npx jsdoc -X -c djsdoc.config.js -r src > doc\\json\\documentation.json',
+            },
+            build_tutorials: {
+                command: 'node demos/Tutorial_new/build-tutorials.js',
+            },
         },
         jsdoc: {
             dist: {
                 src: ['src/**/*.js'],
                 options: {
                     destination: 'doc/reference',
-                    configure: 'djsdoc.config.js'
+                    configure: 'djsdoc.config.js',
+                    excludePattern: '(^|\\/)(esm-.*\\.js)$'
                 }
             }
         },
@@ -139,9 +322,11 @@ module.exports = function (grunt) {
     grunt.registerTask('default',
         [
             // 'exec:eslint',
-            'concat', 'terser', 'jsdoc',
+            'exec:build_tutorials',
+            'concat', 'terser', 'jsdoc', 'exec:jsdoc_json',
             // 'prettify'
         ]);
     grunt.registerTask('lint', ['exec:eslint']);
     grunt.registerTask('test', ['exec:test']);
+    grunt.registerTask('docs:json', ['exec:jsdoc_json']);
 };

@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>warp.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Animation.html">Animation</a><ul class='methods'><li data-type='method'><a href="Animation.html#done">done</a></li></ul></li><li></li><li><a href="BinaryHeap.html">BinaryHeap</a></li><li></li><li></li><li></li><li><a href="NonlinTransforms.html">NonlinTransforms</a><ul class='methods'><li data-type='method'><a href="NonlinTransforms.html#bendCantilever">bendCantilever</a></li><li data-type='method'><a href="NonlinTransforms.html#bulge">bulge</a></li><li data-type='method'><a href="NonlinTransforms.html#cantilever">cantilever</a></li><li data-type='method'><a href="NonlinTransforms.html#lookAt">lookAt</a></li><li data-type='method'><a href="NonlinTransforms.html#matrix3d">matrix3d</a></li><li data-type='method'><a href="NonlinTransforms.html#mobius">mobius</a></li><li data-type='method'><a href="NonlinTransforms.html#mobiusAnchors">mobiusAnchors</a></li><li data-type='method'><a href="NonlinTransforms.html#mobiusDisk">mobiusDisk</a></li><li data-type='method'><a href="NonlinTransforms.html#mobiusUpperHalfPlane">mobiusUpperHalfPlane</a></li><li data-type='method'><a href="NonlinTransforms.html#parametrize">parametrize</a></li><li data-type='method'><a href="NonlinTransforms.html#perspective">perspective</a></li><li data-type='method'><a href="NonlinTransforms.html#radialRipple">radialRipple</a></li><li data-type='method'><a href="NonlinTransforms.html#rotate3d">rotate3d</a></li><li data-type='method'><a href="NonlinTransforms.html#rotateX">rotateX</a></li><li data-type='method'><a href="NonlinTransforms.html#rotateY">rotateY</a></li><li data-type='method'><a href="NonlinTransforms.html#rotateZ">rotateZ</a></li><li data-type='method'><a href="NonlinTransforms.html#scale3d">scale3d</a></li><li data-type='method'><a href="NonlinTransforms.html#sineWave">sineWave</a></li><li data-type='method'><a href="NonlinTransforms.html#springBend">springBend</a></li><li data-type='method'><a href="NonlinTransforms.html#translate3d">translate3d</a></li><li data-type='method'><a href="NonlinTransforms.html#twistPinch">twistPinch</a></li><li data-type='method'><a href="NonlinTransforms.html#use">use</a></li></ul></li><li></li><li><a href="Set.html">Set</a><ul class='methods'><li data-type='method'><a href="Set.html#.animate">animate</a></li><li data-type='method'><a href="Set.html#.attr">attr</a></li><li data-type='method'><a href="Set.html#.bind">bind</a></li><li data-type='method'><a href="Set.html#.clear">clear</a></li><li data-type='method'><a href="Set.html#.clone">clone</a></li><li data-type='method'><a href="Set.html#.exclude">exclude</a></li><li data-type='method'><a href="Set.html#.filter">filter</a></li><li data-type='method'><a href="Set.html#.forEach">forEach</a></li><li data-type='method'><a href="Set.html#.getBBox">getBBox</a></li><li data-type='method'><a href="Set.html#.includes">includes</a></li><li data-type='method'><a href="Set.html#.insertAfter">insertAfter</a></li><li data-type='method'><a href="Set.html#.map">map</a></li><li data-type='method'><a href="Set.html#.pop">pop</a></li><li data-type='method'><a href="Set.html#.push">push</a></li><li data-type='method'><a href="Set.html#.remove">remove</a></li><li data-type='method'><a href="Set.html#.splice">splice</a></li><li data-type='method'><a href="Set.html#.toString">toString</a></li><li data-type='method'><a href="Set.html#.values">values</a></li></ul></li><li></li><li><a href="Snap.Element.html">Element</a><ul class='methods'><li data-type='method'><a href="Snap.Element.html#.regionSelect">regionSelect</a></li><li data-type='method'><a href="Snap.Element.html#_applyToPartner">_applyToPartner</a></li><li data-type='method'><a href="Snap.Element.html#_propagateTransToPartnersChild">_propagateTransToPartnersChild</a></li><li data-type='method'><a href="Snap.Element.html#_updatePartnerChild">_updatePartnerChild</a></li><li data-type='method'><a href="Snap.Element.html#add">add</a></li><li data-type='method'><a href="Snap.Element.html#addClickEvent">addClickEvent</a></li><li data-type='method'><a href="Snap.Element.html#addHoldEvent">addHoldEvent</a></li><li data-type='method'><a href="Snap.Element.html#addInteractionEvent">addInteractionEvent</a></li><li data-type='method'><a href="Snap.Element.html#addLongpressEvent">addLongpressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addMessage">addMessage</a></li><li data-type='method'><a href="Snap.Element.html#addPressEvent">addPressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addStop">addStop</a></li><li data-type='method'><a href="Snap.Element.html#addTransform">addTransform</a></li><li data-type='method'><a href="Snap.Element.html#after">after</a></li><li data-type='method'><a href="Snap.Element.html#anchorEmbed">anchorEmbed</a></li><li data-type='method'><a href="Snap.Element.html#animateGenTransform">animateGenTransform</a></li><li data-type='method'><a href="Snap.Element.html#animateGenTransformBuffered">animateGenTransformBuffered</a></li><li data-type='method'><a href="Snap.Element.html#animateOnPath">animateOnPath</a></li><li data-type='method'><a href="Snap.Element.html#animateOnPathAbsolute">animateOnPathAbsolute</a></li><li data-type='method'><a href="Snap.Element.html#animateTransform">animateTransform</a></li><li data-type='method'><a href="Snap.Element.html#appendTo">appendTo</a></li><li data-type='method'><a href="Snap.Element.html#asPX">asPX</a></li><li data-type='method'><a href="Snap.Element.html#attr">attr</a></li><li data-type='method'><a href="Snap.Element.html#attr_force">attr_force</a></li><li data-type='method'><a href="Snap.Element.html#attrMonitor">attrMonitor</a></li><li data-type='method'><a href="Snap.Element.html#attrs">attrs</a></li><li data-type='method'><a href="Snap.Element.html#before">before</a></li><li data-type='method'><a href="Snap.Element.html#centerOfMass">centerOfMass</a></li><li data-type='method'><a href="Snap.Element.html#centerRotation">centerRotation</a></li><li data-type='method'><a href="Snap.Element.html#children">children</a></li><li data-type='method'><a href="Snap.Element.html#cleanupAfterRemove">cleanupAfterRemove</a></li><li data-type='method'><a href="Snap.Element.html#clear">clear</a></li><li data-type='method'><a href="Snap.Element.html#clearCHull">clearCHull</a></li><li data-type='method'><a href="Snap.Element.html#clone">clone</a></li><li data-type='method'><a href="Snap.Element.html#closest">closest</a></li><li data-type='method'><a href="Snap.Element.html#copyComStyle">copyComStyle</a></li><li data-type='method'><a href="Snap.Element.html#correctScale">correctScale</a></li><li data-type='method'><a href="Snap.Element.html#createClipPath">createClipPath</a></li><li data-type='method'><a href="Snap.Element.html#createMask">createMask</a></li><li data-type='method'><a href="Snap.Element.html#css">css</a></li><li data-type='method'><a href="Snap.Element.html#distanceTo">distanceTo</a></li><li data-type='method'><a href="Snap.Element.html#ellipseTransform">ellipseTransform</a></li><li data-type='method'><a href="Snap.Element.html#eraseBBoxCache">eraseBBoxCache</a></li><li data-type='method'><a href="Snap.Element.html#eraseParentBBoxCache">eraseParentBBoxCache</a></li><li data-type='method'><a href="Snap.Element.html#expandParenBBoxCatch">expandParenBBoxCatch</a></li><li data-type='method'><a href="Snap.Element.html#fillImage">fillImage</a></li><li data-type='method'><a href="Snap.Element.html#fillInBox">fillInBox</a></li><li data-type='method'><a href="Snap.Element.html#fitInBox">fitInBox</a></li><li data-type='method'><a href="Snap.Element.html#flatten">flatten</a></li><li data-type='method'><a href="Snap.Element.html#forEach">forEach</a></li><li data-type='method'><a href="Snap.Element.html#foreignObjectNormalize">foreignObjectNormalize</a></li><li data-type='method'><a href="Snap.Element.html#g_a">g_a</a></li><li data-type='method'><a href="Snap.Element.html#getAttributes">getAttributes</a></li><li data-type='method'><a href="Snap.Element.html#getBBox">getBBox</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxApprox">getBBoxApprox</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxExact">getBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxRot">getBBoxRot</a></li><li data-type='method'><a href="Snap.Element.html#getBitmap">getBitmap</a></li><li data-type='method'><a href="Snap.Element.html#getCanvasOverly">getCanvasOverly</a></li><li data-type='method'><a href="Snap.Element.html#getCHull">getCHull</a></li><li data-type='method'><a href="Snap.Element.html#getClientHeight">getClientHeight</a></li><li data-type='method'><a href="Snap.Element.html#getClientWidth">getClientWidth</a></li><li data-type='method'><a href="Snap.Element.html#getCoordMatrix">getCoordMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getCursorPoint">getCursorPoint</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLine">getDirectionLine</a></li><li data-type='method'><a href="Snap.Element.html#getFirstPoint">getFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#getFromScreenDistance">getFromScreenDistance</a></li><li data-type='method'><a href="Snap.Element.html#getGeometryAttr">getGeometryAttr</a></li><li data-type='method'><a href="Snap.Element.html#getGlobalMatrix">getGlobalMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getId">getId</a></li><li data-type='method'><a href="Snap.Element.html#getLastPoint">getLastPoint</a></li><li data-type='method'><a href="Snap.Element.html#getLeafs">getLeafs</a></li><li data-type='method'><a href="Snap.Element.html#getLocalMatrix">getLocalMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getParentChain">getParentChain</a></li><li data-type='method'><a href="Snap.Element.html#getPartners">getPartners</a></li><li data-type='method'><a href="Snap.Element.html#getPoints">getPoints</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBox">getRealBBox</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBoxExact">getRealBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getReferringToMe">getReferringToMe</a></li><li data-type='method'><a href="Snap.Element.html#getStyle">getStyle</a></li><li data-type='method'><a href="Snap.Element.html#getTopSVG">getTopSVG</a></li><li data-type='method'><a href="Snap.Element.html#getUseTarget">getUseTarget</a></li><li data-type='method'><a href="Snap.Element.html#globalToLocal">globalToLocal</a></li><li data-type='method'><a href="Snap.Element.html#group">group</a></li><li data-type='method'><a href="Snap.Element.html#hasChildren">hasChildren</a></li><li data-type='method'><a href="Snap.Element.html#hasPartner">hasPartner</a></li><li data-type='method'><a href="Snap.Element.html#hide">hide</a></li><li data-type='method'><a href="Snap.Element.html#hideSlowly">hideSlowly</a></li><li data-type='method'><a href="Snap.Element.html#innerSVG">innerSVG</a></li><li data-type='method'><a href="Snap.Element.html#insertAfter">insertAfter</a></li><li data-type='method'><a href="Snap.Element.html#insertBefore">insertBefore</a></li><li data-type='method'><a href="Snap.Element.html#isAbove">isAbove</a></li><li data-type='method'><a href="Snap.Element.html#isBelow">isBelow</a></li><li data-type='method'><a href="Snap.Element.html#isChildOf">isChildOf</a></li><li data-type='method'><a href="Snap.Element.html#isClockwise">isClockwise</a></li><li data-type='method'><a href="Snap.Element.html#isElliptical">isElliptical</a></li><li data-type='method'><a href="Snap.Element.html#isGroupLike">isGroupLike</a></li><li data-type='method'><a href="Snap.Element.html#isInRect">isInRect</a></li><li data-type='method'><a href="Snap.Element.html#isLocal">isLocal</a></li><li data-type='method'><a href="Snap.Element.html#isOverlap">isOverlap</a></li><li data-type='method'><a href="Snap.Element.html#isOverlapRect">isOverlapRect</a></li><li data-type='method'><a href="Snap.Element.html#isParentOf">isParentOf</a></li><li data-type='method'><a href="Snap.Element.html#isRectangular">isRectangular</a></li><li data-type='method'><a href="Snap.Element.html#jiggle">jiggle</a></li><li data-type='method'><a href="Snap.Element.html#linkedElementLocalise">linkedElementLocalise</a></li><li data-type='method'><a href="Snap.Element.html#localOnly">localOnly</a></li><li data-type='method'><a href="Snap.Element.html#makeDraggable">makeDraggable</a></li><li data-type='method'><a href="Snap.Element.html#makePath">makePath</a></li><li data-type='method'><a href="Snap.Element.html#marker">marker</a></li><li data-type='method'><a href="Snap.Element.html#move">move</a></li><li data-type='method'><a href="Snap.Element.html#moveAttrToStyle">moveAttrToStyle</a></li><li data-type='method'><a href="Snap.Element.html#parent">parent</a></li><li data-type='method'><a href="Snap.Element.html#pathFirstPoint">pathFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#prepend">prepend</a></li><li data-type='method'><a href="Snap.Element.html#prependTo">prependTo</a></li><li data-type='method'><a href="Snap.Element.html#propagateTransform">propagateTransform</a></li><li data-type='method'><a href="Snap.Element.html#rasterize">rasterize</a></li><li data-type='method'><a href="Snap.Element.html#readChanges">readChanges</a></li><li data-type='method'><a href="Snap.Element.html#recordChange">recordChange</a></li><li data-type='method'><a href="Snap.Element.html#reflect">reflect</a></li><li data-type='method'><a href="Snap.Element.html#registerRemoveFunction">registerRemoveFunction</a></li><li data-type='method'><a href="Snap.Element.html#remove">remove</a></li><li data-type='method'><a href="Snap.Element.html#removeChildren">removeChildren</a></li><li data-type='method'><a href="Snap.Element.html#removeData">removeData</a></li><li data-type='method'><a href="Snap.Element.html#removeMessage">removeMessage</a></li><li data-type='method'><a href="Snap.Element.html#removePartner">removePartner</a></li><li data-type='method'><a href="Snap.Element.html#removeSlowly">removeSlowly</a></li><li data-type='method'><a href="Snap.Element.html#removeUses">removeUses</a></li><li data-type='method'><a href="Snap.Element.html#repositionInGroup">repositionInGroup</a></li><li data-type='method'><a href="Snap.Element.html#revolve">revolve</a></li><li data-type='method'><a href="Snap.Element.html#rotate">rotate</a></li><li data-type='method'><a href="Snap.Element.html#saveMatrix">saveMatrix</a></li><li data-type='method'><a href="Snap.Element.html#scale">scale</a></li><li data-type='method'><a href="Snap.Element.html#select">select</a></li><li data-type='method'><a href="Snap.Element.html#selectAll">selectAll</a></li><li data-type='method'><a href="Snap.Element.html#selectParent">selectParent</a></li><li data-type='method'><a href="Snap.Element.html#setCursor">setCursor</a></li><li data-type='method'><a href="Snap.Element.html#setFirstPoint">setFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#setIdFollowRefs">setIdFollowRefs</a></li><li data-type='method'><a href="Snap.Element.html#setPaper">setPaper</a></li><li data-type='method'><a href="Snap.Element.html#setPartner">setPartner</a></li><li data-type='method'><a href="Snap.Element.html#setPartnerStyle">setPartnerStyle</a></li><li data-type='method'><a href="Snap.Element.html#setStops">setStops</a></li><li data-type='method'><a href="Snap.Element.html#setStyle">setStyle</a></li><li data-type='method'><a href="Snap.Element.html#show">show</a></li><li data-type='method'><a href="Snap.Element.html#showSlowly">showSlowly</a></li><li data-type='method'><a href="Snap.Element.html#stops">stops</a></li><li data-type='method'><a href="Snap.Element.html#svgEncapsulate">svgEncapsulate</a></li><li data-type='method'><a href="Snap.Element.html#svgEncapsulateBox">svgEncapsulateBox</a></li><li data-type='method'><a href="Snap.Element.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Element.html#toDefs">toDefs</a></li><li data-type='method'><a href="Snap.Element.html#toJSON">toJSON</a></li><li data-type='method'><a href="Snap.Element.html#toPattern">toPattern</a></li><li data-type='method'><a href="Snap.Element.html#toPolyBezier">toPolyBezier</a></li><li data-type='method'><a href="Snap.Element.html#transform">transform</a></li><li data-type='method'><a href="Snap.Element.html#translate">translate</a></li><li data-type='method'><a href="Snap.Element.html#translate_glob">translate_glob</a></li><li data-type='method'><a href="Snap.Element.html#translateAnimate">translateAnimate</a></li><li data-type='method'><a href="Snap.Element.html#transparentToMouse">transparentToMouse</a></li><li data-type='method'><a href="Snap.Element.html#transToMatrix">transToMatrix</a></li><li data-type='method'><a href="Snap.Element.html#updateBBoxCache">updateBBoxCache</a></li><li data-type='method'><a href="Snap.Element.html#use">use</a></li><li data-type='method'><a href="Snap.Element.html#a">a</a></li><li data-type='method'><a href="Snap.Element.html#arcFan">arcFan</a></li><li data-type='method'><a href="Snap.Element.html#borderImage">borderImage</a></li><li data-type='method'><a href="Snap.Element.html#button">button</a></li><li data-type='method'><a href="Snap.Element.html#canvas">canvas</a></li><li data-type='method'><a href="Snap.Element.html#circle">circle</a></li><li data-type='method'><a href="Snap.Element.html#circleCentPoint">circleCentPoint</a></li><li data-type='method'><a href="Snap.Element.html#circleThreePoints">circleThreePoints</a></li><li data-type='method'><a href="Snap.Element.html#circleTwoPoints">circleTwoPoints</a></li><li data-type='method'><a href="Snap.Element.html#clipPath">clipPath</a></li><li data-type='method'><a href="Snap.Element.html#disk">disk</a></li><li data-type='method'><a href="Snap.Element.html#diskSegments">diskSegments</a></li><li data-type='method'><a href="Snap.Element.html#ellipseFromEquation">ellipseFromEquation</a></li><li data-type='method'><a href="Snap.Element.html#embeddedSVG">embeddedSVG</a></li><li data-type='method'><a href="Snap.Element.html#foreignObject">foreignObject</a></li><li data-type='method'><a href="Snap.Element.html#grid">grid</a></li><li data-type='method'><a href="Snap.Element.html#htmlInsert">htmlInsert</a></li><li data-type='method'><a href="Snap.Element.html#multilineText">multilineText</a></li><li data-type='method'><a href="Snap.Element.html#zigzag">zigzag</a></li></ul></li><li></li><li><a href="Snap.Fragment.html">Fragment</a></li><li></li><li><a href="Snap.html#.Matrix">Matrix</a><ul class='methods'><li data-type='method'><a href="Snap.html#.Matrix#.combine">combine</a></li><li data-type='method'><a href="Snap.html#.Matrix#.random">random</a></li><li data-type='method'><a href="Snap.html#.Matrix#add">add</a></li><li data-type='method'><a href="Snap.html#.Matrix#apply">apply</a></li><li data-type='method'><a href="Snap.html#.Matrix#clone">clone</a></li><li data-type='method'><a href="Snap.html#.Matrix#determinant">determinant</a></li><li data-type='method'><a href="Snap.html#.Matrix#equals">equals</a></li><li data-type='method'><a href="Snap.html#.Matrix#get">get</a></li><li data-type='method'><a href="Snap.html#.Matrix#invert">invert</a></li><li data-type='method'><a href="Snap.html#.Matrix#isIdentity">isIdentity</a></li><li data-type='method'><a href="Snap.html#.Matrix#isMatrix">isMatrix</a></li><li data-type='method'><a href="Snap.html#.Matrix#lusolve">lusolve</a></li><li data-type='method'><a href="Snap.html#.Matrix#multLeft">multLeft</a></li><li data-type='method'><a href="Snap.html#.Matrix#multRight">multRight</a></li><li data-type='method'><a href="Snap.html#.Matrix#offset">offset</a></li><li data-type='method'><a href="Snap.html#.Matrix#plus">plus</a></li><li data-type='method'><a href="Snap.html#.Matrix#randomTrans">randomTrans</a></li><li data-type='method'><a href="Snap.html#.Matrix#rotate">rotate</a></li><li data-type='method'><a href="Snap.html#.Matrix#rotScaleSplit">rotScaleSplit</a></li><li data-type='method'><a href="Snap.html#.Matrix#scale">scale</a></li><li data-type='method'><a href="Snap.html#.Matrix#scMult">scMult</a></li><li data-type='method'><a href="Snap.html#.Matrix#skew">skew</a></li><li data-type='method'><a href="Snap.html#.Matrix#skewX">skewX</a></li><li data-type='method'><a href="Snap.html#.Matrix#skewY">skewY</a></li><li data-type='method'><a href="Snap.html#.Matrix#split">split</a></li><li data-type='method'><a href="Snap.html#.Matrix#split2">split2</a></li><li data-type='method'><a href="Snap.html#.Matrix#timesSc">timesSc</a></li><li data-type='method'><a href="Snap.html#.Matrix#toArray">toArray</a></li><li data-type='method'><a href="Snap.html#.Matrix#toString">toString</a></li><li data-type='method'><a href="Snap.html#.Matrix#toTransformString">toTransformString</a></li><li data-type='method'><a href="Snap.html#.Matrix#translate">translate</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransform">twoPointTransform</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransformMatrix">twoPointTransformMatrix</a></li><li data-type='method'><a href="Snap.html#.Matrix#x">x</a></li><li data-type='method'><a href="Snap.html#.Matrix#y">y</a></li></ul></li><li><a href="Snap.Paper.html">Paper</a><ul class='methods'><li data-type='method'><a href="Snap.Paper.html#animate">animate</a></li><li data-type='method'><a href="Snap.Paper.html#animateMotion">animateMotion</a></li><li data-type='method'><a href="Snap.Paper.html#circle">circle</a></li><li data-type='method'><a href="Snap.Paper.html#clear">clear</a></li><li data-type='method'><a href="Snap.Paper.html#ellipse">ellipse</a></li><li data-type='method'><a href="Snap.Paper.html#g">g</a></li><li data-type='method'><a href="Snap.Paper.html#gradient">gradient</a></li><li data-type='method'><a href="Snap.Paper.html#gradientLinear">gradientLinear</a></li><li data-type='method'><a href="Snap.Paper.html#gradientRadial">gradientRadial</a></li><li data-type='method'><a href="Snap.Paper.html#image">image</a></li><li data-type='method'><a href="Snap.Paper.html#line">line</a></li><li data-type='method'><a href="Snap.Paper.html#mask">mask</a></li><li data-type='method'><a href="Snap.Paper.html#mpath">mpath</a></li><li data-type='method'><a href="Snap.Paper.html#path">path</a></li><li data-type='method'><a href="Snap.Paper.html#polygon">polygon</a></li><li data-type='method'><a href="Snap.Paper.html#polyline">polyline</a></li><li data-type='method'><a href="Snap.Paper.html#ptrn">ptrn</a></li><li data-type='method'><a href="Snap.Paper.html#rect">rect</a></li><li data-type='method'><a href="Snap.Paper.html#svg">svg</a></li><li data-type='method'><a href="Snap.Paper.html#symbol">symbol</a></li><li data-type='method'><a href="Snap.Paper.html#text">text</a></li><li data-type='method'><a href="Snap.Paper.html#textPath">textPath</a></li><li data-type='method'><a href="Snap.Paper.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Paper.html#toString">toString</a></li><li data-type='method'><a href="Snap.Paper.html#use">use</a></li><li data-type='method'><a href="Snap.Paper.html#addExtension">addExtension</a></li><li data-type='method'><a href="Snap.Paper.html#measureText">measureText</a></li><li data-type='method'><a href="Snap.Paper.html#point">point</a></li><li data-type='method'><a href="Snap.Paper.html#processExtensions">processExtensions</a></li><li data-type='method'><a href="Snap.Paper.html#textInputBox">textInputBox</a></li></ul></li><li></li><li><a href="SnapComplex.html">SnapComplex</a><ul class='methods'><li data-type='method'><a href="SnapComplex.html#.absSq">absSq</a></li><li data-type='method'><a href="SnapComplex.html#.add">add</a></li><li data-type='method'><a href="SnapComplex.html#.conj">conj</a></li><li data-type='method'><a href="SnapComplex.html#.div">div</a></li><li data-type='method'><a href="SnapComplex.html#.equals">equals</a></li><li data-type='method'><a href="SnapComplex.html#.from">from</a></li><li data-type='method'><a href="SnapComplex.html#.fromPoint">fromPoint</a></li><li data-type='method'><a href="SnapComplex.html#.isZero">isZero</a></li><li data-type='method'><a href="SnapComplex.html#.mul">mul</a></li><li data-type='method'><a href="SnapComplex.html#.neg">neg</a></li><li data-type='method'><a href="SnapComplex.html#.normalizeCoefficients">normalizeCoefficients</a></li><li data-type='method'><a href="SnapComplex.html#.scale">scale</a></li><li data-type='method'><a href="SnapComplex.html#.sub">sub</a></li></ul></li><li><a href="Snap.Set.html">Set</a></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li></ul><h3>Events</h3><ul><li><a href="snap.util.html#.event:equal">equal</a></li><li></li></ul><h3>Namespaces</h3><ul><li><a href="Matrix.gen.html">gen</a></li><li></li><li><a href="Snap.bbox.html">bbox</a></li><li><a href="Snap.polygons.html">polygons</a><ul class='methods'><li data-type='method'><a href="Snap.polygons.html#.findPointInsidePolygon">findPointInsidePolygon</a></li><li data-type='method'><a href="Snap.polygons.html#.intersect">intersect</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonArea">polygonArea</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonCentroid">polygonCentroid</a></li></ul></li><li></li><li></li></ul><h3>Global</h3><ul><li><a href="global.html#Checksifthegiveneventisregisteredwiththegivenfunction.">Checks if the given event is registered with the given function.</a></li><li><a href="global.html#compareInt">compareInt</a></li><li><a href="global.html#getLengthFactory">getLengthFactory</a></li><li><a href="global.html#O">O</a></li><li><a href="global.html#reverse_seg">reverse_seg</a></li><li><a href="global.html#Snap.Element#dataSeealso@Element.removeData">Snap.Element#dataSee also @Element.removeData</a></li><li><a href="global.html#Snap.Element#outerSVGSeealso@Element.innerSVG">Snap.Element#outerSVGSee also @Element.innerSVG</a></li><li><a href="global.html#Snap.Element#toStringSee@Element.outerSVG">Snap.Element#toStringSee @Element.outerSVG</a></li><li><a href="global.html#voronoi">voronoi</a></li><li><a href="global.html#voronoi1D">voronoi1D</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">warp.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>Snap.plugin(function (Snap, Element) {
+
+    const WARP_DATA_KEY = "_ia_active_warps";
+    const WARP_MONITOR_KEY = "_ia_warp_monitor";
+
+    function collectPathTargets(root, bucket) {
+        bucket = bucket || [];
+        if (!root) {
+            return bucket;
+        }
+        if (root.type === "path") {
+            bucket.push(root);
+            return bucket;
+        }
+        if (typeof root.isGroupLike === "function" &amp;&amp; root.isGroupLike()) {
+            const children = root.getChildren &amp;&amp; root.getChildren(true);
+            if (children &amp;&amp; children.length) {
+                for (let i = 0; i &lt; children.length; ++i) {
+                    collectPathTargets(children[i], bucket);
+                }
+            }
+        }
+        return bucket;
+    }
+
+    function normalizePoint(point) {
+        if (!point) {
+            return null;
+        }
+        if (typeof point.x === "number" &amp;&amp; typeof point.y === "number") {
+            const x = +point.x;
+            const y = +point.y;
+            return (isFinite(x) &amp;&amp; isFinite(y)) ? {x, y} : null;
+        }
+        if (Array.isArray(point) &amp;&amp; point.length >= 2) {
+            const x = +point[0];
+            const y = +point[1];
+            return (isFinite(x) &amp;&amp; isFinite(y)) ? {x, y} : null;
+        }
+        return null;
+    }
+
+    function parsePointArray(value) {
+        if (!Array.isArray(value)) {
+            return [];
+        }
+        const points = [];
+        for (let i = 0; i &lt; value.length; ++i) {
+            const normalized = normalizePoint(value[i]);
+            if (normalized) {
+                points.push(normalized);
+            }
+        }
+        return points;
+    }
+
+    function parsePointsString(str) {
+        if (typeof str !== "string") {
+            return [];
+        }
+        const tokens = str.trim().split(/[\s,]+/);
+        const points = [];
+        for (let i = 0; i + 1 &lt; tokens.length; i += 2) {
+            const x = parseFloat(tokens[i]);
+            const y = parseFloat(tokens[i + 1]);
+            if (isFinite(x) &amp;&amp; isFinite(y)) {
+                points.push({x, y});
+            }
+        }
+        return points;
+    }
+
+    function parseBorderDistance(value) {
+        if (value == null) {
+            return 0;
+        }
+        const numeric = parseFloat(value);
+        return (isFinite(numeric) &amp;&amp; numeric > 0) ? numeric : 0;
+    }
+
+    function parseBorderMode(value) {
+        if (value == null) {
+            return null;
+        }
+        const text = String(value).trim().toLowerCase();
+        if (!text) {
+            return null;
+        }
+        if (text === "inside" || text === "inner" || text === "inward") {
+            return "inside";
+        }
+        if (text === "outside" || text === "outer" || text === "outward") {
+            return "outside";
+        }
+        return null;
+    }
+
+    function normalizeBorderSpec(value) {
+        if (value == null) {
+            return null;
+        }
+        if (typeof value === "number" || typeof value === "string") {
+            return {distance: parseBorderDistance(value)};
+        }
+        if (typeof value === "object") {
+            const hasDistance = Object.prototype.hasOwnProperty.call(value, "distance");
+            const hasMode = Object.prototype.hasOwnProperty.call(value, "mode");
+            if (!hasDistance &amp;&amp; !hasMode) {
+                return null;
+            }
+            const spec = {};
+            if (hasDistance) {
+                spec.distance = parseBorderDistance(value.distance);
+            }
+            if (hasMode) {
+                spec.mode = parseBorderMode(value.mode);
+            }
+            return spec;
+        }
+        return null;
+    }
+
+    function parseCircleGeometry(element) {
+        if (!element || typeof element.attr !== "function") {
+            return null;
+        }
+        const cxRaw = element.attr("cx");
+        const cyRaw = element.attr("cy");
+        const cx = isFinite(+cxRaw) ? +cxRaw : 0;
+        const cy = isFinite(+cyRaw) ? +cyRaw : 0;
+        if (element.type === "circle") {
+            const rRaw = element.attr("r");
+            const r = Math.abs(isFinite(+rRaw) ? +rRaw : NaN);
+            return (r > 0) ? {kind: "circle", cx, cy, rx: r, ry: r} : null;
+        }
+        if (element.type === "ellipse") {
+            const rxRaw = element.attr("rx");
+            const ryRaw = element.attr("ry");
+            const rx = Math.abs(isFinite(+rxRaw) ? +rxRaw : NaN);
+            const ry = Math.abs(isFinite(+ryRaw) ? +ryRaw : NaN);
+            return (rx > 0 &amp;&amp; ry > 0) ? {kind: "circle", cx, cy, rx, ry} : null;
+        }
+        return null;
+    }
+
+    function normalizeRectObject(rect) {
+        if (!rect) {
+            return null;
+        }
+        const x = (rect.x == null || rect.x === "") ? 0 : +rect.x;
+        const y = (rect.y == null || rect.y === "") ? 0 : +rect.y;
+        const width = +rect.width;
+        const height = +rect.height;
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height)) {
+            return null;
+        }
+        if (!(width > 0) || !(height > 0)) {
+            return null;
+        }
+        return {x, y, width, height};
+    }
+
+    function parseRectElement(element) {
+        if (!element || typeof element.attr !== "function") {
+            return null;
+        }
+        return normalizeRectObject({
+            x: element.attr("x"),
+            y: element.attr("y"),
+            width: element.attr("width"),
+            height: element.attr("height")
+        });
+    }
+
+    function distanceToSegment(point, start, end) {
+        if (!point || !start || !end) {
+            return Infinity;
+        }
+        if (!isFinite(point.x) || !isFinite(point.y) || !isFinite(start.x) || !isFinite(start.y) || !isFinite(end.x) || !isFinite(end.y)) {
+            return Infinity;
+        }
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const lengthSq = (dx * dx) + (dy * dy);
+        if (!lengthSq) {
+            const px = point.x - start.x;
+            const py = point.y - start.y;
+            return Math.sqrt((px * px) + (py * py));
+        }
+        let t = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq;
+        t = Math.max(0, Math.min(1, t));
+        const projX = start.x + (t * dx);
+        const projY = start.y + (t * dy);
+        const rx = point.x - projX;
+        const ry = point.y - projY;
+        return Math.sqrt((rx * rx) + (ry * ry));
+    }
+
+    function polygonEdgeDistance(point, polygon) {
+        if (!point || !polygon || polygon.length &lt; 2) {
+            return Infinity;
+        }
+        let minDistance = Infinity;
+        for (let i = 0; i &lt; polygon.length; ++i) {
+            const start = polygon[i];
+            const end = polygon[(i + 1) % polygon.length];
+            const dist = distanceToSegment(point, start, end);
+            if (dist &lt; minDistance) {
+                minDistance = dist;
+            }
+        }
+        return minDistance;
+    }
+
+    function buildPathSampler(geometry) {
+        if (!geometry || !geometry.path) {
+            return null;
+        }
+        let totalLength = 0;
+        try {
+            if (geometry.element &amp;&amp; typeof geometry.element.getTotalLength === "function") {
+                totalLength = geometry.element.getTotalLength();
+            } else if (typeof Snap.path.getTotalLength === "function") {
+                totalLength = Snap.path.getTotalLength(geometry.path);
+            }
+        } catch (e) {
+            totalLength = 0;
+        }
+        const effectiveLength = (isFinite(totalLength) &amp;&amp; totalLength > 0) ? totalLength : 0;
+        const sampleCount = effectiveLength
+            ? Math.max(16, Math.min(200, Math.round(effectiveLength / 4)))
+            : 64;
+        let samples = extractPathSamples(geometry, sampleCount);
+        if (!Array.isArray(samples) || !samples.length) {
+            return null;
+        }
+        samples = samples
+            .filter((pt) => pt &amp;&amp; isFinite(pt.x) &amp;&amp; isFinite(pt.y))
+            .map((pt, idx) => ({x: +pt.x, y: +pt.y, index: idx}));
+        if (!samples.length) {
+            return null;
+        }
+        const kdIndex = (typeof Snap.kdTree === "function" &amp;&amp; samples.length >= 4)
+            ? Snap.kdTree(samples)
+            : null;
+
+        function nearestWithKD(query) {
+            if (!kdIndex || typeof kdIndex.nearest_dist !== "function") {
+                return null;
+            }
+            const hit = kdIndex.nearest_dist(query, 1, true);
+            if (!hit || !hit[0]) {
+                return null;
+            }
+            return {sample: hit[0], distSq: hit[1] || 0};
+        }
+
+        function nearestWithPairs(query) {
+            if (typeof Snap.nearPairs !== "function") {
+                return null;
+            }
+            const result = Snap.nearPairs([query], samples);
+            if (!result || !result.pair || result.pair.length &lt; 2) {
+                return null;
+            }
+            return {sample: result.pair[1], distSq: Math.pow(result.d || 0, 2)};
+        }
+
+        function nearestFallback(query) {
+            let closest = null;
+            let minDistSq = Infinity;
+            for (let i = 0; i &lt; samples.length; ++i) {
+                const dx = query.x - samples[i].x;
+                const dy = query.y - samples[i].y;
+                const distSq = (dx * dx) + (dy * dy);
+                if (distSq &lt; minDistSq) {
+                    minDistSq = distSq;
+                    closest = samples[i];
+                }
+            }
+            return closest ? {sample: closest, distSq: minDistSq} : null;
+        }
+
+        function findNearestDescriptor(query) {
+            return nearestWithKD(query) || nearestWithPairs(query) || nearestFallback(query);
+        }
+
+        return {
+            distance(point) {
+                if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                    return Infinity;
+                }
+                const query = {x: +point.x, y: +point.y};
+                const nearest = findNearestDescriptor(query);
+                if (!nearest || !nearest.sample) {
+                    return Infinity;
+                }
+                const baseDistance = Math.sqrt(Math.max(0, nearest.distSq || 0));
+                let best = baseDistance;
+                const idx = typeof nearest.sample.index === "number"
+                    ? nearest.sample.index
+                    : samples.indexOf(nearest.sample);
+                if (idx > 0) {
+                    best = Math.min(best, distanceToSegment(query, samples[idx - 1], nearest.sample));
+                }
+                if (idx >= 0 &amp;&amp; idx + 1 &lt; samples.length) {
+                    best = Math.min(best, distanceToSegment(query, nearest.sample, samples[idx + 1]));
+                }
+                return best;
+            }
+        };
+    }
+
+    function extractPathSamples(geometry, sampleCount) {
+        if (geometry.element &amp;&amp; typeof geometry.element.getPointSample === "function") {
+            return geometry.element.getPointSample(sampleCount);
+        }
+        if (geometry.path &amp;&amp; typeof Snap.path.getPointSample === "function" &amp;&amp; typeof Snap.path.toBeziers === "function") {
+            const stub = {
+                type: "path",
+                toBeziers() {
+                    return Snap.path.toBeziers(geometry.path);
+                }
+            };
+            return Snap.path.getPointSample.call(stub, sampleCount);
+        }
+        return null;
+    }
+
+    function createRegionDescriptor(region, borderOverride) {
+        if (!region) {
+            return null;
+        }
+        const isElement = Snap.is(region, "Element");
+        const isPlainObject = region &amp;&amp; typeof region === "object" &amp;&amp; !Array.isArray(region) &amp;&amp; !isElement;
+        const borderOverrideSpec = normalizeBorderSpec(borderOverride);
+        const overrideBorderDistance = borderOverrideSpec ? borderOverrideSpec.distance : null;
+        const overrideBorderMode = borderOverrideSpec ? borderOverrideSpec.mode : null;
+        const defaultBorderSpec = isPlainObject ? normalizeBorderSpec(region.border) : null;
+        const defaultBorder = defaultBorderSpec &amp;&amp; defaultBorderSpec.distance ? defaultBorderSpec.distance : 0;
+        const defaultBorderMode = defaultBorderSpec &amp;&amp; defaultBorderSpec.mode ? defaultBorderSpec.mode : null;
+        let descriptor = null;
+
+        if (Array.isArray(region)) {
+            const points = parsePointArray(region);
+            if (points.length >= 3) {
+                descriptor = {type: "polygon", points};
+            }
+        } else if (typeof region === "string") {
+            const path = region.trim();
+            if (path) {
+                descriptor = {type: "path", path};
+            }
+        } else if (isElement) {
+            let elementBorderSpec = null;
+            if (typeof region.data === "function") {
+                elementBorderSpec = normalizeBorderSpec(region.data("border") || region.data("borderSpec"));
+            }
+            if (!elementBorderSpec &amp;&amp; typeof region.attr === "function") {
+                elementBorderSpec = normalizeBorderSpec(region.attr("data-border"));
+            }
+            if (region.type === "path") {
+                descriptor = {type: "path-element", element: region};
+            } else if (region.type === "polygon" || region.type === "polyline") {
+                descriptor = {type: "polygon-element", element: region};
+            } else if (region.type === "circle" || region.type === "ellipse") {
+                descriptor = {type: "circle-element", element: region};
+            } else if (region.type === "rect") {
+                descriptor = {type: "rect-element", element: region};
+            }
+            if (descriptor &amp;&amp; elementBorderSpec) {
+                if (elementBorderSpec.distance > 0) {
+                    descriptor.borderDistance = elementBorderSpec.distance;
+                }
+                if (elementBorderSpec.mode) {
+                    descriptor.borderMode = elementBorderSpec.mode;
+                }
+            }
+        } else if (isPlainObject) {
+            if (Array.isArray(region.points)) {
+                const pts = parsePointArray(region.points);
+                if (pts.length >= 3) {
+                    descriptor = {type: "polygon", points: pts};
+                }
+            } else if (typeof region.path === "string" &amp;&amp; region.path) {
+                descriptor = {type: "path", path: region.path};
+            } else {
+                const rectObject = normalizeRectObject(region);
+                if (rectObject) {
+                    descriptor = {type: "rect", rect: rectObject};
+                }
+            }
+            if (descriptor &amp;&amp; defaultBorderSpec &amp;&amp; defaultBorderSpec.mode) {
+                descriptor.borderMode = defaultBorderSpec.mode;
+            }
+        }
+        if (descriptor) {
+            const finalDistance = (overrideBorderDistance != null)
+                ? overrideBorderDistance
+                : (descriptor.borderDistance != null ? descriptor.borderDistance : defaultBorder);
+            if (finalDistance > 0) {
+                descriptor.borderDistance = finalDistance;
+            } else {
+                delete descriptor.borderDistance;
+            }
+            const finalMode = overrideBorderMode || descriptor.borderMode || defaultBorderMode || "outside";
+            descriptor.borderMode = finalMode;
+        }
+        return descriptor;
+    }
+
+    function resolveRegionGeometry(descriptor) {
+        if (!descriptor) {
+            return null;
+        }
+        if (descriptor.type === "polygon") {
+            return descriptor.points &amp;&amp; descriptor.points.length >= 3
+                ? {kind: "polygon", points: descriptor.points.map(normalizePoint).filter(Boolean)}
+                : null;
+        }
+        if (descriptor.type === "polygon-element" &amp;&amp; descriptor.element) {
+            const pts = parsePointsString(descriptor.element.attr("points") || "");
+            return pts.length >= 3 ? {kind: "polygon", points: pts} : null;
+        }
+        if (descriptor.type === "path") {
+            return descriptor.path ? {kind: "path", path: descriptor.path} : null;
+        }
+        if (descriptor.type === "path-element" &amp;&amp; descriptor.element) {
+            const path = descriptor.element.attr("d") || "";
+            return path ? {kind: "path", path, element: descriptor.element} : null;
+        }
+        if (descriptor.type === "rect" &amp;&amp; descriptor.rect) {
+            const rect = normalizeRectObject(descriptor.rect);
+            return rect ? {kind: "rect", x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null;
+        }
+        if (descriptor.type === "rect-element" &amp;&amp; descriptor.element) {
+            const rect = parseRectElement(descriptor.element);
+            return rect ? {kind: "rect", x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null;
+        }
+        if (descriptor.type === "circle-element" &amp;&amp; descriptor.element) {
+            return parseCircleGeometry(descriptor.element);
+        }
+        return null;
+    }
+
+    function buildPolygonRegion(points) {
+        const polygon = points.map(normalizePoint).filter(Boolean);
+        if (polygon.length &lt; 3) {
+            return null;
+        }
+        return {
+            contains(point) {
+                return Snap.polygons.pointInPolygon(point, polygon, true);
+            },
+            intersects(otherPolygon) {
+                if (!otherPolygon || otherPolygon.length &lt; 3) {
+                    return false;
+                }
+                if (Snap.polygons.intersect(polygon, otherPolygon)) {
+                    return true;
+                }
+                if (otherPolygon.some((pt) => Snap.polygons.pointInPolygon(pt, polygon, true))) {
+                    return true;
+                }
+                return polygon.some((pt) => Snap.polygons.pointInPolygon(pt, otherPolygon, true));
+            },
+            distance(point) {
+                return polygonEdgeDistance(point, polygon);
+            }
+        };
+    }
+
+    function buildPathRegion(geometry) {
+        if (!geometry || !geometry.path) {
+            return null;
+        }
+        const path = geometry.path;
+        let bbox = null;
+        try {
+            bbox = Snap.path.getBBox(path);
+        } catch (e) {
+            bbox = null;
+        }
+        const sampler = buildPathSampler(geometry);
+        return {
+            contains(point) {
+                return Snap.path.isPointInside(path, point.x, point.y);
+            },
+            intersects(otherPolygon) {
+                if (!otherPolygon || !otherPolygon.length) {
+                    return true;
+                }
+                if (bbox) {
+                    const hullBox = Snap.bBoxFromPoints(otherPolygon);
+                    if (hullBox &amp;&amp; !Snap.path.isBBoxIntersect(bbox, hullBox)) {
+                        return false;
+                    }
+                }
+                for (let i = 0; i &lt; otherPolygon.length; ++i) {
+                    if (Snap.path.isPointInside(path, otherPolygon[i].x, otherPolygon[i].y)) {
+                        return true;
+                    }
+                }
+                return true;
+            },
+            distance(point) {
+                if (!sampler) {
+                    return Infinity;
+                }
+                return sampler.distance(point);
+            }
+        };
+    }
+
+    function buildEllipseApproximationPoints(cx, cy, rx, ry, steps) {
+        const count = steps &amp;&amp; steps > 8 ? steps : 24;
+        const pts = [];
+        for (let i = 0; i &lt; count; ++i) {
+            const angle = (i / count) * Math.PI * 2;
+            pts.push({
+                x: cx + (Math.cos(angle) * rx),
+                y: cy + (Math.sin(angle) * ry)
+            });
+        }
+        return pts;
+    }
+
+    function buildCircleRegion(geometry) {
+        if (!geometry) {
+            return null;
+        }
+        const cx = +geometry.cx;
+        const cy = +geometry.cy;
+        const rx = +geometry.rx;
+        const ry = +geometry.ry;
+        if (!isFinite(cx) || !isFinite(cy) || !(rx > 0) || !(ry > 0)) {
+            return null;
+        }
+        const invRxSq = 1 / (rx * rx);
+        const invRySq = 1 / (ry * ry);
+        const ellipseBBox = {x: cx - rx, y: cy - ry, x2: cx + rx, y2: cy + ry};
+        const ellipsePolygon = buildEllipseApproximationPoints(cx, cy, rx, ry, 20);
+        const contains = function (point) {
+            if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                return false;
+            }
+            const dx = point.x - cx;
+            const dy = point.y - cy;
+            const norm = (dx * dx * invRxSq) + (dy * dy * invRySq);
+            return norm &lt;= 1.00001;
+        };
+        const edgeDistance = function (point) {
+            if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                return Infinity;
+            }
+            const dx = point.x - cx;
+            const dy = point.y - cy;
+            if (dx === 0 &amp;&amp; dy === 0) {
+                return Math.min(rx, ry);
+            }
+            const nx = dx / rx;
+            const ny = dy / ry;
+            const norm = Math.sqrt((nx * nx) + (ny * ny));
+            if (!norm) {
+                return Math.min(rx, ry);
+            }
+            const scale = 1 / norm;
+            const bx = cx + (dx * scale);
+            const by = cy + (dy * scale);
+            const ex = point.x - bx;
+            const ey = point.y - by;
+            return Math.sqrt((ex * ex) + (ey * ey));
+        };
+        return {
+            contains,
+            intersects(otherPolygon) {
+                if (!otherPolygon || otherPolygon.length &lt; 3) {
+                    return false;
+                }
+                const hullBox = Snap.bBoxFromPoints(otherPolygon);
+                if (hullBox &amp;&amp; !Snap.path.isBBoxIntersect(ellipseBBox, hullBox)) {
+                    return false;
+                }
+                for (let i = 0; i &lt; otherPolygon.length; ++i) {
+                    if (contains(otherPolygon[i])) {
+                        return true;
+                    }
+                }
+                if (Snap.polygons.pointInPolygon({x: cx, y: cy}, otherPolygon, true)) {
+                    return true;
+                }
+                if (ellipsePolygon.length >= 3) {
+                    for (let i = 0; i &lt; ellipsePolygon.length; ++i) {
+                        if (Snap.polygons.pointInPolygon(ellipsePolygon[i], otherPolygon, true)) {
+                            return true;
+                        }
+                    }
+                    return Snap.polygons.intersect(ellipsePolygon, otherPolygon);
+                }
+                return false;
+            },
+            distance(point) {
+                return edgeDistance(point);
+            }
+        };
+    }
+
+    function buildRectRegion(geometry) {
+        if (!geometry) {
+            return null;
+        }
+        const x = +geometry.x;
+        const y = +geometry.y;
+        const width = +geometry.width;
+        const height = +geometry.height;
+        if (!isFinite(x) || !isFinite(y) || !(width > 0) || !(height > 0)) {
+            return null;
+        }
+        const x2 = x + width;
+        const y2 = y + height;
+        const polygon = [
+            {x, y},
+            {x: x2, y},
+            {x: x2, y: y2},
+            {x, y: y2}
+        ];
+        function contains(point) {
+            if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                return false;
+            }
+            return point.x >= x &amp;&amp; point.x &lt;= x2 &amp;&amp; point.y >= y &amp;&amp; point.y &lt;= y2;
+        }
+        function intersects(otherPolygon) {
+            if (!otherPolygon || otherPolygon.length &lt; 3) {
+                return false;
+            }
+            if (Snap.polygons.intersect(polygon, otherPolygon)) {
+                return true;
+            }
+            if (otherPolygon.some((pt) => contains(pt))) {
+                return true;
+            }
+            return polygon.some((pt) => Snap.polygons.pointInPolygon(pt, otherPolygon, true));
+        }
+        function edgeDistance(point) {
+            if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+                return Infinity;
+            }
+            const dx = (point.x &lt; x) ? (x - point.x) : (point.x > x2 ? point.x - x2 : 0);
+            const dy = (point.y &lt; y) ? (y - point.y) : (point.y > y2 ? point.y - y2 : 0);
+            if (dx &amp;&amp; dy) {
+                return Math.sqrt((dx * dx) + (dy * dy));
+            }
+            return dx || dy;
+        }
+        return {
+            contains,
+            intersects,
+            distance(point) {
+                if (contains(point)) {
+                    return Math.min(point.x - x, x2 - point.x, point.y - y, y2 - point.y);
+                }
+                return edgeDistance(point);
+            }
+        };
+    }
+
+    function buildPartialRegionState(handler, borderDistance, borderMode) {
+        if (!handler || typeof handler.contains !== "function") {
+            return {mode: "full"};
+        }
+        const hasBorder = borderDistance > 0 &amp;&amp; typeof handler.distance === "function";
+        return {
+            mode: "partial",
+            contains: handler.contains,
+            intersects: typeof handler.intersects === "function" ? handler.intersects : null,
+            distance: hasBorder ? handler.distance : null,
+            borderDistance: hasBorder ? borderDistance : 0,
+            borderMode: borderMode === "inside" ? "inside" : "outside"
+        };
+    }
+
+    function resolveRegionState(descriptor, hull) {
+        if (!descriptor) {
+            return {mode: "full"};
+        }
+        const geometry = resolveRegionGeometry(descriptor);
+        if (!geometry) {
+            return {mode: "full"};
+        }
+        let handler;
+        if (geometry.kind === "polygon") {
+            handler = buildPolygonRegion(geometry.points);
+        } else if (geometry.kind === "circle") {
+            handler = buildCircleRegion(geometry);
+        } else if (geometry.kind === "rect") {
+            handler = buildRectRegion(geometry);
+        } else {
+            handler = buildPathRegion(geometry);
+        }
+        if (!handler || typeof handler.contains !== "function") {
+            return {mode: "full"};
+        }
+        const borderDistance = parseBorderDistance(descriptor &amp;&amp; descriptor.borderDistance);
+        const borderMode = descriptor &amp;&amp; descriptor.borderMode;
+        const hullPoints = hull || [];// Array.isArray(hull) ? hull.map(normalizePoint).filter(Boolean) : [];
+        if (!hullPoints.length) {
+            return buildPartialRegionState(handler, borderDistance, borderMode);
+        }
+        let insideCount = 0;
+        for (let i = 0; i &lt; hullPoints.length; ++i) {
+            if (handler.contains(hullPoints[i])) {
+                insideCount++;
+            }
+        }
+        if (insideCount === hullPoints.length) {
+            return {mode: "full"};
+        }
+        let intersects = true;
+        if (typeof handler.intersects === "function") {
+            intersects = handler.intersects(hullPoints);
+        }
+        if (!intersects &amp;&amp; insideCount === 0) {
+            if (borderDistance > 0) {
+                return buildPartialRegionState(handler, borderDistance, borderMode);
+            }
+            return {mode: "none"};
+        }
+        return buildPartialRegionState(handler, borderDistance, borderMode);
+    }
+
+    function computeRegionWeight(region, point) {
+        if (!region || region.mode !== "partial") {
+            return 1;
+        }
+        if (!point || !isFinite(point.x) || !isFinite(point.y)) {
+            return 0;
+        }
+        const mode = region.borderMode === "inside" ? "inside" : "outside";
+        const border = region.borderDistance || 0;
+        if (mode === "inside") {
+            if (!region.contains(point)) {
+                return 0;
+            }
+            if (!border || typeof region.distance !== "function") {
+                return 1;
+            }
+            const dist = region.distance(point);
+            if (!isFinite(dist)) {
+                return 1;
+            }
+            const ratio = border > 0 ? Math.min(1, Math.max(0, dist / border)) : 1;
+            return ratio;
+        }
+        if (region.contains(point)) {
+            return 1;
+        }
+        if (border > 0 &amp;&amp; typeof region.distance === "function") {
+            const dist = region.distance(point);
+            if (isFinite(dist) &amp;&amp; dist &lt;= border) {
+                if (dist &lt;= 0) {
+                    return 1;
+                }
+                const ratio = Math.min(1, dist / border);
+                return 1 - ratio;
+            }
+        }
+        return 0;
+    }
+
+    function regionAllows(region, point) {
+        return computeRegionWeight(region, point) > 0;
+    }
+
+    function blendPoints(source, target, weight) {
+        if (weight >= 1) {
+            return target;
+        }
+        if (weight &lt;= 0) {
+            return source;
+        }
+        const inverse = 1 - weight;
+        return {
+            x: (target.x * weight) + (source.x * inverse),
+            y: (target.y * weight) + (source.y * inverse)
+        };
+    }
+
+    function normalizeWarpOptions(options) {
+        if (!options || typeof options !== "object") {
+            return null;
+        }
+        const normalized = {};
+        let populated = false;
+        for (const key in options) {
+            if (Object.prototype.hasOwnProperty.call(options, key)) {
+                normalized[key] = options[key];
+                populated = true;
+            }
+        }
+        return populated ? normalized : null;
+    }
+
+    function getWarpList(el, create) {
+        let warps = el.data(WARP_DATA_KEY);
+        if (!Array.isArray(warps) &amp;&amp; create) {
+            warps = [];
+            el.data(WARP_DATA_KEY, warps);
+        }
+        return Array.isArray(warps) ? warps : [];
+    }
+
+    function ensureMonitor(el) {
+        if (el.data(WARP_MONITOR_KEY)) {
+            return;
+        }
+        el.data(WARP_MONITOR_KEY, true);
+        el.attrMonitor("transform", function () {
+            applyWarps(this);
+        });
+    }
+
+    function buildWarpFilter(activeWarps, matrix) {
+        if (!activeWarps.length || !matrix) {
+            return null;
+        }
+        if (activeWarps.some((warp) => !warp.region || warp.region.mode === "full")) {
+            return null;
+        }
+        const partialWarps = activeWarps.filter((warp) => warp.region &amp;&amp; warp.region.mode === "partial");
+        if (!partialWarps.length) {
+            return null;
+        }
+        return function (point) {
+            const world = matrix.apply(point);
+            for (let i = 0; i &lt; partialWarps.length; ++i) {
+                if (regionAllows(partialWarps[i].region, world)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+    }
+
+    function buildWarpTransform(activeWarps, matrix, inverse) {
+        if (!activeWarps.length || !matrix || !inverse) {
+            return null;
+        }
+        return function (point) {
+            const world = matrix.apply(point);
+            let current = {x: world.x, y: world.y};
+            let changed = false;
+            for (let i = 0; i &lt; activeWarps.length; ++i) {
+                const warp = activeWarps[i];
+                const region = warp.region;
+                let weight = 1;
+                if (region &amp;&amp; region.mode === "partial") {
+                    weight = computeRegionWeight(region, current);
+                    if (weight &lt;= 0) {
+                        continue;
+                    }
+                }
+                const mapped = warp.transform({x: current.x, y: current.y});
+                if (mapped &amp;&amp; isFinite(mapped.x) &amp;&amp; isFinite(mapped.y)) {
+                    const mappedPoint = {x: +mapped.x, y: +mapped.y};
+                    current = blendPoints(current, mappedPoint, weight);
+                    changed = true;
+                }
+            }
+            if (!changed) {
+                return point;
+            }
+            const local = inverse.apply(current);
+            if (!isFinite(local.x) || !isFinite(local.y)) {
+                return point;
+            }
+            return local;
+        };
+    }
+
+    function applyWarps(el) {
+        const warps = getWarpList(el, false);
+        const targets = collectPathTargets(el, []);
+        if (!targets.length) {
+            return;
+        }
+        if (!warps.length) {
+            for (let i = 0; i &lt; targets.length; ++i) {
+                targets[i].genTransform();
+            }
+            return;
+        }
+        const baseMatrix = (typeof el.getLocalMatrix === "function")
+            ? el.getLocalMatrix(true)
+            : new Snap.Matrix();
+        const localMatrix = baseMatrix &amp;&amp; typeof baseMatrix.clone === "function"
+            ? baseMatrix.clone()
+            : new Snap.Matrix(baseMatrix);
+        let inverseMatrix;
+        try {
+            inverseMatrix = localMatrix.clone().invert();
+        } catch (e) {
+            inverseMatrix = null;
+        }
+        const hull = el.getCHull(true) || [];
+        const activeWarps = [];
+        let mergedOptions = null;
+        for (let i = 0; i &lt; warps.length; ++i) {
+            const entry = warps[i];
+            if (!entry || typeof entry.transform !== "function") {
+                continue;
+            }
+            const regionState = resolveRegionState(entry.region, hull);
+            if (regionState.mode === "none") {
+                continue;
+            }
+            activeWarps.push({
+                id: entry.id,
+                transform: entry.transform,
+                region: regionState.mode === "full" ? null : regionState,
+            });
+            if (entry.options) {
+                mergedOptions = mergedOptions || {};
+                Object.assign(mergedOptions, entry.options);
+            }
+        }
+        if (!activeWarps.length) {
+            for (let i = 0; i &lt; targets.length; ++i) {
+                targets[i].genTransform();
+            }
+            return;
+        }
+        const filter = buildWarpFilter(activeWarps, localMatrix);
+        const warpTransform = buildWarpTransform(activeWarps, localMatrix, inverseMatrix);
+        if (!warpTransform) {
+            return;
+        }
+        let finalOptions;
+        if (filter &amp;&amp; mergedOptions) {
+            finalOptions = Object.assign({filter}, mergedOptions);
+        } else if (mergedOptions) {
+            finalOptions = Object.assign({}, mergedOptions);
+        } else if (filter) {
+            finalOptions = {filter};
+        }
+        for (let i = 0; i &lt; targets.length; ++i) {
+            targets[i].genTransform(warpTransform, finalOptions);
+        }
+    }
+
+    /**
+     * Registers a non-linear warp to automatically apply via {@link Element#genTransform} whenever
+     * the element's affine transform changes.
+     *
+     * @param {Function} gen_transform Point-mapping function compatible with `genTransform`.
+     * @param {*} [region] Region descriptor limiting the warp influence.
+     * @param {number|string} [id] Stable identifier; if omitted a unique id is generated.
+    * @param {(number|Object)} [border] Optional border specification controlling falloff. Supply a number for
+    *        distance, or an object like `{distance: 20, mode: "inside"}`. When `mode` is `inside`, the warp begins
+    *        transitioning only after entering the region by `distance`; otherwise it ramps in while approaching from
+    *        outside. Plain region descriptors can also expose a `border` object with the same shape.
+     * @param {Object} [options] Optional `genTransform` options. Supports the same fields as
+     *        {@link Element#genTransform}: `returnPath`, `filter`, `simplify`, `max_size`, etc.
+     *        When multiple warps are active, options from newer warps override earlier ones for overlapping keys,
+     *        and the region filter (if any) is merged last so it always takes effect.
+     * @returns {number|string} The warp id assigned to this registration.
+     */
+    Element.prototype.addWarp = function (gen_transform, region, id, border, options) {
+        if (typeof gen_transform !== "function") {
+            return null;
+        }
+        if (!this || typeof this.makePath !== "function") {
+            return;
+        }
+        this.makePath(true);
+        let warpId = id;
+        let borderParam = border;
+        const warpIdLooksLikeBorder = warpId &amp;&amp; typeof warpId === "object" &amp;&amp; !Array.isArray(warpId) &amp;&amp; (
+            Object.prototype.hasOwnProperty.call(warpId, "distance") ||
+            Object.prototype.hasOwnProperty.call(warpId, "mode")
+        );
+        if (borderParam == null &amp;&amp; (warpId == null || typeof warpId === "number" || warpIdLooksLikeBorder)) {
+            borderParam = warpId;
+            warpId = null;
+        }
+        const effectiveId = warpId || Snap._.id({type: "warp"});
+        const descriptor = createRegionDescriptor(region, borderParam);
+        const warps = getWarpList(this, true);
+        const existingIndex = warps.findIndex((entry) => entry &amp;&amp; entry.id === effectiveId);
+        const normalizedOptions = normalizeWarpOptions(options);
+        const payload = {id: effectiveId, transform: gen_transform, region: descriptor, options: normalizedOptions};
+        if (existingIndex >= 0) {
+            warps[existingIndex] = payload;
+        } else {
+            warps.push(payload);
+        }
+        ensureMonitor(this);
+        applyWarps(this);
+        return effectiveId;
+    };
+
+    Element.prototype.removeWarp = function (id) {
+        const warps = getWarpList(this, false);
+        if (!warps.length) {
+            return this;
+        }
+        if (id == null) {
+            this.removeData(WARP_DATA_KEY);
+        } else {
+            const filtered = warps.filter((entry) => entry &amp;&amp; entry.id !== id);
+            if (filtered.length) {
+                this.data(WARP_DATA_KEY, filtered);
+            } else {
+                this.removeData(WARP_DATA_KEY);
+            }
+        }
+        applyWarps(this);
+        return this;
+    };
+
+});
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.11</a> on Thu Dec 11 2025 09:02:48 GMT-0800 (Pacific Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

@@ -17,9 +17,9 @@
 (function (glob, factory) {
     // AMD support
     if (typeof define == "function" && define.amd) {
-        // Define as an anonymous module
-        define(["mina"], function (mina) {
-            return factory(glob, mina);
+        // Define as an anonymous module that depends on eve
+        define(["eve"], function (eve) {
+            return factory(glob, eve);
         });
     } else if (typeof exports != "undefined") {
         // Next for Node.js or CommonJS
@@ -28,7 +28,7 @@
     } else {
         // Browser globals (glob is window)
         // Snap adds itself to window
-        factory(glob, glob.eve_ia || glob.eve);
+        glob.mina = factory(glob, glob.eve_ia || glob.eve);
     }
 }(typeof window !== "undefined" ? window : (global || this), function (window, eve) {
     "use strict";

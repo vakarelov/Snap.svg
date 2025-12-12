@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snap.svg API Reference with Documentation</title>
+    <script src="../../dist/snap.svg.js"></script>
+    <script src="../../utils/introspection/snap-introspection.js"></script>
+    <script src="../../utils/introspection/snap-introspection-renderer.js"></script>
+    <script src="../../utils/introspection/snap-docs-reader.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+            background-color: #e8f5e9;
+            padding: 10px;
+            border-left: 5px solid #4CAF50;
+        }
+        h3 {
+            color: #666;
+            margin-top: 20px;
+            background-color: #fff3e0;
+            padding: 8px;
+            border-left: 4px solid #FF9800;
+        }
+        .class-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .method-list {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .method-list li {
+            padding: 10px;
+            margin: 8px 0;
+            background-color: #f9f9f9;
+            border-left: 3px solid #2196F3;
+            font-family: 'Courier New', monospace;
+            transition: background-color 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+        .method-list li:hover {
+            background-color: #e3f2fd;
+        }
+        .method-signature {
+            font-weight: bold;
+            color: #1976D2;
+        }
+        .method-desc-brief {
+            font-size: 0.85em;
+            color: #666;
+            font-family: 'Segoe UI', sans-serif;
+            margin-top: 4px;
+        }
+        .method-docs {
+            display: none;
+            margin-top: 12px;
+            padding: 12px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 0.9em;
+        }
+        .method-docs.visible {
+            display: block;
+        }
+        .method-docs h4 {
+            margin: 0 0 8px 0;
+            color: #4CAF50;
+            font-size: 1em;
+        }
+        .method-docs p {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        .method-description {
+            line-height: 1.6;
+        }
+        .method-description p {
+            margin: 8px 0;
+        }
+        .method-description code {
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+        }
+        .method-params {
+            margin-top: 8px;
+        }
+        .method-params dt {
+            font-weight: bold;
+            color: #555;
+            margin-top: 4px;
+        }
+        .method-params dd {
+            margin-left: 20px;
+            color: #666;
+            line-height: 1.6;
+        }
+        .method-params dd p {
+            margin: 4px 0;
+        }
+        .method-params dd code {
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .method-returns {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #f0f7ff;
+            border-left: 3px solid #2196F3;
+        }
+        .doc-toggle {
+            float: right;
+            font-size: 0.8em;
+            color: #2196F3;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .loading {
+            padding: 20px;
+            text-align: center;
+            color: #666;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            margin-left: 8px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .badge-documented {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .badge-no-docs {
+            background-color: #ccc;
+            color: #666;
+        }
+        .count {
+            color: #999;
+            font-size: 0.9em;
+            font-style: italic;
+        }
+        .snap-methods {
+            background-color: #e1f5fe;
+        }
+        .global-methods {
+            background-color: #f3e5f5;
+        }
+        .nav-menu {
+            position: sticky;
+            top: 0;
+            background-color: #fff;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1000;
+        }
+        .nav-menu h3 {
+            margin-top: 0;
+            padding: 0;
+            background: none;
+            border: none;
+            color: #333;
+        }
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .nav-links a {
+            padding: 8px 15px;
+            background-color: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        .nav-links a:hover {
+            background-color: #1976D2;
+        }
+        .nav-links a.global {
+            background-color: #9C27B0;
+        }
+        .nav-links a.global:hover {
+            background-color: #7B1FA2;
+        }
+        .docs-status {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        .docs-status.loaded {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+        .docs-status.error {
+            background: #f8d7da;
+            border-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <h1>Snap.svg API Reference with Documentation</h1>
+
+    <div id="docs-status" class="docs-status">
+        <strong>Documentation Status:</strong> <span id="status-text">Loading...</span>
+    </div>
+
+    <div id="content">
+        <p class="loading">Loading API reference...</p>
+    </div>
+
+    <script>
+        let docsLoaded = false;
+
+        // Update documentation status
+        function updateDocsStatus(status, message) {
+            const statusDiv = document.getElementById('docs-status');
+            const statusText = document.getElementById('status-text');
+
+            statusDiv.className = 'docs-status ' + status;
+            statusText.textContent = message;
+        }
+
+        // Load documentation JSON
+        async function loadDocumentation() {
+            try {
+                const response = await fetch('../../doc/json/documentation.json');
+                if (!response.ok) {
+                    throw new Error('Failed to load documentation.json');
+                }
+                const docsData = await response.json();
+                await SnapDocsReader.load(docsData);
+                docsLoaded = true;
+                updateDocsStatus('loaded', 'Documentation loaded successfully ✓');
+                return true;
+            } catch (error) {
+                console.warn('Could not load documentation:', error);
+                updateDocsStatus('error', 'Documentation not available (run "grunt docs:json" to generate)');
+                return false;
+            }
+        }
+
+        // Get documentation for a method
+        function getMethodDocs(className, methodName) {
+            if (!docsLoaded) return null;
+
+            try {
+                return SnapDocsReader.findMethod(className, methodName);
+            } catch (error) {
+                console.warn('Error getting docs for', className, methodName, error);
+                return null;
+            }
+        }
+
+        // Helper to process JSDoc HTML (convert {@link} tags, etc.)
+        function processJSDocHTML(html) {
+            if (!html) return '';
+            // Convert {@link ClassName} to just ClassName (or make it a link if we want)
+            html = html.replace(/\{@link\s+([^}]+)\}/g, '<strong>$1</strong>');
+            return html;
+        }
+
+        // Format parameter list
+        function formatParams(params) {
+            if (!params || params.length === 0) return '';
+
+            let html = '<dl class="method-params">';
+            params.forEach(param => {
+                html += '<dt>';
+                if (param.optional) html += '[';
+                html += param.name;
+                if (param.type && param.type.names) {
+                    html += ': <code>' + param.type.names.join('|') + '</code>';
+                }
+                if (param.optional) html += ']';
+                html += '</dt>';
+                if (param.description) {
+                    // Process JSDoc HTML tags
+                    html += '<dd>' + processJSDocHTML(param.description) + '</dd>';
+                }
+            });
+            html += '</dl>';
+            return html;
+        }
+
+        // Create documentation HTML
+        function createDocsHTML(docs, methodName) {
+            if (!docs) {
+                return '<div class="method-docs"><p><em>No documentation available</em></p></div>';
+            }
+
+            let html = '<div class="method-docs">';
+
+            // Full signature
+            if (docs.params || docs.returns) {
+                html += '<h4>Signature</h4>';
+                html += '<p><code>' + SnapDocsReader.getSignature(docs) + '</code></p>';
+            }
+
+            // Description (already contains HTML from JSDoc)
+            if (docs.description) {
+                html += '<h4>Description</h4>';
+                html += '<div class="method-description">' + processJSDocHTML(docs.description) + '</div>';
+            }
+
+            // Parameters
+            const params = SnapDocsReader.getParams(docs);
+            if (params.length > 0) {
+                html += '<h4>Parameters</h4>';
+                html += formatParams(params);
+            }
+
+            // Returns
+            const returns = SnapDocsReader.getReturns(docs);
+            if (returns) {
+                html += '<h4>Returns</h4>';
+                html += '<div class="method-returns">';
+                if (returns.type && returns.type.names) {
+                    html += '<strong>Type:</strong> <code>' + returns.type.names.join('|') + '</code><br>';
+                }
+                if (returns.description) {
+                    html += processJSDocHTML(returns.description);
+                }
+                html += '</div>';
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+        // Toggle documentation visibility
+        function toggleDocs(element) {
+            const docsDiv = element.querySelector('.method-docs');
+            if (docsDiv) {
+                docsDiv.classList.toggle('visible');
+            }
+        }
+
+        // Enhanced render with documentation
+        function renderWithDocs(data) {
+            const contentDiv = document.getElementById('content');
+
+            // Use basic renderer first
+            const html = SnapIntrospectionRenderer.renderAll(data, {
+                showNavigation: true,
+                showSnap: true,
+                showEve: true,
+                showMina: true,
+                showClasses: true,
+                highlightFromPaper: true,
+                highlightEasing: true
+            });
+
+            contentDiv.innerHTML = html;
+
+            // Enhance method items with documentation
+            if (docsLoaded) {
+                enhanceWithDocs(data);
+            }
+        }
+
+        // Enhance existing HTML with documentation
+        function enhanceWithDocs(data) {
+            // Enhance Snap methods
+            if (data.snap && data.snap.methods) {
+                data.snap.methods.forEach(methodName => {
+                    const docs = getMethodDocs('Snap', methodName);
+                    enhanceMethodItem('snap', methodName, docs);
+                });
+            }
+
+            // Enhance class methods
+            if (data.classes && data.classes.classNames) {
+                data.classes.classNames.forEach(className => {
+                    const classData = data.classes.classes[className];
+                    if (classData.methods) {
+                        classData.methods.forEach(methodName => {
+                            const docs = getMethodDocs(className, methodName);
+                            enhanceMethodItem(className, methodName, docs, classData.displayName);
+                        });
+                    }
+                });
+            }
+        }
+
+        // Enhance a specific method item in the list
+        function enhanceMethodItem(className, methodName, docs, displayName) {
+            // Find the method in the list
+            const sections = document.querySelectorAll('.class-section');
+
+            sections.forEach(section => {
+                const listItems = section.querySelectorAll('.method-list li');
+                listItems.forEach(li => {
+                    const text = li.textContent;
+
+                    // Check if this is our method
+                    const matchPatterns = [
+                        `${displayName || className}.prototype.${methodName}()`,
+                        `${className}.${methodName}()`,
+                        `Snap.${methodName}()`,
+                        `${methodName}()`
+                    ];
+
+                    const matches = matchPatterns.some(pattern => text.includes(pattern));
+
+                    if (matches) {
+                        // Extract current content
+                        const currentHTML = li.innerHTML;
+
+                        // Add signature span
+                        li.innerHTML = '<span class="method-signature">' + currentHTML + '</span>';
+
+                        // Add documentation badge
+                        const badge = document.createElement('span');
+                        badge.className = docs ? 'status-badge badge-documented' : 'status-badge badge-no-docs';
+                        badge.textContent = docs ? '📖' : '—';
+                        li.querySelector('.method-signature').appendChild(badge);
+
+                        // Add brief description if available
+                        if (docs && docs.description) {
+                            const brief = document.createElement('div');
+                            brief.className = 'method-desc-brief';
+                            // Strip outer <p> tags and truncate
+                            let desc = docs.description.replace(/^<p>/i, '').replace(/<\/p>$/i, '');
+                            if (desc.length > 150) {
+                                desc = desc.substring(0, 150) + '...';
+                            }
+                            brief.innerHTML = desc; // Use innerHTML to render HTML tags
+                            li.appendChild(brief);
+                        }
+
+                        // Add toggle hint
+                        if (docs) {
+                            const toggle = document.createElement('span');
+                            toggle.className = 'doc-toggle';
+                            toggle.textContent = 'click for docs';
+                            li.querySelector('.method-signature').appendChild(toggle);
+                        }
+
+                        // Add full documentation (hidden)
+                        if (docs) {
+                            const docsHTML = createDocsHTML(docs, methodName);
+                            li.insertAdjacentHTML('beforeend', docsHTML);
+
+                            // Add click handler
+                            li.addEventListener('click', function() {
+                                toggleDocs(this);
+                            });
+                        }
+                    }
+                });
+            });
+        }
+
+        // Main initialization
+        window.onload = async function() {
+            try {
+                // Load documentation
+                await loadDocumentation();
+
+                // Extract introspection data
+                const data = SnapIntrospection.extractAll({
+                    Snap: Snap,
+                    eve: typeof eve !== 'undefined' ? eve : undefined,
+                    mina: typeof mina !== 'undefined' ? mina : undefined
+                });
+
+                // Render with documentation
+                renderWithDocs(data);
+
+                // Log data to console
+                console.log('Snap.svg Introspection Data:', data);
+                if (docsLoaded) {
+                    console.log('Documentation loaded and integrated');
+                }
+            } catch (error) {
+                document.getElementById('content').innerHTML =
+                    SnapIntrospectionRenderer.renderError(error);
+                console.error(error);
+            }
+        };
+    </script>
+</body>
+</html>
+

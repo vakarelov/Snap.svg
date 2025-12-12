@@ -2,17 +2,18 @@
  * Copyright (c) 2018.  Orlin Vakarelov
  */
 Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
-    const hub = Snap._.hub;
-    const ID = Snap._.id;
-    const $ = Snap._.$;
-    const has = "hasOwnProperty";
-    /**
-     * Element class
-     * Wraps an SVG element with Snap methods
-     *
-     * @class Snap.Element
-     * @param {SVGElement} el Underlying DOM node.
-     */
+        const hub = Snap._.hub;
+        const ID = Snap._.id;
+        const $ = Snap._.$;
+        const has = "hasOwnProperty";
+
+        /**
+         * Element class
+         * Wraps an SVG element with Snap methods
+         *
+         * @class Snap.Element
+         * @param {SVGElement} el Underlying DOM node.
+         */
         class Element {
             constructor(el) {
                 if (el.snap in hub) {
@@ -2342,12 +2343,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * Gets or sets given attributes of the element.
          *
          * @function Snap.Element#attr
-         * @param {object} params - contains key-value pairs of attributes you want to set
-         * or
-         * @param {string} param - name of the attribute
-         * @returns {Element} the current element
-         * or
-         * @returns {string} value of attribute
+         * @param {object|string} params - If an object, contains key-value pairs of attributes to set. If a string, treated as the attribute name to get or set.
+         * @param {any} [value] - Optional. When `params` is a string, this is the value to set for the named attribute. If omitted, the attribute value is returned.
+         * @param {boolean} [force_attribute=false] - When truthy, stores the value as a presentation attribute even if it normally maps to CSS.
+         * @returns {Element|string} When setting attributes (object or string + value) returns the current Element for chaining. When retrieving (string without value) returns the attribute value.
          > Usage
          | el.attr({
          |     fill: "#fc0",
@@ -2361,7 +2360,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * (`+`, `-`, `*` and `/`) could be used. Optionally you can use units for `+`
          * and `-`: `"+=2em"`.
          */
-        elproto.attr = function (params, value) {
+        elproto.attr = function (params, value, force_attribute) {
             const el = this,
                 node = el.node;
             if (!params) {
@@ -2387,10 +2386,12 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 } else {
                     return eve(["snap", "util", "getattr", params], el).firstDefined();
                 }
+            } else if (typeof value === "boolean" && arguments.length === 2 && force_attribute === undefined) {
+                force_attribute = value;
             }
             for (let att in params) {
                 if (params[has](att)) {
-                    eve(["snap", "util", "attr", att], el, params[att]);
+                    eve(["snap", "util", "attr", att], el, params[att], !!force_attribute);
                 }
             }
             return el;
@@ -2402,6 +2403,21 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @function Snap.Element#css
          */
         elproto.css = elproto.attr;
+
+        /**
+         * Forces attributes to be written as presentation attributes instead of CSS properties.
+         *
+         * @function Snap.Element#attr_force
+         * @param {object|string} params Attribute name or map.
+         * @param {any} [value] Value to set when `params` is a string.
+         * @returns {Element} The current element for chaining.
+         */
+        elproto.attr_force = function (params, value) {
+            if (arguments.length === 1 && is(params, "string")) {
+                return this;
+            }
+            return this.attr(params, value, true);
+        };
 
         /**
          * Registers a callback to be invoked when the element is removed from the DOM.

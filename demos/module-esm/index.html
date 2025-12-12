@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Snap.svg ES Module Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            background: #0b1424;
+            color: #f5f7ff;
+            min-height: 100%;
+        }
+        body {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .demo-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(16px);
+        }
+        svg {
+            width: 320px;
+            height: 320px;
+            display: block;
+        }
+        h1 {
+            font-size: 1.25rem;
+            font-weight: 500;
+            margin: 0 0 12px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        p {
+            margin: 0 0 20px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-card">
+        <h1>Snap.svg via ES Modules</h1>
+        <p>The gradient and orbit animation below are rendered by the ESM build.</p>
+        <svg id="stage" viewBox="0 0 320 320"></svg>
+    </div>
+
+    <script type="module">
+        import Snap, { mina } from "../../dist/snap.esm.mjs";
+
+        const paper = Snap("#stage");
+        const center = { x: 160, y: 160 };
+
+        // Background gradient halo
+        const haloGradient = paper.gradient("R(160,160,80)#2dd4ff-#6b73ff");
+        paper.circle(center.x, center.y, 110).attr({
+            fill: haloGradient,
+            opacity: 0.3,
+        });
+
+        // Main planet
+        const planet = paper.circle(center.x, center.y, 60).attr({
+            fill: paper.gradient("L(100,100,220,220)#f8ffae-#43c6ac"),
+            stroke: "#ffffff",
+            strokeWidth: 4,
+            filter: paper.filter(Snap.filter.shadow(0, 0, 8, "#43c6ac", 0.35)),
+        });
+
+        const orbiter = paper.circle(center.x + 110, center.y, 12).attr({
+            fill: "#ff9ff3",
+            stroke: "#fff",
+            strokeWidth: 2,
+        });
+
+        // Animate orbit using mina easing helpers
+        function animateOrbiter(angle = 0) {
+            const duration = 4000;
+            const target = angle + 2 * Math.PI;
+            Snap.animate(angle, target, (theta) => {
+                const radius = 110;
+                orbiter.attr({
+                    cx: center.x + Math.cos(theta) * radius,
+                    cy: center.y + Math.sin(theta) * radius,
+                });
+            }, duration, mina.easeinout, () => animateOrbiter(target));
+        }
+
+        animateOrbiter();
+
+        // Expose handles for live tweaking in DevTools
+        window.SnapEsmDemo = { Snap, paper, planet, orbiter };
+    </script>
+</body>
+</html>

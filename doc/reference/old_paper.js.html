@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>old/paper.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Animation.html">Animation</a><ul class='methods'><li data-type='method'><a href="Animation.html#done">done</a></li></ul></li><li></li><li><a href="BinaryHeap.html">BinaryHeap</a></li><li></li><li></li><li></li><li><a href="NonlinTransforms.html">NonlinTransforms</a><ul class='methods'><li data-type='method'><a href="NonlinTransforms.html#bendCantilever">bendCantilever</a></li><li data-type='method'><a href="NonlinTransforms.html#bulge">bulge</a></li><li data-type='method'><a href="NonlinTransforms.html#cantilever">cantilever</a></li><li data-type='method'><a href="NonlinTransforms.html#lookAt">lookAt</a></li><li data-type='method'><a href="NonlinTransforms.html#matrix3d">matrix3d</a></li><li data-type='method'><a href="NonlinTransforms.html#mobius">mobius</a></li><li data-type='method'><a href="NonlinTransforms.html#mobiusAnchors">mobiusAnchors</a></li><li data-type='method'><a href="NonlinTransforms.html#mobiusDisk">mobiusDisk</a></li><li data-type='method'><a href="NonlinTransforms.html#mobiusUpperHalfPlane">mobiusUpperHalfPlane</a></li><li data-type='method'><a href="NonlinTransforms.html#parametrize">parametrize</a></li><li data-type='method'><a href="NonlinTransforms.html#perspective">perspective</a></li><li data-type='method'><a href="NonlinTransforms.html#radialRipple">radialRipple</a></li><li data-type='method'><a href="NonlinTransforms.html#rotate3d">rotate3d</a></li><li data-type='method'><a href="NonlinTransforms.html#rotateX">rotateX</a></li><li data-type='method'><a href="NonlinTransforms.html#rotateY">rotateY</a></li><li data-type='method'><a href="NonlinTransforms.html#rotateZ">rotateZ</a></li><li data-type='method'><a href="NonlinTransforms.html#scale3d">scale3d</a></li><li data-type='method'><a href="NonlinTransforms.html#sineWave">sineWave</a></li><li data-type='method'><a href="NonlinTransforms.html#springBend">springBend</a></li><li data-type='method'><a href="NonlinTransforms.html#translate3d">translate3d</a></li><li data-type='method'><a href="NonlinTransforms.html#twistPinch">twistPinch</a></li><li data-type='method'><a href="NonlinTransforms.html#use">use</a></li></ul></li><li></li><li><a href="Set.html">Set</a><ul class='methods'><li data-type='method'><a href="Set.html#.animate">animate</a></li><li data-type='method'><a href="Set.html#.attr">attr</a></li><li data-type='method'><a href="Set.html#.bind">bind</a></li><li data-type='method'><a href="Set.html#.clear">clear</a></li><li data-type='method'><a href="Set.html#.clone">clone</a></li><li data-type='method'><a href="Set.html#.exclude">exclude</a></li><li data-type='method'><a href="Set.html#.filter">filter</a></li><li data-type='method'><a href="Set.html#.forEach">forEach</a></li><li data-type='method'><a href="Set.html#.getBBox">getBBox</a></li><li data-type='method'><a href="Set.html#.includes">includes</a></li><li data-type='method'><a href="Set.html#.insertAfter">insertAfter</a></li><li data-type='method'><a href="Set.html#.map">map</a></li><li data-type='method'><a href="Set.html#.pop">pop</a></li><li data-type='method'><a href="Set.html#.push">push</a></li><li data-type='method'><a href="Set.html#.remove">remove</a></li><li data-type='method'><a href="Set.html#.splice">splice</a></li><li data-type='method'><a href="Set.html#.toString">toString</a></li><li data-type='method'><a href="Set.html#.values">values</a></li></ul></li><li></li><li><a href="Snap.Element.html">Element</a><ul class='methods'><li data-type='method'><a href="Snap.Element.html#.regionSelect">regionSelect</a></li><li data-type='method'><a href="Snap.Element.html#_applyToPartner">_applyToPartner</a></li><li data-type='method'><a href="Snap.Element.html#_propagateTransToPartnersChild">_propagateTransToPartnersChild</a></li><li data-type='method'><a href="Snap.Element.html#_updatePartnerChild">_updatePartnerChild</a></li><li data-type='method'><a href="Snap.Element.html#add">add</a></li><li data-type='method'><a href="Snap.Element.html#addClickEvent">addClickEvent</a></li><li data-type='method'><a href="Snap.Element.html#addHoldEvent">addHoldEvent</a></li><li data-type='method'><a href="Snap.Element.html#addInteractionEvent">addInteractionEvent</a></li><li data-type='method'><a href="Snap.Element.html#addLongpressEvent">addLongpressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addMessage">addMessage</a></li><li data-type='method'><a href="Snap.Element.html#addPressEvent">addPressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addStop">addStop</a></li><li data-type='method'><a href="Snap.Element.html#addTransform">addTransform</a></li><li data-type='method'><a href="Snap.Element.html#after">after</a></li><li data-type='method'><a href="Snap.Element.html#anchorEmbed">anchorEmbed</a></li><li data-type='method'><a href="Snap.Element.html#animateGenTransform">animateGenTransform</a></li><li data-type='method'><a href="Snap.Element.html#animateGenTransformBuffered">animateGenTransformBuffered</a></li><li data-type='method'><a href="Snap.Element.html#animateOnPath">animateOnPath</a></li><li data-type='method'><a href="Snap.Element.html#animateOnPathAbsolute">animateOnPathAbsolute</a></li><li data-type='method'><a href="Snap.Element.html#animateTransform">animateTransform</a></li><li data-type='method'><a href="Snap.Element.html#appendTo">appendTo</a></li><li data-type='method'><a href="Snap.Element.html#asPX">asPX</a></li><li data-type='method'><a href="Snap.Element.html#attr">attr</a></li><li data-type='method'><a href="Snap.Element.html#attr_force">attr_force</a></li><li data-type='method'><a href="Snap.Element.html#attrMonitor">attrMonitor</a></li><li data-type='method'><a href="Snap.Element.html#attrs">attrs</a></li><li data-type='method'><a href="Snap.Element.html#before">before</a></li><li data-type='method'><a href="Snap.Element.html#centerOfMass">centerOfMass</a></li><li data-type='method'><a href="Snap.Element.html#centerRotation">centerRotation</a></li><li data-type='method'><a href="Snap.Element.html#children">children</a></li><li data-type='method'><a href="Snap.Element.html#cleanupAfterRemove">cleanupAfterRemove</a></li><li data-type='method'><a href="Snap.Element.html#clear">clear</a></li><li data-type='method'><a href="Snap.Element.html#clearCHull">clearCHull</a></li><li data-type='method'><a href="Snap.Element.html#clone">clone</a></li><li data-type='method'><a href="Snap.Element.html#closest">closest</a></li><li data-type='method'><a href="Snap.Element.html#copyComStyle">copyComStyle</a></li><li data-type='method'><a href="Snap.Element.html#correctScale">correctScale</a></li><li data-type='method'><a href="Snap.Element.html#createClipPath">createClipPath</a></li><li data-type='method'><a href="Snap.Element.html#createMask">createMask</a></li><li data-type='method'><a href="Snap.Element.html#css">css</a></li><li data-type='method'><a href="Snap.Element.html#distanceTo">distanceTo</a></li><li data-type='method'><a href="Snap.Element.html#ellipseTransform">ellipseTransform</a></li><li data-type='method'><a href="Snap.Element.html#eraseBBoxCache">eraseBBoxCache</a></li><li data-type='method'><a href="Snap.Element.html#eraseParentBBoxCache">eraseParentBBoxCache</a></li><li data-type='method'><a href="Snap.Element.html#expandParenBBoxCatch">expandParenBBoxCatch</a></li><li data-type='method'><a href="Snap.Element.html#fillImage">fillImage</a></li><li data-type='method'><a href="Snap.Element.html#fillInBox">fillInBox</a></li><li data-type='method'><a href="Snap.Element.html#fitInBox">fitInBox</a></li><li data-type='method'><a href="Snap.Element.html#flatten">flatten</a></li><li data-type='method'><a href="Snap.Element.html#forEach">forEach</a></li><li data-type='method'><a href="Snap.Element.html#foreignObjectNormalize">foreignObjectNormalize</a></li><li data-type='method'><a href="Snap.Element.html#g_a">g_a</a></li><li data-type='method'><a href="Snap.Element.html#getAttributes">getAttributes</a></li><li data-type='method'><a href="Snap.Element.html#getBBox">getBBox</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxApprox">getBBoxApprox</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxExact">getBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxRot">getBBoxRot</a></li><li data-type='method'><a href="Snap.Element.html#getBitmap">getBitmap</a></li><li data-type='method'><a href="Snap.Element.html#getCanvasOverly">getCanvasOverly</a></li><li data-type='method'><a href="Snap.Element.html#getCHull">getCHull</a></li><li data-type='method'><a href="Snap.Element.html#getClientHeight">getClientHeight</a></li><li data-type='method'><a href="Snap.Element.html#getClientWidth">getClientWidth</a></li><li data-type='method'><a href="Snap.Element.html#getCoordMatrix">getCoordMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getCursorPoint">getCursorPoint</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLine">getDirectionLine</a></li><li data-type='method'><a href="Snap.Element.html#getFirstPoint">getFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#getFromScreenDistance">getFromScreenDistance</a></li><li data-type='method'><a href="Snap.Element.html#getGeometryAttr">getGeometryAttr</a></li><li data-type='method'><a href="Snap.Element.html#getGlobalMatrix">getGlobalMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getId">getId</a></li><li data-type='method'><a href="Snap.Element.html#getLastPoint">getLastPoint</a></li><li data-type='method'><a href="Snap.Element.html#getLeafs">getLeafs</a></li><li data-type='method'><a href="Snap.Element.html#getLocalMatrix">getLocalMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getParentChain">getParentChain</a></li><li data-type='method'><a href="Snap.Element.html#getPartners">getPartners</a></li><li data-type='method'><a href="Snap.Element.html#getPoints">getPoints</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBox">getRealBBox</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBoxExact">getRealBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getReferringToMe">getReferringToMe</a></li><li data-type='method'><a href="Snap.Element.html#getStyle">getStyle</a></li><li data-type='method'><a href="Snap.Element.html#getTopSVG">getTopSVG</a></li><li data-type='method'><a href="Snap.Element.html#getUseTarget">getUseTarget</a></li><li data-type='method'><a href="Snap.Element.html#globalToLocal">globalToLocal</a></li><li data-type='method'><a href="Snap.Element.html#group">group</a></li><li data-type='method'><a href="Snap.Element.html#hasChildren">hasChildren</a></li><li data-type='method'><a href="Snap.Element.html#hasPartner">hasPartner</a></li><li data-type='method'><a href="Snap.Element.html#hide">hide</a></li><li data-type='method'><a href="Snap.Element.html#hideSlowly">hideSlowly</a></li><li data-type='method'><a href="Snap.Element.html#innerSVG">innerSVG</a></li><li data-type='method'><a href="Snap.Element.html#insertAfter">insertAfter</a></li><li data-type='method'><a href="Snap.Element.html#insertBefore">insertBefore</a></li><li data-type='method'><a href="Snap.Element.html#isAbove">isAbove</a></li><li data-type='method'><a href="Snap.Element.html#isBelow">isBelow</a></li><li data-type='method'><a href="Snap.Element.html#isChildOf">isChildOf</a></li><li data-type='method'><a href="Snap.Element.html#isClockwise">isClockwise</a></li><li data-type='method'><a href="Snap.Element.html#isElliptical">isElliptical</a></li><li data-type='method'><a href="Snap.Element.html#isGroupLike">isGroupLike</a></li><li data-type='method'><a href="Snap.Element.html#isInRect">isInRect</a></li><li data-type='method'><a href="Snap.Element.html#isLocal">isLocal</a></li><li data-type='method'><a href="Snap.Element.html#isOverlap">isOverlap</a></li><li data-type='method'><a href="Snap.Element.html#isOverlapRect">isOverlapRect</a></li><li data-type='method'><a href="Snap.Element.html#isParentOf">isParentOf</a></li><li data-type='method'><a href="Snap.Element.html#isRectangular">isRectangular</a></li><li data-type='method'><a href="Snap.Element.html#jiggle">jiggle</a></li><li data-type='method'><a href="Snap.Element.html#linkedElementLocalise">linkedElementLocalise</a></li><li data-type='method'><a href="Snap.Element.html#localOnly">localOnly</a></li><li data-type='method'><a href="Snap.Element.html#makeDraggable">makeDraggable</a></li><li data-type='method'><a href="Snap.Element.html#makePath">makePath</a></li><li data-type='method'><a href="Snap.Element.html#marker">marker</a></li><li data-type='method'><a href="Snap.Element.html#move">move</a></li><li data-type='method'><a href="Snap.Element.html#moveAttrToStyle">moveAttrToStyle</a></li><li data-type='method'><a href="Snap.Element.html#parent">parent</a></li><li data-type='method'><a href="Snap.Element.html#pathFirstPoint">pathFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#prepend">prepend</a></li><li data-type='method'><a href="Snap.Element.html#prependTo">prependTo</a></li><li data-type='method'><a href="Snap.Element.html#propagateTransform">propagateTransform</a></li><li data-type='method'><a href="Snap.Element.html#rasterize">rasterize</a></li><li data-type='method'><a href="Snap.Element.html#readChanges">readChanges</a></li><li data-type='method'><a href="Snap.Element.html#recordChange">recordChange</a></li><li data-type='method'><a href="Snap.Element.html#reflect">reflect</a></li><li data-type='method'><a href="Snap.Element.html#registerRemoveFunction">registerRemoveFunction</a></li><li data-type='method'><a href="Snap.Element.html#remove">remove</a></li><li data-type='method'><a href="Snap.Element.html#removeChildren">removeChildren</a></li><li data-type='method'><a href="Snap.Element.html#removeData">removeData</a></li><li data-type='method'><a href="Snap.Element.html#removeMessage">removeMessage</a></li><li data-type='method'><a href="Snap.Element.html#removePartner">removePartner</a></li><li data-type='method'><a href="Snap.Element.html#removeSlowly">removeSlowly</a></li><li data-type='method'><a href="Snap.Element.html#removeUses">removeUses</a></li><li data-type='method'><a href="Snap.Element.html#repositionInGroup">repositionInGroup</a></li><li data-type='method'><a href="Snap.Element.html#revolve">revolve</a></li><li data-type='method'><a href="Snap.Element.html#rotate">rotate</a></li><li data-type='method'><a href="Snap.Element.html#saveMatrix">saveMatrix</a></li><li data-type='method'><a href="Snap.Element.html#scale">scale</a></li><li data-type='method'><a href="Snap.Element.html#select">select</a></li><li data-type='method'><a href="Snap.Element.html#selectAll">selectAll</a></li><li data-type='method'><a href="Snap.Element.html#selectParent">selectParent</a></li><li data-type='method'><a href="Snap.Element.html#setCursor">setCursor</a></li><li data-type='method'><a href="Snap.Element.html#setFirstPoint">setFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#setIdFollowRefs">setIdFollowRefs</a></li><li data-type='method'><a href="Snap.Element.html#setPaper">setPaper</a></li><li data-type='method'><a href="Snap.Element.html#setPartner">setPartner</a></li><li data-type='method'><a href="Snap.Element.html#setPartnerStyle">setPartnerStyle</a></li><li data-type='method'><a href="Snap.Element.html#setStops">setStops</a></li><li data-type='method'><a href="Snap.Element.html#setStyle">setStyle</a></li><li data-type='method'><a href="Snap.Element.html#show">show</a></li><li data-type='method'><a href="Snap.Element.html#showSlowly">showSlowly</a></li><li data-type='method'><a href="Snap.Element.html#stops">stops</a></li><li data-type='method'><a href="Snap.Element.html#svgEncapsulate">svgEncapsulate</a></li><li data-type='method'><a href="Snap.Element.html#svgEncapsulateBox">svgEncapsulateBox</a></li><li data-type='method'><a href="Snap.Element.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Element.html#toDefs">toDefs</a></li><li data-type='method'><a href="Snap.Element.html#toJSON">toJSON</a></li><li data-type='method'><a href="Snap.Element.html#toPattern">toPattern</a></li><li data-type='method'><a href="Snap.Element.html#toPolyBezier">toPolyBezier</a></li><li data-type='method'><a href="Snap.Element.html#transform">transform</a></li><li data-type='method'><a href="Snap.Element.html#translate">translate</a></li><li data-type='method'><a href="Snap.Element.html#translate_glob">translate_glob</a></li><li data-type='method'><a href="Snap.Element.html#translateAnimate">translateAnimate</a></li><li data-type='method'><a href="Snap.Element.html#transparentToMouse">transparentToMouse</a></li><li data-type='method'><a href="Snap.Element.html#transToMatrix">transToMatrix</a></li><li data-type='method'><a href="Snap.Element.html#updateBBoxCache">updateBBoxCache</a></li><li data-type='method'><a href="Snap.Element.html#use">use</a></li><li data-type='method'><a href="Snap.Element.html#a">a</a></li><li data-type='method'><a href="Snap.Element.html#arcFan">arcFan</a></li><li data-type='method'><a href="Snap.Element.html#borderImage">borderImage</a></li><li data-type='method'><a href="Snap.Element.html#button">button</a></li><li data-type='method'><a href="Snap.Element.html#canvas">canvas</a></li><li data-type='method'><a href="Snap.Element.html#circle">circle</a></li><li data-type='method'><a href="Snap.Element.html#circleCentPoint">circleCentPoint</a></li><li data-type='method'><a href="Snap.Element.html#circleThreePoints">circleThreePoints</a></li><li data-type='method'><a href="Snap.Element.html#circleTwoPoints">circleTwoPoints</a></li><li data-type='method'><a href="Snap.Element.html#clipPath">clipPath</a></li><li data-type='method'><a href="Snap.Element.html#disk">disk</a></li><li data-type='method'><a href="Snap.Element.html#diskSegments">diskSegments</a></li><li data-type='method'><a href="Snap.Element.html#ellipseFromEquation">ellipseFromEquation</a></li><li data-type='method'><a href="Snap.Element.html#embeddedSVG">embeddedSVG</a></li><li data-type='method'><a href="Snap.Element.html#foreignObject">foreignObject</a></li><li data-type='method'><a href="Snap.Element.html#grid">grid</a></li><li data-type='method'><a href="Snap.Element.html#htmlInsert">htmlInsert</a></li><li data-type='method'><a href="Snap.Element.html#multilineText">multilineText</a></li><li data-type='method'><a href="Snap.Element.html#zigzag">zigzag</a></li></ul></li><li></li><li><a href="Snap.Fragment.html">Fragment</a></li><li></li><li><a href="Snap.html#.Matrix">Matrix</a><ul class='methods'><li data-type='method'><a href="Snap.html#.Matrix#.combine">combine</a></li><li data-type='method'><a href="Snap.html#.Matrix#.random">random</a></li><li data-type='method'><a href="Snap.html#.Matrix#add">add</a></li><li data-type='method'><a href="Snap.html#.Matrix#apply">apply</a></li><li data-type='method'><a href="Snap.html#.Matrix#clone">clone</a></li><li data-type='method'><a href="Snap.html#.Matrix#determinant">determinant</a></li><li data-type='method'><a href="Snap.html#.Matrix#equals">equals</a></li><li data-type='method'><a href="Snap.html#.Matrix#get">get</a></li><li data-type='method'><a href="Snap.html#.Matrix#invert">invert</a></li><li data-type='method'><a href="Snap.html#.Matrix#isIdentity">isIdentity</a></li><li data-type='method'><a href="Snap.html#.Matrix#isMatrix">isMatrix</a></li><li data-type='method'><a href="Snap.html#.Matrix#lusolve">lusolve</a></li><li data-type='method'><a href="Snap.html#.Matrix#multLeft">multLeft</a></li><li data-type='method'><a href="Snap.html#.Matrix#multRight">multRight</a></li><li data-type='method'><a href="Snap.html#.Matrix#offset">offset</a></li><li data-type='method'><a href="Snap.html#.Matrix#plus">plus</a></li><li data-type='method'><a href="Snap.html#.Matrix#randomTrans">randomTrans</a></li><li data-type='method'><a href="Snap.html#.Matrix#rotate">rotate</a></li><li data-type='method'><a href="Snap.html#.Matrix#rotScaleSplit">rotScaleSplit</a></li><li data-type='method'><a href="Snap.html#.Matrix#scale">scale</a></li><li data-type='method'><a href="Snap.html#.Matrix#scMult">scMult</a></li><li data-type='method'><a href="Snap.html#.Matrix#skew">skew</a></li><li data-type='method'><a href="Snap.html#.Matrix#skewX">skewX</a></li><li data-type='method'><a href="Snap.html#.Matrix#skewY">skewY</a></li><li data-type='method'><a href="Snap.html#.Matrix#split">split</a></li><li data-type='method'><a href="Snap.html#.Matrix#split2">split2</a></li><li data-type='method'><a href="Snap.html#.Matrix#timesSc">timesSc</a></li><li data-type='method'><a href="Snap.html#.Matrix#toArray">toArray</a></li><li data-type='method'><a href="Snap.html#.Matrix#toString">toString</a></li><li data-type='method'><a href="Snap.html#.Matrix#toTransformString">toTransformString</a></li><li data-type='method'><a href="Snap.html#.Matrix#translate">translate</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransform">twoPointTransform</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransformMatrix">twoPointTransformMatrix</a></li><li data-type='method'><a href="Snap.html#.Matrix#x">x</a></li><li data-type='method'><a href="Snap.html#.Matrix#y">y</a></li></ul></li><li><a href="Snap.Paper.html">Paper</a><ul class='methods'><li data-type='method'><a href="Snap.Paper.html#animate">animate</a></li><li data-type='method'><a href="Snap.Paper.html#animateMotion">animateMotion</a></li><li data-type='method'><a href="Snap.Paper.html#circle">circle</a></li><li data-type='method'><a href="Snap.Paper.html#clear">clear</a></li><li data-type='method'><a href="Snap.Paper.html#ellipse">ellipse</a></li><li data-type='method'><a href="Snap.Paper.html#g">g</a></li><li data-type='method'><a href="Snap.Paper.html#gradient">gradient</a></li><li data-type='method'><a href="Snap.Paper.html#gradientLinear">gradientLinear</a></li><li data-type='method'><a href="Snap.Paper.html#gradientRadial">gradientRadial</a></li><li data-type='method'><a href="Snap.Paper.html#image">image</a></li><li data-type='method'><a href="Snap.Paper.html#line">line</a></li><li data-type='method'><a href="Snap.Paper.html#mask">mask</a></li><li data-type='method'><a href="Snap.Paper.html#mpath">mpath</a></li><li data-type='method'><a href="Snap.Paper.html#path">path</a></li><li data-type='method'><a href="Snap.Paper.html#polygon">polygon</a></li><li data-type='method'><a href="Snap.Paper.html#polyline">polyline</a></li><li data-type='method'><a href="Snap.Paper.html#ptrn">ptrn</a></li><li data-type='method'><a href="Snap.Paper.html#rect">rect</a></li><li data-type='method'><a href="Snap.Paper.html#svg">svg</a></li><li data-type='method'><a href="Snap.Paper.html#symbol">symbol</a></li><li data-type='method'><a href="Snap.Paper.html#text">text</a></li><li data-type='method'><a href="Snap.Paper.html#textPath">textPath</a></li><li data-type='method'><a href="Snap.Paper.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Paper.html#toString">toString</a></li><li data-type='method'><a href="Snap.Paper.html#use">use</a></li><li data-type='method'><a href="Snap.Paper.html#addExtension">addExtension</a></li><li data-type='method'><a href="Snap.Paper.html#measureText">measureText</a></li><li data-type='method'><a href="Snap.Paper.html#point">point</a></li><li data-type='method'><a href="Snap.Paper.html#processExtensions">processExtensions</a></li><li data-type='method'><a href="Snap.Paper.html#textInputBox">textInputBox</a></li></ul></li><li></li><li><a href="SnapComplex.html">SnapComplex</a><ul class='methods'><li data-type='method'><a href="SnapComplex.html#.absSq">absSq</a></li><li data-type='method'><a href="SnapComplex.html#.add">add</a></li><li data-type='method'><a href="SnapComplex.html#.conj">conj</a></li><li data-type='method'><a href="SnapComplex.html#.div">div</a></li><li data-type='method'><a href="SnapComplex.html#.equals">equals</a></li><li data-type='method'><a href="SnapComplex.html#.from">from</a></li><li data-type='method'><a href="SnapComplex.html#.fromPoint">fromPoint</a></li><li data-type='method'><a href="SnapComplex.html#.isZero">isZero</a></li><li data-type='method'><a href="SnapComplex.html#.mul">mul</a></li><li data-type='method'><a href="SnapComplex.html#.neg">neg</a></li><li data-type='method'><a href="SnapComplex.html#.normalizeCoefficients">normalizeCoefficients</a></li><li data-type='method'><a href="SnapComplex.html#.scale">scale</a></li><li data-type='method'><a href="SnapComplex.html#.sub">sub</a></li></ul></li><li><a href="Snap.Set.html">Set</a></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li></ul><h3>Events</h3><ul><li><a href="snap.util.html#.event:equal">equal</a></li><li></li></ul><h3>Namespaces</h3><ul><li><a href="Matrix.gen.html">gen</a></li><li></li><li><a href="Snap.bbox.html">bbox</a></li><li><a href="Snap.polygons.html">polygons</a><ul class='methods'><li data-type='method'><a href="Snap.polygons.html#.findPointInsidePolygon">findPointInsidePolygon</a></li><li data-type='method'><a href="Snap.polygons.html#.intersect">intersect</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonArea">polygonArea</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonCentroid">polygonCentroid</a></li></ul></li><li></li><li></li></ul><h3>Global</h3><ul><li><a href="global.html#Checksifthegiveneventisregisteredwiththegivenfunction.">Checks if the given event is registered with the given function.</a></li><li><a href="global.html#compareInt">compareInt</a></li><li><a href="global.html#getLengthFactory">getLengthFactory</a></li><li><a href="global.html#O">O</a></li><li><a href="global.html#reverse_seg">reverse_seg</a></li><li><a href="global.html#Snap.Element#dataSeealso@Element.removeData">Snap.Element#dataSee also @Element.removeData</a></li><li><a href="global.html#Snap.Element#outerSVGSeealso@Element.innerSVG">Snap.Element#outerSVGSee also @Element.innerSVG</a></li><li><a href="global.html#Snap.Element#toStringSee@Element.outerSVG">Snap.Element#toStringSee @Element.outerSVG</a></li><li><a href="global.html#voronoi">voronoi</a></li><li><a href="global.html#voronoi1D">voronoi1D</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">old/paper.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// Copyright (c) 2013 Adobe Systems Incorporated. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
+    var proto = Paper.prototype,
+        is = Snap.is;
+    /**
+     * Draws a rectangle on the paper.
+     *
+     * @function Snap.Paper#rect
+     * @param {number} x X coordinate of the top-left corner.
+     * @param {number} y Y coordinate of the top-left corner.
+     * @param {number} width Rectangle width.
+     * @param {number} height Rectangle height.
+     * @param {number|Array.&lt;number>} [rx] Horizontal radius for rounded corners, or an `[rx, ry]` pair.
+     * @param {number} [ry] Vertical radius for rounded corners; defaults to `rx` when omitted.
+     * @param {Object} [attr] Attribute map applied to the created element.
+     * @returns {Snap.Element} The rectangle element.
+     * @example
+     * // Regular rectangle
+     * paper.rect(10, 10, 50, 50);
+     *
+     * // Rectangle with rounded corners
+     * paper.rect(40, 40, 50, 50, 10);
+     */
+    proto.rect = function (x, y, w, h, rx, ry, attr) {
+        if (is(rx, "object") &amp;&amp; !Array.isArray(rx)) {
+            attr = rx;
+            rx = ry = undefined
+        }
+        if (is(ry, "object")) {
+            attr = ry;
+            ry = undefined
+        }
+        if (ry == null) {
+            ry = rx;
+        }
+        attr = attr || {};
+        if (is(x, "object") &amp;&amp; x == "[object Object]") {
+            attr = x;
+        } else if (x != null) {
+            attr = Object.assign(attr, {
+                x: x,
+                y: y,
+                width: w,
+                height: h
+            });
+            if (rx != null) {
+                if (Array.isArray(rx)) {
+                    ry = rx[1];
+                    rx = rx[0];
+                }
+                attr.rx = rx;
+                attr.ry = ry;
+            }
+        }
+        return this.el("rect", attr);
+    };
+
+    /**
+     * Draws a circle.
+     *
+     * @function Snap.Paper#circle
+     * @param {number} x X coordinate of the centre.
+     * @param {number} y Y coordinate of the centre.
+     * @param {number} r Circle radius.
+     * @param {Object} [attr] Attribute map for the circle element.
+     * @returns {Snap.Element} The circle element.
+     * @example
+     * paper.circle(50, 50, 40);
+     */
+    proto.circle = function (cx, cy, r, attr) {
+        if (is(cx, "object") &amp;&amp; cx == "[object Object]") {
+            attr = cx;
+        } else if (cx != null) {
+            attr = attr || {};
+            attr = Object.assign(attr, {
+                cx: cx,
+                cy: cy,
+                r: r
+            });
+        }
+        return this.el("circle", attr);
+    };
+    var preload = (function () {
+        function onerror() {
+            this.parentNode.removeChild(this);
+        }
+
+        return function (src, f) {
+            var img = glob.doc.createElement("img"),
+                body = glob.doc.body;
+            img.style.cssText = "position:absolute;left:-9999em;top:-9999em";
+            img.onload = function () {
+                f.call(img);
+                img.onload = img.onerror = null;
+                body.removeChild(img);
+            };
+            img.onerror = onerror;
+            body.appendChild(img);
+            img.src = src;
+        };
+    }());
+
+    /**
+     * Places an image on the surface.
+     *
+     * @function Snap.Paper#image
+     * @param {string|Object} src Image URL or attribute map containing at least a `src` property.
+     * @param {number} [x] Horizontal offset on the paper.
+     * @param {number} [y] Vertical offset on the paper.
+     * @param {number} [width] Image width.
+     * @param {number} [height] Image height.
+     * @param {Object} [attr] Additional attributes applied to the element.
+     * @returns {Snap.Element} The image element.
+     * @example
+     * paper.image("apple.png", 10, 10, 80, 80);
+     */
+    proto.image = function (src, x, y, width, height, attr) {
+        var el = this.el("image");
+        if (is(src, "object") &amp;&amp; "src" in src) {
+            el.attr(src);
+        } else if (src != null) {
+            var set = {
+                "xlink:href": src,
+                preserveAspectRatio: "none"
+            };
+            if (x != null &amp;&amp; y != null) {
+                set.x = x;
+                set.y = y;
+            }
+            if (width != null &amp;&amp; height != null) {
+                set.width = width;
+                set.height = height;
+            } else {
+                preload(src, function () {
+                    Snap._.$(el.node, {
+                        width: this.offsetWidth,
+                        height: this.offsetHeight
+                    });
+                });
+            }
+            Snap._.$(el.node, set);
+            if (attr) el.attr(attr);
+        }
+
+        return el;
+    };
+    /**
+     * Draws an ellipse.
+     *
+     * @function Snap.Paper#ellipse
+     * @param {number} x X coordinate of the centre.
+     * @param {number} y Y coordinate of the centre.
+     * @param {number} rx Horizontal radius.
+     * @param {number} ry Vertical radius.
+     * @param {Object} [attr] Attribute map for the element.
+     * @returns {Snap.Element} The ellipse element.
+     * @example
+     * paper.ellipse(50, 50, 40, 20);
+     */
+    proto.ellipse = function (cx, cy, rx, ry, attr) {
+        if (is(cx, "object") &amp;&amp; cx == "[object Object]") {
+            attr = cx;
+        } else if (cx != null) {
+            attr = attr || {};
+            attr = Object.assign(attr, {
+                cx: cx,
+                cy: cy,
+                rx: rx,
+                ry: ry
+            });
+        }
+        return this.el("ellipse", attr);
+    };
+// SIERRA Paper.path(): Unclear from the link what a Catmull-Rom curveto is, and why it would make life any easier.
+    /**
+     * Creates a `&lt;path>` element using the provided SVG path data string.
+     * The path data follows standard SVG syntax where single-letter commands are followed by
+     * comma- or space-separated numeric arguments (for example, `"M10,20L30,40"`).
+     *
+     * @function Snap.Paper#path
+     * @param {(string|Array|Object)} [pathString] SVG path string, an array of segments, or an
+     *        attribute map applied to the created element.
+     * @returns {Snap.Element} The resulting path element.
+     * @see &lt;a href="http://www.w3.org/TR/SVG/paths.html#PathData">SVG path specification&lt;/a>
+     * @see &lt;a href="https://developer.mozilla.org/en/SVG/Tutorial/Paths">MDN path tutorial&lt;/a>
+     * @example
+     * // Draw a diagonal line
+     * paper.path("M10 10L90 90");
+     */
+    proto.path = function (d, attr) {
+        attr = attr || {};
+        if (is(d, "object") &amp;&amp; !is(d, "array")) {
+            attr = Object.assign(attr, d);
+        } else if (d) {
+            attr['d'] = d;
+        }
+        return this.el("path", attr);
+    };
+    /**
+     * Creates an SVG `&lt;g>` element on the paper and optionally nests the supplied elements within it.
+     * The last argument may be an attribute map applied to the created group.
+     *
+     * @function Snap.Paper#g
+     * @alias Snap.Paper#def_group
+     * @param {...any} elements Elements to append to the group. When the final argument
+     *        is a plain object without `type` or `paper` properties, it is treated as the attribute map.
+     * @returns {Snap.Element} The group element.
+     * @example
+     * const circle = paper.circle(10, 10, 5);
+     * const rect = paper.rect(0, 0, 20, 20);
+     * paper.g(circle, rect);
+     */
+    proto.def_group = proto.g = function () {
+        var attr,
+            el = this.el("g");
+
+        var last = (arguments.length) ? arguments[arguments.length - 1] : undefined;
+        if (last &amp;&amp; is(last, "object") &amp;&amp; !last.type &amp;&amp; !last.paper) {
+            attr = last
+        }
+
+        if (arguments.length) {
+            var end = (attr) ? -1 : undefined;
+            el.add(Array.prototype.slice.call(arguments, 0, end));
+        }
+
+        if (attr) el.attr(attr);
+
+        return el;
+    };
+    /**
+     * Creates a nested `&lt;svg>` element.
+     *
+     * @function Snap.Paper#svg
+     * @param {number} [x] X coordinate of the embedded SVG.
+     * @param {number} [y] Y coordinate of the embedded SVG.
+     * @param {number|string} [width] Viewport width.
+     * @param {number|string} [height] Viewport height.
+     * @param {number} [vbx] ViewBox x origin.
+     * @param {number} [vby] ViewBox y origin.
+     * @param {number} [vbw] ViewBox width.
+     * @param {number} [vbh] ViewBox height.
+     * @returns {Snap.Element} The nested SVG element.
+     */
+    proto.svg = function (x, y, width, height, vbx, vby, vbw, vbh) {
+        var attrs = {};
+        if (is(x, "object") &amp;&amp; y == null) {
+            attrs = x;
+        } else {
+            if (x != null) {
+                attrs.x = x;
+            }
+            if (y != null) {
+                attrs.y = y;
+            }
+            if (width != null) {
+                attrs.width = width;
+            }
+            if (height != null) {
+                attrs.height = height;
+            }
+            if (vbx != null &amp;&amp; vby != null &amp;&amp; vbw != null &amp;&amp; vbh != null) {
+                attrs.viewBox = [vbx, vby, vbw, vbh];
+            }
+        }
+        return this.el("svg", attrs);
+    };
+    proto.svg.skip = true;
+    /**
+     * Creates an SVG `&lt;mask>` element, mirroring the behaviour of {@link Snap.Paper#g}.
+     * When a single plain object is supplied, it is treated as the attribute map; otherwise all
+     * parameters are added to the mask as children.
+     *
+     * @function Snap.Paper#mask
+     * @param {...any} nodes Elements to include in the mask or a terminating attribute map.
+     * @returns {Snap.Element} The mask element.
+     */
+    proto.mask = function (first) {
+        var attr,
+            el = this.el("mask");
+        if (arguments.length == 1 &amp;&amp; first &amp;&amp; !first.type) {
+            el.attr(first);
+        } else if (arguments.length) {
+            el.add(Array.prototype.slice.call(arguments, 0));
+        }
+        return el;
+    };
+    /**
+     * Creates an SVG `&lt;pattern>` element, optionally configuring its position, size, and viewBox.
+     *
+     * @function Snap.Paper#ptrn
+     * @param {number} [x] X coordinate of the pattern.
+     * @param {number} [y] Y coordinate of the pattern.
+     * @param {number} [width] Width of the pattern tile.
+     * @param {number} [height] Height of the pattern tile.
+     * @param {number} [vx] ViewBox x origin.
+     * @param {number} [vy] ViewBox y origin.
+     * @param {number} [vw] ViewBox width.
+     * @param {number} [vh] ViewBox height.
+     * @param {Object} [attr] Attribute map applied to the pattern.
+     * @returns {Snap.Element} The pattern element.
+     */
+    proto.ptrn = function (x, y, width, height, vx, vy, vw, vh, attr) {
+        attr = arguments(arguments.length - 1);
+        if (!is(attr, "object")) attr = {};
+        if (is(x, "object")) {
+            attr = x;
+        } else {
+            attr.patternUnits = "userSpaceOnUse";
+            if (x) {
+                attr.x = x;
+            }
+            if (y) {
+                attr.y = y;
+            }
+            if (width != null) {
+                attr.width = width;
+            }
+            if (height != null) {
+                attr.height = height;
+            }
+            if (vx != null &amp;&amp; vy != null &amp;&amp; vw != null &amp;&amp; vh != null) {
+                attr.viewBox = [vx, vy, vw, vh];
+            } else {
+                attr.viewBox = [x || 0, y || 0, width || 0, height || 0];
+            }
+        }
+        return this.el("pattern", attr);
+    };
+    /**
+     * Creates an SVG `&lt;use>` element referencing an existing symbol or node.
+     *
+     * @function Snap.Paper#use
+     * @param {(string|Snap.Element|Object)} [id] ID of the element to reference, the element itself,
+     *        or an attribute map containing an `id` property. When omitted the method defers to the
+     *        {@link Snap.Element#use} behaviour.
+     * @param {Object} [attr] Additional attributes applied to the `&lt;use>` element.
+     * @returns {Snap.Element} The `&lt;use>` element.
+     */
+    proto.use = function (id, attr) {
+        if (id != null) {
+            if (id instanceof Element) {
+                if (!id.attr("id")) {
+                    id.attr({id: Snap._.id(id)});
+                }
+                id = id.attr("id");
+            } else if (is(id, "object")) {
+                attr = id;
+                id = attr.id;
+            }
+            if (String(id).charAt() == "#") {
+                id = id.substring(1);
+            }
+            attr = attr || {};
+
+            attr["href"] = "#" + id;
+            return this.el("use", attr);
+        } else {
+            return Element.prototype.use.call(this);
+        }
+    };
+    proto.use.skip = true;
+
+    /**
+     * Creates an SVG `&lt;symbol>` element.
+     *
+     * @function Snap.Paper#symbol
+     * @param {number} [vbx] ViewBox x origin.
+     * @param {number} [vby] ViewBox y origin.
+     * @param {number} [vbw] ViewBox width.
+     * @param {number} [vbh] ViewBox height.
+     * @param {Object} [attr] Additional attributes applied to the symbol.
+     * @returns {Snap.Element} The symbol element.
+     */
+    proto.symbol = function (vx, vy, vw, vh, attr) {
+        attr = attr || {};
+        if (vx != null &amp;&amp; vy != null &amp;&amp; vw != null &amp;&amp; vh != null) {
+            attr.viewBox = [vx, vy, vw, vh];
+        }
+
+        return this.el("symbol", attr);
+    };
+    /**
+     * Draws a text string.
+     *
+     * @function Snap.Paper#text
+     * @param {number} x X coordinate of the baseline origin.
+     * @param {number} y Y coordinate of the baseline origin.
+     * @param {(string|Array.&lt;string>)} text Text content or an array of strings that become nested `&lt;tspan>` elements.
+     * @param {Object} [attr] Attribute map for the text element.
+     * @returns {Snap.Element} The text element.
+     * @example
+     * const label = paper.text(50, 50, "Snap");
+     * label.attr({textpath: "M10,10L100,100"});
+     */
+    proto.text = function (x, y, text, attr) {
+        attr = attr || {};
+        if (is(x, "object")) {
+            attr = x;
+        } else if (x != null) {
+            attr = Object.assign(attr, {
+                x: x,
+                y: y,
+                text: text || ""
+            });
+        }
+        return this.el("text", attr);
+    };
+    /**
+     * Draws a line segment between two points.
+     *
+     * @function Snap.Paper#line
+     * @param {number} x1 Start point X coordinate.
+     * @param {number} y1 Start point Y coordinate.
+     * @param {number} x2 End point X coordinate.
+     * @param {number} y2 End point Y coordinate.
+     * @param {Object} [attr] Attribute map for the line element.
+     * @returns {Snap.Element} The line element.
+     */
+    proto.line = function (x1, y1, x2, y2, attr) {
+        attr = attr || {};
+        if (is(x1, "object")) {
+            attr = x1;
+        } else if (x1 != null) {
+            attr = Object.assign(attr, {
+                x1: x1,
+                x2: x2,
+                y1: y1,
+                y2: y2
+            });
+        }
+        return this.el("line", attr);
+    };
+
+    function point_args(args) {
+        let points, attr;
+        if (args.length) {
+            points = Array.prototype.slice.call(args, 0);
+            const last = points[points.length - 1];
+            if (is(last, "object") &amp;&amp; !Array.isArray(last)) {
+                attr = points.pop();
+            } else {
+                attr = {};
+            }
+            if (points.length === 1 &amp;&amp; Array.isArray(points[0])) {
+                points = points[0];
+            }
+        }
+
+        if (points != null) {
+            attr = attr || {};
+            attr.points = points;
+        }
+        return attr;
+    }
+
+    /**
+     * Draws a polyline through a list of coordinates.
+     *
+     * @function Snap.Paper#polyline
+     * @param {(Array.&lt;number>|...number)} points Coordinate list. Provide either a flat array or individual arguments.
+     * @param {Object} [attr] Attribute map applied to the element.
+     * @returns {Snap.Element} The polyline element.
+     */
+    proto.polyline = function (points, attr) {
+        attr = point_args(Array.from(arguments));
+        return this.el("polyline", attr);
+    };
+
+
+    /**
+     * Draws a closed polygon by joining supplied coordinates.
+     *
+     * @function Snap.Paper#polygon
+     * @see Snap.Paper#polyline
+     * @param {(Array.&lt;number>|...number)} points Coordinate list as an array or individual numbers.
+     * @param {Object} [attr] Attribute map for the polygon element.
+     * @returns {Snap.Element} The polygon element.
+     */
+    proto.polygon = function (points, attr) {
+        attr = point_args(Array.from(arguments));
+        return this.el("polygon", attr);
+    };
+// gradients
+    (function () {
+        var $ = Snap._.$;
+        // gradients' helpers
+        /**
+         * Returns all gradient stop elements.
+         *
+         * @function Snap.Element#stops
+         * @memberof Snap.Element
+         * @returns {Snap.Set} Collection of `&lt;stop>` elements.
+         */
+        function Gstops() {
+            return this.selectAll("stop");
+        }
+
+        /**
+         * Adds a stop to the gradient.
+         *
+         * @function Snap.Element#addStop
+         * @memberof Snap.Element
+         * @param {string} color Stop colour.
+         * @param {number} offset Stop offset from `0` to `100`.
+         * @returns {Snap.Element} The gradient element.
+         */
+        function GaddStop(color, offset) {
+            var stop = $("stop"),
+                attr = {
+                    offset: +offset + "%"
+                };
+            color = Snap.color(color);
+            attr["stop-color"] = color.hex;
+            if (color.opacity &lt; 1) {
+                attr["stop-opacity"] = color.opacity;
+            }
+            $(stop, attr);
+            var stops = this.stops(),
+                inserted;
+            for (var i = 0; i &lt; stops.length; ++i) {
+                var stopOffset = parseFloat(stops[i].attr("offset"));
+                if (stopOffset > offset) {
+                    this.node.insertBefore(stop, stops[i].node);
+                    inserted = true;
+                    break;
+                }
+            }
+            if (!inserted) {
+                this.node.appendChild(stop);
+            }
+            return this;
+        }
+
+        function GgetBBox() {
+            if (this.type == "linearGradient") {
+                var x1 = $(this.node, "x1") || 0,
+                    x2 = $(this.node, "x2") || 1,
+                    y1 = $(this.node, "y1") || 0,
+                    y2 = $(this.node, "y2") || 0;
+                return Snap.box(x1, y1, math.abs(x2 - x1), math.abs(y2 - y1));
+            } else {
+                var cx = this.node.cx || .5,
+                    cy = this.node.cy || .5,
+                    r = this.node.r || 0;
+                return Snap.box(cx - r, cy - r, r * 2, r * 2);
+            }
+        }
+
+    /**
+     * Updates gradient stops based on a descriptor string or parsed structure.
+     *
+     * @function Snap.Element#setStops
+     * @memberof Snap.Element
+     * @param {(string|Array)} str Gradient descriptor (after the `()` portion) or parsed stops array.
+     * @returns {Snap.Element} The gradient element.
+     * @example
+     * const grad = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
+     * grad.setStops("#fff-#000-#f00-#fc0");
+     */
+        function GsetStops(str) {
+            var grad = str,
+                stops = this.stops();
+            if (typeof str == "string") {
+                grad = eve(["snap", "util", "grad", "parse"], null, "l(0,0,0,1)" + str).firstDefined().stops;
+            }
+            if (!Snap.is(grad, "array")) {
+                return;
+            }
+            for (var i = 0; i &lt; stops.length; ++i) {
+                if (grad[i]) {
+                    var color = Snap.color(grad[i].color),
+                        attr = {"offset": grad[i].offset + "%"};
+                    attr["stop-color"] = color.hex;
+                    if (color.opacity &lt; 1) {
+                        attr["stop-opacity"] = color.opacity;
+                    }
+                    stops[i].attr(attr);
+                } else {
+                    stops[i].remove();
+                }
+            }
+            for (i = stops.length; i &lt; grad.length; ++i) {
+                this.addStop(grad[i].color, grad[i].offset);
+            }
+            return this;
+        }
+
+        function gradient(defs, str) {
+            var grad = eve(["snap", "util", "grad", "parse"], null, str).firstDefined(),
+                el;
+            if (!grad) {
+                return null;
+            }
+            grad.params.unshift(defs);
+            if (grad.type.toLowerCase() == "l") {
+                el = gradientLinear.apply(0, grad.params);
+            } else {
+                el = gradientRadial.apply(0, grad.params);
+            }
+            if (grad.type != grad.type.toLowerCase()) {
+                $(el.node, {
+                    gradientUnits: "userSpaceOnUse"
+                });
+            }
+            var stops = grad.stops,
+                len = stops.length;
+            for (var i = 0; i &lt; len; ++i) {
+                var stop = stops[i];
+                el.addStop(stop.color, stop.offset);
+            }
+            return el;
+        }
+
+        function gradientLinear(defs, x1, y1, x2, y2) {
+            var el = Snap._.make("linearGradient", defs);
+            el.stops = Gstops;
+            el.addStop = GaddStop;
+            el.getBBox = GgetBBox;
+            el.setStops = GsetStops;
+            if (x1 != null) {
+                $(el.node, {
+                    x1: x1,
+                    y1: y1,
+                    x2: x2,
+                    y2: y2
+                });
+            }
+            return el;
+        }
+
+        function gradientRadial(defs, cx, cy, r, fx, fy) {
+            var el = Snap._.make("radialGradient", defs);
+            el.stops = Gstops;
+            el.addStop = GaddStop;
+            el.getBBox = GgetBBox;
+            if (cx != null) {
+                $(el.node, {
+                    cx: cx,
+                    cy: cy,
+                    r: r
+                });
+            }
+            if (fx != null &amp;&amp; fy != null) {
+                $(el.node, {
+                    fx: fx,
+                    fy: fy
+                });
+            }
+            return el;
+        }
+
+        /**
+         * Creates an SVG gradient element from a descriptor string.
+         * The descriptor has the format `&lt;type>(&lt;coords>)&lt;stops>` where `type` is one of `l`, `L`,
+         * `r`, or `R` (lowercase for relative coordinates, uppercase for absolute). Coordinates define
+         * the gradient line or circle and stops are dash-separated colour values with optional
+         * `:offset` suffixes.
+         *
+         * @function Snap.Paper#gradient
+         * @param {string} str Gradient descriptor.
+         * @returns {Snap.Element} The gradient element.
+         * @example
+         * const grad = paper.gradient("l(0, 0, 1, 1)#000-#f00-#fff");
+         * paper.circle(50, 50, 40).attr({fill: grad});
+         */
+        proto.gradient = function (str) {
+            return gradient(this.defs, str);
+        };
+        /**
+         * Creates a linear gradient with the given bounding coordinates.
+         * @function Snap.Paper#gradientLinear
+         * @param {number} x1 Start x coordinate.
+         * @param {number} y1 Start y coordinate.
+         * @param {number} x2 End x coordinate.
+         * @param {number} y2 End y coordinate.
+         * @returns {Snap.Element} The linear gradient element.
+         */
+        proto.gradientLinear = function (x1, y1, x2, y2) {
+            return gradientLinear(this.defs, x1, y1, x2, y2);
+        };
+        /**
+         * Creates a radial gradient centred at the supplied coordinates.
+         * @function Snap.Paper#gradientRadial
+         * @param {number} cx Centre x coordinate.
+         * @param {number} cy Centre y coordinate.
+         * @param {number} r Radius of the gradient.
+         * @param {number} [fx] Optional focal x coordinate.
+         * @param {number} [fy] Optional focal y coordinate.
+         * @returns {Snap.Element} The radial gradient element.
+         */
+        proto.gradientRadial = function (cx, cy, r, fx, fy) {
+            return gradientRadial(this.defs, cx, cy, r, fx, fy);
+        };
+    /**
+     * Serialises the paper to SVG markup.
+     *
+     * @function Snap.Paper#toString
+     * @returns {string} SVG markup representing the paper.
+     */
+        proto.toString = function () {
+            var doc = this.node.ownerDocument,
+                f = doc.createDocumentFragment(),
+                d = doc.createElement("div"),
+                svg = this.node.cloneNode(true),
+                res;
+            f.appendChild(d);
+            d.appendChild(svg);
+            Snap._.$(svg, {xmlns: "http://www.w3.org/2000/svg"});
+            res = d.innerHTML;
+            f.removeChild(f.firstChild);
+            return res;
+        };
+        proto.toString.skip = true;
+    /**
+     * Serialises the paper to a Data URI containing SVG markup.
+     *
+     * @function Snap.Paper#toDataURL
+     * @returns {string} Data URI string for the paper's SVG content.
+     */
+        proto.toDataURL = function () {
+            if (window &amp;&amp; window.btoa) {
+                return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(this)));
+            }
+        };
+        proto.toDataURL.skip = true;
+    /**
+     * Removes all child nodes of the paper except its `&lt;defs>` block.
+     *
+     * @function Snap.Paper#clear
+     */
+        proto.clear = function () {
+            var node = this.node.firstChild,
+                next;
+            while (node) {
+                next = node.nextSibling;
+                if (node.tagName != "defs") {
+                    node.parentNode.removeChild(node);
+                } else {
+                    proto.clear.call({node: node});
+                }
+                node = next;
+            }
+        };
+        proto.clear.skip = true;
+    }());
+})
+;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.11</a> on Thu Dec 11 2025 09:02:48 GMT-0800 (Pacific Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

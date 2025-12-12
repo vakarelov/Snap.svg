@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>shapes.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Animation.html">Animation</a><ul class='methods'><li data-type='method'><a href="Animation.html#done">done</a></li></ul></li><li></li><li><a href="BinaryHeap.html">BinaryHeap</a></li><li></li><li></li><li></li><li><a href="NonlinTransforms.html">NonlinTransforms</a><ul class='methods'><li data-type='method'><a href="NonlinTransforms.html#bendCantilever">bendCantilever</a></li><li data-type='method'><a href="NonlinTransforms.html#bulge">bulge</a></li><li data-type='method'><a href="NonlinTransforms.html#cantilever">cantilever</a></li><li data-type='method'><a href="NonlinTransforms.html#lookAt">lookAt</a></li><li data-type='method'><a href="NonlinTransforms.html#matrix3d">matrix3d</a></li><li data-type='method'><a href="NonlinTransforms.html#parametrize">parametrize</a></li><li data-type='method'><a href="NonlinTransforms.html#perspective">perspective</a></li><li data-type='method'><a href="NonlinTransforms.html#radialRipple">radialRipple</a></li><li data-type='method'><a href="NonlinTransforms.html#rotate3d">rotate3d</a></li><li data-type='method'><a href="NonlinTransforms.html#rotateX">rotateX</a></li><li data-type='method'><a href="NonlinTransforms.html#rotateY">rotateY</a></li><li data-type='method'><a href="NonlinTransforms.html#rotateZ">rotateZ</a></li><li data-type='method'><a href="NonlinTransforms.html#scale3d">scale3d</a></li><li data-type='method'><a href="NonlinTransforms.html#sineWave">sineWave</a></li><li data-type='method'><a href="NonlinTransforms.html#springBend">springBend</a></li><li data-type='method'><a href="NonlinTransforms.html#translate3d">translate3d</a></li><li data-type='method'><a href="NonlinTransforms.html#twistPinch">twistPinch</a></li><li data-type='method'><a href="NonlinTransforms.html#use">use</a></li></ul></li><li></li><li><a href="Set.html">Set</a><ul class='methods'><li data-type='method'><a href="Set.html#.animate">animate</a></li><li data-type='method'><a href="Set.html#.attr">attr</a></li><li data-type='method'><a href="Set.html#.bind">bind</a></li><li data-type='method'><a href="Set.html#.clear">clear</a></li><li data-type='method'><a href="Set.html#.clone">clone</a></li><li data-type='method'><a href="Set.html#.exclude">exclude</a></li><li data-type='method'><a href="Set.html#.filter">filter</a></li><li data-type='method'><a href="Set.html#.forEach">forEach</a></li><li data-type='method'><a href="Set.html#.getBBox">getBBox</a></li><li data-type='method'><a href="Set.html#.includes">includes</a></li><li data-type='method'><a href="Set.html#.insertAfter">insertAfter</a></li><li data-type='method'><a href="Set.html#.map">map</a></li><li data-type='method'><a href="Set.html#.pop">pop</a></li><li data-type='method'><a href="Set.html#.push">push</a></li><li data-type='method'><a href="Set.html#.remove">remove</a></li><li data-type='method'><a href="Set.html#.splice">splice</a></li><li data-type='method'><a href="Set.html#.toString">toString</a></li><li data-type='method'><a href="Set.html#.values">values</a></li></ul></li><li></li><li><a href="Snap.Element.html">Element</a><ul class='methods'><li data-type='method'><a href="Snap.Element.html#.regionSelect">regionSelect</a></li><li data-type='method'><a href="Snap.Element.html#addClickEvent">addClickEvent</a></li><li data-type='method'><a href="Snap.Element.html#addHoldEvent">addHoldEvent</a></li><li data-type='method'><a href="Snap.Element.html#addInteractionEvent">addInteractionEvent</a></li><li data-type='method'><a href="Snap.Element.html#addLongpressEvent">addLongpressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addMessage">addMessage</a></li><li data-type='method'><a href="Snap.Element.html#addPressEvent">addPressEvent</a></li><li data-type='method'><a href="Snap.Element.html#addTransform">addTransform</a></li><li data-type='method'><a href="Snap.Element.html#anchorEmbed">anchorEmbed</a></li><li data-type='method'><a href="Snap.Element.html#animateTransform">animateTransform</a></li><li data-type='method'><a href="Snap.Element.html#attrs">attrs</a></li><li data-type='method'><a href="Snap.Element.html#centerOfMass">centerOfMass</a></li><li data-type='method'><a href="Snap.Element.html#centerRotation">centerRotation</a></li><li data-type='method'><a href="Snap.Element.html#children">children</a></li><li data-type='method'><a href="Snap.Element.html#closest">closest</a></li><li data-type='method'><a href="Snap.Element.html#correctScale">correctScale</a></li><li data-type='method'><a href="Snap.Element.html#createClipPath">createClipPath</a></li><li data-type='method'><a href="Snap.Element.html#createMask">createMask</a></li><li data-type='method'><a href="Snap.Element.html#ellipseTransform">ellipseTransform</a></li><li data-type='method'><a href="Snap.Element.html#fitInBox">fitInBox</a></li><li data-type='method'><a href="Snap.Element.html#flatten">flatten</a></li><li data-type='method'><a href="Snap.Element.html#getAttributes">getAttributes</a></li><li data-type='method'><a href="Snap.Element.html#getBBoxRot">getBBoxRot</a></li><li data-type='method'><a href="Snap.Element.html#getBitmap">getBitmap</a></li><li data-type='method'><a href="Snap.Element.html#getCanvasOverly">getCanvasOverly</a></li><li data-type='method'><a href="Snap.Element.html#getClientHeight">getClientHeight</a></li><li data-type='method'><a href="Snap.Element.html#getClientWidth">getClientWidth</a></li><li data-type='method'><a href="Snap.Element.html#getCoordMatrix">getCoordMatrix</a></li><li data-type='method'><a href="Snap.Element.html#getCursorPoint">getCursorPoint</a></li><li data-type='method'><a href="Snap.Element.html#getDirectionLine">getDirectionLine</a></li><li data-type='method'><a href="Snap.Element.html#getFirstPoint">getFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#getFromScreenDistance">getFromScreenDistance</a></li><li data-type='method'><a href="Snap.Element.html#getGeometryAttr">getGeometryAttr</a></li><li data-type='method'><a href="Snap.Element.html#getId">getId</a></li><li data-type='method'><a href="Snap.Element.html#getLastPoint">getLastPoint</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBox">getRealBBox</a></li><li data-type='method'><a href="Snap.Element.html#getRealBBoxExact">getRealBBoxExact</a></li><li data-type='method'><a href="Snap.Element.html#getReferringToMe">getReferringToMe</a></li><li data-type='method'><a href="Snap.Element.html#getTopSVG">getTopSVG</a></li><li data-type='method'><a href="Snap.Element.html#globalToLocal">globalToLocal</a></li><li data-type='method'><a href="Snap.Element.html#hide">hide</a></li><li data-type='method'><a href="Snap.Element.html#hideSlowly">hideSlowly</a></li><li data-type='method'><a href="Snap.Element.html#isAbove">isAbove</a></li><li data-type='method'><a href="Snap.Element.html#isBelow">isBelow</a></li><li data-type='method'><a href="Snap.Element.html#isChildOf">isChildOf</a></li><li data-type='method'><a href="Snap.Element.html#isInRect">isInRect</a></li><li data-type='method'><a href="Snap.Element.html#isLocal">isLocal</a></li><li data-type='method'><a href="Snap.Element.html#isOverlap">isOverlap</a></li><li data-type='method'><a href="Snap.Element.html#isOverlapRect">isOverlapRect</a></li><li data-type='method'><a href="Snap.Element.html#isParentOf">isParentOf</a></li><li data-type='method'><a href="Snap.Element.html#linkedElementLocalise">linkedElementLocalise</a></li><li data-type='method'><a href="Snap.Element.html#localOnly">localOnly</a></li><li data-type='method'><a href="Snap.Element.html#makeDraggable">makeDraggable</a></li><li data-type='method'><a href="Snap.Element.html#makePath">makePath</a></li><li data-type='method'><a href="Snap.Element.html#move">move</a></li><li data-type='method'><a href="Snap.Element.html#pathFirstPoint">pathFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#propagateTransform">propagateTransform</a></li><li data-type='method'><a href="Snap.Element.html#rasterize">rasterize</a></li><li data-type='method'><a href="Snap.Element.html#readChanges">readChanges</a></li><li data-type='method'><a href="Snap.Element.html#recordChange">recordChange</a></li><li data-type='method'><a href="Snap.Element.html#reflect">reflect</a></li><li data-type='method'><a href="Snap.Element.html#remove">remove</a></li><li data-type='method'><a href="Snap.Element.html#removeMessage">removeMessage</a></li><li data-type='method'><a href="Snap.Element.html#removeSlowly">removeSlowly</a></li><li data-type='method'><a href="Snap.Element.html#repositionInGroup">repositionInGroup</a></li><li data-type='method'><a href="Snap.Element.html#revolve">revolve</a></li><li data-type='method'><a href="Snap.Element.html#rotate">rotate</a></li><li data-type='method'><a href="Snap.Element.html#scale">scale</a></li><li data-type='method'><a href="Snap.Element.html#selectParent">selectParent</a></li><li data-type='method'><a href="Snap.Element.html#setCursor">setCursor</a></li><li data-type='method'><a href="Snap.Element.html#setFirstPoint">setFirstPoint</a></li><li data-type='method'><a href="Snap.Element.html#setIdFollowRefs">setIdFollowRefs</a></li><li data-type='method'><a href="Snap.Element.html#show">show</a></li><li data-type='method'><a href="Snap.Element.html#showSlowly">showSlowly</a></li><li data-type='method'><a href="Snap.Element.html#toJSON">toJSON</a></li><li data-type='method'><a href="Snap.Element.html#toPolyBezier">toPolyBezier</a></li><li data-type='method'><a href="Snap.Element.html#translate">translate</a></li><li data-type='method'><a href="Snap.Element.html#translate_glob">translate_glob</a></li><li data-type='method'><a href="Snap.Element.html#translateAnimate">translateAnimate</a></li><li data-type='method'><a href="Snap.Element.html#transparentToMouse">transparentToMouse</a></li><li data-type='method'><a href="Snap.Element.html#a">a</a></li><li data-type='method'><a href="Snap.Element.html#addStop">addStop</a></li><li data-type='method'><a href="Snap.Element.html#arcFan">arcFan</a></li><li data-type='method'><a href="Snap.Element.html#borderImage">borderImage</a></li><li data-type='method'><a href="Snap.Element.html#button">button</a></li><li data-type='method'><a href="Snap.Element.html#canvas">canvas</a></li><li data-type='method'><a href="Snap.Element.html#circle">circle</a></li><li data-type='method'><a href="Snap.Element.html#circleCentPoint">circleCentPoint</a></li><li data-type='method'><a href="Snap.Element.html#circleThreePoints">circleThreePoints</a></li><li data-type='method'><a href="Snap.Element.html#circleTwoPoints">circleTwoPoints</a></li><li data-type='method'><a href="Snap.Element.html#clipPath">clipPath</a></li><li data-type='method'><a href="Snap.Element.html#disk">disk</a></li><li data-type='method'><a href="Snap.Element.html#diskSegments">diskSegments</a></li><li data-type='method'><a href="Snap.Element.html#ellipseFromEquation">ellipseFromEquation</a></li><li data-type='method'><a href="Snap.Element.html#embeddedSVG">embeddedSVG</a></li><li data-type='method'><a href="Snap.Element.html#foreignObject">foreignObject</a></li><li data-type='method'><a href="Snap.Element.html#grid">grid</a></li><li data-type='method'><a href="Snap.Element.html#htmlInsert">htmlInsert</a></li><li data-type='method'><a href="Snap.Element.html#multilineText">multilineText</a></li><li data-type='method'><a href="Snap.Element.html#setStops">setStops</a></li><li data-type='method'><a href="Snap.Element.html#stops">stops</a></li><li data-type='method'><a href="Snap.Element.html#zigzag">zigzag</a></li></ul></li><li><a href="Snap.Fragment.html">Fragment</a></li><li><a href="Snap.html#.Matrix">Matrix</a><ul class='methods'><li data-type='method'><a href="Snap.html#.Matrix#.combine">combine</a></li><li data-type='method'><a href="Snap.html#.Matrix#.random">random</a></li><li data-type='method'><a href="Snap.html#.Matrix#add">add</a></li><li data-type='method'><a href="Snap.html#.Matrix#apply">apply</a></li><li data-type='method'><a href="Snap.html#.Matrix#clone">clone</a></li><li data-type='method'><a href="Snap.html#.Matrix#determinant">determinant</a></li><li data-type='method'><a href="Snap.html#.Matrix#equals">equals</a></li><li data-type='method'><a href="Snap.html#.Matrix#get">get</a></li><li data-type='method'><a href="Snap.html#.Matrix#invert">invert</a></li><li data-type='method'><a href="Snap.html#.Matrix#isIdentity">isIdentity</a></li><li data-type='method'><a href="Snap.html#.Matrix#isMatrix">isMatrix</a></li><li data-type='method'><a href="Snap.html#.Matrix#lusolve">lusolve</a></li><li data-type='method'><a href="Snap.html#.Matrix#multLeft">multLeft</a></li><li data-type='method'><a href="Snap.html#.Matrix#multRight">multRight</a></li><li data-type='method'><a href="Snap.html#.Matrix#offset">offset</a></li><li data-type='method'><a href="Snap.html#.Matrix#plus">plus</a></li><li data-type='method'><a href="Snap.html#.Matrix#randomTrans">randomTrans</a></li><li data-type='method'><a href="Snap.html#.Matrix#rotate">rotate</a></li><li data-type='method'><a href="Snap.html#.Matrix#rotScaleSplit">rotScaleSplit</a></li><li data-type='method'><a href="Snap.html#.Matrix#scale">scale</a></li><li data-type='method'><a href="Snap.html#.Matrix#scMult">scMult</a></li><li data-type='method'><a href="Snap.html#.Matrix#skew">skew</a></li><li data-type='method'><a href="Snap.html#.Matrix#skewX">skewX</a></li><li data-type='method'><a href="Snap.html#.Matrix#skewY">skewY</a></li><li data-type='method'><a href="Snap.html#.Matrix#split">split</a></li><li data-type='method'><a href="Snap.html#.Matrix#split2">split2</a></li><li data-type='method'><a href="Snap.html#.Matrix#timesSc">timesSc</a></li><li data-type='method'><a href="Snap.html#.Matrix#toArray">toArray</a></li><li data-type='method'><a href="Snap.html#.Matrix#toString">toString</a></li><li data-type='method'><a href="Snap.html#.Matrix#toTransformString">toTransformString</a></li><li data-type='method'><a href="Snap.html#.Matrix#translate">translate</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransform">twoPointTransform</a></li><li data-type='method'><a href="Snap.html#.Matrix#twoPointTransformMatrix">twoPointTransformMatrix</a></li><li data-type='method'><a href="Snap.html#.Matrix#x">x</a></li><li data-type='method'><a href="Snap.html#.Matrix#y">y</a></li></ul></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li><a href="Snap.Paper.html">Paper</a><ul class='methods'><li data-type='method'><a href="Snap.Paper.html#addExtension">addExtension</a></li><li data-type='method'><a href="Snap.Paper.html#animate">animate</a></li><li data-type='method'><a href="Snap.Paper.html#animateMotion">animateMotion</a></li><li data-type='method'><a href="Snap.Paper.html#circle">circle</a></li><li data-type='method'><a href="Snap.Paper.html#clear">clear</a></li><li data-type='method'><a href="Snap.Paper.html#ellipse">ellipse</a></li><li data-type='method'><a href="Snap.Paper.html#g">g</a></li><li data-type='method'><a href="Snap.Paper.html#gradient">gradient</a></li><li data-type='method'><a href="Snap.Paper.html#gradientLinear">gradientLinear</a></li><li data-type='method'><a href="Snap.Paper.html#gradientRadial">gradientRadial</a></li><li data-type='method'><a href="Snap.Paper.html#image">image</a></li><li data-type='method'><a href="Snap.Paper.html#line">line</a></li><li data-type='method'><a href="Snap.Paper.html#mask">mask</a></li><li data-type='method'><a href="Snap.Paper.html#measureText">measureText</a></li><li data-type='method'><a href="Snap.Paper.html#mpath">mpath</a></li><li data-type='method'><a href="Snap.Paper.html#path">path</a></li><li data-type='method'><a href="Snap.Paper.html#point">point</a></li><li data-type='method'><a href="Snap.Paper.html#polygon">polygon</a></li><li data-type='method'><a href="Snap.Paper.html#polyline">polyline</a></li><li data-type='method'><a href="Snap.Paper.html#processExtensions">processExtensions</a></li><li data-type='method'><a href="Snap.Paper.html#ptrn">ptrn</a></li><li data-type='method'><a href="Snap.Paper.html#rect">rect</a></li><li data-type='method'><a href="Snap.Paper.html#svg">svg</a></li><li data-type='method'><a href="Snap.Paper.html#symbol">symbol</a></li><li data-type='method'><a href="Snap.Paper.html#text">text</a></li><li data-type='method'><a href="Snap.Paper.html#textInputBox">textInputBox</a></li><li data-type='method'><a href="Snap.Paper.html#textPath">textPath</a></li><li data-type='method'><a href="Snap.Paper.html#toDataURL">toDataURL</a></li><li data-type='method'><a href="Snap.Paper.html#toString">toString</a></li><li data-type='method'><a href="Snap.Paper.html#use">use</a></li></ul></li><li></li><li></li><li></li><li><a href="Snap.Set.html">Set</a></li><li></li></ul><h3>Events</h3><ul><li><a href="snap.util.html#.event:equal">equal</a></li><li></li></ul><h3>Namespaces</h3><ul><li><a href="Matrix.gen.html">gen</a></li><li></li><li><a href="Snap.polygons.html">polygons</a><ul class='methods'><li data-type='method'><a href="Snap.polygons.html#.findPointInsidePolygon">findPointInsidePolygon</a></li><li data-type='method'><a href="Snap.polygons.html#.intersect">intersect</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonArea">polygonArea</a></li><li data-type='method'><a href="Snap.polygons.html#.polygonCentroid">polygonCentroid</a></li></ul></li><li><a href="Snap.bbox.html">bbox</a></li><li></li><li></li></ul><h3>Global</h3><ul><li><a href="global.html#Checksifthegiveneventisregisteredwiththegivenfunction.">Checks if the given event is registered with the given function.</a></li><li><a href="global.html#compareInt">compareInt</a></li><li><a href="global.html#getLengthFactory">getLengthFactory</a></li><li><a href="global.html#O">O</a></li><li><a href="global.html#reverse_seg">reverse_seg</a></li><li><a href="global.html#voronoi">voronoi</a></li><li><a href="global.html#voronoi1D">voronoi1D</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">shapes.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Created by Vakarelov on 4/27/17.
+ */
+
+(function () {
+
+   Snap.plugin(function (Snap, Element, Paper, global, Fragment, eve, mina) {
+
+            /**
+             * Creates a circle given a center and a point on the circumference.
+             * Accepts plain coordinate pairs or Point-like objects with x/y keys.
+             *
+             * @param {number|{x:number,y:number}} x1 X coordinate of the center or the center point object.
+             * @param {number|{x:number,y:number}} y1 Y coordinate of the center or the point on the circle when passed as an object.
+             * @param {number} [x2] X coordinate of a point on the circle when primitive numbers are provided.
+             * @param {number} [y2] Y coordinate of a point on the circle when primitive numbers are provided.
+             * @return {Element} Circle element whose radius equals the distance between the supplied points.
+             */
+            Paper.prototype.circleCentPoint = function (x1, y1, x2, y2) {
+                if (typeof y1 === "object" &amp;&amp; y1.hasOwnProperty("x")) {
+                    x2 = y1.x;
+                    y2 = y1.y;
+                }
+
+                if (typeof x1 === "object" &amp;&amp; y1.hasOwnProperty("x")) {
+                    y1 = x1.y;
+                    x1 = x1.x;
+                }
+
+
+                return this.circle(x1, y1, Snap.len(x1, y1, x2, y2));
+            };
+
+
+            /**
+             * Builds a circle defined by two points across its diameter.
+             * Both arguments may be number tuples or Point-like objects.
+             *
+             * @param {number|{x:number,y:number}} x1 X coordinate of the first point on the diameter or the full point object.
+             * @param {number|{x:number,y:number}} y1 Y coordinate of the first point or the second point object when passed directly.
+             * @param {number} [x2] X coordinate of the opposite point on the diameter.
+             * @param {number} [y2] Y coordinate of the opposite point on the diameter.
+             * @return {Element} Circle whose center is the midpoint between the supplied points.
+             */
+            Paper.prototype.circleTwoPoints = function (x1, y1, x2, y2) {
+                if (typeof y1 === "object" &amp;&amp; y1.hasOwnProperty("x")) {
+                    x2 = y1.x;
+                    y2 = y1.y;
+                }
+
+                if (typeof x1 === "object" &amp;&amp; y1.hasOwnProperty("x")) {
+                    y1 = x1.y;
+                    x1 = x1.x;
+                }
+
+
+                return this.circle((x1 + x2) / 2, (y1 + y2) / 2, Snap.len(x1, y1, x2, y2) / 2);
+            };
+
+            /**
+             * Computes the circumcircle of three non-collinear points.
+             * Returns null when the points cannot define a finite circle.
+             *
+             * @param {number|{x:number,y:number}} x1 X coordinate of the first point or a Point-like object.
+             * @param {number|{x:number,y:number}} y1 Y coordinate of the first point or a Point-like object describing the second point.
+             * @param {number|{x:number,y:number}} x2 X coordinate of the second point or a Point-like object for the third point.
+             * @param {number} [y2] Y coordinate of the second point.
+             * @param {number} [x3] X coordinate of the third point.
+             * @param {number} [y3] Y coordinate of the third point.
+             * @return {Element|null} Circle element passing through the points, or null when a solution is not possible.
+             */
+            Paper.prototype.circleThreePoints = function (x1, y1, x2, y2, x3, y3) {
+
+                if (typeof x2 === "object" &amp;&amp; x2.hasOwnProperty("x")) {
+                    x3 = x2.x;
+                    y3 = x2.y;
+                }
+
+                if (typeof y1 === "object" &amp;&amp; y1.hasOwnProperty("x")) {
+                    x2 = y1.x;
+                    y2 = y1.y;
+                }
+
+                if (typeof x1 === "object" &amp;&amp; y1.hasOwnProperty("x")) {
+                    y1 = x1.y;
+                    x1 = x1.x;
+                }
+
+                const yDelta_a = y2 - y1;
+                const xDelta_a = x2 - x1;
+                const yDelta_b = y3 - y2;
+                const xDelta_b = x3 - x2;
+
+                const aSlope = yDelta_a / xDelta_a;
+                const bSlope = yDelta_b / xDelta_b;
+
+                const c_x = (aSlope * bSlope * (y1 - y3) + bSlope * (x1 + x2) - aSlope * (x2 + x3)) / (2 * (bSlope - aSlope));
+                const c_y = -1 * (c_x - (x1 + x2) / 2) / aSlope + (y1 + y2) / 2;
+
+                if (c_x === Infinity || c_y === Infinity) return null;
+
+                const r = Snap.len(c_x, c_y, x1, y1);
+
+                if (r > 100000) return null;
+
+                return this.circle(c_x, c_y, r)
+            };
+
+            /**
+             * Derives an ellipse from the implicit quadratic form Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0.
+             * Coefficients may come from curve fitting routines; invalid sets return null.
+             *
+             * @param {number} A Quadratic coefficient for x^2.
+             * @param {number} B Mixed term coefficient for xy.
+             * @param {number} C Quadratic coefficient for y^2.
+             * @param {number} D Linear coefficient for x.
+             * @param {number} E Linear coefficient for y.
+             * @param {number} [F=-1] Constant term; defaults to -1 when omitted.
+             * @param {boolean} [properties_only=false] When true, returns the ellipse parameters instead of drawing it.
+             * @return {Element|{x:number,y:number,rx:number,ry:number,angle:number}|null} Either a rendered ellipse, its properties, or null if coefficients do not form a valid ellipse.
+             */
+            Paper.prototype.ellipseFromEquation = function (A, B, C, D, E, F, properties_only) {
+                if (typeof F === "boolean"){
+                    properties_only = F;
+                    F = -1
+                }
+
+                if (F === undefined) F = -1;
+
+                let den = 4 * A * C - B * B;
+                if (den == 0) {
+                    return null;
+                }
+                let cx = (B * E - 2 * C * D) / den;
+                let cy = (B * D - 2 * A * E) / den;
+
+                // evaluate the a coefficient of the ellipse equation in normal form
+                // E(x,y) = a*(x-cx)^2 + b*(x-cx)*(y-cy) + c*(y-cy)^2 = 1
+                // where b = a*B , c = a*C, (cx,cy) == centre
+                let num = A * cx * cx
+                    + B * cx * cy
+                    + C * cy * cy
+                    - F;
+
+
+                //evaluate ellipse rotation angle
+                let rot = Math.atan2(-B, -(A - C)) / 2;
+//      cerr &lt;&lt; "rot = " &lt;&lt; rot &lt;&lt; endl;
+                let swap_axes = false;
+                if (Math.abs(rot - 0) &lt; 1e-6) {
+                    rot = 0;
+                }
+                if (Math.abs(rot - Math.PI / 2) &lt; 1e-12 || rot &lt; 0) {
+                    swap_axes = true;
+                }
+
+                // evaluate the length of the ellipse rays
+                const cosrot = Math.cos(rot);
+                const sinrot = Math.sin(rot);
+                const cos2 = cosrot * cosrot;
+                const sin2 = sinrot * sinrot;
+                const cossin = cosrot * sinrot;
+
+                den = A * cos2 + B * cossin + C * sin2;
+
+//
+//        rx2 = num/roots[0];
+//        ry2 = num/roots[1];
+
+                if (den === 0) {
+                    return null
+                }
+                const rx2 = num / den;
+                if (rx2 &lt; 0) {
+                    return null;
+                }
+                let rx = Math.sqrt(rx2);
+
+                den = C * cos2 - B * cossin + A * sin2;
+                if (den === 0) {
+                    return null;
+                }
+                const ry2 = num / den;
+                if (ry2 &lt; 0) {
+                    return null;
+                }
+
+                let ry = Math.sqrt(ry2);
+
+                // the solution is not unique so we choose always the ellipse
+                // with a rotation angle between 0 and PI/2
+                if (swap_axes) {
+                    //swap(rx, ry);
+                    const temp = rx;
+                    rx = ry;
+                    ry = temp;
+                }
+                if (Math.abs(rot - Math.PI / 2) &lt; 1e-6
+                    || Math.abs(rot - Math.PI / 2) &lt; 1e-6
+                    || Math.abs(rx - ry) &lt; 1e-12
+                ) {
+                    rot = 0;
+                } else {
+                    if (rot &lt; 0) {
+                        rot += Math.PI / 2;
+                    }
+                }
+
+                if (properties_only) {
+                    return {
+                        x: cx,
+                        y: cy,
+                        rx: rx,
+                        ry: ry,
+                        angle: Snap.deg(rot)
+                    }
+                } else {
+                    return this.ellipse(cx, cy, rx, ry).rotate(Snap.deg(rot), cx, cy)
+                }
+            };
+
+            /**
+             * Generates wedge-shaped annular segments (like a donut chart) between two radii.
+             * Styles may be provided as an array, object, or callback for per-segment customization.
+             *
+             * @param {number} num_segments Total number of segments to create.
+             * @param {number} [angle] Angular size of each segment in radians; defaults to 2π divided by the number of segments.
+             * @param {number} [start_angle=0] Base angle in radians where the first segment begins.
+             * @param {number} inner_rad Inner radius of the ring.
+             * @param {number} outer_rad Outer radius of the ring.
+             * @param {Function|Object|Array&lt;string>} [style] Style definition; callbacks receive (path, group, index, inner_rad, outer_rad, angle_step, angle, points).
+             * @param {string} [id] Optional id prefix applied to each generated path.
+             * @param {Element} [group] Existing group to append to; a new group is created when multiple segments are generated.
+             * @param {string} [class_name] Optional CSS class added to each segment.
+             * @return {Element} The provided group when present, otherwise the last created path segment.
+             */
+            Paper.prototype.diskSegments = function (num_segments, angle, start_angle, inner_rad, outer_rad, style, id, group, class_name) {
+                if (!group &amp;&amp; num_segments > 1) {
+                    group = this.g()
+                }
+
+                if (!id &amp;&amp; group) id = group.getId();
+
+                if (!angle) angle = 2 * Math.PI / num_segments;
+
+                let d, p1, p2, p3, p4, c, angle_step, insc_rad, path, place;
+                for (let i = 0; i &lt; num_segments; ++i) {
+                    angle_step = angle * i + start_angle; //Adding Pi to reposition upwards.
+                    p1 = Snap.fromPolar(inner_rad, angle_step - angle / 2);
+                    p2 = Snap.fromPolar(outer_rad, angle_step - angle / 2);
+                    p3 = Snap.fromPolar(outer_rad, angle_step + angle / 2);
+                    p4 = Snap.fromPolar(inner_rad, angle_step + angle / 2);
+
+                    d = "M " + p1.x + "," + p1.y +
+                        " L " + p2.x + "," + p2.y +
+                        " A " + outer_rad + "," + outer_rad + ",0,0,1," + p3.x + "," + p3.y +
+                        " L " + p4.x + "," + p4.y +
+                        " A " + (inner_rad) + "," + (inner_rad) + ",0,0,0," + p1.x + "," + p1.y;
+
+                    path = this.paper.path(d);
+                    if (id) path.attr("id", id + "_" + i);
+                    if (style) {
+                        if (Array.isArray(style)) {
+                            path.attr("style", style[i]);
+                        } else if (typeof style === "function") {
+                            style(path, group, i, inner_rad, outer_rad, angle_step, angle, [p1, p2, p3, p4]);
+                        } else {
+                            path.setStyle(style);
+                        }
+                    }
+
+                    if (class_name){
+                        path.addClass(class_name);
+                    }
+
+                    if (group) group.add(path);
+                }
+
+                return (group) ? group : path;
+            };
+
+            /**
+             * Builds a hollow disk by combining two concentric circles with even-odd fill rules.
+             *
+             * @param {number} cx Center X coordinate.
+             * @param {number} cy Center Y coordinate.
+             * @param {number} our_rad Outer radius of the disk.
+             * @param {number} inner_rad Inner radius that defines the hole.
+             * @return {Element} Path element representing the donut shape.
+             */
+            Paper.prototype.disk = function (cx, cy, our_rad, inner_rad) {
+                const outer = this.circle(cx, cy, our_rad).toDefs();
+                const inner = this.circle(cx, cy, inner_rad).toDefs();
+
+                const d = Snap.path.toPath(outer, true) + " " + Snap.path.toPath(inner, true);
+
+                outer.remove();
+                inner.remove();
+
+                return this.path(d).attr({fillRule: "evenodd"});
+            };
+
+            /**
+             * Clones a symbol or primitive along an arc, producing a circular fan layout.
+             * Accepts full Snap elements or lightweight descriptors for lines and circles.
+             *
+             * @param {number} rad Radius at which the fan elements are positioned.
+             * @param {number} angle Angular spread in degrees across the fan.
+             * @param {number} step Number of elements to distribute along the arc.
+             * @param {Element|Object} symbol Source element or descriptor ({type:"line", l:Number} or {type:"circle", r:Number}).
+             * @param {Function|Object|Array&lt;string>} [style] Style hook; callbacks receive (element, group, index, angle, point).
+             * @param {string} [id] Id prefix applied to generated elements.
+             * @param {Element} [group] Group container; created when missing.
+             * @return {Element|undefined} Group populated with fan elements, or undefined when the symbol type is unsupported.
+             */
+            Paper.prototype.arcFan = function (rad, angle, step, symbol, style, id, group) {
+                if (!group) {
+                    group = this.g()
+                }
+
+                if (!id) id = group.getId();
+
+                let processor;
+
+                const that = this;
+                if (symbol.paper) {
+                    const box = symbol.getBBox();
+                    processor = function (p, angle, id) {
+                        const copy = symbol.clone().attr("id", id);
+                        copy.translate(p.x, p.y, undefined, box.cx, box.y2);
+                        copy.rotate(angle, p.x, p.y);
+                        return copy;
+                    }
+                } else if (symbol.type === "line") {
+                    processor = function (p, angle, id) {
+                        const p2 = {
+                            x: p.x + symbol.l * Math.cos(angle * Math.PI * 2 / 360),
+                            y: p.y + symbol.l * Math.sin(angle * Math.PI * 2 / 360)
+                        };
+                        return that.line(p.x, p.y, p2.x, p2.y).attr("id", id);
+                    }
+                } else if (symbol.type === "circle") {
+                    processor = function (p, angle, id) {
+                        return that.circle(p.x, p.y, symbol.r).attr("id", id);
+                    }
+                } else {
+                    return undefined;
+                }
+
+                for (let a = -angle / 2, i = 0, inc = angle / (step - 1); i &lt; step; ++i, a += inc) {
+                    const p = Snap.fromPolar(rad, Snap.rad(a));
+                    const el = processor(p, a, id + "_" + i);
+                    if (style) {
+                        if (Array.isArray(style)) {
+                            el.attr("style", style[i]);
+                        } else if (typeof style === "function") {
+                            style(el, group, i, a, p);
+                        } else {
+                            el.setStyle(style);
+                        }
+                    }
+                    group.add(el);
+                }
+
+                return group;
+            };
+
+            /**
+             * Creates a rectangular grid of Snap rectangles sized to fill the provided bounds.
+             * Style can be an object applied to every rect or a callback for per-cell styling.
+             *
+             * @param {number} width Total width of the grid area.
+             * @param {number} height Total height of the grid area.
+             * @param {number} rows Number of horizontal slices.
+             * @param {number} cols Number of vertical slices.
+             * @param {Function|Object} style Style object or callback receiving (rect, colIndex, rowIndex).
+             * @param {string} [id] Optional id prefix used for the generated rectangles.
+             * @param {Element} [group] Existing group container; a new one is created when omitted.
+             * @return {Element} Group containing every grid cell.
+             */
+            Paper.prototype.grid = function (width, height, rows, cols, style, id, group) {
+                if (!group) {
+                    group = this.g()
+                }
+
+                if (!id) id = group.getId();
+
+                let style_fun;
+                if (typeof style !== "function") {
+                    style_fun = function (rect) {
+                        rect.setStyle(style)
+                    }
+                } else {
+                    style_fun = style;
+                }
+
+                const rect_w = width / cols;
+                const rect_h = height / rows;
+
+                for (let i = 0, j, rect; i &lt; cols; ++i) {
+                    for (j = 0; j &lt; rows; j++) {
+                        rect = this.rect(i * rect_w, j * rect_h, rect_w, rect_h).attr({
+                            id: id + "_" + i + "_" + j,
+                            position: i + ", " + j
+                        });
+
+                        style_fun(rect, i, j);
+                        group.add(rect);
+                    }
+                }
+
+                return group;
+            };
+
+            /**
+             * Draws a zigzag polyline between two points or along a horizontal length.
+             * The path alternates above and below the base line using the provided amplitude.
+             *
+             * @param {{x:number,y:number}} p1 Starting point of the polyline.
+             * @param {number|{x:number,y:number}} p2_width Either the horizontal length of the zigzag or the explicit end point.
+             * @param {number} period Distance between consecutive peaks.
+             * @param {number} amplitude Offset applied perpendicular to the base line for each peak.
+             * @param {boolean} [reverice=false] When true the zigzag starts below the baseline.
+             * @return {Element} Polyline element that visually represents the zigzag.
+             */
+            Paper.prototype.zigzag = function (p1, p2_width, period, amplitude, reverice) {
+                const p2 = (typeof p2_width === "number") ? {x: p1.x + p2_width, y: p1.y} : p2_width;
+
+                const length = (typeof p2_width === "number") ? p2_width : Snap.len(p1.x, p1.y, p2.x, p2.y);
+
+                const num_periods = Snap.round(length / period);
+                period = length / num_periods;
+
+                amplitude = (reverice) ? -amplitude : amplitude;
+
+                const v = {x: period / 2 * (p2.x - p1.x) / length, y: period / 2 * (p2.y - p1.y) / length};
+                const norm = {x: -amplitude * (p2.y - p1.y) / length, y: amplitude * (p2.x - p1.x) / length};
+
+                const points = [p1.x, p1.y];
+                for (let i = 1, px, py, amp_dir; i &lt; 2 * num_periods; ++i) {
+                    amp_dir = (-1) * (i % 2);
+                    px = (i * v.x + p1.x) + (norm.x) * amp_dir;
+                    py = (i * v.y + p1.y) + (norm.y) * amp_dir;
+                    points.push(px);
+                    points.push(py);
+                }
+                points.push(p2.x);
+                points.push(p2.y);
+
+                return this.polyline(points);
+            }
+        }
+    );
+
+})();
+
+
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.11</a> on Mon Dec 01 2025 11:14:47 GMT-0800 (Pacific Standard Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

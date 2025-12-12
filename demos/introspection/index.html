@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snap.svg Introspection Library - Examples</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .intro {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .example-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .example-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .example-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .example-card h3 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        .example-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+        .example-card a {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        .example-card a:hover {
+            background-color: #45a049;
+        }
+        .file-list {
+            background: white;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .file-list h2 {
+            color: #333;
+            margin-top: 0;
+        }
+        .file-list ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .file-list li {
+            padding: 8px;
+            margin: 5px 0;
+            background-color: #f9f9f9;
+            border-left: 3px solid #2196F3;
+        }
+        .file-list code {
+            font-family: 'Courier New', monospace;
+            background-color: #e8f5e9;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        .badge-lib {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .badge-example {
+            background-color: #2196F3;
+            color: white;
+        }
+        .badge-doc {
+            background-color: #FF9800;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Snap.svg Introspection Library</h1>
+
+    <div class="intro">
+        <h2>About</h2>
+        <p>
+            A modular, reusable library for extracting and displaying class hierarchies, methods,
+            and metadata from Snap.svg and related libraries (eve, mina).
+        </p>
+        <p>
+            The functionality has been separated into two independent modules located in <code>utils/</code>:
+        </p>
+        <ul>
+            <li><strong>utils/snap-introspection.js</strong> - Core introspection library (data extraction)</li>
+            <li><strong>utils/snap-introspection-renderer.js</strong> - HTML rendering utilities</li>
+        </ul>
+        <p>
+            This separation allows you to use the introspection functionality in any project,
+            with or without the HTML renderer.
+        </p>
+    </div>
+
+    <h2>Examples</h2>
+    <div class="example-grid">
+        <div class="example-card">
+            <h3>📊 Main Demo</h3>
+            <p>
+                Complete demonstration showing all classes, methods, and metadata with
+                interactive navigation and highlighting.
+            </p>
+            <a href="show_methods.html">View Demo</a>
+        </div>
+
+        <div class="example-card">
+            <h3>💾 JSON Export</h3>
+            <p>
+                Extract introspection data and export it as JSON. Includes statistics
+                and download functionality.
+            </p>
+            <a href="example-json-export.html">View Example</a>
+        </div>
+
+        <div class="example-card">
+            <h3>🎨 Custom Rendering</h3>
+            <p>
+                Demonstrates custom rendering in multiple formats: Table view, Markdown,
+                CSV, and simple list.
+            </p>
+            <a href="example-custom-rendering.html">View Example</a>
+        </div>
+
+        <div class="example-card">
+            <h3>📖 API with Documentation</h3>
+            <p>
+                Interactive API reference showing method signatures and JSDoc documentation.
+                Click any method to see full details including parameters and return values.
+            </p>
+            <a href="show_methods_with_docs.html">View Demo</a>
+        </div>
+
+        <div class="example-card">
+            <h3>🔧 Node.js Usage</h3>
+            <p>
+                Example code showing how to use the introspection library in Node.js for
+                documentation generation and API testing.
+            </p>
+            <a href="example-nodejs.js">View Code</a>
+        </div>
+    </div>
+
+    <div class="file-list">
+        <h2>Library Files (in ../../utils/)</h2>
+        <ul>
+            <li>
+                <code>utils/introspection/snap-introspection.js</code>
+                <span class="badge badge-lib">Core Library</span>
+                <p>Main introspection library. Extract methods, classes, and metadata. Framework agnostic.</p>
+            </li>
+            <li>
+                <code>utils/introspection/snap-introspection-renderer.js</code>
+                <span class="badge badge-lib">Renderer</span>
+                <p>HTML rendering utilities. Convert introspection data to formatted HTML.</p>
+            </li>
+            <li>
+               <code>utils/introspection/snap-docs-reader.js</code>
+                <span class="badge badge-lib">NEW: Docs Reader</span>
+                <p>Read and query JSDoc documentation from documentation.json. Get signatures, parameters, and descriptions.</p>
+            </li>
+            <li>
+                <code>utils/introspection/query-docs.js</code>
+                <span class="badge badge-lib">NEW: CLI Tool</span>
+                <p>Node.js command-line tool for querying documentation. Search classes, methods, and more.</p>
+            </li>
+            <li>
+                <code>utils/introspection/README.md</code>
+                <span class="badge badge-doc">Documentation</span>
+                <p>Complete API reference and usage documentation.</p>
+            </li>
+        </ul>
+    </div>
+
+    <div class="file-list">
+        <h2>Example Files</h2>
+        <ul>
+            <li>
+                <code>show_methods.html</code>
+                <span class="badge badge-example">Main Demo</span>
+                <p>Refactored main demo using the separated libraries.</p>
+            </li>
+            <li>
+                <code>show_methods_with_docs.html</code>
+                <span class="badge badge-example">NEW: With Docs</span>
+                <p>Interactive API reference with JSDoc documentation. Click methods to see details, signatures, and parameters.</p>
+            </li>
+            <li>
+                <code>example-json-export.html</code>
+                <span class="badge badge-example">JSON Export</span>
+                <p>Export introspection data as JSON with download capability.</p>
+            </li>
+            <li>
+                <code>example-custom-rendering.html</code>
+                <span class="badge badge-example">Custom</span>
+                <p>Custom rendering formats: Table, Markdown, CSV, List.</p>
+            </li>
+            <li>
+                <code>example-nodejs.js</code>
+                <span class="badge badge-example">Node.js</span>
+                <p>Node.js usage examples for automation and testing.</p>
+            </li>
+        </ul>
+    </div>
+
+    <div class="intro">
+        <h2>Quick Start</h2>
+        <p>Include the libraries in your HTML:</p>
+        <pre><code>&lt;script src="../../dist/snap.svg.js"&gt;&lt;/script&gt;
+&lt;script src="../../utils/snap-introspection.js"&gt;&lt;/script&gt;
+&lt;script src="../../utils/snap-introspection-renderer.js"&gt;&lt;/script&gt;</code></pre>
+
+        <p>Extract and render:</p>
+        <pre><code>// Extract data
+const data = SnapIntrospection.extractAll({
+    Snap: Snap,
+    eve: eve,
+    mina: mina
+});
+
+// Render to page
+SnapIntrospectionRenderer.renderToElement('#content', data);</code></pre>
+
+        <p>Or just extract data without rendering:</p>
+        <pre><code>// Just extract - no HTML generation
+const snapMethods = SnapIntrospection.extractSnapMethods(Snap);
+const classes = SnapIntrospection.extractClasses(Snap);
+const json = SnapIntrospection.toJSON(data);</code></pre>
+    </div>
+
+    <div class="intro">
+        <h2>Features</h2>
+        <ul>
+            <li>✅ <strong>Modular Design</strong> - Separate data extraction from HTML rendering</li>
+            <li>✅ <strong>Reusable</strong> - Use in any project that analyzes Snap.svg</li>
+            <li>✅ <strong>Multiple Formats</strong> - JSON, plain objects, or HTML</li>
+            <li>✅ <strong>Comprehensive</strong> - Extracts from Snap, eve, mina, and all classes</li>
+            <li>✅ <strong>Smart Detection</strong> - Identifies easing functions, Paper methods, etc.</li>
+            <li>✅ <strong>Framework Agnostic</strong> - Works in browser or Node.js</li>
+            <li>✅ <strong>Well Documented</strong> - Complete API reference included</li>
+        </ul>
+    </div>
+</body>
+</html>
+

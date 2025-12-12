@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snap.svg Introspection - JSON Export Example</title>
+    <script src="../../dist/snap.svg.js"></script>
+    <script src="../../utils/introspection/snap-introspection.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.secondary {
+            background-color: #2196F3;
+        }
+        button.secondary:hover {
+            background-color: #0b7dda;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-box {
+            background-color: #e8f5e9;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+        .stat-box h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .stat-box .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>Snap.svg Introspection - JSON Export</h1>
+
+    <div class="section">
+        <h2>Extract and Export Data</h2>
+        <p>This example shows how to extract Snap.svg introspection data and export it as JSON.</p>
+
+        <button onclick="extractData()">Extract Data</button>
+        <button onclick="downloadJSON()" class="secondary">Download JSON</button>
+        <button onclick="copyToClipboard()" class="secondary">Copy to Clipboard</button>
+    </div>
+
+    <div class="section" id="stats-section" style="display: none;">
+        <h2>Statistics</h2>
+        <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="section" id="json-section" style="display: none;">
+        <h2>JSON Output</h2>
+        <pre id="json-output"></pre>
+    </div>
+
+    <script>
+        let extractedData = null;
+        let jsonString = null;
+
+        function extractData() {
+            try {
+                // Extract all introspection data
+                extractedData = SnapIntrospection.extractAll({
+                    Snap: Snap,
+                    eve: typeof eve !== 'undefined' ? eve : undefined,
+                    mina: typeof mina !== 'undefined' ? mina : undefined
+                });
+
+                // Convert to JSON
+                jsonString = SnapIntrospection.toJSON(extractedData);
+
+                // Display statistics
+                displayStats();
+
+                // Display JSON
+                document.getElementById('json-output').textContent = jsonString;
+                document.getElementById('json-section').style.display = 'block';
+                document.getElementById('stats-section').style.display = 'block';
+
+                console.log('Extracted data:', extractedData);
+            } catch (error) {
+                alert('Error extracting data: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        function displayStats() {
+            const stats = document.getElementById('stats');
+            let html = '';
+
+            // Snap methods
+            html += `
+                <div class="stat-box">
+                    <h3>Snap Methods</h3>
+                    <div class="value">${extractedData.snap.count}</div>
+                </div>
+            `;
+
+            // Eve methods
+            if (extractedData.eve && extractedData.eve.count > 0) {
+                html += `
+                    <div class="stat-box">
+                        <h3>eve Methods</h3>
+                        <div class="value">${extractedData.eve.count}</div>
+                    </div>
+                `;
+            }
+
+            // Mina methods
+            if (extractedData.mina && extractedData.mina.count > 0) {
+                html += `
+                    <div class="stat-box">
+                        <h3>mina Methods</h3>
+                        <div class="value">${extractedData.mina.count}</div>
+                    </div>
+                    <div class="stat-box" style="background-color: #fff3e0; border-left-color: #FF9800;">
+                        <h3>Easing Functions</h3>
+                        <div class="value">${extractedData.mina.easingCount}</div>
+                    </div>
+                `;
+            }
+
+            // Classes
+            html += `
+                <div class="stat-box" style="background-color: #e3f2fd; border-left-color: #2196F3;">
+                    <h3>Classes</h3>
+                    <div class="value">${extractedData.classes.classNames.length}</div>
+                </div>
+            `;
+
+            // Total methods across all classes
+            let totalClassMethods = 0;
+            extractedData.classes.classNames.forEach(className => {
+                totalClassMethods += extractedData.classes.classes[className].count;
+            });
+            html += `
+                <div class="stat-box" style="background-color: #e3f2fd; border-left-color: #2196F3;">
+                    <h3>Total Class Methods</h3>
+                    <div class="value">${totalClassMethods}</div>
+                </div>
+            `;
+
+            stats.innerHTML = html;
+        }
+
+        function downloadJSON() {
+            if (!jsonString) {
+                alert('Please extract data first');
+                return;
+            }
+
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'snap-introspection-' + new Date().getTime() + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function copyToClipboard() {
+            if (!jsonString) {
+                alert('Please extract data first');
+                return;
+            }
+
+            navigator.clipboard.writeText(jsonString).then(
+                function() {
+                    alert('JSON copied to clipboard!');
+                },
+                function(err) {
+                    alert('Failed to copy: ' + err);
+                }
+            );
+        }
+
+        // Auto-extract on load
+        window.onload = function() {
+            extractData();
+        };
+    </script>
+</body>
+</html>
+

@@ -51,6 +51,20 @@ Then, in any module you’d like to require Snap, use:
 import Snap from 'snapsvg';
 ```
 
+### Module builds
+
+The npm package now ships native ES module bundles alongside the classic UMD files. Pick whatever fits your toolchain:
+
+| Consumer | Entry point | Notes |
+| --- | --- | --- |
+| Browser `<script>` | `dist/snap.svg-min.js` | Loads globals `Snap`, `mina`, and `eve` as before. |
+| ES modules | `import Snap, { mina, eve } from 'snapsvg';` | Resolves to `dist/snap.esm.mjs` (also available as `snap.esm.js`). |
+| ES modules (standalone) | `import mina from 'snapsvg/mina';` / `import eve from 'snapsvg/eve';` | Reads from `dist/mina.esm.mjs` / `dist/eve.esm.mjs`. |
+| CommonJS | `const Snap = require('snapsvg');` | Still served by `dist/snap.svg.js`. |
+| CommonJS (standalone) | `const mina = require('snapsvg/mina');` | Uses the dedicated `dist/mina.cjs.js` build (same for Eve). |
+
+All new bundles include sourcemaps (`.map`) and dual `.js` / `.mjs` variants so bundlers and Node can choose their preferred extension. The Snap ESM bundle still embeds Eve and Mina, while the standalone `snapsvg/eve` and `snapsvg/mina` exports let you wire those libraries independently when needed.
+
 ### Build
 [![Build Status](https://travis-ci.org/adobe-webplatform/Snap.svg.svg?branch=dev)](https://travis-ci.org/adobe-webplatform/Snap.svg)
 

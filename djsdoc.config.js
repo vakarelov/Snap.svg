@@ -2,7 +2,7 @@ module.exports = {
     source: {
         include: ["src"],
         includePattern: "\\.js$",
-        excludePattern: "(node_modules/|docs|dist|amd-banner\\.js|amd-footer\\.js|src/node/\\.js)"
+        excludePattern: "(node_modules/|docs|dist|amd-banner\\.js|amd-footer\\.js|esm-.*\\.js|src/node/\\.js)"
     },
     opts: {
         destination: "./doc/reference",

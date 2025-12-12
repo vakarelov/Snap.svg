@@ -7,8 +7,10 @@
         });
     } else if (typeof exports != "undefined") {
         // Next for Node.js or CommonJS
-        var eve = require("eve");
-        var mina = require("mina");
+        // When bundled, eve and mina are already loaded in this file
+        // When standalone, they would be required as external modules
+        var eve = glob.eve_ia || glob.eve || (typeof require !== "undefined" ? require("eve") : undefined);
+        var mina = glob.mina || (typeof require !== "undefined" ? require("mina") : undefined);
         module.exports = factory(glob, eve, mina);
     } else {
         // Browser globals (glob is window)
@@ -18,3 +20,4 @@
 }(typeof window !== "undefined" ? window : (global || this), function (window, eve, mina) {
 //amd-Banner
     "use strict";
+    let Snap;

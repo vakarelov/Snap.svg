@@ -852,6 +852,7 @@
         Snap.registerClass = Snap.registerType;
 
         Snap.getClass = function (type) {
+            if (!type) return Object.assign({}, available_types)
             return available_types[type.toLowerCase()]
         }
 
@@ -1967,7 +1968,7 @@
         });
 
 
-        eve.on("snap.util.attr", function (value) {
+        eve.on("snap.util.attr", function (value, force_attribute) {
             let att = eve.nt();
             const attr = {};
             att = att.substring(att.lastIndexOf(".") + 1);
@@ -1982,7 +1983,10 @@
             if (cssAttr[has](css)) {
                 attr[att] = "";
                 $(this.node, attr);
-                if (this.type === "jquery") { //we don't use jquery anymore. Just for backwords compatibility
+                if (force_attribute) {
+                    $(this.node, attr);
+                    this.node.style[style] = E;
+                } else if (this.type === "jquery") { //we don't use jquery anymore. Just for backwords compatibility
                     this.node.css(style, value);
                 } else {
                     this.node.style[style] = value;

@@ -96,7 +96,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     }));
 
     function fillStroke(name) {
-        return function (value) {
+        return function (value, force_attribute) {
             eve.stop();
             if (value instanceof Fragment && value.node.childNodes.length == 1 &&
                 (value.node.firstChild.tagName == "radialGradient" ||
@@ -107,7 +107,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 value = wrap(value);
             }
             if (value instanceof Element) {
-                if (value.type == "radialGradient" || value.type == "linearGradient"
+                if (value.type == "radialgradient" || value.type == "lineargradient"
                     || value.type == "pattern") {
                     if (!value.node.id) {
                         $(value.node, {
@@ -392,12 +392,17 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         this.attrMonitor("src");
     });
 
-    function setFontSize(value) {
+    function setFontSize(value, force_attribute) {
         eve.stop();
         if (value == +value) {
             value += "px";
         }
-        this.node.style.fontSize = value;
+        if (force_attribute) {
+            $(this.node, {"font-size": value});
+            this.node.style.fontSize = E;
+        } else {
+            this.node.style.fontSize = value;
+        }
         this.attrMonitor(["font-size", "fontSize"]);
         this.clearCHull();
     }
@@ -446,26 +451,36 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         function setter(end) {
-            return function (value) {
+            return function (value, force_attribute) {
                 eve.stop();
                 const name = "marker" + end.charAt(0).toUpperCase() + end.substring(1);
+                const attrName = "marker-" + end;
+                let markerValue;
                 if (value == "" || !value) {
-                    this.node.style[name] = "none";
-                    this.attrMonitor(name);
-                    return;
-                }
-                if (value.type == "marker") {
-                    const id = value.node.id;
+                    markerValue = "none";
+                } else if (value.type == "marker") {
+                    let id = value.node.id;
                     if (!id) {
                         $(value.node, {id: value.id});
                         value.attrMonitor("id");
+                        id = value.id;
                     }
-                    this.node.style[name] = URL(id);
-                    this.attrMonitor(name);
-                    return;
+                    markerValue = URL(id);
+                } else {
+                    markerValue = value;
                 }
-            };
-        }
+
+                if (force_attribute) {
+                    const attrs = {};
+                    attrs[attrName] = markerValue;
+                    $(this.node, attrs);
+                    this.node.style[name] = E;
+                } else {
+                    this.node.style[name] = markerValue;
+                }
+                this.attrMonitor(name);
+             };
+         }
 
         eve.on("snap.util.getattr.marker-end", getter("end"))(-1);
         eve.on("snap.util.getattr.markerEnd", getter("end"))(-1);
@@ -565,7 +580,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
     function getFontSize() {
         eve.stop();
-        return this.node.style.fontSize;
+        const inline = this.node.style.fontSize;
+        if (inline) {
+            return inline;
+        }
+        return $(this.node, "font-size") || inline;
     }
 
     eve.on("snap.util.getattr.fontSize", getFontSize)(-1);

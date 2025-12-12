@@ -1,5 +1,12 @@
 # What’s New in this Snap.svg fork
 
+## 2025-12-09 — Flexible module outputs
+
+- Added dedicated ES module bundles for Snap (`dist/snap.esm.{js,mjs}`) plus standalone Eve/Mina builds. Each artifact ships with a matching sourcemap and a minified companion.
+- Introduced CommonJS-friendly standalone builds (`dist/eve.cjs.js`, `dist/mina.cjs.js`) so Node-based tooling can consume Eve/Mina without parsing the full Snap bundle.
+- Updated the npm `exports` map so `import Snap from "snapsvg"`, `import mina from "snapsvg/mina"`, `require('snapsvg/eve')`, etc., resolve automatically. The Snap ESM bundle keeps Eve and Mina embedded for drop-in compatibility.
+- Grunt now produces the new artifacts via `snap_esm`, `eve_esm`, and `mina_esm` concat targets, all with sourcemap support.
+
 Date: 2025-10-24
 
 This fork extends Snap.svg with powerful geometry, interaction, and UI-building utilities while keeping the original API intact. It adds Bezier/PolyBezier tooling, polygon operations (including concave/convex hulls and SAT overlap), robust BBox helpers, rich Element and Paper extensions, GUI interactions, color palettes, and comprehensive TypeScript types.
