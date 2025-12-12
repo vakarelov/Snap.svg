@@ -1,0 +1,4201 @@
+{
+  "snap": {
+    "methods": [
+      "AI_name_fix",
+      "BBox",
+      "Complex",
+      "Matrix",
+      "Set",
+      "_compareDomPosition",
+      "_normalizeVectorInput",
+      "_unit2px",
+      "acos",
+      "ajax",
+      "angle",
+      "angle_between",
+      "angle_normalize",
+      "animate",
+      "animation",
+      "array_equal",
+      "asin",
+      "atan",
+      "atan2",
+      "bBoxFromPoints",
+      "bezier",
+      "binaryHeap",
+      "box",
+      "camelToHyphen",
+      "click",
+      "closest",
+      "closestPair",
+      "closestPoint",
+      "cmykToRgb",
+      "color",
+      "convertStyleFormat",
+      "convexHull",
+      "cos",
+      "cot",
+      "cross",
+      "dblclick",
+      "deg",
+      "deurl",
+      "dimFromElement",
+      "document",
+      "dot",
+      "elementFormId",
+      "enableDataEvents",
+      "eve",
+      "fixUrl",
+      "flattenObject",
+      "format",
+      "fragment",
+      "fromPolar",
+      "fromPolar_deg",
+      "fromSpherical",
+      "fromSpherical_deg",
+      "getClass",
+      "getElementByPoint",
+      "getIndexColor",
+      "getProto",
+      "getRGB",
+      "getSafeDistance",
+      "groupToGroupChangeOfBase",
+      "hsb",
+      "hsb2rgb",
+      "hsl",
+      "hsl2rgb",
+      "hull",
+      "importMUIColors",
+      "is",
+      "isEmptyObject",
+      "isUrl",
+      "joinBBoxes",
+      "jsonToSvg",
+      "kdTree",
+      "kdTreeX",
+      "kdTreeY",
+      "len",
+      "len2",
+      "load",
+      "matrix",
+      "measureTextClientRect",
+      "mina",
+      "mousedown",
+      "mouseenter",
+      "mouseleave",
+      "mousemove",
+      "mouseout",
+      "mouseover",
+      "mouseup",
+      "nearPairs",
+      "normalize",
+      "orthogonal",
+      "parse",
+      "parsePathString",
+      "parseTransformString",
+      "path",
+      "plugin",
+      "polyBezier",
+      "polygonExpand",
+      "polygonsIntersectConcave",
+      "positionComparator",
+      "project",
+      "rad",
+      "randomPoints",
+      "registerClass",
+      "registerType",
+      "removeNonPrintable",
+      "rgb",
+      "rgb2cmyk",
+      "rgb2hsb",
+      "rgb2hsl",
+      "round",
+      "select",
+      "selectAll",
+      "set",
+      "setWindow",
+      "sin",
+      "snapTo",
+      "tan",
+      "titleCase",
+      "toCamelCase",
+      "toPolar",
+      "toPolar_deg",
+      "toSpherical",
+      "toSpherical_deg",
+      "toString",
+      "touchcancel",
+      "touchend",
+      "touchmove",
+      "touchstart",
+      "unclick",
+      "undblclick",
+      "unmousedown",
+      "unmouseenter",
+      "unmouseleave",
+      "unmousemove",
+      "unmouseout",
+      "unmouseover",
+      "unmouseup",
+      "untouchcancel",
+      "untouchend",
+      "untouchmove",
+      "untouchstart",
+      "url",
+      "v_add",
+      "v_angle",
+      "v_angle_signed",
+      "v_c_mult",
+      "v_clamp",
+      "v_lerp",
+      "v_mid",
+      "v_reflect",
+      "v_rotate3D",
+      "v_subtract",
+      "varDimension",
+      "vectorPointToLine",
+      "voronoi",
+      "waitFor",
+      "window",
+      "zero"
+    ],
+    "count": 157
+  },
+  "eve": {
+    "methods": [
+      "a",
+      "addGlobalEventType",
+      "alias",
+      "all",
+      "clearAliases",
+      "f",
+      "filter",
+      "fireInGroup",
+      "getAliases",
+      "is",
+      "listeners",
+      "localEve",
+      "logEvents",
+      "nt",
+      "nts",
+      "off",
+      "on",
+      "once",
+      "separator",
+      "setGroup",
+      "stop",
+      "toString",
+      "unbind"
+    ],
+    "count": 23
+  },
+  "mina": {
+    "methods": [
+      "Animation",
+      "anticipate",
+      "anticipateBounce",
+      "anticipateOvershoot",
+      "backInOut",
+      "backin",
+      "backout",
+      "bounce",
+      "bounceGen",
+      "bounceIn",
+      "bounceInOut",
+      "bounceOut",
+      "clearInterval",
+      "clearTimeout",
+      "compose",
+      "cubicBezier",
+      "delay",
+      "delayHalf",
+      "delayQuarter",
+      "delayedSnap",
+      "doubleSpring",
+      "ease",
+      "easeIn",
+      "easeInBack",
+      "easeInBounce",
+      "easeInCirc",
+      "easeInCubic",
+      "easeInElastic",
+      "easeInExpo",
+      "easeInOut",
+      "easeInOutBack",
+      "easeInOutBounce",
+      "easeInOutCirc",
+      "easeInOutCubic",
+      "easeInOutElastic",
+      "easeInOutExpo",
+      "easeInOutQuad",
+      "easeInOutQuart",
+      "easeInOutQuint",
+      "easeInOutSine",
+      "easeInQuad",
+      "easeInQuart",
+      "easeInQuint",
+      "easeInSine",
+      "easeOut",
+      "easeOutBack",
+      "easeOutBounce",
+      "easeOutCirc",
+      "easeOutCubic",
+      "easeOutElastic",
+      "easeOutExpo",
+      "easeOutInCirc",
+      "easeOutInCubic",
+      "easeOutInExpo",
+      "easeOutInQuad",
+      "easeOutInQuart",
+      "easeOutInQuint",
+      "easeOutInSine",
+      "easeOutQuad",
+      "easeOutQuart",
+      "easeOutQuint",
+      "easeOutSine",
+      "easecss",
+      "easein",
+      "easeinback",
+      "easeinbounce",
+      "easeincirc",
+      "easeincss",
+      "easeincubic",
+      "easeinelastic",
+      "easeinexpo",
+      "easeinout",
+      "easeinoutback",
+      "easeinoutbounce",
+      "easeinoutcirc",
+      "easeinoutcss",
+      "easeinoutcubic",
+      "easeinoutelastic",
+      "easeinoutexpo",
+      "easeinoutquad",
+      "easeinoutquart",
+      "easeinoutquint",
+      "easeinoutsine",
+      "easeinquad",
+      "easeinquart",
+      "easeinquint",
+      "easeinsine",
+      "easeout",
+      "easeoutback",
+      "easeoutbounce",
+      "easeoutcirc",
+      "easeoutcss",
+      "easeoutcubic",
+      "easeoutelastic",
+      "easeoutexpo",
+      "easeoutincirc",
+      "easeoutincubic",
+      "easeoutinexpo",
+      "easeoutinquad",
+      "easeoutinquart",
+      "easeoutinquint",
+      "easeoutinsine",
+      "easeoutquad",
+      "easeoutquart",
+      "easeoutquint",
+      "easeoutsine",
+      "elastic",
+      "elasticIn",
+      "elasticInOut",
+      "elasticOut",
+      "getById",
+      "getLast",
+      "isEasing",
+      "linear",
+      "noise",
+      "pauseAll",
+      "projectile",
+      "pulse",
+      "pulseDecay",
+      "pulseEaseInOut",
+      "pulseIntro",
+      "pulseLinear",
+      "resumeAll",
+      "rubber",
+      "rubberBand",
+      "setInterval",
+      "setSkip",
+      "setSpeed",
+      "setTimeout",
+      "setTimeoutNow",
+      "smoothStep",
+      "smootherStep",
+      "smootherstep",
+      "smoothstep",
+      "spring",
+      "springDamped",
+      "springIn",
+      "springInOut",
+      "springOut",
+      "steps",
+      "stopAll",
+      "time",
+      "trakSkippedFrames"
+    ],
+    "methodDetails": [
+      {
+        "name": "Animation",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "anticipate",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "anticipateBounce",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "anticipateOvershoot",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "backInOut",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "backin",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "backout",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "bounce",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "bounceGen",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "bounceIn",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "bounceInOut",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "bounceOut",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "clearInterval",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "clearTimeout",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "compose",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "cubicBezier",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "delay",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "delayHalf",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "delayQuarter",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "delayedSnap",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "doubleSpring",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "ease",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeIn",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInBack",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInBounce",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInCirc",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInCubic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInElastic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInExpo",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOut",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutBack",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutBounce",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutCirc",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutCubic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutElastic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutExpo",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutQuad",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutQuart",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutQuint",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInOutSine",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInQuad",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInQuart",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInQuint",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeInSine",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOut",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutBack",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutBounce",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutCirc",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutCubic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutElastic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutExpo",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutInCirc",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutInCubic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutInExpo",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutInQuad",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutInQuart",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutInQuint",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutInSine",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutQuad",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutQuart",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutQuint",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeOutSine",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easecss",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easein",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinback",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinbounce",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeincirc",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeincss",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeincubic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinelastic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinexpo",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinout",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutback",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutbounce",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutcirc",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutcss",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutcubic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutelastic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutexpo",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutquad",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutquart",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutquint",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinoutsine",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinquad",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinquart",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinquint",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeinsine",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeout",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutback",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutbounce",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutcirc",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutcss",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutcubic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutelastic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutexpo",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutincirc",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutincubic",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutinexpo",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutinquad",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutinquart",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutinquint",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutinsine",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutquad",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutquart",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutquint",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "easeoutsine",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "elastic",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "elasticIn",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "elasticInOut",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "elasticOut",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "getById",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "getLast",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "isEasing",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "linear",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "noise",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "pauseAll",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "projectile",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "pulse",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "pulseDecay",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "pulseEaseInOut",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "pulseIntro",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "pulseLinear",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "resumeAll",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "rubber",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "rubberBand",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "setInterval",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "setSkip",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "setSpeed",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "setTimeout",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "setTimeoutNow",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "smoothStep",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "smootherStep",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "smootherstep",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "smoothstep",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "spring",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "springDamped",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "springIn",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "springInOut",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "springOut",
+        "isEasing": true,
+        "hasWithParams": false
+      },
+      {
+        "name": "steps",
+        "isEasing": true,
+        "hasWithParams": true
+      },
+      {
+        "name": "stopAll",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "time",
+        "isEasing": false,
+        "hasWithParams": false
+      },
+      {
+        "name": "trakSkippedFrames",
+        "isEasing": false,
+        "hasWithParams": false
+      }
+    ],
+    "easingMethods": [
+      "anticipate",
+      "anticipateBounce",
+      "anticipateOvershoot",
+      "backInOut",
+      "backin",
+      "backout",
+      "bounce",
+      "bounceGen",
+      "bounceIn",
+      "bounceInOut",
+      "bounceOut",
+      "compose",
+      "cubicBezier",
+      "delay",
+      "delayHalf",
+      "delayQuarter",
+      "delayedSnap",
+      "doubleSpring",
+      "ease",
+      "easeIn",
+      "easeInBack",
+      "easeInBounce",
+      "easeInCirc",
+      "easeInCubic",
+      "easeInElastic",
+      "easeInExpo",
+      "easeInOut",
+      "easeInOutBack",
+      "easeInOutBounce",
+      "easeInOutCirc",
+      "easeInOutCubic",
+      "easeInOutElastic",
+      "easeInOutExpo",
+      "easeInOutQuad",
+      "easeInOutQuart",
+      "easeInOutQuint",
+      "easeInOutSine",
+      "easeInQuad",
+      "easeInQuart",
+      "easeInQuint",
+      "easeInSine",
+      "easeOut",
+      "easeOutBack",
+      "easeOutBounce",
+      "easeOutCirc",
+      "easeOutCubic",
+      "easeOutElastic",
+      "easeOutExpo",
+      "easeOutInCirc",
+      "easeOutInCubic",
+      "easeOutInExpo",
+      "easeOutInQuad",
+      "easeOutInQuart",
+      "easeOutInQuint",
+      "easeOutInSine",
+      "easeOutQuad",
+      "easeOutQuart",
+      "easeOutQuint",
+      "easeOutSine",
+      "easecss",
+      "easein",
+      "easeinback",
+      "easeinbounce",
+      "easeincirc",
+      "easeincss",
+      "easeincubic",
+      "easeinelastic",
+      "easeinexpo",
+      "easeinout",
+      "easeinoutback",
+      "easeinoutbounce",
+      "easeinoutcirc",
+      "easeinoutcss",
+      "easeinoutcubic",
+      "easeinoutelastic",
+      "easeinoutexpo",
+      "easeinoutquad",
+      "easeinoutquart",
+      "easeinoutquint",
+      "easeinoutsine",
+      "easeinquad",
+      "easeinquart",
+      "easeinquint",
+      "easeinsine",
+      "easeout",
+      "easeoutback",
+      "easeoutbounce",
+      "easeoutcirc",
+      "easeoutcss",
+      "easeoutcubic",
+      "easeoutelastic",
+      "easeoutexpo",
+      "easeoutincirc",
+      "easeoutincubic",
+      "easeoutinexpo",
+      "easeoutinquad",
+      "easeoutinquart",
+      "easeoutinquint",
+      "easeoutinsine",
+      "easeoutquad",
+      "easeoutquart",
+      "easeoutquint",
+      "easeoutsine",
+      "elastic",
+      "elasticIn",
+      "elasticInOut",
+      "elasticOut",
+      "linear",
+      "noise",
+      "projectile",
+      "pulse",
+      "pulseDecay",
+      "pulseEaseInOut",
+      "pulseIntro",
+      "pulseLinear",
+      "rubber",
+      "rubberBand",
+      "smoothStep",
+      "smootherStep",
+      "smootherstep",
+      "smoothstep",
+      "spring",
+      "springDamped",
+      "springIn",
+      "springInOut",
+      "springOut",
+      "steps"
+    ],
+    "count": 143,
+    "easingCount": 127
+  },
+  "classes": {
+    "classes": {
+      "animation": {
+        "name": "animation",
+        "displayName": "Animation",
+        "methods": [],
+        "methodDetails": [],
+        "count": 0,
+        "hasPrototype": true
+      },
+      "bbox": {
+        "name": "bbox",
+        "displayName": "Bbox",
+        "methods": [
+          "addBorder",
+          "center",
+          "clone",
+          "contains",
+          "containsCircle",
+          "corner",
+          "diag",
+          "getBBox",
+          "getBBoxRot",
+          "intersect",
+          "isOverlap",
+          "path",
+          "pointFromName",
+          "r0",
+          "r1",
+          "r2",
+          "ratio",
+          "rect",
+          "scale",
+          "setCorner",
+          "translate",
+          "union",
+          "vb"
+        ],
+        "methodDetails": [
+          {
+            "name": "addBorder",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "center",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clone",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "contains",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "containsCircle",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "corner",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "diag",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getBBox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getBBoxRot",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "intersect",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isOverlap",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "path",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "pointFromName",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "r0",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "r1",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "r2",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "ratio",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "rect",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "scale",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "setCorner",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "translate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "union",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "vb",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          }
+        ],
+        "count": 23,
+        "hasPrototype": true
+      },
+      "bezier": {
+        "name": "bezier",
+        "displayName": "Bezier",
+        "methods": [
+          "__normal2",
+          "__normal3",
+          "_error",
+          "_iterate",
+          "arcs",
+          "bbox",
+          "clone",
+          "compute",
+          "computedirection",
+          "curveintersects",
+          "derivative",
+          "extrema",
+          "first",
+          "firstTarget",
+          "get",
+          "getLUT",
+          "getPointAtLength",
+          "getUtils",
+          "hull",
+          "inflections",
+          "intersects",
+          "last",
+          "lastTarget",
+          "length",
+          "lineIntersects",
+          "normal",
+          "offset",
+          "on",
+          "outline",
+          "outlineshapes",
+          "overlaps",
+          "point",
+          "project",
+          "projectCustom",
+          "projectMatrix",
+          "projectOrthographic",
+          "projectPerspective",
+          "projectToArbitraryPlane",
+          "projectToPlane",
+          "raise",
+          "reduce",
+          "reduceToSize",
+          "reverse",
+          "scale",
+          "selfintersects",
+          "simple",
+          "split",
+          "tAtLength",
+          "toSVG",
+          "toString",
+          "update",
+          "valueOf"
+        ],
+        "methodDetails": [
+          {
+            "name": "__normal2",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "__normal3",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "_error",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "_iterate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "arcs",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "bbox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clone",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "compute",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "computedirection",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "curveintersects",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "derivative",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "extrema",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "first",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "firstTarget",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "get",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getLUT",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getPointAtLength",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getUtils",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "hull",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "inflections",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "intersects",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "last",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "lastTarget",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "length",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "lineIntersects",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "normal",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "offset",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "on",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "outline",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "outlineshapes",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "overlaps",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "point",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "project",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectCustom",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectMatrix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectOrthographic",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectPerspective",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectToArbitraryPlane",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectToPlane",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "raise",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "reduce",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "reduceToSize",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "reverse",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "scale",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "selfintersects",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "simple",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "split",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "tAtLength",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toSVG",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toString",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "update",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "valueOf",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          }
+        ],
+        "count": 52,
+        "hasPrototype": true
+      },
+      "element": {
+        "name": "element",
+        "displayName": "Element",
+        "methods": [
+          "_applyToPartner",
+          "_propagateTransToPartnersChild",
+          "_updatePartnerChild",
+          "a",
+          "add",
+          "addClass",
+          "addMessage",
+          "addTransform",
+          "addUse",
+          "addWarp",
+          "after",
+          "align",
+          "alignAll",
+          "anchorEmbed",
+          "animate",
+          "animateGenTransform",
+          "animateGenTransformBuffered",
+          "animateMotion",
+          "animateOnPath",
+          "animateOnPathAbsolute",
+          "animateTransform",
+          "animate_el",
+          "append",
+          "appendTo",
+          "arcFan",
+          "asPX",
+          "attr",
+          "attrMonitor",
+          "attr_force",
+          "attrs",
+          "before",
+          "borderImage",
+          "button",
+          "canvas",
+          "centerOfMass",
+          "centerRotation",
+          "children",
+          "circle",
+          "circleCentPoint",
+          "circleThreePoints",
+          "circleTwoPoints",
+          "classesStartWith",
+          "cleanupAfterRemove",
+          "clear",
+          "clearCHull",
+          "click",
+          "clipPath",
+          "clone",
+          "closest",
+          "copyComStyle",
+          "copyListeners",
+          "correctScale",
+          "createClipPath",
+          "createMask",
+          "css",
+          "data",
+          "dblclick",
+          "def_group",
+          "disk",
+          "diskSegments",
+          "distanceTo",
+          "drag",
+          "el",
+          "ellipse",
+          "ellipseFromEquation",
+          "embeddedSVG",
+          "equal",
+          "eraseBBoxCache",
+          "eraseParentBBoxCache",
+          "expandParenBBoxCatch",
+          "fillImage",
+          "fillInBox",
+          "filter",
+          "fitInBox",
+          "flatten",
+          "forEach",
+          "foreignObject",
+          "foreignObjectNormalize",
+          "g",
+          "g_a",
+          "genTransform",
+          "getAlign",
+          "getAttributes",
+          "getBBox",
+          "getBBoxApprox",
+          "getBBoxExact",
+          "getBBoxRot",
+          "getBitmap",
+          "getCHull",
+          "getCanvasOverly",
+          "getChildren",
+          "getClientHeight",
+          "getClientWidth",
+          "getCompoundSegments",
+          "getControlPoints",
+          "getCoordMatrix",
+          "getCursorPoint",
+          "getDirectionLine",
+          "getFirstPoint",
+          "getFromScreenDistance",
+          "getGeometryAttr",
+          "getGlobalMatrix",
+          "getId",
+          "getLastPoint",
+          "getLeafs",
+          "getLocalMatrix",
+          "getNumberPathSegments",
+          "getParentChain",
+          "getPartners",
+          "getPointAt",
+          "getPointAtLength",
+          "getPointSample",
+          "getPoints",
+          "getRealBBox",
+          "getRealBBoxExact",
+          "getReferringToMe",
+          "getSegmentAnalysis",
+          "getStyle",
+          "getSubpath",
+          "getTopSVG",
+          "getTotalLength",
+          "getTransformFix",
+          "getUseTarget",
+          "globalToLocal",
+          "gradient",
+          "gradientLinear",
+          "gradientRadial",
+          "grid",
+          "group",
+          "hasChildren",
+          "hasClass",
+          "hasPartner",
+          "hide",
+          "hideSlowly",
+          "hover",
+          "htmlInsert",
+          "image",
+          "inAnim",
+          "innerSVG",
+          "insertAfter",
+          "insertBefore",
+          "isAbove",
+          "isBelow",
+          "isChildOf",
+          "isClockwise",
+          "isCompound",
+          "isElliptical",
+          "isGroupLike",
+          "isInRect",
+          "isLocal",
+          "isOverlap",
+          "isOverlapRect",
+          "isParentOf",
+          "isPolygon",
+          "isRectangular",
+          "jiggle",
+          "line",
+          "linkedElementLocalise",
+          "localOnly",
+          "makeDraggable",
+          "makePath",
+          "marker",
+          "mask",
+          "matchClass",
+          "mousedown",
+          "mouseenter",
+          "mouseleave",
+          "mousemove",
+          "mouseout",
+          "mouseover",
+          "mouseup",
+          "move",
+          "moveAttrToStyle",
+          "mpath",
+          "multilineText",
+          "outerSVG",
+          "parent",
+          "path",
+          "pathFirstPoint",
+          "pattern",
+          "polygon",
+          "polyline",
+          "prepend",
+          "prependTo",
+          "propagateTransform",
+          "ptrn",
+          "rasterize",
+          "readChanges",
+          "recordChange",
+          "rect",
+          "reflect",
+          "regionSelect",
+          "registerRemoveFunction",
+          "remove",
+          "removeAllMouseListeners",
+          "removeChildren",
+          "removeClass",
+          "removeData",
+          "removeMessage",
+          "removePartner",
+          "removeSlowly",
+          "removeUses",
+          "removeWarp",
+          "repositionInGroup",
+          "reverse",
+          "revolve",
+          "rotate",
+          "saveMatrix",
+          "scale",
+          "select",
+          "selectAll",
+          "selectParent",
+          "setCursor",
+          "setFirstPoint",
+          "setIdFollowRefs",
+          "setPaper",
+          "setPartner",
+          "setPartnerStyle",
+          "setStyle",
+          "show",
+          "showSlowly",
+          "stop",
+          "svgEncapsulate",
+          "svgEncapsulateBox",
+          "symbol",
+          "text",
+          "textPath",
+          "toBeziers",
+          "toDataURL",
+          "toDefs",
+          "toJSON",
+          "toPathArray",
+          "toPattern",
+          "toPolyBezier",
+          "toString",
+          "toggleClass",
+          "touchcancel",
+          "touchend",
+          "touchmove",
+          "touchstart",
+          "transToMatrix",
+          "transform",
+          "translate",
+          "translateAnimate",
+          "translate_glob",
+          "transparentToMouse",
+          "unclick",
+          "undblclick",
+          "undrag",
+          "ungroup",
+          "unhover",
+          "unmousedown",
+          "unmouseenter",
+          "unmouseleave",
+          "unmousemove",
+          "unmouseout",
+          "unmouseover",
+          "unmouseup",
+          "untouchcancel",
+          "untouchend",
+          "untouchmove",
+          "untouchstart",
+          "updateBBoxCache",
+          "use",
+          "zigzag"
+        ],
+        "methodDetails": [
+          {
+            "name": "_applyToPartner",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "_propagateTransToPartnersChild",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "_updatePartnerChild",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "a",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "add",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "addClass",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "addMessage",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "addTransform",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "addUse",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "addWarp",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "after",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "align",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "alignAll",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "anchorEmbed",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animateGenTransform",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animateGenTransformBuffered",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animateMotion",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animateOnPath",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animateOnPathAbsolute",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animateTransform",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animate_el",
+            "isFromPaper": true,
+            "isElementSpecific": true,
+            "note": "Element version of Paper.animate()"
+          },
+          {
+            "name": "append",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "appendTo",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "arcFan",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "asPX",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "attr",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "attrMonitor",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "attr_force",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "attrs",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "before",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "borderImage",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "button",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "canvas",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "centerOfMass",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "centerRotation",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "children",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "circle",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "circleCentPoint",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "circleThreePoints",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "circleTwoPoints",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "classesStartWith",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "cleanupAfterRemove",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clear",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clearCHull",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "click",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clipPath",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clone",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "closest",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "copyComStyle",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "copyListeners",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "correctScale",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "createClipPath",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "createMask",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "css",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "data",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "dblclick",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "def_group",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "disk",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "diskSegments",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "distanceTo",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "drag",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "el",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "ellipse",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "ellipseFromEquation",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "embeddedSVG",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "equal",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "eraseBBoxCache",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "eraseParentBBoxCache",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "expandParenBBoxCatch",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "fillImage",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "fillInBox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "filter",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "fitInBox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "flatten",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "forEach",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "foreignObject",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "foreignObjectNormalize",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "g",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "g_a",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "genTransform",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getAlign",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getAttributes",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getBBox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getBBoxApprox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getBBoxExact",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getBBoxRot",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getBitmap",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getCHull",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getCanvasOverly",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getChildren",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getClientHeight",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getClientWidth",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getCompoundSegments",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getControlPoints",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getCoordMatrix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getCursorPoint",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getDirectionLine",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getFirstPoint",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getFromScreenDistance",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getGeometryAttr",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getGlobalMatrix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getId",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getLastPoint",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getLeafs",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getLocalMatrix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getNumberPathSegments",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getParentChain",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getPartners",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getPointAt",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getPointAtLength",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getPointSample",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getPoints",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getRealBBox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getRealBBoxExact",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getReferringToMe",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getSegmentAnalysis",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getStyle",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getSubpath",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getTopSVG",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getTotalLength",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getTransformFix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getUseTarget",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "globalToLocal",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "gradient",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "gradientLinear",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "gradientRadial",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "grid",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "group",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "hasChildren",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "hasClass",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "hasPartner",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "hide",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "hideSlowly",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "hover",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "htmlInsert",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "image",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "inAnim",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "innerSVG",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "insertAfter",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "insertBefore",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isAbove",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isBelow",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isChildOf",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isClockwise",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isCompound",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isElliptical",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isGroupLike",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isInRect",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isLocal",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isOverlap",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isOverlapRect",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isParentOf",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isPolygon",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isRectangular",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "jiggle",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "line",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "linkedElementLocalise",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "localOnly",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "makeDraggable",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "makePath",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "marker",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mask",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "matchClass",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mousedown",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mouseenter",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mouseleave",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mousemove",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mouseout",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mouseover",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mouseup",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "move",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "moveAttrToStyle",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mpath",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "multilineText",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "outerSVG",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "parent",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "path",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "pathFirstPoint",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "pattern",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "polygon",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "polyline",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "prepend",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "prependTo",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "propagateTransform",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "ptrn",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "rasterize",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "readChanges",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "recordChange",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "rect",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "reflect",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "regionSelect",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "registerRemoveFunction",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "remove",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "removeAllMouseListeners",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "removeChildren",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "removeClass",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "removeData",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "removeMessage",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "removePartner",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "removeSlowly",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "removeUses",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "removeWarp",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "repositionInGroup",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "reverse",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "revolve",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "rotate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "saveMatrix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "scale",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "select",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "selectAll",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "selectParent",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "setCursor",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "setFirstPoint",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "setIdFollowRefs",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "setPaper",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "setPartner",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "setPartnerStyle",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "setStyle",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "show",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "showSlowly",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "stop",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "svgEncapsulate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "svgEncapsulateBox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "symbol",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "text",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "textPath",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toBeziers",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toDataURL",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toDefs",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toJSON",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toPathArray",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toPattern",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toPolyBezier",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toString",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toggleClass",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "touchcancel",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "touchend",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "touchmove",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "touchstart",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "transToMatrix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "transform",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "translate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "translateAnimate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "translate_glob",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "transparentToMouse",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "unclick",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "undblclick",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "undrag",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "ungroup",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "unhover",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "unmousedown",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "unmouseenter",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "unmouseleave",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "unmousemove",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "unmouseout",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "unmouseover",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "unmouseup",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "untouchcancel",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "untouchend",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "untouchmove",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "untouchstart",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "updateBBoxCache",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "use",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          },
+          {
+            "name": "zigzag",
+            "isFromPaper": true,
+            "isElementSpecific": false
+          }
+        ],
+        "count": 265,
+        "hasPrototype": true
+      },
+      "fragment": {
+        "name": "fragment",
+        "displayName": "Fragment",
+        "methods": [
+          "select",
+          "selectAll"
+        ],
+        "methodDetails": [
+          {
+            "name": "select",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "selectAll",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          }
+        ],
+        "count": 2,
+        "hasPrototype": true
+      },
+      "matrix": {
+        "name": "matrix",
+        "displayName": "Matrix",
+        "methods": [
+          "add",
+          "apply",
+          "clone",
+          "determinant",
+          "equals",
+          "get",
+          "invert",
+          "isIdentity",
+          "isMatrix",
+          "lusolve",
+          "multLeft",
+          "multRight",
+          "offset",
+          "plus",
+          "randomTrans",
+          "rotScaleSplit",
+          "rotate",
+          "scMult",
+          "scale",
+          "skew",
+          "skewX",
+          "skewY",
+          "split",
+          "split2",
+          "timesSc",
+          "to2dArray",
+          "toArray",
+          "toString",
+          "toTransformString",
+          "translate",
+          "twoPointTransform",
+          "twoPointTransformMatrix",
+          "x",
+          "y"
+        ],
+        "methodDetails": [
+          {
+            "name": "add",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "apply",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clone",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "determinant",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "equals",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "get",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "invert",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isIdentity",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isMatrix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "lusolve",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "multLeft",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "multRight",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "offset",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "plus",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "randomTrans",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "rotScaleSplit",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "rotate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "scMult",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "scale",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "skew",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "skewX",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "skewY",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "split",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "split2",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "timesSc",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "to2dArray",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toArray",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toString",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toTransformString",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "translate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "twoPointTransform",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "twoPointTransformMatrix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "x",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "y",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          }
+        ],
+        "count": 34,
+        "hasPrototype": true
+      },
+      "paper": {
+        "name": "paper",
+        "displayName": "Paper",
+        "methods": [
+          "a",
+          "addExtension",
+          "animate",
+          "animateMotion",
+          "animate_el",
+          "arcFan",
+          "borderImage",
+          "button",
+          "canvas",
+          "circle",
+          "circleCentPoint",
+          "circleThreePoints",
+          "circleTwoPoints",
+          "clear",
+          "clipPath",
+          "def_group",
+          "disk",
+          "diskSegments",
+          "el",
+          "ellipse",
+          "ellipseFromEquation",
+          "embeddedSVG",
+          "filter",
+          "foreignObject",
+          "g",
+          "getFromScreenDistance",
+          "gradient",
+          "gradientLinear",
+          "gradientRadial",
+          "grid",
+          "htmlInsert",
+          "image",
+          "line",
+          "mask",
+          "measureText",
+          "mpath",
+          "multilineText",
+          "path",
+          "polygon",
+          "polyline",
+          "processExtensions",
+          "ptrn",
+          "rect",
+          "svg",
+          "symbol",
+          "text",
+          "textInputBox",
+          "textPath",
+          "toDataURL",
+          "toString",
+          "use",
+          "zigzag"
+        ],
+        "methodDetails": [
+          {
+            "name": "a",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "addExtension",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animate",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animateMotion",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "animate_el",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "arcFan",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "borderImage",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "button",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "canvas",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "circle",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "circleCentPoint",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "circleThreePoints",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "circleTwoPoints",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clear",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clipPath",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "def_group",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "disk",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "diskSegments",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "el",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "ellipse",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "ellipseFromEquation",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "embeddedSVG",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "filter",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "foreignObject",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "g",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getFromScreenDistance",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "gradient",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "gradientLinear",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "gradientRadial",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "grid",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "htmlInsert",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "image",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "line",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mask",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "measureText",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "mpath",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "multilineText",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "path",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "polygon",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "polyline",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "processExtensions",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "ptrn",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "rect",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "svg",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "symbol",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "text",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "textInputBox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "textPath",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toDataURL",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toString",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "use",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "zigzag",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          }
+        ],
+        "count": 52,
+        "hasPrototype": true
+      },
+      "pathpoint": {
+        "name": "pathpoint",
+        "displayName": "Pathpoint",
+        "methods": [
+          "addMeasurements",
+          "clone",
+          "getType",
+          "isCorner",
+          "isSmooth",
+          "isSymmetric"
+        ],
+        "methodDetails": [
+          {
+            "name": "addMeasurements",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clone",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getType",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isCorner",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isSmooth",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "isSymmetric",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          }
+        ],
+        "count": 6,
+        "hasPrototype": true
+      },
+      "polybezier": {
+        "name": "polybezier",
+        "displayName": "Polybezier",
+        "methods": [
+          "addCurve",
+          "bbox",
+          "clone",
+          "compute",
+          "curve",
+          "getControlPoints",
+          "getFirstPoint",
+          "getLastPoint",
+          "getPointAtLength",
+          "getPoints",
+          "intersect",
+          "length",
+          "lineIntersects",
+          "offset",
+          "projectCustom",
+          "projectMatrix",
+          "projectOrthographic",
+          "projectPerspective",
+          "projectToArbitraryPlane",
+          "reverse",
+          "toBeziers",
+          "toPolyBezier",
+          "toSVG",
+          "toString",
+          "valueOf"
+        ],
+        "methodDetails": [
+          {
+            "name": "addCurve",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "bbox",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "clone",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "compute",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "curve",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getControlPoints",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getFirstPoint",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getLastPoint",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getPointAtLength",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getPoints",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "intersect",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "length",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "lineIntersects",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "offset",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectCustom",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectMatrix",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectOrthographic",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectPerspective",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "projectToArbitraryPlane",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "reverse",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toBeziers",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toPolyBezier",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toSVG",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "toString",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "valueOf",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          }
+        ],
+        "count": 25,
+        "hasPrototype": true
+      },
+      "voronoi": {
+        "name": "voronoi",
+        "displayName": "Voronoi",
+        "methods": [
+          "getPointTriangles",
+          "getPolygon",
+          "getTriangle"
+        ],
+        "methodDetails": [
+          {
+            "name": "getPointTriangles",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getPolygon",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          },
+          {
+            "name": "getTriangle",
+            "isFromPaper": false,
+            "isElementSpecific": false
+          }
+        ],
+        "count": 3,
+        "hasPrototype": true
+      }
+    },
+    "classNames": [
+      "animation",
+      "bbox",
+      "bezier",
+      "element",
+      "fragment",
+      "matrix",
+      "paper",
+      "pathpoint",
+      "polybezier",
+      "voronoi"
+    ],
+    "paperMethods": [
+      "a",
+      "addExtension",
+      "animate",
+      "animateMotion",
+      "animate_el",
+      "arcFan",
+      "borderImage",
+      "button",
+      "canvas",
+      "circle",
+      "circleCentPoint",
+      "circleThreePoints",
+      "circleTwoPoints",
+      "clear",
+      "clipPath",
+      "def_group",
+      "disk",
+      "diskSegments",
+      "el",
+      "ellipse",
+      "ellipseFromEquation",
+      "embeddedSVG",
+      "filter",
+      "foreignObject",
+      "g",
+      "getFromScreenDistance",
+      "gradient",
+      "gradientLinear",
+      "gradientRadial",
+      "grid",
+      "htmlInsert",
+      "image",
+      "line",
+      "mask",
+      "measureText",
+      "mpath",
+      "multilineText",
+      "path",
+      "polygon",
+      "polyline",
+      "processExtensions",
+      "ptrn",
+      "rect",
+      "svg",
+      "symbol",
+      "text",
+      "textInputBox",
+      "textPath",
+      "toDataURL",
+      "toString",
+      "use",
+      "zigzag"
+    ]
+  },
+  "navigation": [
+    {
+      "id": "snap",
+      "name": "Snap",
+      "isGlobal": false
+    },
+    {
+      "id": "mina",
+      "name": "mina",
+      "isGlobal": true
+    },
+    {
+      "id": "animation",
+      "name": "Animation",
+      "isGlobal": false,
+      "isClass": true
+    },
+    {
+      "id": "bbox",
+      "name": "Bbox",
+      "isGlobal": false,
+      "isClass": true
+    },
+    {
+      "id": "bezier",
+      "name": "Bezier",
+      "isGlobal": false,
+      "isClass": true
+    },
+    {
+      "id": "element",
+      "name": "Element",
+      "isGlobal": false,
+      "isClass": true
+    },
+    {
+      "id": "fragment",
+      "name": "Fragment",
+      "isGlobal": false,
+      "isClass": true
+    },
+    {
+      "id": "matrix",
+      "name": "Matrix",
+      "isGlobal": false,
+      "isClass": true
+    },
+    {
+      "id": "paper",
+      "name": "Paper",
+      "isGlobal": false,
+      "isClass": true
+    },
+    {
+      "id": "pathpoint",
+      "name": "Pathpoint",
+      "isGlobal": false,
+      "isClass": true
+    },
+    {
+      "id": "polybezier",
+      "name": "Polybezier",
+      "isGlobal": false,
+      "isClass": true
+    },
+    {
+      "id": "voronoi",
+      "name": "Voronoi",
+      "isGlobal": false,
+      "isClass": true
+    }
+  ],
+  "timestamp": "2025-12-10T18:44:54.873Z"
+}
