@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2025-12-11
+// build: 2025-12-15
 
 const __eveGlobal = typeof globalThis !== "undefined" ? globalThis :
     (typeof self !== "undefined" ? self :

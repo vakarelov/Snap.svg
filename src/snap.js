@@ -93,6 +93,47 @@
             glob.doc = newWindow.document;
         }
 
+        Snap.setDocument  = function (doc){
+            // Check if this is a shadow root - if so, create a document-like wrapper
+            if (typeof ShadowRoot !== 'undefined' && doc instanceof ShadowRoot) {
+                const mainDoc = doc.ownerDocument || (root.window && root.window.document) || {};
+                glob.doc = {
+                    // Element creation uses the main document (elements need proper context)
+                    createElement: function(...args) {
+                        return mainDoc.createElement ? mainDoc.createElement(...args) : {};
+                    },
+                    createElementNS: function(...args) {
+                        return mainDoc.createElementNS ? mainDoc.createElementNS(...args) : {};
+                    },
+                    createTextNode: function(...args) {
+                        return mainDoc.createTextNode ? mainDoc.createTextNode(...args) : {};
+                    },
+                    createComment: function(...args) {
+                        return mainDoc.createComment ? mainDoc.createComment(...args) : {};
+                    },
+
+                    // Queries are scoped to the shadow root
+                    querySelector: function(...args) {
+                        return doc.querySelector ? doc.querySelector(...args) : null;
+                    },
+                    querySelectorAll: function(...args) {
+                        return doc.querySelectorAll ? doc.querySelectorAll(...args) : [];
+                    },
+                    getElementsByTagName: function(tag) {
+                        // Shadow roots don't have getElementsByTagName, use querySelectorAll instead
+                        return doc.querySelectorAll ? doc.querySelectorAll(tag) : [];
+                    },
+
+                    // Provide defaultView from main document (needed for getComputedStyle)
+                    get defaultView() {
+                        return mainDoc.defaultView || (root.window || {});
+                    }
+                };
+            } else {
+                glob.doc = doc;
+            }
+        }
+
         Snap.getProto = function (proto_name) {
             switch (proto_name.toLowerCase()) {
                 case "element":

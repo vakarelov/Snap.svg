@@ -1,0 +1,12 @@
+{
+  "title": "Styling and Attributes - basic-attr",
+  "html": "<svg id=\"mySvg\" width=\"420\" height=\"120\" style=\"border: 1px solid #ccc;\"></svg>\r\n\r\n",
+  "css": "/* No CSS provided */",
+  "js": "// Tutorial 2 - Example 1: Basic Attribute Styling\r\n// Demonstrates setting visual attributes on rectangles and attr() as getter/setter\r\n\r\nvar s = Snap(\"#mySvg\");\r\n\r\n// Create a group to hold our shapes\r\nvar group = s.g().attr({ id: \"attrGroup\" });\r\n\r\n// Rectangle 1: Basic fill and stroke via attr() - object syntax\r\ngroup\r\n  .rect(20, 20, 80, 60)\r\n  .attr({\r\n    fill: \"#3498db\",        // blue fill\r\n    stroke: \"#2c3e50\",      // dark border\r\n    strokeWidth: 2\r\n  });\r\n\r\n// Rectangle 2: Using attr() with key-value syntax (alternative way)\r\nvar rect2 = group.rect(120, 20, 80, 60);\r\nrect2.attr(\"fill\", \"#e74c3c\");           // Set fill\r\nrect2.attr(\"opacity\", 0.7);              // Set opacity\r\nrect2.attr(\"stroke\", \"#c0392b\");\r\nrect2.attr(\"strokeWidth\", 3);\r\nrect2.attr(\"strokeDasharray\", \"5,3\");    // dashed: 5px dash, 3px gap\r\n\r\n\r\n// Rectangle 3: No fill, thick rounded stroke\r\ngroup\r\n  .rect(220, 20, 80, 60)\r\n  .attr({\r\n    fill: \"none\",\r\n    stroke: \"#2ecc71\",\r\n    strokeWidth: 4,\r\n    strokeLinecap: \"round\",  // rounded ends\r\n    strokeLinejoin: \"round\"  // rounded corners\r\n  });\r\n\r\n// Rectangle 4: Rounded corners with gradient-ready styling\r\ngroup\r\n  .rect(320, 20, 80, 60)\r\n  .attr({\r\n    fill: \"#f39c12\",\r\n    stroke: \"#e67e22\",\r\n    strokeWidth: 2,\r\n    rx: 10,                  // rounded corners\r\n    ry: 10\r\n  });\r\n\r\n",
+  "externalDependencies": {
+    "js": [
+      "https://iaesth.ca/dist/snap.svg_ia.min.js"
+    ],
+    "css": []
+  }
+}

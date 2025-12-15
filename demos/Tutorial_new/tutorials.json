@@ -4,6 +4,11 @@
       "title": "Building Your First SVG",
       "file": "Basic.P1.MD",
       "path": "MD/Basic.P1.MD"
+    },
+    {
+      "title": "Styling and Attributes",
+      "file": "Basic.P2.MD",
+      "path": "MD/Basic.P2.MD"
     }
   ],
   "Intermediate": [],

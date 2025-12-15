@@ -1,0 +1,12 @@
+{
+  "title": "Styling and Attributes - inline-style",
+  "html": "<svg id=\"mySvg\" width=\"420\" height=\"220\" style=\"border: 1px solid #ccc;\"></svg>\r\n\r\n",
+  "css": "/* No CSS provided */",
+  "js": "// Tutorial 2 - Example 2: Inline Styles with setStyle()\r\n// Demonstrates setStyle() flexibility and style precedence over attributes\r\n\r\nvar s = Snap(\"#mySvg\");\r\nvar group = s.g().attr({ id: \"styleGroup\" });\r\n\r\n// Create circles for demonstration\r\nvar circle1 = group.circle(60, 140, 30);\r\nvar circle2 = group.circle(160, 140, 30);\r\nvar circle3 = group.circle(260, 140, 30);\r\nvar circle4 = group.circle(360, 140, 30);\r\n\r\n// Method 1: Object with multiple properties\r\ncircle1.setStyle({\r\n  fill: \"red\",\r\n  stroke: \"#c0392b\",\r\n  strokeWidth: 3,\r\n  opacity: 0.8\r\n});\r\n\r\n// Method 2: Single property with key-value syntax\r\ncircle2.setStyle(\"fill\", \"green\");\r\ncircle2.setStyle(\"strokeWidth\", \"2\");\r\ncircle2.setStyle(\"stroke\", \"#27ae60\");\r\n\r\n// Method 3: CSS string (like inline style attribute)\r\ncircle3.setStyle(\"fill: blue; stroke: navy; stroke-width: 2;\");\r\n\r\n// Method 4: Mixed - single property can also use object\r\ncircle4.setStyle({ fill: \"orange\" });\r\ncircle4.setStyle(\"stroke\", \"darkorange\");\r\n\r\n// Add labels\r\ngroup.text(60, 185, \"Object\").attr({ fontSize: 11, textAnchor: \"middle\", fill: \"#333\" });\r\ngroup.text(160, 185, \"Key-Value\").attr({ fontSize: 11, textAnchor: \"middle\", fill: \"#333\" });\r\ngroup.text(260, 185, \"CSS String\").attr({ fontSize: 11, textAnchor: \"middle\", fill: \"#333\" });\r\ngroup.text(360, 185, \"Mixed\").attr({ fontSize: 11, textAnchor: \"middle\", fill: \"#333\" });\r\n\r\n",
+  "externalDependencies": {
+    "js": [
+      "https://iaesth.ca/dist/snap.svg_ia.min.js"
+    ],
+    "css": []
+  }
+}

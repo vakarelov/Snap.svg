@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snap.svg Shadow DOM Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .test-container {
+            border: 2px solid #333;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f5f5f5;
+        }
+        .test-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .shadow-host {
+            border: 2px dashed #666;
+            padding: 10px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Snap.svg Shadow DOM Support Test</h1>
+
+    <div class="test-container">
+        <div class="test-title">Test 1: Regular DOM (Control)</div>
+        <div id="regular-container"></div>
+    </div>
+
+    <div class="test-container">
+        <div class="test-title">Test 2: Shadow DOM with setDocument()</div>
+        <div id="shadow-host" class="shadow-host"></div>
+    </div>
+
+    <div class="test-container">
+        <div class="test-title">Test 3: Element Selection in Shadow DOM</div>
+        <div id="shadow-host-2" class="shadow-host"></div>
+    </div>
+
+    <div id="results" style="margin-top: 20px; padding: 10px; background: #e8f4f8; border-radius: 5px;">
+        <h3>Test Results:</h3>
+        <div id="results-content"></div>
+    </div>
+
+    <!-- Include Snap.svg -->
+    <script src="../dist/snap.svg.js"></script>
+
+    <script>
+        const results = document.getElementById('results-content');
+
+        function logResult(test, message, success = true) {
+            const div = document.createElement('div');
+            div.style.padding = '5px';
+            div.style.color = success ? 'green' : 'red';
+            div.innerHTML = `<strong>${test}:</strong> ${message}`;
+            results.appendChild(div);
+        }
+
+        // Test 1: Regular DOM (Control Test)
+        try {
+            const regularContainer = document.getElementById('regular-container');
+            const svg1 = Snap(400, 200);
+            regularContainer.appendChild(svg1.node);
+
+            const circle1 = svg1.circle(100, 100, 50);
+            circle1.attr({
+                fill: "blue",
+                stroke: "black",
+                strokeWidth: 2
+            });
+
+            const text1 = svg1.text(20, 180, "Regular DOM");
+            text1.attr({ fontSize: 16 });
+
+            logResult('Test 1', 'Regular DOM creation successful ✓', true);
+        } catch (e) {
+            logResult('Test 1', 'Failed: ' + e.message, false);
+        }
+
+        // Test 2: Shadow DOM with setDocument()
+        try {
+            const shadowHost = document.getElementById('shadow-host');
+            const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
+
+            // Set Snap to use the shadow root
+            Snap.setDocument(shadowRoot);
+
+            // Create SVG in shadow DOM
+            const svg2 = Snap(400, 200);
+            shadowRoot.appendChild(svg2.node);
+
+            const circle2 = svg2.circle(100, 100, 50);
+            circle2.attr({
+                fill: "red",
+                stroke: "black",
+                strokeWidth: 2
+            });
+
+            const text2 = svg2.text(20, 180, "Shadow DOM");
+            text2.attr({ fontSize: 16 });
+
+            logResult('Test 2', 'Shadow DOM SVG creation successful ✓', true);
+
+            // Restore regular document for remaining tests
+            Snap.setDocument(document);
+
+        } catch (e) {
+            logResult('Test 2', 'Failed: ' + e.message, false);
+            console.error('Test 2 error:', e);
+        }
+
+        // Test 3: Element Selection in Shadow DOM
+        try {
+            const shadowHost2 = document.getElementById('shadow-host-2');
+            const shadowRoot2 = shadowHost2.attachShadow({ mode: 'open' });
+
+            // First create an SVG element directly in shadow root
+            const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svgEl.setAttribute('width', '400');
+            svgEl.setAttribute('height', '200');
+            svgEl.id = 'test-svg';
+            shadowRoot2.appendChild(svgEl);
+
+            // Now use Snap with shadow DOM
+            Snap.setDocument(shadowRoot2);
+
+            // Try to select the existing SVG
+            const foundSvg = Snap.select('#test-svg');
+
+            if (foundSvg && foundSvg.node) {
+                const circle3 = foundSvg.circle(100, 100, 50);
+                circle3.attr({
+                    fill: "green",
+                    stroke: "black",
+                    strokeWidth: 2
+                });
+
+                const text3 = foundSvg.text(20, 180, "Found & Selected");
+                text3.attr({ fontSize: 16 });
+
+                logResult('Test 3', 'Element selection in Shadow DOM successful ✓', true);
+            } else {
+                logResult('Test 3', 'Could not find SVG element in Shadow DOM', false);
+            }
+
+            // Restore regular document
+            Snap.setDocument(document);
+
+        } catch (e) {
+            logResult('Test 3', 'Failed: ' + e.message, false);
+            console.error('Test 3 error:', e);
+        }
+
+        // Test 4: Verify defaultView is available
+        try {
+            const shadowHost3 = document.createElement('div');
+            document.body.appendChild(shadowHost3);
+            const shadowRoot3 = shadowHost3.attachShadow({ mode: 'open' });
+
+            Snap.setDocument(shadowRoot3);
+
+            // Access the document object to verify defaultView is available
+            const doc = Snap.document(false);
+
+            if (doc.defaultView) {
+                logResult('Test 4', 'defaultView is available in Shadow DOM context ✓', true);
+            } else {
+                logResult('Test 4', 'defaultView is not available', false);
+            }
+
+            // Restore regular document
+            Snap.setDocument(document);
+
+            // Clean up
+            document.body.removeChild(shadowHost3);
+
+        } catch (e) {
+            logResult('Test 4', 'Failed: ' + e.message, false);
+            console.error('Test 4 error:', e);
+        }
+
+        // Test 5: Test element creation methods
+        try {
+            const testDiv = document.createElement('div');
+            document.body.appendChild(testDiv);
+            const shadowRoot5 = testDiv.attachShadow({ mode: 'open' });
+
+            Snap.setDocument(shadowRoot5);
+
+            const doc = Snap.document(false);
+
+            // Test various creation methods
+            const el = doc.createElement('div');
+            const svgEl = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            const textNode = doc.createTextNode('test');
+            const comment = doc.createComment('test comment');
+
+            if (el && svgEl && textNode && comment) {
+                logResult('Test 5', 'All element creation methods working ✓', true);
+            } else {
+                logResult('Test 5', 'Some element creation methods failed', false);
+            }
+
+            // Restore and cleanup
+            Snap.setDocument(document);
+            document.body.removeChild(testDiv);
+
+        } catch (e) {
+            logResult('Test 5', 'Failed: ' + e.message, false);
+            console.error('Test 5 error:', e);
+        }
+
+    </script>
+</body>
+</html>
+

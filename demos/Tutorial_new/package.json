@@ -1,0 +1,23 @@
+{
+  "name": "snap-svg-tutorial-codepen-creator",
+  "version": "1.0.0",
+  "description": "Creates CodePen demos and converts tutorial markdown for dev.to",
+  "main": "create-codepens.js",
+  "scripts": {
+    "create-codepens": "node create-codepens.js",
+    "test": "node create-codepens.js"
+  },
+  "keywords": [
+    "snapsvg",
+    "codepen",
+    "dev.to",
+    "tutorial",
+    "markdown"
+  ],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=12.0.0"
+  }
+}
+

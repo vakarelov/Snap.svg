@@ -1,0 +1,61 @@
+/* Tutorial 2 - CSS Styles */
+
+/* CSS rules for class examples */
+.highlighted {
+  fill: #f1c40f !important;
+  stroke: #f39c12 !important;
+  stroke-width: 4;
+}
+
+.dimmed {
+  opacity: 0.3;
+}
+
+.fancy-stroke {
+  stroke: #9b59b6;
+  stroke-width: 3;
+  stroke-dasharray: 10,5;
+}
+
+/* State classes for advanced examples */
+.state-active {
+  fill: #2ecc71;
+}
+
+.state-warning {
+  fill: #f39c12;
+}
+
+.state-error {
+  fill: #e74c3c;
+}
+
+/* Theme classes */
+.theme-dark {
+  stroke: #2c3e50;
+  stroke-width: 2;
+}
+
+.theme-light {
+  stroke: #ecf0f1;
+  stroke-width: 2;
+}
+
+/* CSS for precedence demo */
+.css-fill {
+  fill: orange;
+}
+
+/* CSS for color palette demo */
+.color-blue {
+  fill: #3498db;
+}
+
+.color-red {
+  fill: #e74c3c;
+}
+
+.color-green {
+  fill: #2ecc71;
+}
+

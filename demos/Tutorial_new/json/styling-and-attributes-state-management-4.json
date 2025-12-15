@@ -1,0 +1,12 @@
+{
+  "title": "Styling and Attributes - state-management",
+  "html": "<svg id=\"mySvg\" width=\"650\" height=\"150\" style=\"border: 1px solid #ccc;\"></svg>\r\n\r\n",
+  "css": "/* No CSS provided */",
+  "js": "// state-management.js\r\nvar s = Snap(\"#mySvg\");\r\n\r\n// State management system - circle that changes based on state\r\nvar statusIndicator = s.circle(100, 75, 40).attr({ fill: \"#95a5a6\" });\r\n\r\n// Create clickable state buttons\r\nvar buttonData = [\r\n  { x: 200, state: \"active\", label: \"Active\", color: \"#27ae60\" },\r\n  { x: 300, state: \"warning\", label: \"Warning\", color: \"#f39c12\" },\r\n  { x: 400, state: \"error\", label: \"Error\", color: \"#e74c3c\" },\r\n  { x: 500, state: \"inactive\", label: \"Inactive\", color: \"#95a5a6\" }\r\n];\r\n\r\nfunction setState(element, newState, color) {\r\n  // Remove all previous state classes using prefix\r\n  element.removeClass(\"state-\", true);\r\n\r\n  // Add the new state class\r\n  element.addClass(\"state-\" + newState);\r\n\r\n  // Update visual appearance\r\n  element.attr({ fill: color });\r\n\r\n  // Update info text\r\n  infoText.attr({ text: \"Click buttons to change state. Current: \" + newState });\r\n}\r\n\r\n// Create buttons\r\nbuttonData.forEach(function(btn) {\r\n  var rect = s.rect(btn.x, 50, 80, 30, 5).attr({\r\n    fill: \"#3498db\",\r\n    stroke: \"#2980b9\",\r\n    strokeWidth: 2,\r\n    cursor: \"pointer\"\r\n  });\r\n\r\n  var label = s.text(btn.x + 40, 70, btn.label).attr({\r\n    fontSize: 12,\r\n    fill: \"white\",\r\n    textAnchor: \"middle\",\r\n    pointerEvents: \"none\"\r\n  });\r\n\r\n  // Add click handler\r\n  rect.click(function() {\r\n    setState(statusIndicator, btn.state, btn.color);\r\n  });\r\n});\r\n\r\n// Info text\r\nvar infoText = s.text(20, 130, \"Click buttons to change state. Current: inactive\").attr({\r\n  fontSize: 14,\r\n  fill: \"#333\"\r\n});\r\n\r\n// Set initial state\r\nsetState(statusIndicator, \"inactive\", \"#95a5a6\");\r\n",
+  "externalDependencies": {
+    "js": [
+      "https://iaesth.ca/dist/snap.svg_ia.min.js"
+    ],
+    "css": []
+  }
+}
