@@ -16,6 +16,45 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         Str = String,
         E = "";
 
+    function validateNumericValues() {
+        const values = Array.prototype.slice.call(arguments);
+        const invalid = [];
+
+        for (let i = 0; i < values.length; i++) {
+            const raw = values[i];
+            let parsed;
+            if (typeof raw === "number") {
+                parsed = raw;
+            } else if (typeof raw === "string" && raw.trim() !== "") {
+                parsed = Number(raw);
+            } else {
+                parsed = NaN;
+            }
+
+            if (!isFinite(parsed)) {
+                let shown = "";
+                if (typeof raw === "string") {
+                    shown = '"' + raw + '"';
+                } else if (raw === undefined) {
+                    shown = "undefined";
+                } else if (raw === null) {
+                    shown = "null";
+                } else {
+                    shown = String(raw);
+                }
+                invalid.push("[" + i + "]=" + shown);
+            } else {
+                values[i] = parsed;
+            }
+        }
+
+        if (invalid.length) {
+            throw new Error("Invalid matrix values: " + invalid.join(", "));
+        }
+
+        return values;
+    }
+
     /**
      * Represents a 2D affine transformation matrix with six coefficients.
      * Accepts individual numeric coefficients, an `SVGMatrix`-like object, a matrix string, or another `Matrix` instance.
@@ -36,32 +75,51 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         constructor(a, b, c, d, e, f) {
             if (b == null && objectToString.call(a) == "[object SVGMatrix]") {
-                this.a = a.a;
-                this.b = a.b;
-                this.c = a.c;
-                this.d = a.d;
-                this.e = a.e;
-                this.f = a.f;
+                const values = validateNumericValues(a.a, a.b, a.c, a.d, a.e, a.f);
+                this.a = values[0];
+                this.b = values[1];
+                this.c = values[2];
+                this.d = values[3];
+                this.e = values[4];
+                this.f = values[5];
                 return;
             }
             if (b == null && typeof a === "string") {
-                a = a.replace("matrix(", "").replace("(", "").replace(")", "");
-                a = a.split(",");
-                this.a = +a[0] || 0;
-                this.b = +a[1] || 0;
-                this.c = +a[2] || 0;
-                this.d = +a[3] || 0;
-                this.e = +a[4] || 0;
-                this.f = +a[5] || 0;
+                const rawString = a;
+                const parts = a
+                    .replace("matrix(", "")
+                    .replace("(", "")
+                    .replace(")", "")
+                    .trim()
+                    .split(/[\s,]+/)
+                    .filter(function(part) {
+                        return part.length > 0;
+                    });
+
+                if (parts.length !== 6) {
+                    throw new Error('Matrix constructor (string) expects 6 numeric values. Invalid: input="' + rawString + '"');
+                }
+
+                const values = validateNumericValues(
+                    Number(parts[0]), Number(parts[1]), Number(parts[2]),
+                    Number(parts[3]), Number(parts[4]), Number(parts[5])
+                );
+                this.a = values[0];
+                this.b = values[1];
+                this.c = values[2];
+                this.d = values[3];
+                this.e = values[4];
+                this.f = values[5];
                 return;
             }
             if (a != null) {
-                this.a = +a;
-                this.b = +b;
-                this.c = +c;
-                this.d = +d;
-                this.e = +e;
-                this.f = +f;
+                const values = validateNumericValues(a, b, c, d, e, f);
+                this.a = values[0];
+                this.b = values[1];
+                this.c = values[2];
+                this.d = values[3];
+                this.e = values[4];
+                this.f = values[5];
             } else {
                 this.a = 1;
                 this.b = 0;
@@ -88,6 +146,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (a && a instanceof Matrix) {
                 return this.add(a.a, a.b, a.c, a.d, a.e, a.f);
             }
+            const values = validateNumericValues(a, b, c, d, e, f);
+            a = values[0];
+            b = values[1];
+            c = values[2];
+            d = values[3];
+            e = values[4];
+            f = values[5];
             var aNew = a * this.a + b * this.c,
                 bNew = a * this.b + b * this.d;
             this.e += e * this.a + f * this.c;
@@ -134,6 +199,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         scMult(c) {
+            c = validateNumericValues(c)[0];
             this.a *= c;
             this.b *= c;
             this.c *= c;
@@ -173,9 +239,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     }
                     return this;
                 }
-                if (typeof a[0] === "number") {
-                    return this.multLeft(a[0] || 0, a[1] || 0,
-                        a[2] || 0, a[3] || 0, a[4] || 0, a[5] || 0);
+                if (a.length) {
+                    return this.multLeft(a[0], a[1], a[2], a[3], a[4], a[5]);
                 }
                 return this;
             }
@@ -183,6 +248,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (a && a instanceof Matrix) {
                 return this.multLeft(a.a, a.b, a.c, a.d, a.e, a.f);
             }
+            const values = validateNumericValues(a, b, c, d, e, f);
+            a = values[0];
+            b = values[1];
+            c = values[2];
+            d = values[3];
+            e = values[4];
+            f = values[5];
             var aNew = a * this.a + c * this.b,
                 cNew = a * this.c + c * this.d,
                 eNew = a * this.e + c * this.f + e;
@@ -224,6 +296,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         translate(x, y) {
+            const values = validateNumericValues(x, y);
+            x = values[0];
+            y = values[1];
             this.e += x * this.a + y * this.c;
             this.f += x * this.b + y * this.d;
             return this;
@@ -240,6 +315,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         scale(x, y, cx, cy) {
             y == null && (y = x);
+            cx = cx == null ? 0 : cx;
+            cy = cy == null ? 0 : cy;
+            const values = validateNumericValues(x, y, cx, cy);
+            x = values[0];
+            y = values[1];
+            cx = values[2];
+            cy = values[3];
             (cx || cy) && this.translate(cx, cy);
             this.a *= x;
             this.b *= x;
@@ -258,9 +340,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         rotate(a, x, y) {
-            a = Snap.rad(a);
-            x = x || 0;
-            y = y || 0;
+            x = x == null ? 0 : x;
+            y = y == null ? 0 : y;
+            const values = validateNumericValues(a, x, y);
+            a = Snap.rad(values[0]);
+            x = values[1];
+            y = values[2];
             var cos = +Math.cos(a).toFixed(9),
                 sin = +Math.sin(a).toFixed(9);
             this.add(cos, sin, -sin, cos, x, y);
@@ -295,10 +380,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         skew(x, y) {
-            x = x || 0;
-            y = y || 0;
-            x = Snap.rad(x);
-            y = Snap.rad(y);
+            x = x == null ? 0 : x;
+            y = y == null ? 0 : y;
+            const values = validateNumericValues(x, y);
+            x = Snap.rad(values[0]);
+            y = Snap.rad(values[1]);
             var c = Math.tan(x).toFixed(9);
             var b = Math.tan(y).toFixed(9);
             return this.add(1, b, c, 1, 0, 0);
@@ -340,9 +426,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         randomTrans(cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
-            distance = distance || 300;
-            cx = cx || 0;
-            cy = cy || 0;
+            distance = distance == null ? 300 : distance;
+            cx = cx == null ? 0 : cx;
+            cy = cy == null ? 0 : cy;
+            const values = validateNumericValues(cx, cy, distance);
+            cx = values[0];
+            cy = values[1];
+            distance = values[2];
             let angle = (skip_rotation) ? 0 : 360 * Math.random();
             let scalex = (Math.random() < .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random();
             let scaley = (diff_scale) ? (Math.random() < .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random() : scalex;
@@ -587,43 +677,52 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         /**
-         * Computes an affine transform mapping two source points to two destination points.
+         * Builds an affine transform that maps one segment to another.
          *
-         * @param {number} x1 - X-coordinate of the first source point.
-         * @param {number} y1 - Y-coordinate of the first source point.
-         * @param {number} x1Prime - X-coordinate of the first destination point.
-         * @param {number} y1Prime - Y-coordinate of the first destination point.
-         * @param {number} x2 - X-coordinate of the second source point.
-         * @param {number} y2 - Y-coordinate of the second source point.
-         * @param {number} x2Prime - X-coordinate of the second destination point.
-         * @param {number} y2Prime - Y-coordinate of the second destination point.
-         * @returns {Matrix} A new matrix performing the inferred transform.
+         * @param {number} p1_x - X-coordinate of the first source point.
+         * @param {number} p1_y - Y-coordinate of the first source point.
+         * @param {number} p2_x - X-coordinate of the second source point.
+         * @param {number} p2_y - Y-coordinate of the second source point.
+         * @param {number} toP1_x - X-coordinate of the first destination point.
+         * @param {number} toP1_y - Y-coordinate of the first destination point.
+         * @param {number} toP2_x - X-coordinate of the second destination point.
+         * @param {number} toP2_y - Y-coordinate of the second destination point.
+         * @returns {Matrix|null} The matrix after it has been updated, or `null` if the source/destination segment is degenerate.
          */
-        twoPointTransformMatrix(x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
-            // Calculate distances before and after transformation
-            const distanceBefore = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-            const distanceAfter = Math.sqrt(Math.pow(x2Prime - x1Prime, 2) + Math.pow(y2Prime - y1Prime, 2));
+        twoPointTransform(p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y) {
+           const values = validateNumericValues(p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y);
 
-            // Scale factor
-            const s = distanceAfter / distanceBefore;
+           const sourceVectorX = values[2] - values[0];
+           const sourceVectorY = values[3] - values[1];
+           const targetVectorX = values[6] - values[4];
+           const targetVectorY = values[7] - values[5];
 
-            // Calculate rotation angle theta
-            const dotProduct = (x2Prime - x1Prime) * (x2 - x1) + (y2Prime - y1Prime) * (y2 - y1);
-            const determinant = (x2Prime - x1Prime) * (y2 - y1) - (y2Prime - y1Prime) * (x2 - x1);
-            const theta = Math.atan2(determinant, dotProduct);
+           const distanceBefore = Math.hypot(sourceVectorX, sourceVectorY);
+           const distanceAfter = Math.hypot(targetVectorX, targetVectorY);
 
-            // Calculate components of the transformation matrix
-            const a = s * Math.cos(theta);
-            const b = s * Math.sin(theta);
-            const c = -s * Math.sin(theta);
-            const d = s * Math.cos(theta);
+           if (!distanceBefore || !distanceAfter) {
+               return null;
+           }
 
-            // Calculate translation components
-            const e = x1Prime - (a * x1 + c * y1);
-            const f = y1Prime - (b * x1 + d * y1);
+           const scale = distanceAfter / distanceBefore;
+           const dotProduct = targetVectorX * sourceVectorX + targetVectorY * sourceVectorY;
+           const determinant = sourceVectorX * targetVectorY - sourceVectorY * targetVectorX;
+           const theta = Math.atan2(determinant, dotProduct);
 
-            // Return the transformation matrix
-            return new Snap.Matrix(a, b, c, d, e, f);
+           const a = scale * Math.cos(theta);
+           const b = scale * Math.sin(theta);
+           const c = -b;
+           const d = a;
+           const e = values[4] - (a * values[0] + c * values[1]);
+           const f = values[5] - (b * values[0] + d * values[1]);
+
+           this.a = a;
+           this.b = b;
+           this.c = c;
+           this.d = d;
+           this.e = e;
+           this.f = f;
+           return this;
         }
 
         /**
@@ -683,33 +782,44 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         static combine(trans, scale, angle, shear) {
             let params;
             if (trans && typeof trans === "object" && !Array.isArray(trans) && trans.dx != null) {
+                const values = validateNumericValues(
+                    trans.dx == null ? 0 : trans.dx,
+                    trans.dy == null ? 0 : trans.dy,
+                    trans.scalex == null ? 1 : trans.scalex,
+                    trans.scaley == null ? 1 : trans.scaley,
+                    trans.rotate == null ? 0 : trans.rotate,
+                    trans.shear == null ? 0 : trans.shear
+                );
                 params = {
-                    dx: trans.dx || 0,
-                    dy: trans.dy || 0,
-                    scalex: trans.scalex == null ? 1 : trans.scalex,
-                    scaley: trans.scaley == null ? 1 : trans.scaley,
-                    rotate: trans.rotate || 0,
-                    shear: trans.shear || 0
+                    dx: values[0],
+                    dy: values[1],
+                    scalex: values[2],
+                    scaley: values[3],
+                    rotate: values[4],
+                    shear: values[5]
                 };
             } else {
-                const dx = Array.isArray(trans) ? +trans[0] || 0 : 0;
-                const dy = Array.isArray(trans) ? +trans[1] || 0 : 0;
+                const dx = Array.isArray(trans) ? (trans[0] == null ? 0 : trans[0]) : 0;
+                const dy = Array.isArray(trans) ? (trans[1] == null ? 0 : trans[1]) : 0;
                 let sx, sy;
                 if (Array.isArray(scale)) {
-                    sx = +scale[0] || 0;
-                    sy = +scale[1] || 0;
+                    sx = scale[0] == null ? 0 : scale[0];
+                    sy = scale[1] == null ? 0 : scale[1];
                 } else if (typeof scale === "number") {
-                    sx = sy = scale;
+                    sx = scale;
+                    sy = scale;
                 } else {
-                    sx = sy = 1;
+                    sx = 1;
+                    sy = 1;
                 }
+                const values = validateNumericValues(dx, dy, sx, sy, angle == null ? 0 : angle, shear == null ? 0 : shear);
                 params = {
-                    dx: dx,
-                    dy: dy,
-                    scalex: sx,
-                    scaley: sy,
-                    rotate: angle || 0,
-                    shear: shear || 0
+                    dx: values[0],
+                    dy: values[1],
+                    scalex: values[2],
+                    scaley: values[3],
+                    rotate: values[4],
+                    shear: values[5]
                 };
             }
 

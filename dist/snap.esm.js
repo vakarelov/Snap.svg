@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2026-06-11
+// build: 2026-10-08
 
 const __snapGlobal = typeof globalThis !== "undefined" ? globalThis :
     (typeof self !== "undefined" ? self :
@@ -69,6 +69,7 @@ if (typeof global === "undefined") {
     const // /[\.\/]/,
         comaseparator = /\s*,\s*/,
         wildcard = "*",
+        optionalWildcard = "?",
         numsort = function (a, b) {
             return a - b;
         },
@@ -331,10 +332,8 @@ if (typeof global === "undefined") {
 
         args = args || Array.prototype.slice.call(arguments, 3)
 
-        const oldstop = stop,
-            listeners = eve.listeners(name, group),
-            promises = [],
-            ce = current_event;
+        const listeners = eve.listeners(name, group),
+            promises = [];
 
         promises.firstDefined = firstDefined;
         promises.lastDefined = lastDefined;
@@ -345,39 +344,28 @@ if (typeof global === "undefined") {
             scope = undefined;
         }
 
-        current_event = name;
-        stop = 0;
-
         // Sort listeners by zIndex
         listeners.sort(function_sort);
 
         for (let i = 0, lim = listeners.length; i < lim; ++i) {
             const l = listeners[i];
-            let result;
-            try {
-                // Universal wrapper to ensure all returns are promises
-                result = l.apply(scope, args);
-            } catch (e) {
-                console.error(e.message, e, args, l);
-                eve("global.error", undefined, e, l, args);
-                promises.push(Promise.resolve(new EveError(e)));
-                if (stop) {
-                    break;
+            promises.push(Promise.resolve().then(function () {
+                const previous_event = current_event;
+                const previous_stop = stop;
+                current_event = name;
+                stop = 0;
+                try {
+                    return l.apply(scope, args);
+                } finally {
+                    current_event = previous_event;
+                    stop = previous_stop;
                 }
-                continue;
-            }
-            promises.push(Promise.resolve(result).catch(function (e) {
+            }).catch(function (e) {
                 console.error(e.message, e, args, l);
                 eve("global.error", undefined, e, l, args);
                 return new EveError(e);
             }));
-            if (stop) {
-                break;
-            }
         }
-
-        stop = oldstop;
-        current_event = ce;
 
         // Log if enabled
         if (eve._log) {
@@ -512,31 +500,49 @@ if (typeof global === "undefined") {
         name = translateNamespaceAlias(name);
 
         const names = isArray(name) ? name : name.split(separator);
-        let e = undefined,
-            item,
-            items,
-            k,
-            i,
-            ii,
-            j,
-            jj,
-            nes,
-            es = [undefined],
+        let es = [undefined],
             out = [];
-        for (i = 0, ii = names.length; i < ii; ++i) {
-            nes = [];
-            for (j = 0, jj = es.length; j < jj; j++) {
-                e = getNext(es[j], names[i], group, skip_global);  //es[j].n;
-                for (k = 0; k < 2; k++) {
-                    item = [e[names[i]], e[wildcard]][k];
+        const collected = new Set();
+        const addListeners = function (item) {
+            if (!collected.has(item)) {
+                collected.add(item);
+                out = out.concat(item.f || []);
+            }
+        };
+        const expandOptional = function (states, nextName) {
+            const expanded = states.slice(),
+                seen = new Set(states);
+            for (let j = 0; j < expanded.length; ++j) {
+                const state = expanded[j],
+                    tree = getNext(state, state === undefined && nextName !== undefined ? nextName : optionalWildcard, group, skip_global),
+                    item = tree[optionalWildcard];
+                if (item && !seen.has(item)) {
+                    seen.add(item);
+                    expanded.push(item);
+                    addListeners(item);
+                }
+            }
+            return expanded;
+        };
+        for (let i = 0, ii = names.length; i < ii; ++i) {
+            const nes = [],
+                seen = new Set();
+            es = expandOptional(es, names[i]);
+            for (let j = 0; j < es.length; ++j) {
+                const e = getNext(es[j], names[i], group, skip_global);
+                for (const item of [e[names[i]], e[wildcard], e[optionalWildcard]]) {
                     if (item) {
-                        nes.push(item);
-                        out = out.concat(item.f || []);
+                        if (!seen.has(item)) {
+                            seen.add(item);
+                            nes.push(item);
+                        }
+                        addListeners(item);
                     }
                 }
             }
             es = nes;
         }
+        expandOptional(es);
         if (group && group !== 'default') out = out.concat(eve.listeners(name, 'default', true)); //add default events last
         return out;
     };
@@ -623,9 +629,13 @@ if (typeof global === "undefined") {
     /**
      * eve.on @method
      *
-     * Binds given event handler with a given name. You can use wildcards “`*`” for the names:
+     * Binds given event handler with a given name. `*` is a required wildcard segment;
+     * `?` is an optional wildcard segment that can be skipped or match one event part.
      | eve.on("*.under.*", f);
      | eve("mouse.under.floor"); // triggers f
+     | eve.on("gui.bars.?.set_size", f);
+     | eve(["gui", "bars", "set_size"]); // ? is skipped
+     | eve(["gui", "bars", "width", "set_size"]); // ? matches "width"
      * Use @eve to trigger the listener.
      *
      * @param {string} name - name of the event, dot (`.`) or slash (`/`) separated, with optional wildcards
@@ -1619,6 +1629,8 @@ if (typeof global === "undefined") {
      */
     function stopit() {
         delete animations[this.id];
+        delete this.pdif;
+        this.stopped = true;
         this.update();
         eve(["snap", "mina", "stop", this.id], this);
     }
@@ -3678,6 +3690,9 @@ if (typeof global === "undefined") {
         pauseAll: true,
         resumeAll: true,
         stopAll: true,
+        pauseSnapshot: true,
+        resumeSnapshot: true,
+        discardSnapshot: true,
         clearTimeout: true,
         clearInterval: true,
         trakSkippedFrames: true,
@@ -3825,6 +3840,107 @@ if (typeof global === "undefined") {
         isGlobalPaused = false;
         stopAllTimers();
         last = undefined;
+    };
+
+    /**
+     * A snapshot of active mina work.
+     *
+     * @typedef {Object} MinaSnapshot
+     * @property {Animation[]} [animations]
+     * @property {Object[]} [timeouts]
+     * @property {Object[]} [intervals]
+     */
+
+    /**
+     * Captures and pauses the animations and managed timers that are running now.
+     * Entries that were already paused are deliberately not included, so resuming
+     * the snapshot never changes their pre-existing state.
+     *
+     * @returns {MinaSnapshot}
+     */
+    mina.pauseSnapshot = function () {
+        const snapshot = {
+            animations: [],
+            timeouts: [],
+            intervals: [],
+        };
+
+        Object.keys(animations).forEach(function (id) {
+            const anim = animations[id];
+            if (!anim || anim.pdif || anim.stopped) {
+                return;
+            }
+            snapshot.animations.push(anim);
+            anim.pause();
+        });
+        managedTimeouts.forEach(function (entry) {
+            if (!entry.paused && !entry.cleared) {
+                snapshot.timeouts.push(entry);
+                pauseManagedTimeout(entry);
+            }
+        });
+        managedIntervals.forEach(function (entry) {
+            if (!entry.paused && !entry.cleared) {
+                snapshot.intervals.push(entry);
+                pauseManagedInterval(entry);
+            }
+        });
+        return snapshot;
+    };
+
+    /**
+     * Resumes work previously captured by {@link mina.pauseSnapshot}.
+     * Work cleared or stopped while paused is not restarted.
+     *
+     * @param {MinaSnapshot} snapshot
+     * @returns {void}
+     */
+    mina.resumeSnapshot = function (snapshot) {
+        if (!snapshot) {
+            return;
+        }
+        (snapshot.animations || []).forEach(function (anim) {
+            if (anim && anim.pdif && !anim.stopped) {
+                anim.resume();
+            }
+        });
+        (snapshot.timeouts || []).forEach(function (entry) {
+            if (managedTimeouts.get(entry.id) === entry) {
+                resumeManagedTimeout(entry);
+            }
+        });
+        (snapshot.intervals || []).forEach(function (entry) {
+            if (managedIntervals.get(entry.id) === entry) {
+                resumeManagedInterval(entry);
+            }
+        });
+    };
+
+    /**
+     * Cancels work held by a discarded snapshot.
+     *
+     * @param {MinaSnapshot} snapshot
+     * @returns {void}
+     */
+    mina.discardSnapshot = function (snapshot) {
+        if (!snapshot) {
+            return;
+        }
+        (snapshot.animations || []).forEach(function (anim) {
+            if (anim && anim.pdif && !anim.stopped) {
+                anim.stop();
+            }
+        });
+        (snapshot.timeouts || []).forEach(function (entry) {
+            if (managedTimeouts.get(entry.id) === entry) {
+                cancelManagedTimeout(entry.id);
+            }
+        });
+        (snapshot.intervals || []).forEach(function (entry) {
+            if (managedIntervals.get(entry.id) === entry) {
+                cancelManagedInterval(entry.id);
+            }
+        });
     };
 
     /**
@@ -5812,7 +5928,7 @@ const Snap = (function (glob, factory) {
                         // let old_cond = (el.type !== 'svg' && !node.ownerSVGElement) ||
                         //     (el.type === 'svg' && (!node.parentNode ||
                         //         ('ownerSVGElement' in node.parentNode && !node.ownerSVGElement)));
-                        if (!node.isConnected) {
+                        if (!node.isConnected && !Snap._.isNodeInRetainedFragment(node)) {
                             el.cleanupAfterRemove();
                             delete hub[key];
                         }
@@ -6528,6 +6644,8 @@ const Snap = (function (glob, factory) {
  * Modifications copyright (C) 2019 <Orlin Vakarelov>
  */
 Snap.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
+    const retainedFragments = Snap._.retainedFragments || (Snap._.retainedFragments = new Set());
+
     /**
      * Lightweight container representing detached SVG content that can be inserted elsewhere.
      *
@@ -6538,10 +6656,28 @@ Snap.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
         constructor(frag) {
             this.node = frag;
         }
+
+        retain() {
+            retainedFragments.add(this.node);
+            return this;
+        }
+
+        release() {
+            retainedFragments.delete(this.node);
+            return this;
+        }
     }
 
     // Register the Fragment class with Snap
     Snap.registerClass("Fragment", Fragment);
+    Snap._.isNodeInRetainedFragment = function (node) {
+        let current = node;
+        while (current) {
+            if (current.nodeType === 11 && retainedFragments.has(current)) return true;
+            current = current.parentNode;
+        }
+        return false;
+    };
 
     // Note: select and selectAll methods will be added to Fragment.prototype
     // in element-class.js after Element class is defined, since Fragment
@@ -6842,8 +6978,11 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             let el = this.getUseTarget();
             if (!el) return null;
             const is_use = this.type === "use";
+            const cache_key = skip_hidden ? "hidden" : "normal";
+            const cached_hull = el._c_hulls && el._c_hulls[cache_key];
 
-            if (!with_transform && el.c_hull && (el.type !== "g" || !skip_hidden)) return el.c_hull;
+            if (!with_transform && cached_hull) return cached_hull;
+            if (!with_transform && !skip_hidden && el.c_hull) return el.c_hull;
 
             let m;
 
@@ -6858,22 +6997,66 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
             if (with_transform) {
                 const localMatrix = this.getLocalMatrix();
-                m = (m) ? m.multLeft(m) : localMatrix;
+                m = (m) ? m.multLeft(localMatrix) : localMatrix;
 
                 if (!m.isIdentity()) {
-                    let el = this.getUseTarget();
-                    let chull = el.getCHull();
-                    return chull.map((p) => m.apply(p));
+                    let chull = el.getCHull(false, skip_hidden);
+                    return chull && chull.map((p) => m.apply(p));
                 }
             }
 
-            let points = el.getPoints(is_use, skip_hidden);
+            let points;
+            if (el.type === "g" || el.type === "symbol") {
+                points = [];
+                const children = el.getChildren(true);
+                for (let i = 0; i < children.length; ++i) {
+                    const child = children[i];
+                    if (skip_hidden && child.isHidden()) continue;
+                    const child_hull = child.getCHull(true, skip_hidden);
+                    if (child_hull && child_hull.length) {
+                        points.push.apply(points, child_hull);
+                    }
+                }
+                if (is_use) {
+                    const target_matrix = el.getLocalMatrix();
+                    if (!target_matrix.isIdentity()) {
+                        points = points.map(target_matrix.apply.bind(target_matrix));
+                    }
+                }
+            } else {
+                points = el.getPoints(is_use, skip_hidden);
+            }
             points = Snap.convexHull(points);
             if (m && !m.isIdentity()) {
                 points = points.map((p) => m.apply(p));
             }
-            if ((el.type !== "g" || !skip_hidden)) this.c_hull = points;
+            const cache_owner = is_use ? this : el;
+            cache_owner._c_hulls = cache_owner._c_hulls || {};
+            cache_owner._c_hulls[cache_key] = points;
+            if (points && points.length) {
+                cache_owner._c_hull_bboxes = cache_owner._c_hull_bboxes || {};
+                cache_owner._c_hull_bboxes[cache_key] = boxFromPoints(points);
+                if (!skip_hidden) cache_owner.c_hull = points;
+            } else if (cache_owner._c_hull_bboxes) {
+                delete cache_owner._c_hull_bboxes[cache_key];
+                if (!skip_hidden) cache_owner.c_hull = undefined;
+            }
             return points;
+        };
+
+        elproto.getCHullBBox = function (matrix, skip_hidden) {
+            const points = this.getCHull(false, skip_hidden);
+            if (!points) return null;
+
+            const target = this.type === "use" ? this : this.getUseTarget();
+            const cache_key = skip_hidden ? "hidden" : "normal";
+            const local_bboxes = target._c_hull_bboxes || {};
+            const local_bbox = local_bboxes[cache_key] || boxFromPoints(points);
+            if (!local_bboxes[cache_key]) {
+                target._c_hull_bboxes = local_bboxes;
+                local_bboxes[cache_key] = local_bbox;
+            }
+            return boxFromBBox(local_bbox, matrix, points);
         };
 
         /**
@@ -6890,9 +7073,17 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 const href = this.attr("xlink:href") || this.attr("href");
                 if (href) {
                     const elementId = href.substring(href.indexOf("#") + 1);
-                    return this.use_target = Snap.elementFormId(elementId) ||
-                        this.paper.select("#" + elementId) ||
+                    const target = Snap.elementFormId(elementId) ||
+                        // this.paper.select("#" + elementId) ||
                         wrap(this.node.ownerDocument.getElementById(elementId));
+                    if (target) {
+                        this.use_target = target;
+                        target._use_instances = target._use_instances || [];
+                        if (target._use_instances.indexOf(this) < 0) {
+                            target._use_instances.push(this);
+                        }
+                        return target;
+                    }
                 }
             }
             return null;
@@ -6920,17 +7111,30 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         function boxFromPoints(points, matrix) {
             let min_x = Infinity, max_x = -Infinity, min_y = Infinity,
                 max_y = -Infinity;
-            if (matrix && !matrix.isIdentity()) {
-                points = points.map((p) => matrix.apply(p));
-            }
-            points.forEach((p) => {
+            for (let i = 0; i < points.length; ++i) {
+                const p = matrix && !matrix.isIdentity() ? matrix.apply(points[i]) : points[i];
                 min_x = Math.min(min_x, p.x);
                 max_x = Math.max(max_x, p.x);
                 min_y = Math.min(min_y, p.y);
                 max_y = Math.max(max_y, p.y);
-            });
+            }
             // console.log("Approx bbox", points.length);
             return Snap.box(min_x, min_y, max_x - min_x, max_y - min_y);
+        }
+
+        function boxFromBBox(bbox, matrix, points) {
+            if (!matrix || matrix.isIdentity()) return Snap.box(bbox);
+
+            if (matrix.b === 0 && matrix.c === 0) {
+                const x1 = bbox.x * matrix.a + matrix.e;
+                const x2 = bbox.x2 * matrix.a + matrix.e;
+                const y1 = bbox.y * matrix.d + matrix.f;
+                const y2 = bbox.y2 * matrix.d + matrix.f;
+                return Snap.box(Math.min(x1, x2), Math.min(y1, y2),
+                    Math.abs(x2 - x1), Math.abs(y2 - y1));
+            }
+
+            return boxFromPoints(points, matrix);
         }
 
         /**
@@ -6994,9 +7198,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
             if (approx) {
                 if (!isWithoutTransform) matrix = matrix || this.getLocalMatrix();
-                let points = this.getCHull(undefined, skip_hidden);
-                if (points) {
-                    return boxFromPoints(points, matrix);
+                let hull_bbox = this.getCHullBBox(matrix, skip_hidden);
+                if (hull_bbox) {
+                    return hull_bbox;
                 }
             }
 
@@ -7358,13 +7562,22 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         function clearParentCHull(el, efficient) {
             let parent = el.parent();
             while (parent && parent.type !== "svg") {
-                if (parent.c_hull) {
-                    parent.c_hull = undefined;
-                } else if (efficient) {
-                    break;
-                }
+                parent.c_hull = undefined;
+                parent._c_hulls = undefined;
+                parent._c_hull_bboxes = undefined;
                 parent = parent.parent();
             }
+        }
+
+        function clearUseInstanceHulls(el) {
+            const instances = el._use_instances;
+            if (!instances || !instances.length) return;
+            instances.slice().forEach(function (instance) {
+                instance.c_hull = undefined;
+                instance._c_hulls = undefined;
+                instance._c_hull_bboxes = undefined;
+                clearParentCHull(instance, false);
+            });
         }
 
         /**
@@ -7374,10 +7587,23 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
          */
         elproto.clearCHull = function (force_top) {
-            force_top = true;
+            force_top = force_top === undefined ? true : force_top;
             this.c_hull = undefined;
-            clearParentCHull(this, !force_top);
+            this._c_hulls = undefined;
+            this._c_hull_bboxes = undefined;
+            clearUseInstanceHulls(this);
+            clearParentCHull(this, force_top === false);
         }
+
+        elproto._detachUseTarget = function () {
+            const target = this.use_target;
+            if (target && target._use_instances) {
+                const index = target._use_instances.indexOf(this);
+                if (index >= 0) target._use_instances.splice(index, 1);
+                if (!target._use_instances.length) delete target._use_instances;
+            }
+            delete this.use_target;
+        };
 
         /**
          * Element.transform @method
@@ -8077,12 +8303,15 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 }
 
                 el = wrap(el);
+                const old_parent = el.parent ? el.parent() : null;
+                if (old_parent && old_parent !== this) old_parent.clearCHull(false);
                 if ((el.hasPartner && el.hasPartner()) || el._partner_childern) {
                     let parent = el.parent();
                     if (parent !== this) parent._updatePartnerChild(el, "remove");
                     this._updatePartnerChild(el);
                     this._propagateTransToPartnersChild(el);
                 }
+                this.clearCHull(false);
                 const node = (this.div) ? this.div.node : this.node;
 
                 if (typeof index === "number" && index >= 0) {
@@ -8146,6 +8375,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 }
                 el = wrap(el);
                 const parent = el.parent();
+                if (parent && parent !== this) parent.clearCHull(false);
+                this.clearCHull(false);
                 this.node.insertBefore(el.node, this.node.firstChild);
                 this.add && this.add();
                 el.paper = this.paper;
@@ -8187,6 +8418,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
             el = wrap(el);
             var parent = el.parent();
+            const destination = this.parent();
+            parent && parent !== destination && parent.clearCHull(false);
+            destination && destination.clearCHull(false);
             this.node.parentNode.insertBefore(el.node, this.node);
             this.parent() && this.parent().add();
             parent && parent.add();
@@ -8204,6 +8438,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el = wrap(el);
             clearParentCHull(this);
             const parent = el.parent();
+            const destination = this.parent();
+            parent && parent !== destination && parent.clearCHull(false);
+            destination && destination.clearCHull(false);
             if (this.node.nextSibling) {
                 this.node.parentNode.insertBefore(el.node, this.node.nextSibling);
             } else {
@@ -8230,6 +8467,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el = wrap(el);
             clearParentCHull(el);
             const parent = this.parent();
+            const source = this.parent();
+            const destination = el.parent();
+            source && source !== destination && source.clearCHull(false);
+            destination && destination.clearCHull(false);
             el.node.parentNode.insertBefore(this.node, el.node);
             this.paper = el.paper;
             parent && parent.add();
@@ -8247,6 +8488,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el = wrap(el);
             clearParentCHull(el);
             const parent = this.parent();
+            const source = this.parent();
+            const destination = el.parent();
+            source && source !== destination && source.clearCHull(false);
+            destination && destination.clearCHull(false);
             el.node.parentNode.insertBefore(this.node, el.node.nextSibling);
             this.paper = el.paper;
             parent && parent.add();
@@ -8263,6 +8508,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             clearParentCHull(this);
             const parent = this.parent();
             if (parent) parent._updatePartnerChild(this, true);
+            if (this.type === "use") this._detachUseTarget();
             this.undrag();
             if (this.removePartner) this.removePartner(true);
 
@@ -11092,6 +11338,45 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         Str = String,
         E = "";
 
+    function validateNumericValues() {
+        const values = Array.prototype.slice.call(arguments);
+        const invalid = [];
+
+        for (let i = 0; i < values.length; i++) {
+            const raw = values[i];
+            let parsed;
+            if (typeof raw === "number") {
+                parsed = raw;
+            } else if (typeof raw === "string" && raw.trim() !== "") {
+                parsed = Number(raw);
+            } else {
+                parsed = NaN;
+            }
+
+            if (!isFinite(parsed)) {
+                let shown = "";
+                if (typeof raw === "string") {
+                    shown = '"' + raw + '"';
+                } else if (raw === undefined) {
+                    shown = "undefined";
+                } else if (raw === null) {
+                    shown = "null";
+                } else {
+                    shown = String(raw);
+                }
+                invalid.push("[" + i + "]=" + shown);
+            } else {
+                values[i] = parsed;
+            }
+        }
+
+        if (invalid.length) {
+            throw new Error("Invalid matrix values: " + invalid.join(", "));
+        }
+
+        return values;
+    }
+
     /**
      * Represents a 2D affine transformation matrix with six coefficients.
      * Accepts individual numeric coefficients, an `SVGMatrix`-like object, a matrix string, or another `Matrix` instance.
@@ -11112,32 +11397,51 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         constructor(a, b, c, d, e, f) {
             if (b == null && objectToString.call(a) == "[object SVGMatrix]") {
-                this.a = a.a;
-                this.b = a.b;
-                this.c = a.c;
-                this.d = a.d;
-                this.e = a.e;
-                this.f = a.f;
+                const values = validateNumericValues(a.a, a.b, a.c, a.d, a.e, a.f);
+                this.a = values[0];
+                this.b = values[1];
+                this.c = values[2];
+                this.d = values[3];
+                this.e = values[4];
+                this.f = values[5];
                 return;
             }
             if (b == null && typeof a === "string") {
-                a = a.replace("matrix(", "").replace("(", "").replace(")", "");
-                a = a.split(",");
-                this.a = +a[0] || 0;
-                this.b = +a[1] || 0;
-                this.c = +a[2] || 0;
-                this.d = +a[3] || 0;
-                this.e = +a[4] || 0;
-                this.f = +a[5] || 0;
+                const rawString = a;
+                const parts = a
+                    .replace("matrix(", "")
+                    .replace("(", "")
+                    .replace(")", "")
+                    .trim()
+                    .split(/[\s,]+/)
+                    .filter(function(part) {
+                        return part.length > 0;
+                    });
+
+                if (parts.length !== 6) {
+                    throw new Error('Matrix constructor (string) expects 6 numeric values. Invalid: input="' + rawString + '"');
+                }
+
+                const values = validateNumericValues(
+                    Number(parts[0]), Number(parts[1]), Number(parts[2]),
+                    Number(parts[3]), Number(parts[4]), Number(parts[5])
+                );
+                this.a = values[0];
+                this.b = values[1];
+                this.c = values[2];
+                this.d = values[3];
+                this.e = values[4];
+                this.f = values[5];
                 return;
             }
             if (a != null) {
-                this.a = +a;
-                this.b = +b;
-                this.c = +c;
-                this.d = +d;
-                this.e = +e;
-                this.f = +f;
+                const values = validateNumericValues(a, b, c, d, e, f);
+                this.a = values[0];
+                this.b = values[1];
+                this.c = values[2];
+                this.d = values[3];
+                this.e = values[4];
+                this.f = values[5];
             } else {
                 this.a = 1;
                 this.b = 0;
@@ -11164,6 +11468,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (a && a instanceof Matrix) {
                 return this.add(a.a, a.b, a.c, a.d, a.e, a.f);
             }
+            const values = validateNumericValues(a, b, c, d, e, f);
+            a = values[0];
+            b = values[1];
+            c = values[2];
+            d = values[3];
+            e = values[4];
+            f = values[5];
             var aNew = a * this.a + b * this.c,
                 bNew = a * this.b + b * this.d;
             this.e += e * this.a + f * this.c;
@@ -11210,6 +11521,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         scMult(c) {
+            c = validateNumericValues(c)[0];
             this.a *= c;
             this.b *= c;
             this.c *= c;
@@ -11249,9 +11561,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     }
                     return this;
                 }
-                if (typeof a[0] === "number") {
-                    return this.multLeft(a[0] || 0, a[1] || 0,
-                        a[2] || 0, a[3] || 0, a[4] || 0, a[5] || 0);
+                if (a.length) {
+                    return this.multLeft(a[0], a[1], a[2], a[3], a[4], a[5]);
                 }
                 return this;
             }
@@ -11259,6 +11570,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             if (a && a instanceof Matrix) {
                 return this.multLeft(a.a, a.b, a.c, a.d, a.e, a.f);
             }
+            const values = validateNumericValues(a, b, c, d, e, f);
+            a = values[0];
+            b = values[1];
+            c = values[2];
+            d = values[3];
+            e = values[4];
+            f = values[5];
             var aNew = a * this.a + c * this.b,
                 cNew = a * this.c + c * this.d,
                 eNew = a * this.e + c * this.f + e;
@@ -11300,6 +11618,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         translate(x, y) {
+            const values = validateNumericValues(x, y);
+            x = values[0];
+            y = values[1];
             this.e += x * this.a + y * this.c;
             this.f += x * this.b + y * this.d;
             return this;
@@ -11316,6 +11637,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          */
         scale(x, y, cx, cy) {
             y == null && (y = x);
+            cx = cx == null ? 0 : cx;
+            cy = cy == null ? 0 : cy;
+            const values = validateNumericValues(x, y, cx, cy);
+            x = values[0];
+            y = values[1];
+            cx = values[2];
+            cy = values[3];
             (cx || cy) && this.translate(cx, cy);
             this.a *= x;
             this.b *= x;
@@ -11334,9 +11662,12 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         rotate(a, x, y) {
-            a = Snap.rad(a);
-            x = x || 0;
-            y = y || 0;
+            x = x == null ? 0 : x;
+            y = y == null ? 0 : y;
+            const values = validateNumericValues(a, x, y);
+            a = Snap.rad(values[0]);
+            x = values[1];
+            y = values[2];
             var cos = +Math.cos(a).toFixed(9),
                 sin = +Math.sin(a).toFixed(9);
             this.add(cos, sin, -sin, cos, x, y);
@@ -11371,10 +11702,11 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         skew(x, y) {
-            x = x || 0;
-            y = y || 0;
-            x = Snap.rad(x);
-            y = Snap.rad(y);
+            x = x == null ? 0 : x;
+            y = y == null ? 0 : y;
+            const values = validateNumericValues(x, y);
+            x = Snap.rad(values[0]);
+            y = Snap.rad(values[1]);
             var c = Math.tan(x).toFixed(9);
             var b = Math.tan(y).toFixed(9);
             return this.add(1, b, c, 1, 0, 0);
@@ -11416,9 +11748,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @returns {Matrix} The matrix instance for chaining.
          */
         randomTrans(cx, cy, positive, distance, diff_scale, skip_rotation, skip_scale) {
-            distance = distance || 300;
-            cx = cx || 0;
-            cy = cy || 0;
+            distance = distance == null ? 300 : distance;
+            cx = cx == null ? 0 : cx;
+            cy = cy == null ? 0 : cy;
+            const values = validateNumericValues(cx, cy, distance);
+            cx = values[0];
+            cy = values[1];
+            distance = values[2];
             let angle = (skip_rotation) ? 0 : 360 * Math.random();
             let scalex = (Math.random() < .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random();
             let scaley = (diff_scale) ? (Math.random() < .5) ? .5 + .5 * Math.random() : 1 + 3 * Math.random() : scalex;
@@ -11663,43 +11999,52 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         }
 
         /**
-         * Computes an affine transform mapping two source points to two destination points.
+         * Builds an affine transform that maps one segment to another.
          *
-         * @param {number} x1 - X-coordinate of the first source point.
-         * @param {number} y1 - Y-coordinate of the first source point.
-         * @param {number} x1Prime - X-coordinate of the first destination point.
-         * @param {number} y1Prime - Y-coordinate of the first destination point.
-         * @param {number} x2 - X-coordinate of the second source point.
-         * @param {number} y2 - Y-coordinate of the second source point.
-         * @param {number} x2Prime - X-coordinate of the second destination point.
-         * @param {number} y2Prime - Y-coordinate of the second destination point.
-         * @returns {Matrix} A new matrix performing the inferred transform.
+         * @param {number} p1_x - X-coordinate of the first source point.
+         * @param {number} p1_y - Y-coordinate of the first source point.
+         * @param {number} p2_x - X-coordinate of the second source point.
+         * @param {number} p2_y - Y-coordinate of the second source point.
+         * @param {number} toP1_x - X-coordinate of the first destination point.
+         * @param {number} toP1_y - Y-coordinate of the first destination point.
+         * @param {number} toP2_x - X-coordinate of the second destination point.
+         * @param {number} toP2_y - Y-coordinate of the second destination point.
+         * @returns {Matrix|null} The matrix after it has been updated, or `null` if the source/destination segment is degenerate.
          */
-        twoPointTransformMatrix(x1, y1, x1Prime, y1Prime, x2, y2, x2Prime, y2Prime) {
-            // Calculate distances before and after transformation
-            const distanceBefore = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-            const distanceAfter = Math.sqrt(Math.pow(x2Prime - x1Prime, 2) + Math.pow(y2Prime - y1Prime, 2));
+        twoPointTransform(p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y) {
+           const values = validateNumericValues(p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y);
 
-            // Scale factor
-            const s = distanceAfter / distanceBefore;
+           const sourceVectorX = values[2] - values[0];
+           const sourceVectorY = values[3] - values[1];
+           const targetVectorX = values[6] - values[4];
+           const targetVectorY = values[7] - values[5];
 
-            // Calculate rotation angle theta
-            const dotProduct = (x2Prime - x1Prime) * (x2 - x1) + (y2Prime - y1Prime) * (y2 - y1);
-            const determinant = (x2Prime - x1Prime) * (y2 - y1) - (y2Prime - y1Prime) * (x2 - x1);
-            const theta = Math.atan2(determinant, dotProduct);
+           const distanceBefore = Math.hypot(sourceVectorX, sourceVectorY);
+           const distanceAfter = Math.hypot(targetVectorX, targetVectorY);
 
-            // Calculate components of the transformation matrix
-            const a = s * Math.cos(theta);
-            const b = s * Math.sin(theta);
-            const c = -s * Math.sin(theta);
-            const d = s * Math.cos(theta);
+           if (!distanceBefore || !distanceAfter) {
+               return null;
+           }
 
-            // Calculate translation components
-            const e = x1Prime - (a * x1 + c * y1);
-            const f = y1Prime - (b * x1 + d * y1);
+           const scale = distanceAfter / distanceBefore;
+           const dotProduct = targetVectorX * sourceVectorX + targetVectorY * sourceVectorY;
+           const determinant = sourceVectorX * targetVectorY - sourceVectorY * targetVectorX;
+           const theta = Math.atan2(determinant, dotProduct);
 
-            // Return the transformation matrix
-            return new Snap.Matrix(a, b, c, d, e, f);
+           const a = scale * Math.cos(theta);
+           const b = scale * Math.sin(theta);
+           const c = -b;
+           const d = a;
+           const e = values[4] - (a * values[0] + c * values[1]);
+           const f = values[5] - (b * values[0] + d * values[1]);
+
+           this.a = a;
+           this.b = b;
+           this.c = c;
+           this.d = d;
+           this.e = e;
+           this.f = f;
+           return this;
         }
 
         /**
@@ -11759,33 +12104,44 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         static combine(trans, scale, angle, shear) {
             let params;
             if (trans && typeof trans === "object" && !Array.isArray(trans) && trans.dx != null) {
+                const values = validateNumericValues(
+                    trans.dx == null ? 0 : trans.dx,
+                    trans.dy == null ? 0 : trans.dy,
+                    trans.scalex == null ? 1 : trans.scalex,
+                    trans.scaley == null ? 1 : trans.scaley,
+                    trans.rotate == null ? 0 : trans.rotate,
+                    trans.shear == null ? 0 : trans.shear
+                );
                 params = {
-                    dx: trans.dx || 0,
-                    dy: trans.dy || 0,
-                    scalex: trans.scalex == null ? 1 : trans.scalex,
-                    scaley: trans.scaley == null ? 1 : trans.scaley,
-                    rotate: trans.rotate || 0,
-                    shear: trans.shear || 0
+                    dx: values[0],
+                    dy: values[1],
+                    scalex: values[2],
+                    scaley: values[3],
+                    rotate: values[4],
+                    shear: values[5]
                 };
             } else {
-                const dx = Array.isArray(trans) ? +trans[0] || 0 : 0;
-                const dy = Array.isArray(trans) ? +trans[1] || 0 : 0;
+                const dx = Array.isArray(trans) ? (trans[0] == null ? 0 : trans[0]) : 0;
+                const dy = Array.isArray(trans) ? (trans[1] == null ? 0 : trans[1]) : 0;
                 let sx, sy;
                 if (Array.isArray(scale)) {
-                    sx = +scale[0] || 0;
-                    sy = +scale[1] || 0;
+                    sx = scale[0] == null ? 0 : scale[0];
+                    sy = scale[1] == null ? 0 : scale[1];
                 } else if (typeof scale === "number") {
-                    sx = sy = scale;
+                    sx = scale;
+                    sy = scale;
                 } else {
-                    sx = sy = 1;
+                    sx = 1;
+                    sy = 1;
                 }
+                const values = validateNumericValues(dx, dy, sx, sy, angle == null ? 0 : angle, shear == null ? 0 : shear);
                 params = {
-                    dx: dx,
-                    dy: dy,
-                    scalex: sx,
-                    scaley: sy,
-                    rotate: angle || 0,
-                    shear: shear || 0
+                    dx: values[0],
+                    dy: values[1],
+                    scalex: values[2],
+                    scaley: values[3],
+                    rotate: values[4],
+                    shear: values[5]
                 };
             }
 
@@ -12314,7 +12670,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     })(-1);
 
     eve.on("snap.util.attr.href", function (value) {
-        if (this.type === "use" && this.use_target) this.use_target = undefined;
+        if (this.type === "use" && this.use_target) {
+            if (this._detachUseTarget) {
+                this._detachUseTarget();
+            } else {
+                this.use_target = undefined;
+            }
+        }
         this.clearCHull();
         value = Snap.fixUrl(value);
         if (value) {
@@ -17534,9 +17896,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {string} type The canonical mouse event name.
          * @param {Function} fn The handler invoked with normalised coordinates.
          * @param {Element} element The Snap element used as `this` when invoking the handler.
+         * @param {boolean} shouldStopPropagation Whether to stop DOM event propagation before invoking the handler.
          * @returns {Function} A disposer that removes the underlying native listeners.
          */
-        addEvent = function (obj, type, fn, element) {
+        addEvent = function (obj, type, fn, element, shouldStopPropagation) {
             let realName = (supportsPointer && pointerMap[type])
                 ? pointerMap[type] : (supportsTouch && touchMap[type] ? touchMap[type] : type);
             const snap = Snap(element);
@@ -17560,6 +17923,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         }
                     }
                 }
+                if (shouldStopPropagation) {
+                    e.stopPropagation();
+                }
                 const x = e.clientX + scrollX,
                     y = e.clientY + scrollY;
                 const resutl = fn.call(element, e, x, y);
@@ -17582,6 +17948,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             e.stopPropagation = stopTouch;
                             break;
                         }
+                    }
+                    if (shouldStopPropagation) {
+                        e.stopPropagation();
                     }
                     const x = e.clientX + scrollX,
                         y = e.clientY + scrollY;
@@ -17679,12 +18048,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * document scroll.
      *
      * Each generated method supports two calling conventions:
-     * - `element.eventName(handler, [scope], [data])` to bind a listener.
+     * - `element.eventName(handler, [scope], [data], [stopPropagation])` to bind a listener.
+     * - `element.eventName(handler, true)` to bind a listener that stops propagation.
      * - `element.eventName()` to trigger previously bound listeners for the same event type.
      *
      * @param {Function} fn The event handler. When omitted the previously registered handlers are invoked.
      * @param {Object} [scope] Optional `this` context passed to the handler.
      * @param {*} [data] Arbitrary data stored alongside the handler metadata.
+     * @param {boolean} [stopPropagation] Stop the DOM event from propagating to ancestor elements.
      * @returns {Element} The current element, allowing chaining.
      *
      * @example
@@ -17697,10 +18068,20 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     for (var i = events.length; i--;) {
         (function (eventName) {
-            Snap[eventName] = elproto[eventName] = function (fn, scope, data) {
+            Snap[eventName] = elproto[eventName] = function (fn, scope, data, stopPropagation) {
                 if (Snap.is(fn, "function")) {
+                    if (typeof scope == "boolean") {
+                        stopPropagation = scope;
+                        scope = undefined;
+                    }
                     this.events = this.events || [];
-                    const remove_event_fun = addEvent(this.node || Snap.document(), eventName, fn, scope || this);
+                    const remove_event_fun = addEvent(
+                        this.node || Snap.document(),
+                        eventName,
+                        fn,
+                        scope || this,
+                        stopPropagation === true
+                    );
                     this.events.push({
                         name: eventName,
                         f: fn,
@@ -17746,7 +18127,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Element} The current element for chaining.
      */
     elproto.hover = function (f_in, f_out, scope_in, scope_out) {
-        return this.mouseover(f_in, scope_in).mouseout(f_out, scope_out || scope_in);
+        return this.mouseenter(f_in, scope_in).mouseleave(f_out, scope_out || scope_in);
     };
     /**
      * Removes previously registered hover handlers from the element.
@@ -17756,7 +18137,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Element} The current element for chaining.
      */
     elproto.unhover = function (f_in, f_out) {
-        return this.unmouseover(f_in).unmouseout(f_out);
+        return this.unmouseenter(f_in).unmouseleave(f_out);
     };
     const draggable = [];
     // SIERRA unclear what _context_ refers to for starting, ending, moving the drag gesture.
@@ -31713,6 +32094,49 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return true;
         }
 
+        /**
+         * Creates a deep copy of plain objects and arrays.
+         * Class instances, functions, and other non-plain objects are returned unchanged.
+         * @param {*} value Value to copy.
+         * @param {Object} [patch] Plain object merged into the copied value.
+         * @returns {*} A deep copy of plain objects and arrays.
+         */
+        Snap.objectCopy = function (value, patch) {
+            const isPlainObject = function (item) {
+                if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+                const prototype = Object.getPrototypeOf(item);
+                return prototype === Object.prototype || prototype === null;
+            };
+
+            const copy = function (item, itemPatch) {
+                if (typeof item === 'function') return item;
+                if (Array.isArray(item)) {
+                    return item.map((child) => copy(child));
+                }
+                if (!isPlainObject(item)) return item;
+
+                const result = {};
+                Object.keys(item).forEach((key) => {
+                    result[key] = copy(item[key]);
+                });
+
+                if (isPlainObject(itemPatch)) {
+                    Object.keys(itemPatch).forEach((key) => {
+                        const patchValue = itemPatch[key];
+                        if (isPlainObject(result[key]) && isPlainObject(patchValue)) {
+                            result[key] = copy(result[key], patchValue);
+                        } else {
+                            result[key] = copy(patchValue);
+                        }
+                    });
+                }
+
+                return result;
+            };
+
+            return copy(value, patch);
+        };
+
        /**
          * Flattens a nested object into a single-level map.
          *
@@ -31870,142 +32294,6 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             return ret;
         };
 
-        /**
-         * Solve a system of linear equations Ax = b using Gaussian elimination with partial pivoting
-         * @param {Array<Array<number>>} A - Coefficient matrix
-         * @param {Array<number>} b - Result vector
-         * @returns {Array<number>} - Solution vector x
-         */
-        Snap.Matrix.prototype.lusolve = function (A, b) {
-            if (Snap.is(A, "Matrix")) A = A.to2dArray();
-            if (b === undefined && Array.isArray(A) && !isNaN(A(0))) {
-                b = A;
-                A = this.to2dArray();
-            }
-            const n = A.length;
-
-            // Create augmented matrix [A|b] with copies to avoid modifying originals
-            const augmented = A.map((row, i) => [...row, b[i]]);
-
-            // Forward elimination with partial pivoting
-            for (let col = 0; col < n; col++) {
-                // Find pivot (largest absolute value in current column)
-                let maxRow = col;
-                for (let row = col + 1; row < n; row++) {
-                    if (Math.abs(augmented[row][col]) > Math.abs(augmented[maxRow][col])) {
-                        maxRow = row;
-                    }
-                }
-
-                // Swap rows if needed
-                if (maxRow !== col) {
-                    [augmented[col], augmented[maxRow]] = [augmented[maxRow], augmented[col]];
-                }
-
-                // Check for singular matrix
-                if (Math.abs(augmented[col][col]) < 1e-12) {
-                    throw new Error('Matrix is singular or nearly singular');
-                }
-
-                // Eliminate column entries below pivot
-                for (let row = col + 1; row < n; row++) {
-                    const factor = augmented[row][col] / augmented[col][col];
-                    for (let j = col; j <= n; j++) {
-                        augmented[row][j] -= factor * augmented[col][j];
-                    }
-                }
-            }
-
-            // Back substitution
-            const solution = new Array(n);
-            for (let i = n - 1; i >= 0; i--) {
-                let sum = augmented[i][n];
-                for (let j = i + 1; j < n; j++) {
-                    sum -= augmented[i][j] * solution[j];
-                }
-                solution[i] = sum / augmented[i][i];
-            }
-
-            return solution;
-        };
-
-        Snap.Matrix.prototype.twoPointTransform = function (
-            p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y) {
-            const l1 = [p2_x - p1_x, p2_y - p1_y],
-                l2 = [toP2_x - toP1_x, toP2_y - toP1_y];
-
-            // const scale = (Snap.len(l2[0], l2[1]) /
-            //     (Snap.len(l1[0], l1[1]) || 1e-12));
-            // let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
-
-            const eq_matrix = [
-                [p1_x, -p1_y, 1, 0],
-                [p1_y, p1_x, 0, 1],
-                [p2_x, -p2_y, 1, 0],
-                [p2_y, p2_x, 0, 1],
-            ];
-            let solution;
-            try {
-                solution = this.lusolve(eq_matrix,
-                    [toP1_x, toP1_y, toP2_x, toP2_y]);
-            } catch (e) {
-                return null;
-            }
-
-            this.a = solution[0];
-            this.b = solution[1];
-            this.c = -solution[1];
-            this.d = solution[0];
-            this.e = solution[2];
-            this.f = solution[3];
-
-            return this;
-        };
-
-        /**
-         * Builds an affine transformation that maps two source points to two target points.
-         * @param {number} p1_x Source point 1 X coordinate.
-         * @param {number} p1_y Source point 1 Y coordinate.
-         * @param {number} p2_x Source point 2 X coordinate.
-         * @param {number} p2_y Source point 2 Y coordinate.
-         * @param {number} toP1_x Destination point 1 X coordinate.
-         * @param {number} toP1_y Destination point 1 Y coordinate.
-         * @param {number} toP2_x Destination point 2 X coordinate.
-         * @param {number} toP2_y Destination point 2 Y coordinate.
-         * @returns {Snap.Matrix|null} The matrix after it has been updated; `null` if the system can't be solved.
-         */
-        Snap.Matrix.prototype.twoPointTransform = function (
-            p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y) {
-            const l1 = [p2_x - p1_x, p2_y - p1_y],
-                l2 = [toP2_x - toP1_x, toP2_y - toP1_y];
-
-            // const scale = (Snap.len(l2[0], l2[1]) /
-            //     (Snap.len(l1[0], l1[1]) || 1e-12));
-            // let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
-
-            const eq_matrix = [
-                [p1_x, -p1_y, 1, 0],
-                [p1_y, p1_x, 0, 1],
-                [p2_x, -p2_y, 1, 0],
-                [p2_y, p2_x, 0, 1],
-            ];
-            let solution;
-            try {
-                solution = this.lusolve(eq_matrix,
-                    [toP1_x, toP1_y, toP2_x, toP2_y]);
-            } catch (e) {
-                return null;
-            }
-
-            this.a = solution[0];
-            this.b = solution[1];
-            this.c = -solution[1];
-            this.d = solution[0];
-            this.e = solution[2];
-            this.f = solution[3];
-
-            return this;
-        };
     })
 
 }(typeof window !== "undefined" ? window : (global)));
@@ -33437,6 +33725,76 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
         };
 
         /**
+         * Binds a physical direct-manipulation rotation gesture.
+         *
+         * The pointer is treated as applying force at the previous cursor
+         * position relative to the element's current centre of mass (CM).
+         * The lever vector from CM to that point and the filtered pointer
+         * displacement are decomposed into a cross product (the perpendicular,
+         * rotational component or torque) and a dot product (the parallel
+         * component). `atan2(cross, dot)` converts that decomposition into an
+         * incremental rotation. Pointer movement near the CM is translation
+         * only: a 6-screen-pixel dead zone disables rotation, and a 12-pixel
+         * resume threshold provides hysteresis so rotation does not flicker.
+         *
+         * Raw cursor positions keep the grabbed point attached exactly to the
+         * pointer. A One Euro-style adaptive low-pass filter smooths only the
+         * torque input: it filters velocity first, then raises the position
+         * cutoff with screen-space velocity, preserving responsive fast
+         * movements while stabilizing slow ones. The resulting angle is also
+         * limited by elapsed time.
+         *
+         * Cursor, CM, pivot, and compensation translation are calculated in
+         * `coordTarget` coordinates (the target paper by default). Before
+         * composing the transform, the pivot is converted as a point into the
+         * element parent's coordinate system, while compensation is converted
+         * as a vector with matrix translation removed. The element's current
+         * local matrix is then composed with the incremental rotation followed
+         * by that cursor-attached compensation translation. This preserves
+         * nested-parent transforms and keeps the original grab point under the
+         * raw cursor.
+         *
+         * Emits `drag.rotDrag.select.start` with the initial local matrix and
+         * `drag.rotDrag.select.end` with the current and initial matrices. On
+         * completion, the element's bounding-box cache is updated.
+         *
+         * @function Snap.Element#rotDrag
+         * @param {Snap.Element} [el=this] Optional element to transform when a
+         * proxy element owns the drag binding.
+         * @param {Object} [mcontext] Drag move context.
+         * @param {Snap.Element} [mcontext.coordTarget=el.paper] Coordinate
+         * target used to convert pointer coordinates and screen distances.
+         * @param {Object} [mcontext.limits] Reserved rotation limits context.
+         * @param {Object} [scontext] Drag start context.
+         * @param {Object} [econtext] Drag end context.
+         * @returns {Snap.Element} The drag-binding element for chaining.
+         * @example
+         * element.rotDrag({coordTarget: canvas});
+         */
+        Element.prototype.rotDrag = function (el, mcontext, scontext, econtext) {
+            if (typeof el === "object" && !Snap.is(el, "Element")) {
+                [mcontext, scontext, econtext, el] =
+                    [el, mcontext, scontext, this];
+            } else if (el === undefined) {
+                el = this;
+            }
+            const limits = mcontext && mcontext.limits;
+            const coordTarget = (mcontext && mcontext.coordTarget) || el.paper;
+
+            return this.drag(function (dx, dy, x, y, ev) {
+                    ev.stopPropagation();
+                    rotDragOp(dx, dy, x, y, el, coordTarget, limits);
+                }, function (x, y, ev) {
+                    ev.stopPropagation();
+                    startRotDrag(x, y, ev, el, coordTarget, limits);
+                }, function (ev) {
+                    ev.stopPropagation();
+                    endRotDrag(ev, el);
+                }, mcontext, scontext, econtext
+            );
+        };
+
+        /**
          * Adds drag-based rotation behaviour to the element.
          *
          * @function Snap.Element#revolve
@@ -33545,9 +33903,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
 
                 if (move_event) {
-                    local_eve(move_event, this, params)
+                    local_eve.a(move_event, this, params)
                 } else {
-                    local_eve(["drag", "make_draggable", "ongoing", this.id], this, params);
+                    local_eve.a(["drag", "make_draggable", "ongoing", this.id], this, params);
                 }
 
             };
@@ -33561,9 +33919,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 if (!params.localPoint) return recover();
 
                 if (end_event) {
-                    local_eve(end_event, this, params);
+                    local_eve.a(end_event, this, params);
                 } else {
-                    local_eve(["drag", "make_draggable", "end", this.id], this, params);
+                    local_eve.a(["drag", "make_draggable", "end", this.id], this, params);
                 }
                 // console.log("end", localPt.x, localPt.y)
                 if (animate) {
@@ -33659,8 +34017,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 // el.rotate(.2*(Date.now() - el.data("t")), localPt.x + el.data('op').x, localPt.y + el.data('op').y)
             }
 
-            eve(["drag", "move", "ongoing", el.id], el, el);
-            if (this.event) eve(this.event, el, el);
+            eve.a(["drag", "move", "ongoing", el.id], el, el);
+            if (this.event) eve.a(this.event, el, el);
         };
 
         _.startMove = function (x, y, ev, el, select, coordTarget) {
@@ -33674,6 +34032,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.data("op", el.getCursorPoint(x, y, coordTarget));
             const localMatrix = el.getLocalMatrix(STRICT_MODE);
             el.data("ot", localMatrix);
+            //start evens ara alwasy coneent to assure that they are initiated
             if (select) {
                 eve(["drag", "move", "select", "start"], el, [localMatrix]);
                 if (this.event) eve(this.event, el, [localMatrix]);
@@ -33761,14 +34120,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 if (select) {
                     const cur_matrix = el.getLocalMatrix(STRICT_MODE);
                     const old_matrix = el.data("ot");
-                    // el.updateBBoxCache(old_matrix.invert().multLeft(cur_matrix), true);
-                    eve(["drag", "move", "select", "end"], el,
+                    // el.updateBBoxCache(old_matrix.invert().multLeft(cur_mat`rix), true);
+                    eve.a(["drag", "move", "select", "end"], el,
                         [cur_matrix, old_matrix]);
-                    if (this.event) eve(this.event, el, [cur_matrix, old_matrix]);
+                    if (this.event) eve.a(this.event, el, [cur_matrix, old_matrix]);
 
                 } else {
-                    eve(["drag", "move", "end", el.id], el, el);
-                    if (this.event) eve(this.event, el, el);
+                    eve.a(["drag", "move", "end", el.id], el, el);
+                    if (this.event) eve.a(this.event, el, el);
                 }
                 el.data("active", false);
             }
@@ -33846,8 +34205,8 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             el.rotate(d_angle, tcr.x, tcr.y, el.data("tot"));
 
             el.data("last_angle", [abs_angle_new, adjusted_new]);
-            eve(["drag", "revolve", "ongoing", el.id], el, abs_angle_new, adjusted_new, newPoint);
-            if (this.event) eve(this.event, el, abs_angle_new, adjusted_new, newPoint);
+            eve.a(["drag", "revolve", "ongoing", el.id], el, abs_angle_new, adjusted_new, newPoint);
+            if (this.event) eve.a(this.event, el, abs_angle_new, adjusted_new, newPoint);
 
         };
 
@@ -33886,12 +34245,168 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 while (el.data("s") || (Date.now() - el.data("t") < 200)) {
                 }
                 el.data("active", false);
-                eve(["drag", "revolve", "end", el.id], el, el.data("last_angle")[0],
+                eve.a(["drag", "revolve", "end", el.id], el, el.data("last_angle")[0],
                     el.data("last_angle")[1]);
-                if (this.event) eve(this.event, el, el.data("last_angle")[0],
+                if (this.event) eve.a(this.event, el, el.data("last_angle")[0],
                     el.data("last_angle")[1]);
             }
         };
+
+        const ROT_DRAG_MIN_CUTOFF = 1.5;
+        const ROT_DRAG_BETA = 0.03;
+        const ROT_DRAG_DERIVATIVE_CUTOFF = 1;
+
+        function lowPassAlpha(cutoff, deltaTime) {
+            const tau = 1 / (2 * Math.PI * cutoff);
+            return 1 / (1 + tau / deltaTime);
+        }
+
+        function filterRotDragCursor(cursorPoint, el, coordTarget) {
+            const now = Date.now();
+            const filter = el.data('rot_drag_filter');
+            const deltaTime = Math.max((now - filter.time) / 1000, 1 / 120);
+            const rawVelocity = {
+                x: (cursorPoint.x - filter.raw.x) / deltaTime,
+                y: (cursorPoint.y - filter.raw.y) / deltaTime
+            };
+            const derivativeAlpha = lowPassAlpha(ROT_DRAG_DERIVATIVE_CUTOFF,
+                deltaTime);
+            filter.velocity.x += derivativeAlpha *
+                (rawVelocity.x - filter.velocity.x);
+            filter.velocity.y += derivativeAlpha *
+                (rawVelocity.y - filter.velocity.y);
+
+            const unitsPerPixel = coordTarget.getFromScreenDistance(1);
+            const speed = Snap.len(0, 0, filter.velocity.x, filter.velocity.y) /
+                unitsPerPixel;
+            const alpha = lowPassAlpha(ROT_DRAG_MIN_CUTOFF + ROT_DRAG_BETA *
+                speed, deltaTime);
+            filter.point.x += alpha * (cursorPoint.x - filter.point.x);
+            filter.point.y += alpha * (cursorPoint.y - filter.point.y);
+            filter.raw = cursorPoint;
+            filter.time = now;
+            filter.deltaTime = deltaTime;
+            return filter.point;
+        }
+
+        function startRotDrag(x, y, ev, el, coordTarget, limits) {
+            if (el.data("active")) return;
+            el.data("active", true);
+            el.data('s', true);
+            el.data('t', Date.now());
+            const cursorPoint = el.getCursorPoint(x, y, coordTarget);
+            el.data('op', cursorPoint);
+            el.data('lp', cursorPoint);
+            el.data('rot_drag_filter', {
+                point: {x: cursorPoint.x, y: cursorPoint.y},
+                raw: {x: cursorPoint.x, y: cursorPoint.y},
+                velocity: {x: 0, y: 0},
+                time: Date.now()
+            });
+            const localMatrix = el.getLocalMatrix(STRICT_MODE);
+            el.data('ot', localMatrix);
+            const cm = el.centerOfMass();
+            el.data('ocm', cm);
+            el.data('lcm', cm);
+            const delta = Snap.len(cursorPoint.x, cursorPoint.y, cm.x, cm.y);
+            const deadZone = coordTarget.getFromScreenDistance(6);
+            el.data('delta', delta);
+            el.data('rot_drag_rotation_active', delta > deadZone);
+            el.data('angle', 0);
+            el.data('ang_hist', []);
+            eve(["drag", "rotDrag", "select", "start"], el, [localMatrix]);
+            el.data('s', false);
+        }
+
+        function rotDragOp(xxdx, xxdy, ax, ay, el, coordTarget, limits) {
+            const cursorPoint = el.getCursorPoint(ax, ay, coordTarget);
+            const filter = el.data('rot_drag_filter');
+            const previousFilteredPoint = {x: filter.point.x, y: filter.point.y};
+            const filteredPoint = filterRotDragCursor(cursorPoint, el, coordTarget);
+            const pt = el.paper.node.createSVGPoint();
+
+            const lp = el.data('lp');
+            const last_cm = el.data("lcm");
+            const deadZone = coordTarget.getFromScreenDistance(6);
+            const resumeDistance = coordTarget.getFromScreenDistance(12);
+            const lever = {x: lp.x - last_cm.x, y: lp.y - last_cm.y};
+            const displacement = {x: cursorPoint.x - lp.x, y: cursorPoint.y - lp.y};
+            const filteredDisplacement = {
+                x: filteredPoint.x - previousFilteredPoint.x,
+                y: filteredPoint.y - previousFilteredPoint.y
+            };
+            const leverLength = Snap.len(0, 0, lever.x, lever.y);
+            let rotationActive = el.data('rot_drag_rotation_active');
+            if (rotationActive && leverLength <= deadZone) {
+                rotationActive = false;
+            } else if (!rotationActive && leverLength >= resumeDistance) {
+                rotationActive = true;
+            }
+            el.data('rot_drag_rotation_active', rotationActive);
+
+            const parent = el.parent();
+            const parentCTM = parent && parent.node.getCTM();
+            const targetCTM = coordTarget.node.getCTM();
+            const coordToParent = (parentCTM && targetCTM) ?
+                parentCTM.inverse().multiply(targetCTM) :
+                Snap.matrix();
+
+            const leverSquared = lever.x * lever.x + lever.y * lever.y;
+            const crossProduct = lever.x * filteredDisplacement.y -
+                lever.y * filteredDisplacement.x;
+            const dotProduct = leverSquared + filteredDisplacement.x * lever.x +
+                filteredDisplacement.y * lever.y;
+            let angle_incr = rotationActive ?
+                Math.atan2(crossProduct, dotProduct) * 180 / Math.PI : 0;
+            const maxAngleStep = 540 * el.data('rot_drag_filter').deltaTime;
+            angle_incr = Math.max(-maxAngleStep, Math.min(maxAngleStep, angle_incr));
+            const angleRadians = angle_incr * Math.PI / 180;
+            const cos = Math.cos(angleRadians);
+            const sin = Math.sin(angleRadians);
+            const rotatedLever = {
+                x: cos * lever.x - sin * lever.y,
+                y: sin * lever.x + cos * lever.y
+            };
+            const translation = {
+                x: displacement.x - (rotatedLever.x - lever.x),
+                y: displacement.y - (rotatedLever.y - lever.y)
+            };
+
+            const pivot = el.paper.node.createSVGPoint();
+            pivot.x = last_cm.x;
+            pivot.y = last_cm.y;
+            const parentPivot = pivot.matrixTransform(coordToParent);
+            coordToParent.e = coordToParent.f = 0;
+            pt.x = translation.x;
+            pt.y = translation.y;
+            const parentTranslation = pt.matrixTransform(coordToParent);
+            const matrix = el.getLocalMatrix(STRICT_MODE)
+                .multLeft(Snap.matrix().rotate(angle_incr, parentPivot.x, parentPivot.y))
+                .multLeft(Snap.matrix().translate(parentTranslation.x,
+                    parentTranslation.y));
+
+            el.transform(matrix);
+            last_cm.x += translation.x;
+            last_cm.y += translation.y;
+            el.data("lcm", last_cm);
+            el.data('lp', cursorPoint);
+        }
+
+        function endRotDrag(ev, el) {
+            if (el.data("active")) {
+                while (el.data('s') || (Date.now() - el.data('t') < 200)) {
+                }
+
+                const cur_matrix = el.getLocalMatrix(STRICT_MODE);
+                const old_matrix = el.data('ot');
+                el.updateBBoxCache();
+                eve(["drag", "rotDrag", "select", "end"], el,
+                    [cur_matrix, old_matrix]);
+                el.data("active", false);
+                el.removeData('rot_drag_filter');
+                el.removeData('rot_drag_rotation_active');
+            }
+        }
 
         _.svgPoint = function (x, y, node) {
             if (arguments.length === 1 && typeof x === "object" &&
@@ -34841,16 +35356,64 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
 
         };
 
+        // CSSStyleDeclaration ignores unitless values for properties that require
+        // a length. Keep the list explicit so unitless properties such as opacity,
+        // z-index, and line-height retain their normal CSS semantics.
+        const STYLE_LENGTH_PROPERTIES = {
+            "font-size": true,
+            "width": true,
+            "min-width": true,
+            "max-width": true,
+            "height": true,
+            "min-height": true,
+            "max-height": true,
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true,
+            "margin": true,
+            "margin-top": true,
+            "margin-right": true,
+            "margin-bottom": true,
+            "margin-left": true,
+            "padding": true,
+            "padding-top": true,
+            "padding-right": true,
+            "padding-bottom": true,
+            "padding-left": true,
+            "border-width": true,
+            "border-top-width": true,
+            "border-right-width": true,
+            "border-bottom-width": true,
+            "border-left-width": true,
+            "outline-width": true,
+            "letter-spacing": true,
+            "word-spacing": true,
+            "text-indent": true,
+            "column-gap": true,
+            "row-gap": true,
+            "gap": true,
+            "flex-basis": true
+        };
+
         const style_reforamt = function (style, val) {
-            switch (style) {
-                case "opacity":
-                    val = String(val);
-                    if (val.charAt(val.length - 1) === "%") {
-                        val = Number(val.substring(0, val.length - 1)) / 100;
-                    }
-                    break;
+            const property = String(style).replace(/[A-Z]/g,
+                (match) => "-" + match.toLowerCase());
+
+            if (property === "opacity" && typeof val === "string" &&
+                val.trim().charAt(val.trim().length - 1) === "%") {
+                val = Number(val.trim().slice(0, -1)) / 100;
             }
-            return val;
+
+            const numericValue = typeof val === "number" ? val :
+                (typeof val === "string" && /^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(val.trim()) ?
+                    Number(val) : null);
+            if (STYLE_LENGTH_PROPERTIES[property] &&
+                numericValue !== null && isFinite(numericValue) && numericValue !== 0) {
+                return numericValue + "px";
+            }
+
+            return val == null ? "" : String(val);
         };
 
         /**
@@ -34902,9 +35465,20 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                                     this.addClass(class_name);
                                 }
                             } else {
-                                const stl = style_reforamt(style_name, style[style_name]) ||
-                                    "";
-                                that.node.style[style_name] = stl;
+                                const stl = style_reforamt(style_name, style[style_name]);
+                                const property = style_name.indexOf("--") === 0 ?
+                                    style_name : style_name.replace(/[A-Z]/g,
+                                        (match) => "-" + match.toLowerCase());
+                                const important = /\s*!important\s*$/i.test(stl);
+                                const cleanStyle = important ?
+                                    stl.replace(/\s*!important\s*$/i, "") : stl;
+                                if (typeof that.node.style.setProperty === "function") {
+                                    that.node.style.setProperty(property, cleanStyle,
+                                        important ? "important" : "");
+                                } else {
+                                    that.node.style[style_name] = important ?
+                                        cleanStyle + " !important" : cleanStyle;
+                                }
 
                             }
                         }
@@ -35601,7 +36175,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
-            eve(["snap", "animcreated", el.id], anim);
+            eve.a(["snap", "animcreated", el.id], anim);
 
             return anim;
         };
@@ -35914,7 +36488,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
-            eve(["snap", "animcreated", el.id], anim);
+            eve.a(["snap", "animcreated", el.id], anim);
 
             return anim;
         };
@@ -36015,7 +36589,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
-            eve(["snap", "animcreated", el.id], anim);
+            eve.a(["snap", "animcreated", el.id], anim);
 
             return anim;
         };
@@ -36262,7 +36836,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
-            eve(["snap", "animcreated", el.id], anim);
+            eve.a(["snap", "animcreated", el.id], anim);
 
             return anim;
         };
@@ -36808,7 +37382,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                     select.attr(select_def);
 
                     if (move_event && options && typeof options.eve === "function") {
-                        options.eve(move_event, this, select_def);
+                        options.eve.a(move_event, this, select_def);
                     }
                 }
             };
@@ -36831,7 +37405,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                 }
                 el.data("active", false);
                 if (options && typeof options.eve === "function") {
-                    options.eve(["drag", "regionSelect", "done"], el);
+                    options.eve.a(["drag", "regionSelect", "done"], el);
                 }
             };
 
@@ -36863,13 +37437,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
             this.removeMessage();
             let in_fun = () => {
                 // let st = ["gui", "message"];
-                eve(in_event, undefined, message);
+                eve.a(in_event, undefined, message);
             };
             this.mouseover(in_fun);
 
             let out_fun = () => {
                 // let st = ["gui", "tooltip", "clear"];
-                eve(out_event)
+                eve.a(out_event)
             };
             this.mouseout(out_fun);
 

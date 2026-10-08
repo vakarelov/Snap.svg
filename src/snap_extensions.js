@@ -1362,6 +1362,49 @@
             return true;
         }
 
+        /**
+         * Creates a deep copy of plain objects and arrays.
+         * Class instances, functions, and other non-plain objects are returned unchanged.
+         * @param {*} value Value to copy.
+         * @param {Object} [patch] Plain object merged into the copied value.
+         * @returns {*} A deep copy of plain objects and arrays.
+         */
+        Snap.objectCopy = function (value, patch) {
+            const isPlainObject = function (item) {
+                if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+                const prototype = Object.getPrototypeOf(item);
+                return prototype === Object.prototype || prototype === null;
+            };
+
+            const copy = function (item, itemPatch) {
+                if (typeof item === 'function') return item;
+                if (Array.isArray(item)) {
+                    return item.map((child) => copy(child));
+                }
+                if (!isPlainObject(item)) return item;
+
+                const result = {};
+                Object.keys(item).forEach((key) => {
+                    result[key] = copy(item[key]);
+                });
+
+                if (isPlainObject(itemPatch)) {
+                    Object.keys(itemPatch).forEach((key) => {
+                        const patchValue = itemPatch[key];
+                        if (isPlainObject(result[key]) && isPlainObject(patchValue)) {
+                            result[key] = copy(result[key], patchValue);
+                        } else {
+                            result[key] = copy(patchValue);
+                        }
+                    });
+                }
+
+                return result;
+            };
+
+            return copy(value, patch);
+        };
+
        /**
          * Flattens a nested object into a single-level map.
          *
@@ -1519,142 +1562,6 @@
             return ret;
         };
 
-        /**
-         * Solve a system of linear equations Ax = b using Gaussian elimination with partial pivoting
-         * @param {Array<Array<number>>} A - Coefficient matrix
-         * @param {Array<number>} b - Result vector
-         * @returns {Array<number>} - Solution vector x
-         */
-        Snap.Matrix.prototype.lusolve = function (A, b) {
-            if (Snap.is(A, "Matrix")) A = A.to2dArray();
-            if (b === undefined && Array.isArray(A) && !isNaN(A(0))) {
-                b = A;
-                A = this.to2dArray();
-            }
-            const n = A.length;
-
-            // Create augmented matrix [A|b] with copies to avoid modifying originals
-            const augmented = A.map((row, i) => [...row, b[i]]);
-
-            // Forward elimination with partial pivoting
-            for (let col = 0; col < n; col++) {
-                // Find pivot (largest absolute value in current column)
-                let maxRow = col;
-                for (let row = col + 1; row < n; row++) {
-                    if (Math.abs(augmented[row][col]) > Math.abs(augmented[maxRow][col])) {
-                        maxRow = row;
-                    }
-                }
-
-                // Swap rows if needed
-                if (maxRow !== col) {
-                    [augmented[col], augmented[maxRow]] = [augmented[maxRow], augmented[col]];
-                }
-
-                // Check for singular matrix
-                if (Math.abs(augmented[col][col]) < 1e-12) {
-                    throw new Error('Matrix is singular or nearly singular');
-                }
-
-                // Eliminate column entries below pivot
-                for (let row = col + 1; row < n; row++) {
-                    const factor = augmented[row][col] / augmented[col][col];
-                    for (let j = col; j <= n; j++) {
-                        augmented[row][j] -= factor * augmented[col][j];
-                    }
-                }
-            }
-
-            // Back substitution
-            const solution = new Array(n);
-            for (let i = n - 1; i >= 0; i--) {
-                let sum = augmented[i][n];
-                for (let j = i + 1; j < n; j++) {
-                    sum -= augmented[i][j] * solution[j];
-                }
-                solution[i] = sum / augmented[i][i];
-            }
-
-            return solution;
-        };
-
-        Snap.Matrix.prototype.twoPointTransform = function (
-            p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y) {
-            const l1 = [p2_x - p1_x, p2_y - p1_y],
-                l2 = [toP2_x - toP1_x, toP2_y - toP1_y];
-
-            // const scale = (Snap.len(l2[0], l2[1]) /
-            //     (Snap.len(l1[0], l1[1]) || 1e-12));
-            // let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
-
-            const eq_matrix = [
-                [p1_x, -p1_y, 1, 0],
-                [p1_y, p1_x, 0, 1],
-                [p2_x, -p2_y, 1, 0],
-                [p2_y, p2_x, 0, 1],
-            ];
-            let solution;
-            try {
-                solution = this.lusolve(eq_matrix,
-                    [toP1_x, toP1_y, toP2_x, toP2_y]);
-            } catch (e) {
-                return null;
-            }
-
-            this.a = solution[0];
-            this.b = solution[1];
-            this.c = -solution[1];
-            this.d = solution[0];
-            this.e = solution[2];
-            this.f = solution[3];
-
-            return this;
-        };
-
-        /**
-         * Builds an affine transformation that maps two source points to two target points.
-         * @param {number} p1_x Source point 1 X coordinate.
-         * @param {number} p1_y Source point 1 Y coordinate.
-         * @param {number} p2_x Source point 2 X coordinate.
-         * @param {number} p2_y Source point 2 Y coordinate.
-         * @param {number} toP1_x Destination point 1 X coordinate.
-         * @param {number} toP1_y Destination point 1 Y coordinate.
-         * @param {number} toP2_x Destination point 2 X coordinate.
-         * @param {number} toP2_y Destination point 2 Y coordinate.
-         * @returns {Snap.Matrix|null} The matrix after it has been updated; `null` if the system can't be solved.
-         */
-        Snap.Matrix.prototype.twoPointTransform = function (
-            p1_x, p1_y, p2_x, p2_y, toP1_x, toP1_y, toP2_x, toP2_y) {
-            const l1 = [p2_x - p1_x, p2_y - p1_y],
-                l2 = [toP2_x - toP1_x, toP2_y - toP1_y];
-
-            // const scale = (Snap.len(l2[0], l2[1]) /
-            //     (Snap.len(l1[0], l1[1]) || 1e-12));
-            // let angle = Snap.angle(l1[0], l1[1], l2[0], l2[1], 0, 0);
-
-            const eq_matrix = [
-                [p1_x, -p1_y, 1, 0],
-                [p1_y, p1_x, 0, 1],
-                [p2_x, -p2_y, 1, 0],
-                [p2_y, p2_x, 0, 1],
-            ];
-            let solution;
-            try {
-                solution = this.lusolve(eq_matrix,
-                    [toP1_x, toP1_y, toP2_x, toP2_y]);
-            } catch (e) {
-                return null;
-            }
-
-            this.a = solution[0];
-            this.b = solution[1];
-            this.c = -solution[1];
-            this.d = solution[0];
-            this.e = solution[2];
-            this.f = solution[3];
-
-            return this;
-        };
     })
 
 }(typeof window !== "undefined" ? window : (global)));

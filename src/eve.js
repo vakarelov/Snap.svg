@@ -41,6 +41,7 @@
     const // /[\.\/]/,
         comaseparator = /\s*,\s*/,
         wildcard = "*",
+        optionalWildcard = "?",
         numsort = function (a, b) {
             return a - b;
         },
@@ -303,10 +304,8 @@
 
         args = args || Array.prototype.slice.call(arguments, 3)
 
-        const oldstop = stop,
-            listeners = eve.listeners(name, group),
-            promises = [],
-            ce = current_event;
+        const listeners = eve.listeners(name, group),
+            promises = [];
 
         promises.firstDefined = firstDefined;
         promises.lastDefined = lastDefined;
@@ -317,39 +316,28 @@
             scope = undefined;
         }
 
-        current_event = name;
-        stop = 0;
-
         // Sort listeners by zIndex
         listeners.sort(function_sort);
 
         for (let i = 0, lim = listeners.length; i < lim; ++i) {
             const l = listeners[i];
-            let result;
-            try {
-                // Universal wrapper to ensure all returns are promises
-                result = l.apply(scope, args);
-            } catch (e) {
-                console.error(e.message, e, args, l);
-                eve("global.error", undefined, e, l, args);
-                promises.push(Promise.resolve(new EveError(e)));
-                if (stop) {
-                    break;
+            promises.push(Promise.resolve().then(function () {
+                const previous_event = current_event;
+                const previous_stop = stop;
+                current_event = name;
+                stop = 0;
+                try {
+                    return l.apply(scope, args);
+                } finally {
+                    current_event = previous_event;
+                    stop = previous_stop;
                 }
-                continue;
-            }
-            promises.push(Promise.resolve(result).catch(function (e) {
+            }).catch(function (e) {
                 console.error(e.message, e, args, l);
                 eve("global.error", undefined, e, l, args);
                 return new EveError(e);
             }));
-            if (stop) {
-                break;
-            }
         }
-
-        stop = oldstop;
-        current_event = ce;
 
         // Log if enabled
         if (eve._log) {
@@ -484,31 +472,49 @@
         name = translateNamespaceAlias(name);
 
         const names = isArray(name) ? name : name.split(separator);
-        let e = undefined,
-            item,
-            items,
-            k,
-            i,
-            ii,
-            j,
-            jj,
-            nes,
-            es = [undefined],
+        let es = [undefined],
             out = [];
-        for (i = 0, ii = names.length; i < ii; ++i) {
-            nes = [];
-            for (j = 0, jj = es.length; j < jj; j++) {
-                e = getNext(es[j], names[i], group, skip_global);  //es[j].n;
-                for (k = 0; k < 2; k++) {
-                    item = [e[names[i]], e[wildcard]][k];
+        const collected = new Set();
+        const addListeners = function (item) {
+            if (!collected.has(item)) {
+                collected.add(item);
+                out = out.concat(item.f || []);
+            }
+        };
+        const expandOptional = function (states, nextName) {
+            const expanded = states.slice(),
+                seen = new Set(states);
+            for (let j = 0; j < expanded.length; ++j) {
+                const state = expanded[j],
+                    tree = getNext(state, state === undefined && nextName !== undefined ? nextName : optionalWildcard, group, skip_global),
+                    item = tree[optionalWildcard];
+                if (item && !seen.has(item)) {
+                    seen.add(item);
+                    expanded.push(item);
+                    addListeners(item);
+                }
+            }
+            return expanded;
+        };
+        for (let i = 0, ii = names.length; i < ii; ++i) {
+            const nes = [],
+                seen = new Set();
+            es = expandOptional(es, names[i]);
+            for (let j = 0; j < es.length; ++j) {
+                const e = getNext(es[j], names[i], group, skip_global);
+                for (const item of [e[names[i]], e[wildcard], e[optionalWildcard]]) {
                     if (item) {
-                        nes.push(item);
-                        out = out.concat(item.f || []);
+                        if (!seen.has(item)) {
+                            seen.add(item);
+                            nes.push(item);
+                        }
+                        addListeners(item);
                     }
                 }
             }
             es = nes;
         }
+        expandOptional(es);
         if (group && group !== 'default') out = out.concat(eve.listeners(name, 'default', true)); //add default events last
         return out;
     };
@@ -595,9 +601,13 @@
     /**
      * eve.on @method
      *
-     * Binds given event handler with a given name. You can use wildcards “`*`” for the names:
+     * Binds given event handler with a given name. `*` is a required wildcard segment;
+     * `?` is an optional wildcard segment that can be skipped or match one event part.
      | eve.on("*.under.*", f);
      | eve("mouse.under.floor"); // triggers f
+     | eve.on("gui.bars.?.set_size", f);
+     | eve(["gui", "bars", "set_size"]); // ? is skipped
+     | eve(["gui", "bars", "width", "set_size"]); // ? matches "width"
      * Use @eve to trigger the listener.
      *
      * @param {string} name - name of the event, dot (`.`) or slash (`/`) separated, with optional wildcards

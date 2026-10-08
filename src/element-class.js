@@ -263,8 +263,11 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             let el = this.getUseTarget();
             if (!el) return null;
             const is_use = this.type === "use";
+            const cache_key = skip_hidden ? "hidden" : "normal";
+            const cached_hull = el._c_hulls && el._c_hulls[cache_key];
 
-            if (!with_transform && el.c_hull && (el.type !== "g" || !skip_hidden)) return el.c_hull;
+            if (!with_transform && cached_hull) return cached_hull;
+            if (!with_transform && !skip_hidden && el.c_hull) return el.c_hull;
 
             let m;
 
@@ -279,22 +282,66 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
             if (with_transform) {
                 const localMatrix = this.getLocalMatrix();
-                m = (m) ? m.multLeft(m) : localMatrix;
+                m = (m) ? m.multLeft(localMatrix) : localMatrix;
 
                 if (!m.isIdentity()) {
-                    let el = this.getUseTarget();
-                    let chull = el.getCHull();
-                    return chull.map((p) => m.apply(p));
+                    let chull = el.getCHull(false, skip_hidden);
+                    return chull && chull.map((p) => m.apply(p));
                 }
             }
 
-            let points = el.getPoints(is_use, skip_hidden);
+            let points;
+            if (el.type === "g" || el.type === "symbol") {
+                points = [];
+                const children = el.getChildren(true);
+                for (let i = 0; i < children.length; ++i) {
+                    const child = children[i];
+                    if (skip_hidden && child.isHidden()) continue;
+                    const child_hull = child.getCHull(true, skip_hidden);
+                    if (child_hull && child_hull.length) {
+                        points.push.apply(points, child_hull);
+                    }
+                }
+                if (is_use) {
+                    const target_matrix = el.getLocalMatrix();
+                    if (!target_matrix.isIdentity()) {
+                        points = points.map(target_matrix.apply.bind(target_matrix));
+                    }
+                }
+            } else {
+                points = el.getPoints(is_use, skip_hidden);
+            }
             points = Snap.convexHull(points);
             if (m && !m.isIdentity()) {
                 points = points.map((p) => m.apply(p));
             }
-            if ((el.type !== "g" || !skip_hidden)) this.c_hull = points;
+            const cache_owner = is_use ? this : el;
+            cache_owner._c_hulls = cache_owner._c_hulls || {};
+            cache_owner._c_hulls[cache_key] = points;
+            if (points && points.length) {
+                cache_owner._c_hull_bboxes = cache_owner._c_hull_bboxes || {};
+                cache_owner._c_hull_bboxes[cache_key] = boxFromPoints(points);
+                if (!skip_hidden) cache_owner.c_hull = points;
+            } else if (cache_owner._c_hull_bboxes) {
+                delete cache_owner._c_hull_bboxes[cache_key];
+                if (!skip_hidden) cache_owner.c_hull = undefined;
+            }
             return points;
+        };
+
+        elproto.getCHullBBox = function (matrix, skip_hidden) {
+            const points = this.getCHull(false, skip_hidden);
+            if (!points) return null;
+
+            const target = this.type === "use" ? this : this.getUseTarget();
+            const cache_key = skip_hidden ? "hidden" : "normal";
+            const local_bboxes = target._c_hull_bboxes || {};
+            const local_bbox = local_bboxes[cache_key] || boxFromPoints(points);
+            if (!local_bboxes[cache_key]) {
+                target._c_hull_bboxes = local_bboxes;
+                local_bboxes[cache_key] = local_bbox;
+            }
+            return boxFromBBox(local_bbox, matrix, points);
         };
 
         /**
@@ -311,9 +358,17 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 const href = this.attr("xlink:href") || this.attr("href");
                 if (href) {
                     const elementId = href.substring(href.indexOf("#") + 1);
-                    return this.use_target = Snap.elementFormId(elementId) ||
-                        this.paper.select("#" + elementId) ||
+                    const target = Snap.elementFormId(elementId) ||
+                        // this.paper.select("#" + elementId) ||
                         wrap(this.node.ownerDocument.getElementById(elementId));
+                    if (target) {
+                        this.use_target = target;
+                        target._use_instances = target._use_instances || [];
+                        if (target._use_instances.indexOf(this) < 0) {
+                            target._use_instances.push(this);
+                        }
+                        return target;
+                    }
                 }
             }
             return null;
@@ -341,17 +396,30 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         function boxFromPoints(points, matrix) {
             let min_x = Infinity, max_x = -Infinity, min_y = Infinity,
                 max_y = -Infinity;
-            if (matrix && !matrix.isIdentity()) {
-                points = points.map((p) => matrix.apply(p));
-            }
-            points.forEach((p) => {
+            for (let i = 0; i < points.length; ++i) {
+                const p = matrix && !matrix.isIdentity() ? matrix.apply(points[i]) : points[i];
                 min_x = Math.min(min_x, p.x);
                 max_x = Math.max(max_x, p.x);
                 min_y = Math.min(min_y, p.y);
                 max_y = Math.max(max_y, p.y);
-            });
+            }
             // console.log("Approx bbox", points.length);
             return Snap.box(min_x, min_y, max_x - min_x, max_y - min_y);
+        }
+
+        function boxFromBBox(bbox, matrix, points) {
+            if (!matrix || matrix.isIdentity()) return Snap.box(bbox);
+
+            if (matrix.b === 0 && matrix.c === 0) {
+                const x1 = bbox.x * matrix.a + matrix.e;
+                const x2 = bbox.x2 * matrix.a + matrix.e;
+                const y1 = bbox.y * matrix.d + matrix.f;
+                const y2 = bbox.y2 * matrix.d + matrix.f;
+                return Snap.box(Math.min(x1, x2), Math.min(y1, y2),
+                    Math.abs(x2 - x1), Math.abs(y2 - y1));
+            }
+
+            return boxFromPoints(points, matrix);
         }
 
         /**
@@ -415,9 +483,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
 
             if (approx) {
                 if (!isWithoutTransform) matrix = matrix || this.getLocalMatrix();
-                let points = this.getCHull(undefined, skip_hidden);
-                if (points) {
-                    return boxFromPoints(points, matrix);
+                let hull_bbox = this.getCHullBBox(matrix, skip_hidden);
+                if (hull_bbox) {
+                    return hull_bbox;
                 }
             }
 
@@ -779,13 +847,22 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
         function clearParentCHull(el, efficient) {
             let parent = el.parent();
             while (parent && parent.type !== "svg") {
-                if (parent.c_hull) {
-                    parent.c_hull = undefined;
-                } else if (efficient) {
-                    break;
-                }
+                parent.c_hull = undefined;
+                parent._c_hulls = undefined;
+                parent._c_hull_bboxes = undefined;
                 parent = parent.parent();
             }
+        }
+
+        function clearUseInstanceHulls(el) {
+            const instances = el._use_instances;
+            if (!instances || !instances.length) return;
+            instances.slice().forEach(function (instance) {
+                instance.c_hull = undefined;
+                instance._c_hulls = undefined;
+                instance._c_hull_bboxes = undefined;
+                clearParentCHull(instance, false);
+            });
         }
 
         /**
@@ -795,10 +872,23 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
          * @param {boolean} [force_top=true] Forces invalidation up to the root when truthy.
          */
         elproto.clearCHull = function (force_top) {
-            force_top = true;
+            force_top = force_top === undefined ? true : force_top;
             this.c_hull = undefined;
-            clearParentCHull(this, !force_top);
+            this._c_hulls = undefined;
+            this._c_hull_bboxes = undefined;
+            clearUseInstanceHulls(this);
+            clearParentCHull(this, force_top === false);
         }
+
+        elproto._detachUseTarget = function () {
+            const target = this.use_target;
+            if (target && target._use_instances) {
+                const index = target._use_instances.indexOf(this);
+                if (index >= 0) target._use_instances.splice(index, 1);
+                if (!target._use_instances.length) delete target._use_instances;
+            }
+            delete this.use_target;
+        };
 
         /**
          * Element.transform @method
@@ -1498,12 +1588,15 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 }
 
                 el = wrap(el);
+                const old_parent = el.parent ? el.parent() : null;
+                if (old_parent && old_parent !== this) old_parent.clearCHull(false);
                 if ((el.hasPartner && el.hasPartner()) || el._partner_childern) {
                     let parent = el.parent();
                     if (parent !== this) parent._updatePartnerChild(el, "remove");
                     this._updatePartnerChild(el);
                     this._propagateTransToPartnersChild(el);
                 }
+                this.clearCHull(false);
                 const node = (this.div) ? this.div.node : this.node;
 
                 if (typeof index === "number" && index >= 0) {
@@ -1567,6 +1660,8 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
                 }
                 el = wrap(el);
                 const parent = el.parent();
+                if (parent && parent !== this) parent.clearCHull(false);
+                this.clearCHull(false);
                 this.node.insertBefore(el.node, this.node.firstChild);
                 this.add && this.add();
                 el.paper = this.paper;
@@ -1608,6 +1703,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             }
             el = wrap(el);
             var parent = el.parent();
+            const destination = this.parent();
+            parent && parent !== destination && parent.clearCHull(false);
+            destination && destination.clearCHull(false);
             this.node.parentNode.insertBefore(el.node, this.node);
             this.parent() && this.parent().add();
             parent && parent.add();
@@ -1625,6 +1723,9 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el = wrap(el);
             clearParentCHull(this);
             const parent = el.parent();
+            const destination = this.parent();
+            parent && parent !== destination && parent.clearCHull(false);
+            destination && destination.clearCHull(false);
             if (this.node.nextSibling) {
                 this.node.parentNode.insertBefore(el.node, this.node.nextSibling);
             } else {
@@ -1651,6 +1752,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el = wrap(el);
             clearParentCHull(el);
             const parent = this.parent();
+            const source = this.parent();
+            const destination = el.parent();
+            source && source !== destination && source.clearCHull(false);
+            destination && destination.clearCHull(false);
             el.node.parentNode.insertBefore(this.node, el.node);
             this.paper = el.paper;
             parent && parent.add();
@@ -1668,6 +1773,10 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             el = wrap(el);
             clearParentCHull(el);
             const parent = this.parent();
+            const source = this.parent();
+            const destination = el.parent();
+            source && source !== destination && source.clearCHull(false);
+            destination && destination.clearCHull(false);
             el.node.parentNode.insertBefore(this.node, el.node.nextSibling);
             this.paper = el.paper;
             parent && parent.add();
@@ -1684,6 +1793,7 @@ Snap.plugin(function (Snap, _future_me_, Paper, glob, Fragment, eve) {
             clearParentCHull(this);
             const parent = this.parent();
             if (parent) parent._updatePartnerChild(this, true);
+            if (this.type === "use") this._detachUseTarget();
             this.undrag();
             if (this.removePartner) this.removePartner(true);
 

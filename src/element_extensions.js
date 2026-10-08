@@ -1425,6 +1425,76 @@
         };
 
         /**
+         * Binds a physical direct-manipulation rotation gesture.
+         *
+         * The pointer is treated as applying force at the previous cursor
+         * position relative to the element's current centre of mass (CM).
+         * The lever vector from CM to that point and the filtered pointer
+         * displacement are decomposed into a cross product (the perpendicular,
+         * rotational component or torque) and a dot product (the parallel
+         * component). `atan2(cross, dot)` converts that decomposition into an
+         * incremental rotation. Pointer movement near the CM is translation
+         * only: a 6-screen-pixel dead zone disables rotation, and a 12-pixel
+         * resume threshold provides hysteresis so rotation does not flicker.
+         *
+         * Raw cursor positions keep the grabbed point attached exactly to the
+         * pointer. A One Euro-style adaptive low-pass filter smooths only the
+         * torque input: it filters velocity first, then raises the position
+         * cutoff with screen-space velocity, preserving responsive fast
+         * movements while stabilizing slow ones. The resulting angle is also
+         * limited by elapsed time.
+         *
+         * Cursor, CM, pivot, and compensation translation are calculated in
+         * `coordTarget` coordinates (the target paper by default). Before
+         * composing the transform, the pivot is converted as a point into the
+         * element parent's coordinate system, while compensation is converted
+         * as a vector with matrix translation removed. The element's current
+         * local matrix is then composed with the incremental rotation followed
+         * by that cursor-attached compensation translation. This preserves
+         * nested-parent transforms and keeps the original grab point under the
+         * raw cursor.
+         *
+         * Emits `drag.rotDrag.select.start` with the initial local matrix and
+         * `drag.rotDrag.select.end` with the current and initial matrices. On
+         * completion, the element's bounding-box cache is updated.
+         *
+         * @function Snap.Element#rotDrag
+         * @param {Snap.Element} [el=this] Optional element to transform when a
+         * proxy element owns the drag binding.
+         * @param {Object} [mcontext] Drag move context.
+         * @param {Snap.Element} [mcontext.coordTarget=el.paper] Coordinate
+         * target used to convert pointer coordinates and screen distances.
+         * @param {Object} [mcontext.limits] Reserved rotation limits context.
+         * @param {Object} [scontext] Drag start context.
+         * @param {Object} [econtext] Drag end context.
+         * @returns {Snap.Element} The drag-binding element for chaining.
+         * @example
+         * element.rotDrag({coordTarget: canvas});
+         */
+        Element.prototype.rotDrag = function (el, mcontext, scontext, econtext) {
+            if (typeof el === "object" && !Snap.is(el, "Element")) {
+                [mcontext, scontext, econtext, el] =
+                    [el, mcontext, scontext, this];
+            } else if (el === undefined) {
+                el = this;
+            }
+            const limits = mcontext && mcontext.limits;
+            const coordTarget = (mcontext && mcontext.coordTarget) || el.paper;
+
+            return this.drag(function (dx, dy, x, y, ev) {
+                    ev.stopPropagation();
+                    rotDragOp(dx, dy, x, y, el, coordTarget, limits);
+                }, function (x, y, ev) {
+                    ev.stopPropagation();
+                    startRotDrag(x, y, ev, el, coordTarget, limits);
+                }, function (ev) {
+                    ev.stopPropagation();
+                    endRotDrag(ev, el);
+                }, mcontext, scontext, econtext
+            );
+        };
+
+        /**
          * Adds drag-based rotation behaviour to the element.
          *
          * @function Snap.Element#revolve
@@ -1533,9 +1603,9 @@
 
 
                 if (move_event) {
-                    local_eve(move_event, this, params)
+                    local_eve.a(move_event, this, params)
                 } else {
-                    local_eve(["drag", "make_draggable", "ongoing", this.id], this, params);
+                    local_eve.a(["drag", "make_draggable", "ongoing", this.id], this, params);
                 }
 
             };
@@ -1549,9 +1619,9 @@
                 if (!params.localPoint) return recover();
 
                 if (end_event) {
-                    local_eve(end_event, this, params);
+                    local_eve.a(end_event, this, params);
                 } else {
-                    local_eve(["drag", "make_draggable", "end", this.id], this, params);
+                    local_eve.a(["drag", "make_draggable", "end", this.id], this, params);
                 }
                 // console.log("end", localPt.x, localPt.y)
                 if (animate) {
@@ -1647,8 +1717,8 @@
                 // el.rotate(.2*(Date.now() - el.data("t")), localPt.x + el.data('op').x, localPt.y + el.data('op').y)
             }
 
-            eve(["drag", "move", "ongoing", el.id], el, el);
-            if (this.event) eve(this.event, el, el);
+            eve.a(["drag", "move", "ongoing", el.id], el, el);
+            if (this.event) eve.a(this.event, el, el);
         };
 
         _.startMove = function (x, y, ev, el, select, coordTarget) {
@@ -1662,6 +1732,7 @@
             el.data("op", el.getCursorPoint(x, y, coordTarget));
             const localMatrix = el.getLocalMatrix(STRICT_MODE);
             el.data("ot", localMatrix);
+            //start evens ara alwasy coneent to assure that they are initiated
             if (select) {
                 eve(["drag", "move", "select", "start"], el, [localMatrix]);
                 if (this.event) eve(this.event, el, [localMatrix]);
@@ -1749,14 +1820,14 @@
                 if (select) {
                     const cur_matrix = el.getLocalMatrix(STRICT_MODE);
                     const old_matrix = el.data("ot");
-                    // el.updateBBoxCache(old_matrix.invert().multLeft(cur_matrix), true);
-                    eve(["drag", "move", "select", "end"], el,
+                    // el.updateBBoxCache(old_matrix.invert().multLeft(cur_mat`rix), true);
+                    eve.a(["drag", "move", "select", "end"], el,
                         [cur_matrix, old_matrix]);
-                    if (this.event) eve(this.event, el, [cur_matrix, old_matrix]);
+                    if (this.event) eve.a(this.event, el, [cur_matrix, old_matrix]);
 
                 } else {
-                    eve(["drag", "move", "end", el.id], el, el);
-                    if (this.event) eve(this.event, el, el);
+                    eve.a(["drag", "move", "end", el.id], el, el);
+                    if (this.event) eve.a(this.event, el, el);
                 }
                 el.data("active", false);
             }
@@ -1834,8 +1905,8 @@
             el.rotate(d_angle, tcr.x, tcr.y, el.data("tot"));
 
             el.data("last_angle", [abs_angle_new, adjusted_new]);
-            eve(["drag", "revolve", "ongoing", el.id], el, abs_angle_new, adjusted_new, newPoint);
-            if (this.event) eve(this.event, el, abs_angle_new, adjusted_new, newPoint);
+            eve.a(["drag", "revolve", "ongoing", el.id], el, abs_angle_new, adjusted_new, newPoint);
+            if (this.event) eve.a(this.event, el, abs_angle_new, adjusted_new, newPoint);
 
         };
 
@@ -1874,12 +1945,168 @@
                 while (el.data("s") || (Date.now() - el.data("t") < 200)) {
                 }
                 el.data("active", false);
-                eve(["drag", "revolve", "end", el.id], el, el.data("last_angle")[0],
+                eve.a(["drag", "revolve", "end", el.id], el, el.data("last_angle")[0],
                     el.data("last_angle")[1]);
-                if (this.event) eve(this.event, el, el.data("last_angle")[0],
+                if (this.event) eve.a(this.event, el, el.data("last_angle")[0],
                     el.data("last_angle")[1]);
             }
         };
+
+        const ROT_DRAG_MIN_CUTOFF = 1.5;
+        const ROT_DRAG_BETA = 0.03;
+        const ROT_DRAG_DERIVATIVE_CUTOFF = 1;
+
+        function lowPassAlpha(cutoff, deltaTime) {
+            const tau = 1 / (2 * Math.PI * cutoff);
+            return 1 / (1 + tau / deltaTime);
+        }
+
+        function filterRotDragCursor(cursorPoint, el, coordTarget) {
+            const now = Date.now();
+            const filter = el.data('rot_drag_filter');
+            const deltaTime = Math.max((now - filter.time) / 1000, 1 / 120);
+            const rawVelocity = {
+                x: (cursorPoint.x - filter.raw.x) / deltaTime,
+                y: (cursorPoint.y - filter.raw.y) / deltaTime
+            };
+            const derivativeAlpha = lowPassAlpha(ROT_DRAG_DERIVATIVE_CUTOFF,
+                deltaTime);
+            filter.velocity.x += derivativeAlpha *
+                (rawVelocity.x - filter.velocity.x);
+            filter.velocity.y += derivativeAlpha *
+                (rawVelocity.y - filter.velocity.y);
+
+            const unitsPerPixel = coordTarget.getFromScreenDistance(1);
+            const speed = Snap.len(0, 0, filter.velocity.x, filter.velocity.y) /
+                unitsPerPixel;
+            const alpha = lowPassAlpha(ROT_DRAG_MIN_CUTOFF + ROT_DRAG_BETA *
+                speed, deltaTime);
+            filter.point.x += alpha * (cursorPoint.x - filter.point.x);
+            filter.point.y += alpha * (cursorPoint.y - filter.point.y);
+            filter.raw = cursorPoint;
+            filter.time = now;
+            filter.deltaTime = deltaTime;
+            return filter.point;
+        }
+
+        function startRotDrag(x, y, ev, el, coordTarget, limits) {
+            if (el.data("active")) return;
+            el.data("active", true);
+            el.data('s', true);
+            el.data('t', Date.now());
+            const cursorPoint = el.getCursorPoint(x, y, coordTarget);
+            el.data('op', cursorPoint);
+            el.data('lp', cursorPoint);
+            el.data('rot_drag_filter', {
+                point: {x: cursorPoint.x, y: cursorPoint.y},
+                raw: {x: cursorPoint.x, y: cursorPoint.y},
+                velocity: {x: 0, y: 0},
+                time: Date.now()
+            });
+            const localMatrix = el.getLocalMatrix(STRICT_MODE);
+            el.data('ot', localMatrix);
+            const cm = el.centerOfMass();
+            el.data('ocm', cm);
+            el.data('lcm', cm);
+            const delta = Snap.len(cursorPoint.x, cursorPoint.y, cm.x, cm.y);
+            const deadZone = coordTarget.getFromScreenDistance(6);
+            el.data('delta', delta);
+            el.data('rot_drag_rotation_active', delta > deadZone);
+            el.data('angle', 0);
+            el.data('ang_hist', []);
+            eve(["drag", "rotDrag", "select", "start"], el, [localMatrix]);
+            el.data('s', false);
+        }
+
+        function rotDragOp(xxdx, xxdy, ax, ay, el, coordTarget, limits) {
+            const cursorPoint = el.getCursorPoint(ax, ay, coordTarget);
+            const filter = el.data('rot_drag_filter');
+            const previousFilteredPoint = {x: filter.point.x, y: filter.point.y};
+            const filteredPoint = filterRotDragCursor(cursorPoint, el, coordTarget);
+            const pt = el.paper.node.createSVGPoint();
+
+            const lp = el.data('lp');
+            const last_cm = el.data("lcm");
+            const deadZone = coordTarget.getFromScreenDistance(6);
+            const resumeDistance = coordTarget.getFromScreenDistance(12);
+            const lever = {x: lp.x - last_cm.x, y: lp.y - last_cm.y};
+            const displacement = {x: cursorPoint.x - lp.x, y: cursorPoint.y - lp.y};
+            const filteredDisplacement = {
+                x: filteredPoint.x - previousFilteredPoint.x,
+                y: filteredPoint.y - previousFilteredPoint.y
+            };
+            const leverLength = Snap.len(0, 0, lever.x, lever.y);
+            let rotationActive = el.data('rot_drag_rotation_active');
+            if (rotationActive && leverLength <= deadZone) {
+                rotationActive = false;
+            } else if (!rotationActive && leverLength >= resumeDistance) {
+                rotationActive = true;
+            }
+            el.data('rot_drag_rotation_active', rotationActive);
+
+            const parent = el.parent();
+            const parentCTM = parent && parent.node.getCTM();
+            const targetCTM = coordTarget.node.getCTM();
+            const coordToParent = (parentCTM && targetCTM) ?
+                parentCTM.inverse().multiply(targetCTM) :
+                Snap.matrix();
+
+            const leverSquared = lever.x * lever.x + lever.y * lever.y;
+            const crossProduct = lever.x * filteredDisplacement.y -
+                lever.y * filteredDisplacement.x;
+            const dotProduct = leverSquared + filteredDisplacement.x * lever.x +
+                filteredDisplacement.y * lever.y;
+            let angle_incr = rotationActive ?
+                Math.atan2(crossProduct, dotProduct) * 180 / Math.PI : 0;
+            const maxAngleStep = 540 * el.data('rot_drag_filter').deltaTime;
+            angle_incr = Math.max(-maxAngleStep, Math.min(maxAngleStep, angle_incr));
+            const angleRadians = angle_incr * Math.PI / 180;
+            const cos = Math.cos(angleRadians);
+            const sin = Math.sin(angleRadians);
+            const rotatedLever = {
+                x: cos * lever.x - sin * lever.y,
+                y: sin * lever.x + cos * lever.y
+            };
+            const translation = {
+                x: displacement.x - (rotatedLever.x - lever.x),
+                y: displacement.y - (rotatedLever.y - lever.y)
+            };
+
+            const pivot = el.paper.node.createSVGPoint();
+            pivot.x = last_cm.x;
+            pivot.y = last_cm.y;
+            const parentPivot = pivot.matrixTransform(coordToParent);
+            coordToParent.e = coordToParent.f = 0;
+            pt.x = translation.x;
+            pt.y = translation.y;
+            const parentTranslation = pt.matrixTransform(coordToParent);
+            const matrix = el.getLocalMatrix(STRICT_MODE)
+                .multLeft(Snap.matrix().rotate(angle_incr, parentPivot.x, parentPivot.y))
+                .multLeft(Snap.matrix().translate(parentTranslation.x,
+                    parentTranslation.y));
+
+            el.transform(matrix);
+            last_cm.x += translation.x;
+            last_cm.y += translation.y;
+            el.data("lcm", last_cm);
+            el.data('lp', cursorPoint);
+        }
+
+        function endRotDrag(ev, el) {
+            if (el.data("active")) {
+                while (el.data('s') || (Date.now() - el.data('t') < 200)) {
+                }
+
+                const cur_matrix = el.getLocalMatrix(STRICT_MODE);
+                const old_matrix = el.data('ot');
+                el.updateBBoxCache();
+                eve(["drag", "rotDrag", "select", "end"], el,
+                    [cur_matrix, old_matrix]);
+                el.data("active", false);
+                el.removeData('rot_drag_filter');
+                el.removeData('rot_drag_rotation_active');
+            }
+        }
 
         _.svgPoint = function (x, y, node) {
             if (arguments.length === 1 && typeof x === "object" &&
@@ -2829,16 +3056,64 @@
 
         };
 
+        // CSSStyleDeclaration ignores unitless values for properties that require
+        // a length. Keep the list explicit so unitless properties such as opacity,
+        // z-index, and line-height retain their normal CSS semantics.
+        const STYLE_LENGTH_PROPERTIES = {
+            "font-size": true,
+            "width": true,
+            "min-width": true,
+            "max-width": true,
+            "height": true,
+            "min-height": true,
+            "max-height": true,
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true,
+            "margin": true,
+            "margin-top": true,
+            "margin-right": true,
+            "margin-bottom": true,
+            "margin-left": true,
+            "padding": true,
+            "padding-top": true,
+            "padding-right": true,
+            "padding-bottom": true,
+            "padding-left": true,
+            "border-width": true,
+            "border-top-width": true,
+            "border-right-width": true,
+            "border-bottom-width": true,
+            "border-left-width": true,
+            "outline-width": true,
+            "letter-spacing": true,
+            "word-spacing": true,
+            "text-indent": true,
+            "column-gap": true,
+            "row-gap": true,
+            "gap": true,
+            "flex-basis": true
+        };
+
         const style_reforamt = function (style, val) {
-            switch (style) {
-                case "opacity":
-                    val = String(val);
-                    if (val.charAt(val.length - 1) === "%") {
-                        val = Number(val.substring(0, val.length - 1)) / 100;
-                    }
-                    break;
+            const property = String(style).replace(/[A-Z]/g,
+                (match) => "-" + match.toLowerCase());
+
+            if (property === "opacity" && typeof val === "string" &&
+                val.trim().charAt(val.trim().length - 1) === "%") {
+                val = Number(val.trim().slice(0, -1)) / 100;
             }
-            return val;
+
+            const numericValue = typeof val === "number" ? val :
+                (typeof val === "string" && /^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(val.trim()) ?
+                    Number(val) : null);
+            if (STYLE_LENGTH_PROPERTIES[property] &&
+                numericValue !== null && isFinite(numericValue) && numericValue !== 0) {
+                return numericValue + "px";
+            }
+
+            return val == null ? "" : String(val);
         };
 
         /**
@@ -2890,9 +3165,20 @@
                                     this.addClass(class_name);
                                 }
                             } else {
-                                const stl = style_reforamt(style_name, style[style_name]) ||
-                                    "";
-                                that.node.style[style_name] = stl;
+                                const stl = style_reforamt(style_name, style[style_name]);
+                                const property = style_name.indexOf("--") === 0 ?
+                                    style_name : style_name.replace(/[A-Z]/g,
+                                        (match) => "-" + match.toLowerCase());
+                                const important = /\s*!important\s*$/i.test(stl);
+                                const cleanStyle = important ?
+                                    stl.replace(/\s*!important\s*$/i, "") : stl;
+                                if (typeof that.node.style.setProperty === "function") {
+                                    that.node.style.setProperty(property, cleanStyle,
+                                        important ? "important" : "");
+                                } else {
+                                    that.node.style[style_name] = important ?
+                                        cleanStyle + " !important" : cleanStyle;
+                                }
 
                             }
                         }
@@ -3589,7 +3875,7 @@
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
-            eve(["snap", "animcreated", el.id], anim);
+            eve.a(["snap", "animcreated", el.id], anim);
 
             return anim;
         };
@@ -3902,7 +4188,7 @@
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
-            eve(["snap", "animcreated", el.id], anim);
+            eve.a(["snap", "animcreated", el.id], anim);
 
             return anim;
         };
@@ -4003,7 +4289,7 @@
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
-            eve(["snap", "animcreated", el.id], anim);
+            eve.a(["snap", "animcreated", el.id], anim);
 
             return anim;
         };
@@ -4250,7 +4536,7 @@
                 eve.off("snap.mina.*." + anim.id);
                 delete el.anims[anim.id];
             });
-            eve(["snap", "animcreated", el.id], anim);
+            eve.a(["snap", "animcreated", el.id], anim);
 
             return anim;
         };
@@ -4796,7 +5082,7 @@
                     select.attr(select_def);
 
                     if (move_event && options && typeof options.eve === "function") {
-                        options.eve(move_event, this, select_def);
+                        options.eve.a(move_event, this, select_def);
                     }
                 }
             };
@@ -4819,7 +5105,7 @@
                 }
                 el.data("active", false);
                 if (options && typeof options.eve === "function") {
-                    options.eve(["drag", "regionSelect", "done"], el);
+                    options.eve.a(["drag", "regionSelect", "done"], el);
                 }
             };
 
@@ -4851,13 +5137,13 @@
             this.removeMessage();
             let in_fun = () => {
                 // let st = ["gui", "message"];
-                eve(in_event, undefined, message);
+                eve.a(in_event, undefined, message);
             };
             this.mouseover(in_fun);
 
             let out_fun = () => {
                 // let st = ["gui", "tooltip", "clear"];
-                eve(out_event)
+                eve.a(out_event)
             };
             this.mouseout(out_fun);
 

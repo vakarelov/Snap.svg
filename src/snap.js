@@ -1865,7 +1865,7 @@
                         // let old_cond = (el.type !== 'svg' && !node.ownerSVGElement) ||
                         //     (el.type === 'svg' && (!node.parentNode ||
                         //         ('ownerSVGElement' in node.parentNode && !node.ownerSVGElement)));
-                        if (!node.isConnected) {
+                        if (!node.isConnected && !Snap._.isNodeInRetainedFragment(node)) {
                             el.cleanupAfterRemove();
                             delete hub[key];
                         }

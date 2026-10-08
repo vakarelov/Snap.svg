@@ -3,6 +3,8 @@
  * Modifications copyright (C) 2019 <Orlin Vakarelov>
  */
 Snap.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
+    const retainedFragments = Snap._.retainedFragments || (Snap._.retainedFragments = new Set());
+
     /**
      * Lightweight container representing detached SVG content that can be inserted elsewhere.
      *
@@ -13,10 +15,28 @@ Snap.plugin(function (Snap, _Element_, _Paper_, glob, _future_me_, eve) {
         constructor(frag) {
             this.node = frag;
         }
+
+        retain() {
+            retainedFragments.add(this.node);
+            return this;
+        }
+
+        release() {
+            retainedFragments.delete(this.node);
+            return this;
+        }
     }
 
     // Register the Fragment class with Snap
     Snap.registerClass("Fragment", Fragment);
+    Snap._.isNodeInRetainedFragment = function (node) {
+        let current = node;
+        while (current) {
+            if (current.nodeType === 11 && retainedFragments.has(current)) return true;
+            current = current.parentNode;
+        }
+        return false;
+    };
 
     // Note: select and selectAll methods will be added to Fragment.prototype
     // in element-class.js after Element class is defined, since Fragment

@@ -371,7 +371,13 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
     })(-1);
 
     eve.on("snap.util.attr.href", function (value) {
-        if (this.type === "use" && this.use_target) this.use_target = undefined;
+        if (this.type === "use" && this.use_target) {
+            if (this._detachUseTarget) {
+                this._detachUseTarget();
+            } else {
+                this.use_target = undefined;
+            }
+        }
         this.clearCHull();
         value = Snap.fixUrl(value);
         if (value) {

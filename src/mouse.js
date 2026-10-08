@@ -72,9 +72,10 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
          * @param {string} type The canonical mouse event name.
          * @param {Function} fn The handler invoked with normalised coordinates.
          * @param {Element} element The Snap element used as `this` when invoking the handler.
+         * @param {boolean} shouldStopPropagation Whether to stop DOM event propagation before invoking the handler.
          * @returns {Function} A disposer that removes the underlying native listeners.
          */
-        addEvent = function (obj, type, fn, element) {
+        addEvent = function (obj, type, fn, element, shouldStopPropagation) {
             let realName = (supportsPointer && pointerMap[type])
                 ? pointerMap[type] : (supportsTouch && touchMap[type] ? touchMap[type] : type);
             const snap = Snap(element);
@@ -98,6 +99,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                         }
                     }
                 }
+                if (shouldStopPropagation) {
+                    e.stopPropagation();
+                }
                 const x = e.clientX + scrollX,
                     y = e.clientY + scrollY;
                 const resutl = fn.call(element, e, x, y);
@@ -120,6 +124,9 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
                             e.stopPropagation = stopTouch;
                             break;
                         }
+                    }
+                    if (shouldStopPropagation) {
+                        e.stopPropagation();
                     }
                     const x = e.clientX + scrollX,
                         y = e.clientY + scrollY;
@@ -217,12 +224,14 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * document scroll.
      *
      * Each generated method supports two calling conventions:
-     * - `element.eventName(handler, [scope], [data])` to bind a listener.
+     * - `element.eventName(handler, [scope], [data], [stopPropagation])` to bind a listener.
+     * - `element.eventName(handler, true)` to bind a listener that stops propagation.
      * - `element.eventName()` to trigger previously bound listeners for the same event type.
      *
      * @param {Function} fn The event handler. When omitted the previously registered handlers are invoked.
      * @param {Object} [scope] Optional `this` context passed to the handler.
      * @param {*} [data] Arbitrary data stored alongside the handler metadata.
+     * @param {boolean} [stopPropagation] Stop the DOM event from propagating to ancestor elements.
      * @returns {Element} The current element, allowing chaining.
      *
      * @example
@@ -235,10 +244,20 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      */
     for (var i = events.length; i--;) {
         (function (eventName) {
-            Snap[eventName] = elproto[eventName] = function (fn, scope, data) {
+            Snap[eventName] = elproto[eventName] = function (fn, scope, data, stopPropagation) {
                 if (Snap.is(fn, "function")) {
+                    if (typeof scope == "boolean") {
+                        stopPropagation = scope;
+                        scope = undefined;
+                    }
                     this.events = this.events || [];
-                    const remove_event_fun = addEvent(this.node || Snap.document(), eventName, fn, scope || this);
+                    const remove_event_fun = addEvent(
+                        this.node || Snap.document(),
+                        eventName,
+                        fn,
+                        scope || this,
+                        stopPropagation === true
+                    );
                     this.events.push({
                         name: eventName,
                         f: fn,
@@ -284,7 +303,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Element} The current element for chaining.
      */
     elproto.hover = function (f_in, f_out, scope_in, scope_out) {
-        return this.mouseover(f_in, scope_in).mouseout(f_out, scope_out || scope_in);
+        return this.mouseenter(f_in, scope_in).mouseleave(f_out, scope_out || scope_in);
     };
     /**
      * Removes previously registered hover handlers from the element.
@@ -294,7 +313,7 @@ Snap.plugin(function (Snap, Element, Paper, glob, Fragment, eve) {
      * @returns {Element} The current element for chaining.
      */
     elproto.unhover = function (f_in, f_out) {
-        return this.unmouseover(f_in).unmouseout(f_out);
+        return this.unmouseenter(f_in).unmouseleave(f_out);
     };
     const draggable = [];
     // SIERRA unclear what _context_ refers to for starting, ending, moving the drag gesture.

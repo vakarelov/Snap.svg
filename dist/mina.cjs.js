@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// build: 2026-06-11
+// build: 2026-10-08
 
 // @ts-nocheck
 // Copyright (c) 2017 Adobe Systems Incorporated. All rights reserved.
@@ -537,6 +537,8 @@
      */
     function stopit() {
         delete animations[this.id];
+        delete this.pdif;
+        this.stopped = true;
         this.update();
         eve(["snap", "mina", "stop", this.id], this);
     }
@@ -2596,6 +2598,9 @@
         pauseAll: true,
         resumeAll: true,
         stopAll: true,
+        pauseSnapshot: true,
+        resumeSnapshot: true,
+        discardSnapshot: true,
         clearTimeout: true,
         clearInterval: true,
         trakSkippedFrames: true,
@@ -2743,6 +2748,107 @@
         isGlobalPaused = false;
         stopAllTimers();
         last = undefined;
+    };
+
+    /**
+     * A snapshot of active mina work.
+     *
+     * @typedef {Object} MinaSnapshot
+     * @property {Animation[]} [animations]
+     * @property {Object[]} [timeouts]
+     * @property {Object[]} [intervals]
+     */
+
+    /**
+     * Captures and pauses the animations and managed timers that are running now.
+     * Entries that were already paused are deliberately not included, so resuming
+     * the snapshot never changes their pre-existing state.
+     *
+     * @returns {MinaSnapshot}
+     */
+    mina.pauseSnapshot = function () {
+        const snapshot = {
+            animations: [],
+            timeouts: [],
+            intervals: [],
+        };
+
+        Object.keys(animations).forEach(function (id) {
+            const anim = animations[id];
+            if (!anim || anim.pdif || anim.stopped) {
+                return;
+            }
+            snapshot.animations.push(anim);
+            anim.pause();
+        });
+        managedTimeouts.forEach(function (entry) {
+            if (!entry.paused && !entry.cleared) {
+                snapshot.timeouts.push(entry);
+                pauseManagedTimeout(entry);
+            }
+        });
+        managedIntervals.forEach(function (entry) {
+            if (!entry.paused && !entry.cleared) {
+                snapshot.intervals.push(entry);
+                pauseManagedInterval(entry);
+            }
+        });
+        return snapshot;
+    };
+
+    /**
+     * Resumes work previously captured by {@link mina.pauseSnapshot}.
+     * Work cleared or stopped while paused is not restarted.
+     *
+     * @param {MinaSnapshot} snapshot
+     * @returns {void}
+     */
+    mina.resumeSnapshot = function (snapshot) {
+        if (!snapshot) {
+            return;
+        }
+        (snapshot.animations || []).forEach(function (anim) {
+            if (anim && anim.pdif && !anim.stopped) {
+                anim.resume();
+            }
+        });
+        (snapshot.timeouts || []).forEach(function (entry) {
+            if (managedTimeouts.get(entry.id) === entry) {
+                resumeManagedTimeout(entry);
+            }
+        });
+        (snapshot.intervals || []).forEach(function (entry) {
+            if (managedIntervals.get(entry.id) === entry) {
+                resumeManagedInterval(entry);
+            }
+        });
+    };
+
+    /**
+     * Cancels work held by a discarded snapshot.
+     *
+     * @param {MinaSnapshot} snapshot
+     * @returns {void}
+     */
+    mina.discardSnapshot = function (snapshot) {
+        if (!snapshot) {
+            return;
+        }
+        (snapshot.animations || []).forEach(function (anim) {
+            if (anim && anim.pdif && !anim.stopped) {
+                anim.stop();
+            }
+        });
+        (snapshot.timeouts || []).forEach(function (entry) {
+            if (managedTimeouts.get(entry.id) === entry) {
+                cancelManagedTimeout(entry.id);
+            }
+        });
+        (snapshot.intervals || []).forEach(function (entry) {
+            if (managedIntervals.get(entry.id) === entry) {
+                cancelManagedInterval(entry.id);
+            }
+        });
     };
 
     /**

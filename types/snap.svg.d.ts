@@ -7,9 +7,8 @@
  * the private `_` namespace are modelled in a lightweight way so they remain
  * accessible for advanced use cases without over-specifying their shape.
  *
- * Note: This file uses the standard UMD module pattern where both a namespace
- * (for types) and a const (for the runtime value) share the same name 'Snap'.
- * TypeScript may report "Duplicate identifier" but this is intentional and correct.
+ * The callable factory is declared as a function merged with the `Snap`
+ * namespace, keeping the value API and its public type names available together.
  */
 
 // Snapshot point primitives --------------------------------------------------
@@ -27,6 +26,25 @@ declare namespace Snap {
 	interface Point3D extends Point2D {
 		/** Optional depth coordinate. */
 		z?: number | undefined;
+	}
+
+	/** Three-dimensional point with homogeneous coordinate returned by matrix helpers. */
+	interface Point4D extends Point3D {
+		w?: number | undefined;
+	}
+
+	/** Complex number represented by its real and imaginary components. */
+	interface ComplexNumber {
+		re: number;
+		im: number;
+	}
+
+	/** Four coefficients defining a Möbius transform. */
+	interface MobiusCoefficients {
+		a: ComplexNumber;
+		b: ComplexNumber;
+		c: ComplexNumber;
+		d: ComplexNumber;
 	}
 
 	/** Ordered list of 2D points represented as objects. */
@@ -49,6 +67,7 @@ declare namespace Snap {
 
 	/** Acceptable argument for vector helpers. */
 	type VectorInput = Point2D | NumberPair;
+	type Vector3Input = Point3D | [number, number, number];
 
 	/** Polar coordinates returned by conversion helpers. */
 	interface PolarCoordinates {
@@ -182,24 +201,196 @@ declare namespace Snap {
 		cx: number;
 		/** Vertical centre. */
 		cy: number;
-		/** Radius of the bounding circle measured from the centre to the furthest corner. */
-		r1: number;
-		/** Radius of the inner circle touching each side. */
-		r2: number;
-		/** Area of the box. */
-		area: number;
-		/** Raw `viewBox` string when present. */
-		vb?: string | undefined;
-		/** SVG path representation of the box outline. */
-		path?: string | undefined;
-		/** Returns a formatted string `"x y width x height"`. */
+		/** Width alias maintained by the bounding-box helper. */
+		w: number;
+		/** Height alias maintained by the bounding-box helper. */
+		h: number;
+		/** SVG path command array outlining the box. */
+		path(): PathSegmentArray;
+		/** Clones this bounding box. */
+		clone(): BBox;
+		/** Returns the largest inscribed-circle radius. */
+		r1(): number;
+		/** Returns the smallest enclosing-circle radius. */
+		r2(): number;
+		/** Returns half of the diagonal length. */
+		r0(): number;
+		/** Returns the diagonal length. */
+		diag(): number;
+		/** Expands this box by padding and returns the mutated or copied box. */
+		addBorder(border?: number | number[] | Record<string, number>, getNew?: boolean): BBox;
+		/** Draws the box as a rectangle on the supplied paper. */
+		rect(paper: Paper, radius?: number | NumberPair | { rx?: number; ry?: number }, border?: number | number[] | Record<string, number>): Element;
+		/** Returns the box as a viewBox string. */
+		vb(): string;
+		/** Returns the aspect ratio. */
+		ratio(): number;
+		/** Tests whether this box contains a point or another box. */
+		contains(value: Point2D | BoundsLike | BBox, clearance?: number): boolean;
+		/** Tests whether this box contains a circle. */
+		containsCircle(circle: Circle): boolean;
+		/** Returns the box centre. */
+		center(): Point2D;
+		/** Returns one of the box corners. */
+		corner(count: number): Point2D | undefined;
+		/** Returns a named point on the box. */
+		pointFromName(name: string): Point2D | null;
+		/** Returns the bounds after rotation. */
+		getBBoxRot(angle: number): BBox;
+		/** Returns the intersection between this box and another box. */
+		intersect(other: BoundsLike | BBox): BBox | null;
+		/** Tests whether this box overlaps another box. */
+		isOverlap(other: BoundsLike | BBox): boolean;
+		/** Returns the union between this box and another box. */
+		union(other: BoundsLike | BBox): BBox;
+		/** Sets the box corner at `x`, `y`. */
+		setCorner(x: number, y: number): this;
+		/** Translates the box. */
+		translate(x: number, y: number): this;
+		/** Scales the box around an optional pivot. */
+		scale(sx: number, sy?: number, cx?: number, cy?: number): this;
+		/** Returns the box itself as a bounding box. */
+		getBBox(): BBox;
+		/** Returns a formatted string `"x y width height"`. */
 		toString(): string;
-		/** Returns a copy of the box shifted by the supplied offsets. */
-		move(dx: number, dy: number): BBox;
-		/** Returns the intersection between this box and {@link other}. */
-		intersect(other: BBox): BBox;
-		/** Returns the union between this box and {@link other}. */
-		unite(other: BBox): BBox;
+	}
+
+	/** Point-mapping function accepted by non-linear transform builders. */
+	type PointTransform = (point: Point3D) => Point3D | null | undefined;
+
+	/** Options for projective 3D matrix transformations. */
+	interface Matrix3DOptions {
+		origin?: Point3D | NumberPair | undefined;
+		divideByW?: boolean | undefined;
+		fallbackPoint?: Point3D | undefined;
+		project?: ((point: Point4D, source: Point3D) => Point3D | null | undefined) | undefined;
+	}
+
+	/** Shared options for axis-oriented 2D transforms. */
+	interface AxisTransformOptions {
+		origin?: Point2D | NumberPair | undefined;
+		defaultAxis?: "x" | "y" | undefined;
+	}
+
+	/** Public non-linear transform builder and registry. */
+	interface NonlinTransforms {
+		identity: PointTransform;
+		register(name: string, factory: (...args: any[]) => PointTransform | null): this;
+		has(name: string): boolean;
+		list(): string[];
+		build(name: string, ...args: any[]): PointTransform | null;
+		compose(...transforms: Array<PointTransform | MatrixLike | Array<PointTransform | MatrixLike> | null | undefined>): PointTransform;
+		use(presets: string | Array<string | Record<string, unknown>> | Record<string, unknown>): this;
+		parametrize(transform: string | PointTransform, parameters: unknown[], easing?: MinaEasing | MinaEasing[]): (progress: number) => PointTransform | null;
+		twistPinch(center: Point2D | NumberPair, radius: number, twist: number, pinch: number): PointTransform;
+		radialRipple(center: Point2D | NumberPair, amplitude: number, wavelength: number, decay?: number, phase?: number): PointTransform;
+		bulge(center: Point2D | NumberPair, radius: number, strength: number): PointTransform;
+		mobius(a?: unknown, b?: unknown, c?: unknown, d?: unknown): PointTransform;
+		mobiusDisk(center: Point2D | NumberPair, angle?: number, options?: Record<string, unknown>): PointTransform;
+		mobiusUpperHalfPlane(shift?: number, scale?: number, tilt?: number, options?: Record<string, unknown>): PointTransform;
+		mobiusAnchors(source: ComplexNumber[], target: ComplexNumber[], options?: Record<string, unknown>): PointTransform;
+		sineWave(axis: string | Point2D | NumberPair, amplitude: number, wavelength: number, phase?: number, decay?: number): PointTransform;
+		cantilever(origin: Point2D | NumberPair, length: number, flexuralRigidity: number, tipAngle: number, gain?: number, axis?: unknown, falloff?: number): PointTransform;
+		springBend(origin: Point2D | NumberPair, length: number, angle: number, gain?: number, axis?: unknown, falloff?: number): PointTransform;
+		bendCantilever(fixed: Point2D | NumberPair, tip: Point2D | NumberPair, tipAngle: number, falloff?: number): PointTransform;
+		matrix3d(matrix: string | number[] | number[][] | Record<string, number>, options?: Matrix3DOptions): PointTransform;
+		translate3d(x: number, y: number, z: number, options?: Matrix3DOptions): PointTransform;
+		scale3d(x: number, y?: number, z?: number, options?: Matrix3DOptions): PointTransform;
+		rotateX(angle: number, options?: Matrix3DOptions): PointTransform;
+		rotateY(angle: number, options?: Matrix3DOptions): PointTransform;
+		rotateZ(angle: number, options?: Matrix3DOptions): PointTransform;
+		rotate3d(axis: Point3D | NumberPair | [number, number, number] | "x" | "y" | "z", angle: number, options?: Matrix3DOptions): PointTransform;
+		perspective(distance: number, options?: Matrix3DOptions): PointTransform;
+		lookAt(eye: Point3D, target: Point3D, up?: Point3D, options?: Matrix3DOptions): PointTransform;
+		[key: string]: any;
+	}
+
+	/** Static complex-number utilities exposed as `Snap.Complex`. */
+	interface ComplexStatic {
+		readonly ZERO: Readonly<ComplexNumber>;
+		readonly ONE: Readonly<ComplexNumber>;
+		from(value: unknown, fallback?: ComplexNumber): ComplexNumber;
+		fromPoint(value: Point2D): ComplexNumber;
+		add(a: unknown, b: unknown): ComplexNumber;
+		sub(a: unknown, b: unknown): ComplexNumber;
+		neg(value: unknown): ComplexNumber;
+		mul(a: unknown, b: unknown): ComplexNumber;
+		absSq(value: unknown): number;
+		conj(value: unknown): ComplexNumber;
+		div(a: unknown, b: unknown): ComplexNumber;
+		isZero(value: unknown, threshold?: number): boolean;
+		scale(value: unknown, scalar: number): ComplexNumber;
+		equals(a: unknown, b: unknown, epsilon?: number): boolean;
+		normalizeCoefficients(a?: unknown, b?: unknown, c?: unknown, d?: unknown): MobiusCoefficients;
+		_parseNumber(value: unknown, fallback: number): number;
+	}
+
+	/** Named font namespace extension, backed by the optional dynamic font plugin. */
+	interface FontNamespace {
+		load(urlOrName: string, nameOrOptions?: string | FontLoadOptions, options?: FontLoadOptions): Promise<Font>;
+		get(name: string, autoLoad?: false): Font | null;
+		get(name: string, autoLoad: true): Font | Promise<Font> | null;
+		ensure(nameOrUrl: string, name?: string): Promise<Font>;
+		list(): string[];
+		remove(name: string): boolean;
+		findFontUrl(name: string, options?: FontLoadOptions): string | null;
+		recover(pathGroup: Element): Element | null;
+		[key: string]: any;
+	}
+
+	interface FontLoadOptions {
+		force?: boolean | undefined;
+		autoLoad?: boolean | undefined;
+		format?: string | undefined;
+		doc?: Document | undefined;
+		[key: string]: unknown;
+	}
+
+	interface Font {
+		name?: string | undefined;
+		textToPath(text: string, options?: Record<string, unknown>): Element;
+		textToBeziers(text: string, options?: Record<string, unknown>): unknown[];
+		[key: string]: any;
+	}
+
+	interface FilterNamespace {
+		blur(x?: number, y?: number): string;
+		shadow(dx?: number, dy?: number, blur?: number, color?: string, opacity?: number): string;
+		grayscale(amount?: number): string;
+		sepia(amount?: number): string;
+		saturate(amount?: number): string;
+		hueRotate(angle?: number): string;
+		invert(amount?: number): string;
+		brightness(amount?: number): string;
+		contrast(amount?: number): string;
+		[key: string]: (...args: any[]) => string;
+	}
+
+	/** Polygon intersection helpers in `Snap.polygons`. */
+	interface PolygonNamespace {
+		intersect(first: Point2DList, second: Point2DList): Point2DList[] | false;
+		[key: string]: any;
+	}
+
+	interface NamedColor {
+		readonly [level: number]: string;
+		readonly A100?: string;
+		readonly A200?: string;
+		readonly A400?: string;
+		readonly A700?: string;
+	}
+
+	interface MaterialColors {
+		[key: string]: NamedColor;
+	}
+
+	interface FlatColors {
+		[key: string]: string;
+	}
+
+	interface BBoxStatic {
+		new (x: number | number[] | BoundsLike | BBox | null, y?: number, width?: number, height?: number): BBox;
+		prototype: BBox;
 	}
 
 	// Matrix -------------------------------------------------------------------
@@ -209,7 +400,13 @@ declare namespace Snap {
 	 * place unless otherwise declared and return `this` for chaining.
 	 */
 	class Matrix {
-		constructor(a?: number, b?: number, c?: number, d?: number, e?: number, f?: number);
+		a: number;
+		b: number;
+		c: number;
+		d: number;
+		e: number;
+		f: number;
+		constructor(a?: number | SVGMatrix | string | MatrixLike, b?: number, c?: number, d?: number, e?: number, f?: number);
 		/** Clone the matrix. */
 		clone(): Matrix;
 		/** Replace the matrix components with the supplied values. */
@@ -238,24 +435,40 @@ declare namespace Snap {
 		skewX(angle: number): Matrix;
 		/** Skew by the provided angle along the Y axis. */
 		skewY(angle: number): Matrix;
+		/** Skew along both axes. */
+		skew(x: number, y?: number): Matrix;
 		/** Rotate by the specified angle (degrees) optionally around a pivot. */
 		rotate(angle: number, cx?: number, cy?: number): Matrix;
-		/** Multiply this matrix by {@link left}. */
-		multiply(left: MatrixLike): Matrix;
+		/** Apply this matrix to a point, optionally using another element's coordinate space. */
+		apply(point: Point2D | NumberPair, node?: Element): Point2D;
+		/** Returns a randomized transform applied to this matrix. */
+		randomTrans(cx?: number, cy?: number, positive?: boolean, distance?: number, diffScale?: boolean, skipRotation?: boolean, skipScale?: boolean): Matrix;
+		/** Returns a rounded coefficient by its index. */
+		get(index: number): number;
+		/** Returns the translation components. */
+		offset(): [string, string];
+		/** Compares this matrix with another matrix within a tolerance. */
+		equals(other: MatrixLike, error?: number): boolean;
+		/** Returns all six coefficients as an array. */
+		toArray(): number[];
+		/** Returns this matrix as a 2D array. */
+		to2dArray(): number[][];
+		/** Decomposes this matrix into transform components. */
+		split(addPreTranslation?: boolean): Record<string, number | boolean>;
+		/** Returns an alternate decomposition into transform components. */
+		split2(): Record<string, number | boolean>;
+		/** Returns the matrix as SVG transform commands. */
+		toTransformString(shorter?: boolean): string;
+		/** Determines whether this is a finite matrix. */
+		isMatrix(): boolean;
+		/** Decomposes the transform into rotation and scale components. */
+		rotScaleSplit(matrix?: MatrixLike): Record<string, number>;
 		/** Return the inverse matrix. */
 		invert(): Matrix;
-		/** Concatenate another matrix on the right-hand side. */
-		combine(other: MatrixLike): Matrix;
-		/** Resets the matrix to identity. */
-		reset(): Matrix;
-		/** Returns a string `"matrix(a,b,c,d,e,f)"`. */
+		/** Returns an SVG matrix string. */
 		toString(): string;
-		/** Returns `true` when the matrix is the identity matrix. */
-		isIdentity(): boolean;
-		/** Apply the matrix to an `{x, y}` point and return the new coordinates. */
-		point(x: number, y: number): Point2D;
-		/** Apply the matrix to a point object, returning transformed coordinates. */
-		apply(point: Point2D | NumberPair, node?: Element): Point2D;
+		/** Returns `true` when this matrix is the identity matrix. */
+		isIdentity(error?: number): boolean;
 		/** Transform X coordinate given the source pair. */
 		x(x: number, y: number): number;
 		/** Transform Y coordinate given the source pair. */
@@ -264,6 +477,32 @@ declare namespace Snap {
 		determinant(): number;
 		/** Solve a two-point transform mapping to two target points. */
 		twoPointTransform(p1x: number, p1y: number, p2x: number, p2y: number, toP1x: number, toP1y: number, toP2x: number, toP2y: number): Matrix | null;
+		static random(cx?: number, cy?: number, positive?: boolean, distance?: number, diffScale?: boolean, skipRotation?: boolean, skipScale?: boolean): Matrix;
+		static combine(translate?: unknown, scale?: unknown, angle?: number, shear?: number): Matrix;
+		static gen: MatrixGeneralOperations;
+	}
+
+	interface MatrixGeneralOperations {
+		add(a: Matrix | number[][], b: Matrix | number[][]): number[][];
+		multiply(a: Matrix | number[][], b: Matrix | number[][]): number[][];
+		cMultiply(scalar: number, matrix: Matrix | number[][]): number[][];
+	}
+
+	interface MatrixStatic {
+		new (a?: number | SVGMatrix | string | MatrixLike, b?: number, c?: number, d?: number, e?: number, f?: number): Matrix;
+		prototype: Matrix;
+		random(cx?: number, cy?: number, positive?: boolean, distance?: number, diffScale?: boolean, skipRotation?: boolean, skipScale?: boolean): Matrix;
+		combine(translate?: unknown, scale?: unknown, angle?: number, shear?: number): Matrix;
+		gen: MatrixGeneralOperations;
+	}
+
+	interface XMLNamespaces {
+		svg: string;
+		xlink: string;
+		xmlns: string;
+		xml: string;
+		html: string;
+		[key: string]: string;
 	}
 
 	/** Permitted inputs when a method accepts a transformation matrix. */
@@ -332,6 +571,14 @@ declare namespace Snap {
 
 	/** Animation easing function. */
 	type MinaEasing = (t: number) => number;
+
+	/** Attribute-animation descriptor returned by {@link Snap.animation}. */
+	interface AnimationDescriptor {
+		attr: Attributes;
+		dur: number;
+		easing: MinaEasing;
+		callback?: ((animation: MinaAnimation) => void) | undefined;
+	}
 
 	/** Helper signature for easing factories that expose a `.withParams` builder. */
 	type MinaEasingFactory = ((...args: any[]) => MinaEasing) & { withParams: (...args: any[]) => MinaEasing };
@@ -542,8 +789,14 @@ declare namespace Snap {
 	interface BBoxParameters {
 		/** When `true`, applies the local transform before evaluation. */
 		useLocalTransform?: boolean | undefined;
+		/** Compatibility spelling accepted by older helper call sites. */
+		without_transform?: boolean | undefined;
+		/** Requests a fast approximate bounding box. */
+		approx?: boolean | undefined;
 		/** Ignore nodes hidden via display attributes. */
 		skipHidden?: boolean | undefined;
+		/** Compatibility spelling for hidden-node filtering. */
+		skip_hidden?: boolean | undefined;
 		/** Ignore stroke width. */
 		ignoreStroke?: boolean | undefined;
 	}
@@ -598,13 +851,13 @@ declare namespace Snap {
 	 */
 	interface ElementLike {
 		/** Underlying SVG DOM element. */
-		readonly node: SVGElement;
+		node: SVGElement;
 		/** Owning paper wrapper when available. */
-		readonly paper?: Paper | undefined;
+		paper?: Paper | undefined;
 		/** Element tag name in lowercase form. */
-		readonly type: string;
+		type: string;
 		/** Internal identifier used by the hub. */
-		readonly id: string;
+		id: string;
 		/** Returns the attribute value. */
 		attr(name: string): AttrValue;
 		/** Sets one attribute. */
@@ -614,9 +867,15 @@ declare namespace Snap {
 		/** Removes attributes listed in {@link names}. */
 		removeAttr(names: string | string[]): this;
 		/** Appends a node to the current element. */
-		append(element: Element | Element[]): Element;
+		append(element: Element | Element[] | Set<Element>, index?: number): this;
+		/** Adds a node to the current element, optionally at an index. */
+		add(element: Element | Element[] | Set<Element>, index?: number): this;
 		/** Prepends a node to the current element. */
-		prepend(element: Element | Element[]): Element;
+		prepend(element: Element | Element[] | Set<Element>): this;
+		/** Appends this element to another element. */
+		appendTo(element: Element): this;
+		/** Prepends this element to another element. */
+		prependTo(element: Element): this;
 		/** Inserts the element before the supplied sibling. */
 		insertBefore(element: Element): this;
 		/** Inserts the element after the supplied sibling. */
@@ -628,7 +887,7 @@ declare namespace Snap {
 		/** Replaces this node with {@link element}. */
 		replace(element: Element): Element;
 		/** Clones the element, including data and optional deep children. */
-		clone(after?: Element, keepTransforms?: boolean): Element;
+		clone(hidden?: boolean, renameId?: ((id: string) => string) | null, deepCopy?: boolean): Element;
 		/** Returns the computed bounding box. */
 		getBBox(settings?: Partial<BBoxParameters>): BBox;
 		/** Returns an approximate bounding box. */
@@ -636,7 +895,11 @@ declare namespace Snap {
 		/** Returns an exact bounding box using the slow precise algorithm. */
 		getBBoxExact(settings?: Partial<BBoxParameters>): BBox;
 		/** Returns the bounding box for the element hierarchy. */
-		getCHull(withTransform?: boolean, skipHidden?: boolean): Point2DList;
+		getCHull(withTransform?: boolean, skipHidden?: boolean): Point2DList | null;
+		/** Returns representative points describing the element footprint. */
+		getPoints(useLocalTransform?: boolean, skipHidden?: boolean): Point2DList;
+		/** Returns the convex-hull bounding box, or `null` for unresolved geometry. */
+		getCHullBBox(matrix?: MatrixLike, skipHidden?: boolean): BBox | null;
 		/** Clears the cached convex hull, optionally forcing a parent update. */
 		clearCHull(forceTop?: boolean): this;
 		/** Returns the path length. */
@@ -681,6 +944,22 @@ declare namespace Snap {
 		next(): Element | null;
 		/** Returns the previous sibling Snap element. */
 		prev(): Element | null;
+		/** Returns whether this element has child elements. */
+		hasChildren(): boolean;
+		/** Returns wrapped child elements with optional visibility/text filtering. */
+		getChildren(visible?: boolean, includeText?: boolean): Element[];
+		/** Removes every child element. */
+		removeChildren(): this;
+		/** Adds a `<use>` reference to this element. */
+		addUse(reference: string | Element, x?: number, y?: number): Element;
+		/** Resolves the referenced node for a `<use>` element. */
+		getUseTarget(): Element | null;
+		/** Associates this element with a paper wrapper. */
+		setPaper(paper: Paper, force?: boolean): this;
+		/** Returns whether this element behaves as a group. */
+		isGroupLike(): boolean;
+		/** Removes `<use>` nodes that reference this element. */
+		removeUses(): this;
 		/** Adds a class name to the element. */
 		addClass(name: string): this;
 		/** Removes a class name from the element. */
@@ -697,16 +976,28 @@ declare namespace Snap {
 		toString(): string;
 		/** Converts the element to a plain object representation. */
 		toJSON(): Record<string, unknown>;
-		/** Animates attributes over time. */
-		animate(attrs: Attributes | ((value: number) => void), duration: number, easing?: MinaEasing, callback?: (animation: MinaAnimation) => void): MinaAnimation;
-		/** Stops all ongoing animations on this element. */
-		stop(): this;
+		/** Returns the outer SVG markup. */
+		outerSVG(): string;
+		/** Returns the inner SVG markup. */
+		innerSVG(): string;
+		/** Serializes this node to a data URL. */
+		toDataURL(): string;
+		/** Applies attributes or style values using the jQuery-style alias. */
+		css(name: string, value?: AttrValue): this | AttrValue;
+		css(attrs: Attributes): this;
+		/** Forces attribute values to be set directly on the DOM node. */
+		attr_force(name: string, value?: AttrValue): this | AttrValue;
+		attr_force(attrs: Attributes): this;
+		/** Returns an attribute value without Snap's attribute processing. */
+		getTrueAttr(name: string): AttrValue;
+		/** Registers cleanup work performed when the element is removed. */
+		registerRemoveFunction(callback: (element: Element) => void): this;
+		/** Runs and clears registered removal callbacks. */
+		cleanupAfterRemove(): this;
 		/** Selects a descendant matching the CSS selector. */
 		select<T extends Element = Element>(selector: string): T | null;
 		/** Selects all descendants matching the CSS selector. */
 		selectAll<T extends Element = Element>(selector: string): Set<T>;
-		/** Applies a mask to the element. */
-		mask(mask: Element | null): Element;
 		/** Applies a pattern to the element. */
 		pattern(x: number, y: number, width: number, height: number): Element;
 		/** Applies a marker definition to the element. */
@@ -757,8 +1048,34 @@ declare namespace Snap {
 	}
 
 	interface Element extends ElementLike {
+		/** Animates attributes over time. */
+		animate(attrs: Attributes | ((value: number) => void), duration: number, easing?: MinaEasing, callback?: (animation: MinaAnimation) => void): MinaAnimation;
+		/** Stops all ongoing animations on this element. */
+		stop(): this;
+		/** Removes every child element. */
+		clear(): this;
+		/** Applies a mask to the element. */
+		mask(mask: Element | null): Element;
+		/** Alias for {@link addUse}, creating a `<use>` node on this element. */
+		use(reference: string | Element, x?: number, y?: number): Element;
 		/** Create a partner DOM node that mirrors transformations. */
 		setPartner(node: SVGElement, strict?: boolean): this;
+		/** Removes one or more partner nodes. */
+		removePartner(type?: string, removeElements?: boolean): this;
+		/** Returns whether partner nodes are attached. */
+		hasPartner(): boolean;
+		/** Returns partner wrappers, optionally filtered by partner type. */
+		getPartners(type?: string): Element[];
+		/** Applies a style map to partner nodes. */
+		setPartnerStyle(style: Attributes): this;
+		/** Returns whether the element is hidden. */
+		isHidden(): boolean;
+		/** Converts this element to a pattern definition. */
+		toPattern(x: number, y: number, width: number, height: number): Element;
+		/** Adds a click handler to the element. */
+		addClickEvent(callback: (event: MouseEvent) => void): this;
+		/** Returns animation descriptors currently acting on the element. */
+		inAnim(): Array<{ anim: AnimationDescriptor; mina: MinaAnimation; curStatus: number; status(value?: number): number | MinaAnimation; stop(): void }>;
 		/** Returns the path subsegment between the provided lengths. */
 		getSubpath(from: number, to: number): string;
 		/** Reverse the direction of the underlying geometry when applicable. */
@@ -974,16 +1291,42 @@ declare namespace Snap {
 		addWarp(generator: (...args: any[]) => any, region?: Element, id?: string, border?: number, options?: Record<string, unknown>): Element;
 		/** Removes a warp definition by id. */
 		removeWarp(id?: string): void;
+		/** Draws a circle on the current element's paper. */
+		circle(x: number, y: number, radius: number, attributes?: Attributes): Element;
+		/** Creates an anchor element on the current element's paper. */
+		a(href?: string, target?: string): Element;
+		/** Creates a clipPath element on the current element's paper. */
+		clipPath(first?: Attributes | Element): Element;
+		/** Creates a foreignObject on the current element's paper. */
+		foreignObject(x: number | Attributes, y?: number, width?: number | string, height?: number | string, html?: string): Element;
+		/** Creates and inserts a text path using a registered font. */
+		textPath(x: number, y: number, text: string, fontName: string, fontSize?: number, options?: Record<string, unknown>): Element;
+		/** Registers an interaction handler. */
+		addInteractionEvent(type: string, action: unknown, otherParams?: Record<string, unknown>, replace?: boolean, localEve?: (...args: any[]) => void): this;
+		/** Adds a click interaction handler. */
+		addClickEvent(action: unknown, otherParams?: Record<string, unknown>, replace?: boolean, localEve?: (...args: any[]) => void): this;
+		/** Adds a press interaction handler. */
+		addPressEvent(action: unknown, otherParams?: Record<string, unknown>, replace?: boolean, localEve?: (...args: any[]) => void): this;
+		/** Adds a hold interaction handler. */
+		addHoldEvent(action: unknown, otherParams?: Record<string, unknown>, replace?: boolean, localEve?: (...args: any[]) => void): this;
+		/** Adds a long-press interaction handler. */
+		addLongpressEvent(action: unknown, otherParams?: Record<string, unknown>, replace?: boolean, localEve?: (...args: any[]) => void): this;
+		/** Adds a pointer-search path to this element. */
+		searchPathAdd(paperOrSvg: Element): this;
+		/** Removes a pointer-search path from this element. */
+		searchPathRemove(paperOrSvg: Element): this;
+		/** Enables rotation through drag interaction. */
+		rotDrag(element?: Element, moveContext?: DragContext, startContext?: DragContext, endContext?: DragContext): this;
+		/** Transforms ellipse geometry using a matrix. */
+		ellipseTransform(matrix: MatrixLike): this;
 	}
 
 	/**
 	 * Wrapper around an `<svg>` root providing element creation helpers and utilities.
 	 */
 	interface Paper extends ElementLike {
-		/** Adds children to the element (Paper version returns a Set). */
-		add(element: Element | Element[]): Set<Element>;
-		/** Adds one or more elements to the paper. */
-		add(...elements: Element[]): Set<Element>;
+		/** Adds child elements to the paper. */
+		add(element: Element | Element[] | Set<Element>, index?: number): this;
 		/** Draws a rectangle on the paper. */
 		rect(x: number, y: number, width: number, height: number, rx?: number | NumberPair, ry?: number, attr?: Attributes): Element;
 		/** Draws a circle. */
@@ -1000,24 +1343,44 @@ declare namespace Snap {
 		path(path?: string | Array<string | number>, attr?: Attributes): Element;
 		/** Renders text. */
 		text(x: number, y: number, text: string | string[], attr?: Attributes): Element;
-		/** Creates a group. */
-		group(...items: Array<Element | Set<Element> | null | undefined>): Set<Element>;
-		/** Alias for {@link group}. */
-		g(...items: Array<Element | Set<Element> | null | undefined>): Set<Element>;
+		/** Wraps the paper's current SVG element in a new group. */
+		group(attr?: Attributes): Element;
+		/** Creates a new `<g>` element and optionally adds the supplied elements. */
+		g(...items: Array<Element | Set<Element> | null | undefined>): Element;
+		/** Creates a new `<g>` element, adds elements, and applies trailing attributes. */
+		g(...items: [...Array<Element | Set<Element> | null | undefined>, Attributes]): Element;
 		/** Creates an image element. */
 		image(src: string | Attributes, x?: number, y?: number, width?: number, height?: number, attr?: Attributes): Element;
 		/** Uses an existing definition. */
-		use(id: string | Element, attr?: Attributes): Element;
+		use(id: string | Element | Attributes, attr?: Attributes): Element;
+		/** Creates an arbitrary SVG element. */
+		el(name: string, attr?: Attributes): Element;
+		/** Creates a nested SVG element. */
+		svg(x?: number | Attributes, y?: number, width?: number | string, height?: number | string, viewBoxX?: number, viewBoxY?: number, viewBoxWidth?: number, viewBoxHeight?: number): Element;
+		/** Creates an SVG symbol. */
+		symbol(viewBoxX?: number, viewBoxY?: number, viewBoxWidth?: number, viewBoxHeight?: number, attr?: Attributes): Element;
+		/** Creates a pattern using the core paper API. */
+		ptrn(x?: number | Attributes, y?: number, width?: number, height?: number, viewBoxX?: number, viewBoxY?: number, viewBoxWidth?: number, viewBoxHeight?: number, attr?: Attributes): Element;
+		/** Creates a filter from SVG filter markup. */
+		filter(markup: string, local?: boolean): Element;
 		/** Creates a reusable fragment. */
 		fragment(...nodes: Array<string | Element | Element[] | null | undefined>): Fragment;
+		/** Creates a textPath element linked to path data or an existing path. */
+		textPath(path: string | Element | PathSegmentArray | Attributes, text?: string | string[], attr?: Attributes): Element;
+		/** Creates a font-backed text path. */
+		textPath(x: number, y: number, text: string, fontName: string, fontSize?: number, options?: Record<string, unknown>): Element;
 		/** Returns the `<defs>` element, creating it when missing. */
 		defs(): Element;
 		/** Creates a linear gradient definition. */
 		gradient(gradient: string): Element;
+		/** Creates a linear gradient from coordinates. */
+		gradientLinear(x1: number, y1: number, x2: number, y2: number): Element;
+		/** Creates a radial gradient from a centre and radius. */
+		gradientRadial(cx: number, cy: number, radius: number, fx?: number, fy?: number): Element;
 		/** Creates a pattern definition. */
 		pattern(x: number, y: number, width: number, height: number, vbx?: number, vby?: number, vbw?: number, vbh?: number): Element;
 		/** Creates a mask definition. */
-		mask(...elements: Element[]): Element;
+		mask(...elements: Array<Element | Attributes>): Element;
 		/** Creates a marker definition. */
 		marker(x: number, y: number, width: number, height: number, refX?: number, refY?: number): Element;
 		/** Clears the paper contents. */
@@ -1076,263 +1439,533 @@ declare namespace Snap {
 		arcFan(radius: number, angle: number, step: number, symbol: Element | { type: string; [key: string]: any }, style?: Attributes | Attributes[] | ((el: Element, group: Element, index: number, angle: number, point: Point2D) => void), id?: string, group?: Element): Element;
 		/** Draws a zigzag polyline. */
 		zigzag(p1: Point2D, p2OrWidth: Point2D | number, period: number, amplitude: number, reverse?: boolean): Element;
+		/** Creates a visual point marker and optional label. */
+		point(group: Element, x: number, y: number, color?: string | number, size?: number, label?: string | null, labelStyle?: Attributes): Element;
+		/** Creates an SVG attribute animation node. */
+		animate(attrs: Attributes, target?: Element): Element;
+		/** Creates an SVG attribute animation node from positional values. */
+		animate(attributeName?: string, from?: string | number, to?: string | number, dur?: string | number, begin?: string | number, repeatCount?: string | number, fill?: string, calcMode?: string, values?: string | string[] | number[], keyTimes?: string | number[], keySplines?: string | number[], by?: string | number, attr?: Attributes, target?: Element): Element;
+		/** Alias for {@link animate}. */
+		animate_el(attrs: Attributes, target?: Element): Element;
+		/** Alias for positional {@link animate}. */
+		animate_el(attributeName?: string, from?: string | number, to?: string | number, dur?: string | number, begin?: string | number, repeatCount?: string | number, fill?: string, calcMode?: string, values?: string | string[] | number[], keyTimes?: string | number[], keySplines?: string | number[], by?: string | number, attr?: Attributes, target?: Element): Element;
+		/** Creates an SVG transform animation node. */
+		animateTransform(attrs: Attributes, target?: Element): Element;
+		/** Creates an SVG transform animation node from positional values. */
+		animateTransform(type?: string, from?: string | number, to?: string | number, dur?: string | number, begin?: string | number, repeatCount?: string | number, fill?: string, calcMode?: string, values?: string | string[] | number[], keyTimes?: string | number[], keySplines?: string | number[], by?: string | number, additive?: string, accumulate?: string, attr?: Attributes, target?: Element): Element;
+		/** Alias for {@link animateTransform}. */
+		animateTransform_el(attrs: Attributes, target?: Element): Element;
+		/** Alias for positional {@link animateTransform}. */
+		animateTransform_el(type?: string, from?: string | number, to?: string | number, dur?: string | number, begin?: string | number, repeatCount?: string | number, fill?: string, calcMode?: string, values?: string | string[] | number[], keyTimes?: string | number[], keySplines?: string | number[], by?: string | number, additive?: string, accumulate?: string, attr?: Attributes, target?: Element): Element;
+		/** Creates an SVG motion animation node. */
+		animateMotion(attrs: Attributes, target?: Element): Element;
+		/** Creates an SVG motion animation node from a path and positional values. */
+		animateMotion(path: PathInput, dur?: string | number, begin?: string | number, repeatCount?: string | number, rotate?: string | number, calcMode?: string, keyPoints?: string | number[], keyTimes?: string | number[], keySplines?: string | number[], attr?: Attributes, target?: Element): Element;
+		/** Creates an `<mpath>` node for an SVG motion animation. */
+		mpath(path: PathInput | Attributes, attr?: Attributes): Element;
+		/** Returns the paper as SVG markup. */
+		toString(): string;
+		/** Serializes the paper to a data URL. */
+		toDataURL(): string;
+		/** Removes all paper content. */
+		clear(): this;
+		/** Alias for {@link g}; creates a new `<g>` element. */
+		def_group(...items: Array<Element | Set<Element> | null | undefined>): Element;
+		/** Alias for {@link g} with trailing group attributes. */
+		def_group(...items: [...Array<Element | Set<Element> | null | undefined>, Attributes]): Element;
+		/** Creates a text path from a registered font. */
+		textPath(x: number, y: number, text: string, fontName: string, fontSize?: number, options?: Record<string, unknown>): Element;
 	}
 
 	/**
 	 * Array-like collection of elements with convenience methods mirroring
 	 * `Array<T>` plus grouped DOM helpers.
 	 */
-	interface Set<T extends Element = Element> extends Array<T> {
+	interface Set<T extends Element = Element> {
+		/** Number of elements in the collection. */
+		length: number;
+		/** Indexed element access. */
+		[index: number]: T;
+		/** Identifies this collection as a Snap set. */
+		readonly type: "set";
 		/** Adds elements to the set. */
-		push(...items: T[]): number;
+		push(...items: T[]): this;
 		/** Removes the last element and returns it. */
 		pop(): T | undefined;
-		/** Removes the first element and returns it. */
-		shift(): T | undefined;
-		/** Adds elements at the front of the set. */
-		unshift(...items: T[]): number;
 		/** Iterates over members. */
-		forEach(callback: (element: T, index: number, set: this) => void, scope?: unknown): this;
+		forEach(callback: (element: T, index: number) => void | false, scope?: unknown): this;
 		/** Animates every element with the supplied attributes. */
 		animate(attrs: Attributes, duration: number, easing?: MinaEasing, callback?: (animation: MinaAnimation) => void): this;
 		/** Applies attribute changes to all elements. */
 		attr(attrs: Attributes): this;
 		/** Removes all elements from the set. */
-		clear(): this;
+		clear(): void;
 		/** Removes the specified element from the set. */
 		exclude(element: T): boolean;
 		/** Returns the first element matching the predicate. */
-		splice(start: number, deleteCount?: number): Set<T>;
+		splice(start: number, deleteCount?: number, ...insertions: T[]): Set<T>;
 		/** Map helper returning an array of results. */
-		map<U>(callback: (element: T, index: number, set: this) => U, scope?: unknown): U[];
+		map<U>(callback: (element: T, index: number, values: T[]) => U, scope?: unknown): U[];
+		/** Filters members and returns a regular array. */
+		filter(callback: (element: T, index: number, values: T[]) => unknown, scope?: unknown): T[];
+		/** Returns whether the set contains the value. */
+		includes(value: T, fromIndex?: number): boolean;
+		/** Returns a copy of the set values as an array. */
+		values(): T[];
+		/** Returns a set containing deep clones of all members. */
+		clone(): Set<T>;
+		/** Removes all members from the DOM and this set. */
+		remove(): this;
+		/** Binds a set attribute to a callback or another element. */
+		bind(attribute: string, callbackOrElement: ((value: AttrValue) => void) | Element, targetAttribute?: string): this;
+		/** Inserts all members after the supplied element. */
+		insertAfter(element: Element): this;
+		/** Returns the union of member bounding boxes. */
+		getBBox(): BBox | undefined;
+		/** Returns a descriptive string. */
+		toString(): string;
 	}
 
 	/** Lightweight wrapper around a `DocumentFragment`. */
 	interface Fragment {
 		/** Root DOM fragment. */
-		node: DocumentFragment;
+		readonly node: DocumentFragment;
+		/** Retains this detached fragment against Snap's cleanup. */
+		retain(): this;
+		/** Releases this fragment from Snap's retained-fragment registry. */
+		release(): this;
 		/** Select a descendant within the fragment. */
 		select<T extends Element = Element>(selector: string): T | null;
 		/** Select descendants within the fragment. */
 		selectAll<T extends Element = Element>(selector: string): Set<T>;
-		/** Appends the fragment into a target element. */
-		appendTo(target: Element): Element;
-		/** Iterates over the fragment nodes. */
-		forEach(callback: (el: Element, index: number) => void, scope?: unknown): void;
 	}
 
 	// Core factory -------------------------------------------------------------
 
-	/** Signature of the ambient Snap factory function. */
-	interface SnapFunction {
-		/**
-		 * Main entry point that creates a drawing surface, wraps existing SVG
-		 * content, or returns utility objects depending on the argument type.
-		 */
-		(width?: number | string | SVGElement | Element[], height?: number | string | Attributes | null): Paper | Element | Set<Element> | null;
+	}
+
+	/**
+	 * Main entry point that creates a drawing surface, wraps existing SVG
+	 * content, or returns utility objects depending on the argument type.
+	 */
+	declare function Snap(width?: number | string | SVGElement | Snap.Element[], height?: number | string | Snap.Attributes | null): Snap.Paper | Snap.Element | Snap.Set<Snap.Element> | null;
+
+	declare namespace Snap {
+		type SnapFunction = typeof Snap;
 		/** String representation of the library version. */
-		readonly version: string;
+		const version: string;
 		/** Sentinel constant that forces insertion after the current node. */
-		readonly FORCE_AFTER: "__force_after";
+		const FORCE_AFTER: "__force_after";
 		/** Helper namespace containing rarely used internals. */
-		readonly _: Record<string, unknown> & {
+		const _: Record<string, unknown> & {
 			/** Exposes the global references used by the library. */
 			glob: { win: Window; doc: Document };
 			/** Generic cache helper. */
 			cacher<T extends (...args: any[]) => any>(fn: T, scope?: unknown, post?: (value: ReturnType<T>) => ReturnType<T>): T;
 		};
 		/** Returns the global window instance. */
-		window(): Window;
-		/** Returns the global document instance. */
-		document(requestPaper?: boolean): Document | Paper;
+		function window(): Window;
+		/** Returns the global document, optionally resolving an owning paper. */
+		function document(paper?: boolean): Document | Paper;
+		function document(element: Node | ElementLike, paper?: boolean): Document | Paper;
 		/** Overrides the window used by the library. */
-		setWindow(newWindow: Window): void;
+		function setWindow(newWindow: Window): void;
+		/** Overrides the document used by the library. */
+		function setDocument(newDocument: Document | ShadowRoot, forceTop?: boolean): void;
+		/** XML namespace URLs used when creating SVG and HTML nodes. */
+		const xmlns: XMLNamespaces;
+		/** Returns the library's string representation. */
+		function toString(): string;
+		/** Indicates whether data event handling is enabled. */
+		const _dataEvents: boolean;
 		/** Compare the DOM position between two nodes or Snap elements. */
-		_compareDomPosition(a: Element | Node, b: Element | Node): number;
+		function _compareDomPosition(a: Element | Node, b: Element | Node): number;
 		/** Comparator that orders elements by visual stacking. */
-		positionComparator: ((a: Element, b: Element) => number) & { inverse(a: Element, b: Element): number };
+		const positionComparator: ((a: Element, b: Element) => number) & { inverse(a: Element, b: Element): number };
 		/** Returns the prototype object registered under the supplied name. */
-		getProto(name: "element" | "paper" | "fragment" | string): any;
+		function getProto(name: "element" | "paper" | "fragment" | string): any;
 		/** Enables or disables data event handling. */
-		enableDataEvents(off?: boolean): void;
+		function enableDataEvents(off?: boolean): void;
 		/** Formats a string using `{}` tokens. */
-		format(template: string, data: any): string;
+		function format(template: string, data: any): string;
 		/** Converts degrees to radians. */
-		rad(deg: number): number;
+		function rad(deg: number): number;
 		/** Converts radians to degrees. */
-		deg(rad: number): number;
+		function deg(rad: number): number;
 		/** Calculates the sine of an angle specified in degrees. */
-		sin(angle: number): number;
+		function sin(angle: number): number;
 		/** Calculates the cosine of an angle specified in degrees. */
-		cos(angle: number): number;
+		function cos(angle: number): number;
 		/** Calculates the tangent of an angle specified in degrees. */
-		tan(angle: number): number;
+		function tan(angle: number): number;
 		/** Calculates the cotangent of an angle specified in degrees. */
-		cot(angle: number): number;
+		function cot(angle: number): number;
 		/** Equivalent to `Math.asin()` returning degrees. */
-		asin(value: number): number;
+		function asin(value: number): number;
 		/** Equivalent to `Math.acos()` returning degrees. */
-		acos(value: number): number;
+		function acos(value: number): number;
 		/** Equivalent to `Math.atan()` returning degrees. */
-		atan(value: number): number;
+		function atan(value: number): number;
 		/** Equivalent to `Math.atan2()` returning degrees. */
-		atan2(y: number, x?: number): number;
+		function atan2(y: number, x?: number): number;
 		/** Converts polar coordinates specified in radians to cartesian coordinates. */
-		fromPolar(r: number, phi: number): Point2D;
+		function fromPolar(r: number, phi: number): Point2D;
 		/** Converts a cartesian vector to polar coordinates in radians. */
-		toPolar(x: number, y: number): PolarCoordinates;
+		function toPolar(x: number, y: number): PolarCoordinates;
 		/** Converts polar coordinates specified in degrees to cartesian coordinates. */
-		fromPolar_deg(r: number, phi: number): Point2D;
+		function fromPolar_deg(r: number, phi: number): Point2D;
 		/** Converts a cartesian vector to polar coordinates in degrees. */
-		toPolar_deg(x: number, y: number): PolarCoordinates;
+		function toPolar_deg(x: number, y: number): PolarCoordinates;
+		/** Converts spherical coordinates (radians) to Cartesian coordinates. */
+		function fromSpherical(r: number, theta: number, phi: number): Point3D;
+		/** Converts Cartesian coordinates to spherical coordinates (radians). */
+		function toSpherical(x: number, y: number, z: number): { r: number; theta: number; phi: number };
+		/** Converts spherical coordinates (degrees) to Cartesian coordinates. */
+		function fromSpherical_deg(r: number, theta: number, phi: number): Point3D;
+		/** Converts Cartesian coordinates to spherical coordinates (degrees). */
+		function toSpherical_deg(x: number, y: number, z: number): { r: number; theta: number; phi: number };
 		/** Returns a unit-length vector pointing in the same direction. */
-		normalize(vector: VectorInput): Point2D;
+		function normalize(vector: VectorInput): Point2D;
+		/** Returns a unit-length 3D vector. */
+		function normalize(vector: Vector3Input): Point3D;
 		/** Returns a unit-length vector pointing in the same direction. */
-		normalize(x: number, y: number): Point2D;
+		function normalize(x: number, y: number): Point2D;
+		/** Returns a unit-length 3D vector. */
+		function normalize(x: number, y: number, z: number): Point3D;
 		/** Returns an orthogonal vector, optionally using the left-hand normal. */
-		orthogonal(vector: VectorInput, lefthand?: boolean): Point2D;
+		function orthogonal(vector: VectorInput, y?: number, lefthand?: boolean): Point2D;
 		/** Returns an orthogonal vector, optionally using the left-hand normal. */
-		orthogonal(x: number, y: number, lefthand?: boolean): Point2D;
+		function orthogonal(x: number, y: number, lefthand?: boolean): Point2D;
+		/** Returns an orthogonal 3D vector, optionally relative to a reference vector. */
+		function orthogonal(vector: Vector3Input, y: number | undefined, z: number, lefthand?: boolean, reference?: Point3D): Point3D;
+		/** Returns an orthogonal 3D vector. */
+		function orthogonal(x: number, y: number, z: number, lefthand?: boolean, reference?: Point3D): Point3D;
 		/** Returns an angle between two or three points. */
-		angle(x1: number | Point2D, y1: number | Point2D, x2?: number, y2?: number, x3?: number, y3?: number): number;
+		function angle(x1: number | Point2D, y1: number | Point2D, x2?: number, y2?: number, x3?: number, y3?: number): number;
 		/** Returns distance between two points. */
-		len(x1: number | Point2D, y1: number | Point2D, x2?: number, y2?: number): number;
+		function len(x1: number | Point2D, y1: number | Point2D, x2?: number, y2?: number): number;
 		/** Returns squared distance between two points. */
-		len2(x1: number | Point2D, y1: number | Point2D, x2?: number, y2?: number): number;
+		function len2(x1: number | Point2D, y1: number | Point2D, x2?: number, y2?: number): number;
 		/** Adds two vectors. */
-		v_add(a: VectorInput, b: VectorInput): Point2D;
+		function v_add(a: VectorInput, b: VectorInput): Point2D;
 		/** Adds two vectors. */
-		v_add(x1: number, y1: number, x2: number, y2: number): Point2D;
+		function v_add(x1: number, y1: number, x2: number, y2: number): Point2D;
+		/** Adds a 2D vector and scalar coordinates. */
+		function v_add(a: VectorInput, x: number, y: number): Point2D;
+		/** Adds a 3D vector and scalar coordinates. */
+		function v_add(a: Vector3Input, x: number, y: number, z: number): Point3D;
 		/** Subtracts one vector from another. */
-		v_subtract(a: VectorInput, b: VectorInput): Point2D;
+		function v_subtract(a: VectorInput, b: VectorInput): Point2D;
 		/** Subtracts one vector from another. */
-		v_subtract(x1: number, y1: number, x2: number, y2: number): Point2D;
+		function v_subtract(x1: number, y1: number, x2: number, y2: number): Point2D;
+		/** Subtracts scalar coordinates from a 2D vector. */
+		function v_subtract(a: VectorInput, x: number, y: number): Point2D;
+		/** Subtracts scalar coordinates from a 3D vector. */
+		function v_subtract(a: Vector3Input, x: number, y: number, z: number): Point3D;
 		/** Returns the midpoint between two vectors. */
-		v_mid(a: VectorInput, b: VectorInput): Point2D;
+		function v_mid(a: VectorInput, b: VectorInput): Point2D;
 		/** Returns the midpoint between two vectors. */
-		v_mid(x1: number, y1: number, x2: number, y2: number): Point2D;
+		function v_mid(x1: number, y1: number, x2: number, y2: number): Point2D;
+		/** Returns the midpoint between a 2D vector and scalar coordinates. */
+		function v_mid(a: VectorInput, x: number, y: number): Point2D;
+		/** Returns the midpoint between a 3D vector and scalar coordinates. */
+		function v_mid(a: Vector3Input, x: number, y: number, z: number): Point3D;
+		/** Adds two 3D vectors. */
+		function v_add(a: Vector3Input, b: Vector3Input): Point3D;
+		/** Adds two 3D vectors. */
+		function v_add(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): Point3D;
+		/** Subtracts one 3D vector from another. */
+		function v_subtract(a: Vector3Input, b: Vector3Input): Point3D;
+		/** Subtracts one 3D vector from another. */
+		function v_subtract(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): Point3D;
+		/** Returns the midpoint between two 3D vectors. */
+		function v_mid(a: Vector3Input, b: Vector3Input): Point3D;
+		/** Returns the midpoint between two 3D vectors. */
+		function v_mid(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): Point3D;
 		/** Returns the dot product between two vectors. */
-		dot(a: VectorInput, b: VectorInput): number;
+		function dot(a: VectorInput, b: VectorInput): number;
 		/** Returns the dot product between two vectors. */
-		dot(x1: number, y1: number, x2: number, y2: number): number;
+		function dot(x1: number, y1: number, x2: number, y2: number): number;
+		/** Returns the dot product between 3D vectors. */
+		function dot(a: Vector3Input, b: Vector3Input): number;
+		/** Returns the dot product between a 2D vector and scalar coordinates. */
+		function dot(a: VectorInput, x: number, y: number): number;
+		/** Returns the dot product between 3D vectors. */
+		function dot(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): number;
+		/** Returns the dot product between a vector and scalar coordinates. */
+		function dot(a: Vector3Input, x: number, y: number, z?: number): number;
 		/** Returns the 2D cross product (scalar) between two vectors. */
-		cross(a: VectorInput, b: VectorInput): number;
+		function cross(a: VectorInput, b: VectorInput): number;
 		/** Returns the 2D cross product (scalar) between two vectors. */
-		cross(x1: number, y1: number, x2: number, y2: number): number;
+		function cross(x1: number, y1: number, x2: number, y2: number): number;
+		/** Returns a 3D vector cross product. */
+		function cross(a: Vector3Input, b: Vector3Input): Point3D;
+		/** Returns a 3D vector cross product. */
+		function cross(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): Point3D;
 		/** Projects one vector onto another. */
-		project(a: VectorInput, b: VectorInput): Point2D;
+		function project(a: VectorInput, b: VectorInput): Point2D;
 		/** Projects one vector onto another. */
-		project(x1: number, y1: number, x2: number, y2: number): Point2D;
+		function project(x1: number, y1: number, x2: number, y2: number): Point2D;
+		/** Projects a 3D vector onto another 3D vector. */
+		function project(a: Vector3Input, b: Vector3Input): Point3D;
+		/** Projects a 2D vector onto scalar-coordinate components. */
+		function project(a: VectorInput, x: number, y: number): Point2D;
+		/** Projects a 3D vector onto another 3D vector. */
+		function project(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): Point3D;
+		/** Projects a vector onto scalar-coordinate components. */
+		function project(a: Vector3Input, x: number, y: number, z?: number): Point2D | Point3D;
 		/** Returns the zero vector. */
-		zero(): Point2D;
+		function zero(): Point2D;
+		/** Returns the zero vector, optionally with a Z coordinate. */
+		function zero(is3D: boolean): Point2D | Point3D;
+		/** Returns a 2D vector multiplied by a scalar. */
+		function v_c_mult(scalar: number, vector: VectorInput): Point2D;
+		/** Returns a 3D vector multiplied by a scalar. */
+		function v_c_mult(scalar: number, vector: Vector3Input): Point3D;
+		/** Returns a 2D vector multiplied by a scalar. */
+		function v_c_mult(scalar: number, x: number, y: number): Point2D;
+		/** Returns a 3D vector multiplied by a scalar. */
+		function v_c_mult(scalar: number, x: number, y: number, z: number): Point3D;
+		/** Linearly interpolates between two points or vectors. */
+		function v_lerp(from: VectorInput, to: VectorInput, progress: number): Point2D;
+		/** Linearly interpolates between two 3D vectors. */
+		function v_lerp(from: Vector3Input, to: Vector3Input, progress: number): Point3D;
+		/** Linearly interpolates between scalar-coordinate vectors. */
+		function v_lerp(x1: number, y1: number, x2: number, y2: number, progress: number): Point2D;
+		/** Linearly interpolates between scalar-coordinate 3D vectors. */
+		function v_lerp(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, progress: number): Point3D;
+		/** Linearly interpolates between a vector and scalar coordinates. */
+		function v_lerp(from: Vector3Input, x: number, y: number, z: number, progress: number): Point2D | Point3D;
+		/** Reflects one 2D vector across another. */
+		function v_reflect(vector: VectorInput, normal: VectorInput): Point2D;
+		/** Reflects a 2D vector across scalar normal coordinates. */
+		function v_reflect(vector: VectorInput, normalX: number, normalY: number): Point2D;
+		/** Reflects one 3D vector across another. */
+		function v_reflect(vector: Vector3Input, normal: Vector3Input): Point3D;
+		/** Reflects a 3D vector across scalar normal coordinates. */
+		function v_reflect(vector: Vector3Input, normalX: number, normalY: number, normalZ: number): Point3D;
+		/** Reflects a 2D vector across scalar normal coordinates. */
+		function v_reflect(x: number, y: number, normalX: number, normalY: number): Point2D;
+		/** Reflects a 3D vector across scalar normal coordinates. */
+		function v_reflect(x: number, y: number, z: number, normalX: number, normalY: number, normalZ: number): Point3D;
+		/** Rotates a vector around a 3D axis. */
+		function v_rotate3D(vector: Point3D, axis: Point3D, angle: number): Point3D;
+		/** Clamps a 2D vector's magnitude. */
+		function v_clamp(vector: VectorInput, maxLength: number): Point2D;
+		/** Clamps a 3D vector's magnitude. */
+		function v_clamp(vector: Vector3Input, maxLength: number): Point3D;
+		/** Clamps a 2D vector represented by coordinates. */
+		function v_clamp(x: number, y: number, maxLength: number): Point2D;
+		/** Clamps a 3D vector represented by coordinates. */
+		function v_clamp(x: number, y: number, z: number, maxLength: number): Point3D;
+		/** Returns the angle between 2D vectors in radians. */
+		function v_angle(a: VectorInput, b: VectorInput): number;
+		/** Returns the angle between scalar-coordinate 2D vectors in radians. */
+		function v_angle(x1: number, y1: number, x2: number, y2: number): number;
+		/** Returns the angle between 3D vectors in radians. */
+		function v_angle(a: Vector3Input, b: Vector3Input): number;
+		/** Returns the angle between a 2D vector and scalar coordinates in radians. */
+		function v_angle(a: VectorInput, x: number, y: number): number;
+		/** Returns the angle between scalar-coordinate 3D vectors in radians. */
+		function v_angle(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): number;
+		/** Returns the angle between a vector and scalar-coordinate components in radians. */
+		function v_angle(a: Vector3Input, x: number, y: number, z?: number): number;
+		/** Returns the signed angle between 2D vectors. */
+		function v_angle_signed(a: VectorInput, b: VectorInput): number;
 		/** Vector pointing from a point to the closest point on a line segment. */
-		vectorPointToLine(p: VectorInput, lp1: VectorInput, lp2: VectorInput, normalize?: boolean, sqError?: number): Point2D;
+		function vectorPointToLine(p: VectorInput, lp1: VectorInput, lp2: VectorInput, normalize?: boolean, sqError?: number): Point2D;
 		/** Checks whether an angle lies between two reference angles. */
-		angle_between(a1: number, a2: number, target: number): boolean;
+		function angle_between(a1: number, a2: number, target: number): boolean;
 		/** Normalises an angle in degrees or radians. */
-		angle_normalize(angle: number, betweenNegPos?: boolean, radians?: boolean): number;
+		function angle_normalize(angle: number, betweenNegPos?: boolean, radians?: boolean): number;
 		/** Returns a safe distance from a point to an element bounding box. */
-		getSafeDistance(point: Point2D, element: Element, top?: boolean): number;
+		function getSafeDistance(point: Point2D, element: Element, top?: boolean): number;
 		/** Returns closest point on a path to the given coordinates. */
-		closestPoint(path: Element, x: number, y: number): { x: number; y: number; length: number; distance: number };
+		function closestPoint(path: Element, x: number, y: number): { x: number; y: number; length: number; distance: number };
 		/** Returns the closest point in a point cloud to the supplied coordinates. */
-		closest(x: number, y: number, X: Point2DList | number[], Y?: number[]): Point2D & { len: number } | undefined;
+		function closest(x: number, y: number, X: Point2DList | number[], Y?: number[]): Point2D & { len: number } | undefined;
+		/** Finds the intersection of two polygons. */
+		const polygons: PolygonNamespace;
+		/** Builds a concave hull around points. */
+		function hull(points: PointCollection, concavity?: number, format?: string): PointCollection;
+		/** Builds a convex hull around points. */
+		function convexHull(points: PointCollection, format?: string): PointCollection;
+		/** Computes Voronoi data for a point collection. */
+		function voronoi(points: PointCollection): unknown;
+		/** Finds the closest pair of points. */
+		function closestPair(points: PointCollection): unknown;
+		/** Creates a k-d tree for point lookup. */
+		function kdTree(points: PointCollection, dimensions?: string[]): unknown;
+		/** Creates an X-sorted k-d tree. */
+		function kdTreeX(points: PointCollection): unknown;
+		/** Creates a Y-sorted k-d tree. */
+		function kdTreeY(points: PointCollection): unknown;
+		/** Creates a binary heap scored by the supplied function. */
+		function binaryHeap<T>(score: (value: T) => number): unknown;
+		/** Generates random 2D points within a rectangle. */
+		function randomPoints(count: number, width: number, height: number): Point2DList;
+		/** Finds pairs of nearby points across two collections. */
+		function nearPairs(first: PointCollection, second: PointCollection): unknown;
+		/** Touch and pointer event support flags. */
+		const supportsTouch: boolean;
+		const poinertSupport: boolean;
+		/** Gesture defaults and gesture names exported by the gesture extension. */
+		const gestureDefaults: Record<string, unknown>;
+		const gestureNames: string[];
 		/** Replacement for `typeof` that recognises Snap specific abstractions. */
-		is(value: unknown, type: string): boolean;
+		function is(value: unknown, type: string): boolean;
 		/** Registers a constructor under the supplied type name. */
-		registerClass(type: string, ctor: any): void;
+		function registerClass(type: string, ctor: any): void;
+		/** Alias for {@link registerClass}. */
+		function registerType(type: string, ctor: any): void;
 		/** Retrieves a constructor registered with {@link registerClass}. */
-		getClass<T = unknown>(type: string): T;
+		function getClass<T = unknown>(type: string): T;
 		/** Snaps a value to a discrete grid. */
-		snapTo(values: number[] | number, value: number, tolerance?: number): number;
+		function snapTo(values: number[] | number, value: number, tolerance?: number): number;
 		/** Parses a colour string into RGB components. */
-		getRGB(color: string): RGBColor;
+		function getRGB(color: string): RGBColor;
 		/** Factory returning a new matrix instance. */
-		matrix(a?: number | MatrixLike, b?: number, c?: number, d?: number, e?: number, f?: number): Matrix;
+		function matrix(a?: number | MatrixLike, b?: number, c?: number, d?: number, e?: number, f?: number): Matrix;
 		/** Computes the change-of-basis matrix between two groups. */
-		groupToGroupChangeOfBase(from: Element, to: Element): Matrix;
+		function groupToGroupChangeOfBase(from: Element, to: Element): Matrix;
 		/** Tests whether two concave polygons intersect. */
-		polygonsIntersectConcave(a: Point2DList, b: Point2DList): boolean;
+		function polygonsIntersectConcave(a: Point2DList, b: Point2DList): boolean;
 		/** Expands a polygon by offsetting each vertex outward. */
-		polygonExpand(points: Point2DList, distance: number): Point2DList;
+		function polygonExpand(points: Point2DList, distance: number): Point2DList;
 		/** Performs asynchronous resource loading. */
-		load(url: ResourceSpecifier, callback: (fragment: Fragment, raw?: string) => void, scope?: unknown, data?: string, filter?: string | ((fragment: Fragment) => void), failCallback?: (error: unknown) => void, failScope?: unknown, eve?: unknown): void;
+		function load(url: ResourceSpecifier, callback: (fragment: Fragment, raw?: string) => void, scope?: unknown, data?: string, filter?: string | ((fragment: Fragment) => void), failCallback?: (error: unknown) => void, failScope?: unknown, eve?: unknown): void;
 		/** Lightweight AJAX helper. */
-		ajax(url: string | [string, unknown], callback: (req: XMLHttpRequest) => void, scope?: unknown, failCallback?: (req: XMLHttpRequest) => void): void;
+		function ajax(url: string | [string, unknown], callback: (req: XMLHttpRequest) => void, scope?: unknown, failCallback?: (req: XMLHttpRequest) => void): void;
 		/** Lightweight AJAX helper. */
-		ajax(url: string | [string, unknown], postData: unknown, callback: (req: XMLHttpRequest) => void, scope?: unknown, failCallback?: (req: XMLHttpRequest) => void): void;
+		function ajax(url: string | [string, unknown], postData: unknown, callback: (req: XMLHttpRequest) => void, scope?: unknown, failCallback?: (req: XMLHttpRequest) => void): void;
 		/** Parses SVG markup into a fragment. */
-		parse(markup: string, filter?: string | ((fragment: Fragment) => void)): Fragment;
+		function parse(markup: string, filter?: string | ((fragment: Fragment) => void)): Fragment;
 		/** Converts a compact JSON representation into SVG/XML markup. */
-		jsonToSvg(json: unknown, decrypt?: (map: Record<string, string>) => Record<string, string>, map?: Record<string, string>, system?: AttributeKeyConfiguration): string;
+		function jsonToSvg(json: unknown, decrypt?: (map: Record<string, string>) => Record<string, string>, map?: Record<string, string>, system?: AttributeKeyConfiguration): string;
 		/** Creates a fragment from mixed nodes. */
-		fragment(...nodes: Array<string | Element | Element[] | Node | null | undefined>): Fragment;
+		function fragment(...nodes: Array<string | Element | Element[] | Node | null | undefined>): Fragment;
 		/** Converts between CSS style string and object representations. */
-		convertStyleFormat(style: string): Record<string, string>;
+		function convertStyleFormat(style: string): Record<string, string>;
 		/** Converts between CSS style string and object representations. */
-		convertStyleFormat(style: Record<string, string>): string;
+		function convertStyleFormat(style: Record<string, string>): string;
 		/** Converts camelCase into hyphen-case. */
-		camelToHyphen(value: string): string;
+		function camelToHyphen(value: string): string;
 		/** Converts dash or underscore separated text into camelCase. */
-		toCamelCase(value: string): string;
+		function toCamelCase(value: string): string;
 		/** Waits for a condition before invoking the callback or timing out. */
-		waitFor(condition: () => unknown, callback: () => void, timelimit?: TimeLimitSpecifier, failCallback?: () => void): void;
+		function waitFor(condition: () => unknown, callback: () => void, timelimit?: TimeLimitSpecifier, failCallback?: () => void): void;
 		/** Validates absolute or relative URLs. */
-		isUrl(url: string, relative?: boolean): boolean;
+		function isUrl(url: string, relative?: boolean): boolean;
 		/** Checks whether an object has no enumerable own properties. */
-		isEmptyObject(object: Record<string, unknown>): boolean;
+		function isEmptyObject(object: Record<string, unknown>): boolean;
 		/** Normalises Illustrator-generated identifiers into readable names. */
-		AI_name_fix(name: string): string;
+		function AI_name_fix(name: string): string;
 		/** Extracts a numeric dimension from an element or bounding box. */
-		dimFromElement(el: Element | BBox, dim: keyof BBox | string): number;
+		function dimFromElement(el: Element | BBox, dim: keyof BBox | string): number;
 		/** Evaluates a dimension expression bounded within optional limits. */
-		varDimension(value: string | number | [string | number, string | number | undefined, string | number | undefined], space: number, negative?: boolean): number;
+		function varDimension(value: string | number | [string | number, string | number | undefined, string | number | undefined], space: number, negative?: boolean): number;
 		/** Selects the first element that matches the CSS selector. */
-		select<T extends Element = Element>(selector: string): T | null;
+		function select<T extends Element = Element>(selector: string): T | null;
 		/** Selects all elements that match the CSS selector. */
-		selectAll<T extends Element = Element>(selector: string): Set<T>;
+		function selectAll<T extends Element = Element>(selector: string): Set<T>;
 		/** Runs a plugin initialiser. */
-		plugin(initialiser: (Snap: SnapFunction, Element: ElementStatic, Paper: PaperStatic, glob: { win: Window; doc: Document }, Fragment: FragmentStatic, eve: any) => void): void;
+		function plugin(initialiser: (Snap: SnapFunction, Element: ElementStatic, Paper: PaperStatic, glob: { win: Window; doc: Document }, Fragment: FragmentStatic, eve: any, mina?: MinaNamespace) => void): void;
 		/** Exposes the animation engine. */
-		readonly mina: MinaNamespace;
+		const mina: MinaNamespace;
+		/** Exposes the eve event emitter in builds that bundle it. */
+		const eve: any;
+		/** Exposes the animation descriptor constructor. */
+		function animation(attributes: Attributes, duration: number, easing?: MinaEasing, callback?: (animation: MinaAnimation) => void): AnimationDescriptor;
+		/** Animates a generic value using a setter callback. */
+		function animate<T extends AnimationValue>(from: T, to: T, setter: MinaSetter<T>, duration: number, easing?: MinaEasing, callback?: (animation: MinaAnimation<T>) => void): MinaAnimation<T>;
 		/** Returns an empty set. */
-		set<T extends Element = Element>(...items: T[]): Set<T>;
+		function set<T extends Element = Element>(...items: T[]): Set<T>;
+		/** Exposes the set constructor. */
+		const Set: SetStatic;
+		/** Exposes the bounding-box constructor. */
+		const BBox: BBoxStatic;
+		/** Exposes the static complex-number utilities. */
+		const Complex: ComplexStatic;
+		/** Exposes the reusable non-linear transform builders. */
+		const NonlinTransforms: NonlinTransforms;
+		/** Exposes registered font-loading and text-path helpers. */
+		const font: FontNamespace;
+		/** Exposes SVG filter fragment builders. */
+		const filter: FilterNamespace;
+		/** Material design colour palette. */
+		const mui: MaterialColors;
+		/** Flat UI colour palette. */
+		const flat: FlatColors;
+		/** Imports Material palette entries into the global object. */
+		function importMUIColors(): void;
+		/** Returns a palette colour by its ordinal index. */
+		function getIndexColor(index: number): string | NamedColor;
 		/** Utility namespace for path manipulation. */
-		readonly path: SnapPath;
+		const path: SnapPath;
+		/** Exposes Bézier utilities. */
+		const bUtils: Record<string, any>;
+		/** Creates a Bézier helper from its coordinates. */
+		function bezier(...coordinates: number[]): Record<string, any>;
+		/** Creates a poly-Bézier helper from curve descriptors. */
+		function polyBezier(...curves: unknown[]): PolyBezier;
+		/** Exposes the legacy box helper. */
+		function box(x: number | number[] | BoundsLike | BBox, y?: number, width?: number, height?: number): BBox;
+		/** Returns a bounding box enclosing the supplied points. */
+		function bBoxFromPoints(points: Point2DList, matrix?: MatrixLike): BBox;
+		/** Returns the union of the supplied bounding boxes. */
+		function joinBBoxes(boxes: BBox[]): BBox;
+		/** Measures text using the browser's text layout engine. */
+		function measureTextClientRect(text: Element): BBox;
+		/** Returns or normalizes the URL used for SVG paint references. */
+		function url(value?: string): string;
+		/** Rewrites a URL for safe SVG attribute use. */
+		function fixUrl(value: string): string;
+		/** Finds or wraps an element by id. */
+		function elementFormId(id: string): Element | null;
+		/** Removes a URL wrapper from an attribute value. */
+		function deurl(value: string): string;
+		/** Delays an animation to a given value using the global animation engine. */
+		function round(value: number, precision?: number): number;
+		/** Removes non-printable characters from a string. */
+		function removeNonPrintable(value: string): string;
+		/** Converts a string to title case. */
+		function titleCase(value: string): string;
+		/** Compares two arrays, optionally comparing nested arrays. */
+		function array_equal(first: unknown[], second: unknown[], deep?: boolean): boolean;
+		/** Copies an object and optionally applies a patch. */
+		function objectCopy<T>(value: T, patch?: Partial<T>): T;
+		/** Flattens a nested object into a dotted-key object. */
+		function flattenObject(value: Record<string, unknown>, prefix?: string, result?: Record<string, unknown>): Record<string, unknown>;
 		/** Parses an SVG path string into an array representation. */
-		parsePathString(path: string | Array<string | number>): Array<string | number>;
+		function parsePathString(path: string | Array<string | number>): Array<string | number>;
 		/** Parses a transform string into component commands. */
-		parseTransformString(transform: string | Array<string | number>): Array<string | number> | null;
+		function parseTransformString(transform: string | Array<string | number>): Array<string | number> | null;
 		/** Converts hex/HSL/HSB strings into a colour object. */
-		color(color: string): RGBColor & { hsb: NumberPair; rgb: NumberPair; hsl: NumberPair; opacity: number };
+		function color(color: string): RGBColor & { hsb: NumberPair; rgb: NumberPair; hsl: NumberPair; opacity: number };
 		/** Converts HSB values to a hex colour string. */
-		hsb(h: number, s: number, b: number): string;
+		function hsb(h: number, s: number, b: number): string;
 		/** Converts HSL values to a hex colour string. */
-		hsl(h: number, s: number, l: number): string;
+		function hsl(h: number, s: number, l: number): string;
 		/** Converts RGB values to a hex colour string. */
-		rgb(r: number, g: number, b: number, o?: number): string;
+		function rgb(r: number, g: number, b: number, o?: number): string;
 		/** Converts HSB values to RGB components. */
-		hsb2rgb(h: number | { h: number; s: number; b: number; o?: number }, s?: number, b?: number, o?: number): RGBColor;
+		function hsb2rgb(h: number | { h: number; s: number; b: number; o?: number }, s?: number, b?: number, o?: number): RGBColor;
 		/** Converts HSL values to RGB components. */
-		hsl2rgb(h: number | { h: number; s: number; l: number; o?: number }, s?: number, l?: number, o?: number): RGBColor;
+		function hsl2rgb(h: number | { h: number; s: number; l: number; o?: number }, s?: number, l?: number, o?: number): RGBColor;
 		/** Converts RGB values to HSB components. */
-		rgb2hsb(r: number | { r: number; g: number; b: number; opacity?: number }, g?: number, b?: number): { h: number; s: number; b: number; opacity: number };
+		function rgb2hsb(r: number | { r: number; g: number; b: number; opacity?: number }, g?: number, b?: number): { h: number; s: number; b: number; opacity: number };
 		/** Converts RGB values to HSL components. */
-		rgb2hsl(r: number | { r: number; g: number; b: number; opacity?: number }, g?: number, b?: number): { h: number; s: number; l: number; opacity: number };
+		function rgb2hsl(r: number | { r: number; g: number; b: number; opacity?: number }, g?: number, b?: number): { h: number; s: number; l: number; opacity: number };
 		/** Converts RGB components in the `[0,1]` range to CMYK values. */
-		rgb2cmyk(r: number, g: number, b: number): CMYKColor;
+		function rgb2cmyk(r: number, g: number, b: number): CMYKColor;
 		/** Converts CMYK components to 8-bit RGB values. */
-		cmykToRgb(c: number, m: number, y: number, k: number): RGBTriplet;
+		function cmykToRgb(c: number, m: number, y: number, k: number): RGBTriplet;
 		/** Convenience helper that returns an RGBA string. */
-		rgba(r: number, g: number, b: number, a: number): string;
+		function rgba(r: number, g: number, b: number, a: number): string;
 		/** Convenience helper that returns an HSLA string. */
-		hsla(h: number, s: number, l: number, a: number): string;
+		function hsla(h: number, s: number, l: number, a: number): string;
 		/** Returns the first ancestor element at the specified coordinates. */
-		getElementByPoint(x: number, y: number): Element | null;
-		/** Namespace exposing the set constructor. */
-		readonly Set: SetStatic;
-	}
-
+		function getElementByPoint(x: number, y: number): Element | null;
 	/**
 	 * Collection of helpers for path manipulation. Only the most commonly used
 	 * functions are modelled explicitly; additional helpers are typed as `any` to
@@ -1418,7 +2051,7 @@ declare namespace Snap {
 	}
 
 	interface FragmentStatic {
-		new (...nodes: Array<string | Element | Node | null | undefined>): Fragment;
+		new (node: DocumentFragment): Fragment;
 		prototype: Fragment;
 	}
 
@@ -1427,7 +2060,5 @@ declare namespace Snap {
 		prototype: Set<any>;
 	}
 }
-
-declare const Snap: Snap.SnapFunction;
 
 export = Snap;
